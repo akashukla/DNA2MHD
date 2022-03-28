@@ -504,23 +504,41 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v)
   ALLOCATE(temp_small(0:nkx0-1,0:nky0-1,0:nkz0-1))
   ALLOCATE(temp_big(0:nx0_big/2,0:ny0_big-1,0:nz0_big-1))
 
-  ALLOCATE(b(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1,0:2))
-  ALLOCATE(v(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1,0:2))
+  ALLOCATE(bx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(by(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(bz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
 
-  ALLOCATE(dxv(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1,0:2))
-  ALLOCATE(dyv(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1,0:2))
-  ALLOCATE(dzv(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1,0:2))
-  ALLOCATE(dxb(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1,0:2))
-  ALLOCATE(dyb(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1,0:2))
-  ALLOCATE(dzb(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1,0:2))
+  ALLOCATE(vx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(vy(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(vz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+
+  ALLOCATE(dxvx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(dyvx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(dzvx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(dxvy(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(dyvy(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(dzvy(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(dxvz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(dyvz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(dzvz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+
+  ALLOCATE(dxbx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(dybx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(dzbx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(dxby(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(dyby(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(dzby(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(dxbz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(dybz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(dzbz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
 
 
-  ALLOCATE(dxdyb(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1,0:2))
-  ALLOCATE(dydyb(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1,0:2))
-  ALLOCATE(dzdyb(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1,0:2))
-  ALLOCATE(dxdzb(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1,0:2))
-  ALLOCATE(dydzb(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1,0:2))
-  ALLOCATE(dzdzb(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1,0:2))
+  ALLOCATE(dxdybx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(dydyby(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(dzdybz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(dxdzbx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(dydzby(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(dzdzbz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
 
   ALLOCATE(dxphi(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
   ALLOCATE(dyphi(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
@@ -528,8 +546,12 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v)
   ALLOCATE(dyg(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
   
   !ALLOCATE(g_in0(0:nkx0-1,0:nky0-1,lkz1:lkz2,lv1:lv2,lh1:lh2,ls1:ls2))
-  ALLOCATE(b_in0(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
-  ALLOCATE(v_in0(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
+  ALLOCATE(b_inx0(0:nkx0-1,0:nky0-1,lkz1:lkz2))
+  ALLOCATE(b_iny0(0:nkx0-1,0:nky0-1,lkz1:lkz2))
+  ALLOCATE(b_inz0(0:nkx0-1,0:nky0-1,lkz1:lkz2))
+  ALLOCATE(v_inx0(0:nkx0-1,0:nky0-1,lkz1:lkz2))
+  ALLOCATE(v_iny0(0:nkx0-1,0:nky0-1,lkz1:lkz2))
+  ALLOCATE(v_inz0(0:nkx0-1,0:nky0-1,lkz1:lkz2))
 
 ! Some test for the inverse hankel transform
 !  IF (mype==0) THEN
@@ -587,8 +609,12 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v)
  
   ! I dont want to change g_in, so I copy temporaly to g_in0
   !g_in0 = g_in
-  b_in0 = b_in
-  v_in0 = v_in
+  b_inx0 = b_in(:,:,:,0)
+  b_iny0 = b_in(:,:,:,1)
+  b_inz0 = b_in(:,:,:,2)
+  v_inx0 = v_in(:,:,:,0)
+  v_iny0 = v_in(:,:,:,1)
+  v_inz0 = v_in(:,:,:,2)
 
   !IF (hankel) THEN
   !!First I need the Hankel transform of g_in
@@ -604,7 +630,7 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v)
    ! END DO
 
     !dx phi
-    ! b
+    !bx
     DO i=0,nkx0-1
         !temp_small(i,:,:)=i_complex*kxgrid(i)*phi_in(i,:,:)
         temp_small(i,:,:)=b_in0(i,:,:,:)
