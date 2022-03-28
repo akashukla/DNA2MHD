@@ -167,48 +167,7 @@ END SUBROUTINE initialize_fourier_ae_mu0_2d
 !SUBROUTINE initialize_fourier2
 !
 !  include 'fftw3.f'
-!
-!  COMPLEX, ALLOCATABLE, DIMENSION(:) :: kvec_x,kvec_y,kvec_z 
-!  COMPLEX, ALLOCATABLE, DIMENSION(:) :: rvec_y,rvec_z 
-!  REAL, ALLOCATABLE, DIMENSION(:) :: rvec_x
-!  
-!  IF(mype==0) WRITE(*,*) "Using three 1D ffts."
-!  !for dealiasing
-!  nx0_big=3*nkx0
-!  ny0_big=3*nky0/2
-!  nz0_big=3*nkz0/2
-!  fft_norm=1.0/(REAL(nx0_big*ny0_big*nz0_big))
-!
-!  ALLOCATE(kvec_x(0:nx0_big/2))
-!  ALLOCATE(rvec_x(0:nx0_big-1))
-!  ALLOCATE(kvec_y(0:ny0_big-1))
-!  ALLOCATE(rvec_y(0:ny0_big-1))
-!  ALLOCATE(kvec_z(0:nz0_big-1))
-!  ALLOCATE(rvec_z(0:nz0_big-1))
-!
-!  !WRITE(*,*) "making plans"
-!  CALL dfftw_plan_dft_1d(plan_z2kz,nz0_big,rvec_z,kvec_z,FFTW_FORWARD,FFTW_ESTIMATE)
-!  CALL dfftw_plan_dft_1d(plan_kz2z,nz0_big,kvec_z,rvec_z,FFTW_BACKWARD,FFTW_ESTIMATE)
-!  CALL dfftw_plan_dft_1d(plan_y2ky,ny0_big,rvec_y,kvec_y,FFTW_FORWARD,FFTW_ESTIMATE)
-!  CALL dfftw_plan_dft_1d(plan_ky2y,ny0_big,kvec_y,rvec_y,FFTW_BACKWARD,FFTW_ESTIMATE)
-!
-!  CALL dfftw_plan_dft_r2c_1d(plan_x2kx,nx0_big,rvec_x,kvec_x,FFTW_ESTIMATE)
-!  CALL dfftw_plan_dft_r2c_1d(plan_kx2x,nx0_big,kvec_x,rvec_x,FFTW_ESTIMATE)
-!
-!!  CALL dfftw_plan_dft_c2r_3d(plan_c2r,nx0_big,ny0_big,nz0_big,&
-!!                             g_kbig,g_rbig,FFTW_ESTIMATE)
-!!  CALL dfftw_plan_dft_r2c_3d(plan_r2c,nx0_big,ny0_big,nz0_big,&
-!!                             g_rbig,g_kbig,FFTW_ESTIMATE)
-!
-!  lky_big=ny0_big-hky_ind !Index of minimum (most negative) FILLED ky value for big arrays
-!  lkz_big=nz0_big-hkz_ind !Index of minimum (most negative) FILLED kz value for big arrays 
-!
-!  DEALLOCATE(kvec_x)
-!  DEALLOCATE(rvec_x)
-!  DEALLOCATE(kvec_y)
-!  DEALLOCATE(rvec_y)
-!  DEALLOCATE(kvec_z)
-!  DEALLOCATE(rvec_z)
+!DELETED NO NEED
 !
 !END SUBROUTINE initialize_fourier2
 
