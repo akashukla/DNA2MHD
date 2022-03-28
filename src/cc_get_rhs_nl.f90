@@ -267,7 +267,6 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v)
   ALLOCATE(dybz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
   ALLOCATE(dzbz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
 
-
   ALLOCATE(dxdybx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
   ALLOCATE(dydyby(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
   ALLOCATE(dzdybz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
@@ -320,7 +319,7 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v)
     !dx phi
     !bx
     DO i=0,nkx0-1
-        !temp_small(i,:,:)=i_complex*kxgrid(i)*phi_in(i,:,:)
+                       !temp_small(i,:,:)=i_complex*kxgrid(i)*phi_in(i,:,:)
         temp_small(i,:,:)=b_inx0(i,:,:)
     END DO
     !Add padding for dealiasing
@@ -334,7 +333,7 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v)
     CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),bx(0,0,0))
     !by
     DO j=0,nky0-1
-        !temp_small(i,:,:)=i_complex*kxgrid(i)*phi_in(i,:,:)
+                               !temp_small(i,:,:)=i_complex*kxgrid(i)*phi_in(i,:,:)
         temp_small(:,j,:)=b_iny0(:,j,:)
     END DO
     !Add padding for dealiasing
@@ -348,7 +347,7 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v)
     CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),by(0,0,0))
     !bz
     DO i=0,nkz0-1
-        !temp_small(i,:,:)=i_complex*kxgrid(i)*phi_in(i,:,:)
+                                             !temp_small(i,:,:)=i_complex*kxgrid(i)*phi_in(i,:,:)
         temp_small(:,:,k)=b_inz0(:,:,k)
     END DO
     !Add padding for dealiasing
@@ -361,9 +360,51 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v)
     END DO!k loop
     CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),bz(0,0,0))
 
-!!! Prerana do vx,vy,vz terms just like bx,by,bz above
+!!! Prerana do vx,vy,vz terms just like bx,by,bz above  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!vx
+    DO i=0,nkx0-1
+                               !temp_small(i,:,:)=i_complex*kxgrid(i)*phi_in(i,:,:)
+        temp_small(i,:,:)=v_inx0(i,:,:)
+    END DO
+    !Add padding for dealiasing
+    temp_big=cmplx(0.0,0.0)
+    DO i=0,nkx0-1
+        temp_big(i,0:hky_ind,0:hkz_ind)=temp_small(i,0:hky_ind,0:hkz_ind)    !kz positive, ky positive    
+        temp_big(i,0:hky_ind,lkz_big:nz0_big-1)=temp_small(i,0:hky_ind,lkz_ind:nkz0-1) !kz negative, ky positive
+        temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
+        temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
+    END DO!k loop
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),vx(0,0,0))
+    !vy
+    DO j=0,nky0-1
+                              !temp_small(i,:,:)=i_complex*kxgrid(i)*phi_in(i,:,:)
+        temp_small(:,j,:)=v_iny0(:,j,:)
+    END DO
+    !Add padding for dealiasing
+    temp_big=cmplx(0.0,0.0)
+    DO i=0,nkx0-1
+        temp_big(i,0:hky_ind,0:hkz_ind)=temp_small(i,0:hky_ind,0:hkz_ind)    !kz positive, ky positive    
+        temp_big(i,0:hky_ind,lkz_big:nz0_big-1)=temp_small(i,0:hky_ind,lkz_ind:nkz0-1) !kz negative, ky positive
+        temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
+        temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
+    END DO!k loop
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),vy(0,0,0))
+    !bz
+    DO i=0,nkz0-1
+                      !temp_small(i,:,:)=i_complex*kxgrid(i)*phi_in(i,:,:)
+        temp_small(:,:,k)=b_inz0(:,:,k)
+    END DO
+    !Add padding for dealiasing
+    temp_big=cmplx(0.0,0.0)
+    DO i=0,nkx0-1
+        temp_big(i,0:hky_ind,0:hkz_ind)=temp_small(i,0:hky_ind,0:hkz_ind)    !kz positive, ky positive    
+        temp_big(i,0:hky_ind,lkz_big:nz0_big-1)=temp_small(i,0:hky_ind,lkz_ind:nkz0-1) !kz negative, ky positive
+        temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
+        temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
+    END DO!k loop
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),bz(0,0,0))
 
-
+!! PRERANA !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
 
