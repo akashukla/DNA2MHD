@@ -51,7 +51,9 @@ MODULE nonlinearity
   REAL, ALLOCATABLE, DIMENSION(:,:,:) :: dxdxbz, dxdybz, dxdzbz, dxdybz, dydybz, dzdybz, dxdzbz, dydzbz, dzdzbz
     
   REAL, ALLOCATABLE, DIMENSION(:,:,:) :: vx,vy,vz, dxvx, dyvx,dzvx, dxvy,dyvy,dzvz, dxvz,dyvz,dzvz
-  REAL, ALLOCATABLE, DIMENSION(:,:,:) :: vx,vy,vz, dxvx, dyvx,dzvx, dxvy,dyvy,dzvz, dxvz,dyvz,dzvz
+  REAL, ALLOCATABLE, DIMENSION(:,:,:) :: dxdxvx, dxdyvx, dxdzvx, dxdyvx, dydyvx, dzdyvx, dxdzvx, dydzvx, dzdzvx
+  REAL, ALLOCATABLE, DIMENSION(:,:,:) :: dxdxvy, dxdyvy, dxdzvy, dxdyvy, dydyvy, dzdyvy, dxdzvy, dydzvy, dzdzvy
+  REAL, ALLOCATABLE, DIMENSION(:,:,:) :: dxdxvz, dxdyvz, dxdzvz, dxdyvz, dydyvz, dzdyvz, dxdzvz, dydzvz, dzdzvz
   
                                                         ! COMPLEX, ALLOCATABLE, DIMENSION(:,:) :: temp_small_2d,temp_big_2d
                                                         ! REAL, ALLOCATABLE, DIMENSION(:,:) :: dxphi_2d,dyphi_2d,dxg_2d,dyg_2d
