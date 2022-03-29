@@ -611,7 +611,307 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v)
     END DO!k loop
     CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dzdzvz(0,0,0))
     
-!$$$$$$$$$$$$###############@@@@@@&&&&&&&&&&&&&&& VZ THINGS END
+!$$$$$$$$$$$$###############@@@@@@&&&&&&&&&&&&&&& END SECOND ORDER VZ TERMS
+
+!bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb   SECOND ORDER b terms  bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+
+ !$$$$$$$%%%%%%%&&&&&&&&&&& ! SECOND ORDER  BX TERMS DXDXBX,DXDYBX,DXDZBX,  DYDYBX,DYDZBX, DZDZBX
+    !dxdxbx
+  DO i=0,nkx0-1
+    DO i=0,nkx0-1
+        temp_small(i,j,:)=i_complex*kxgrid(i)*kxgrid(i)*b_inx0(i,:,:) ! there is  two i's in the 
+    END DO
+    END DO
+        !Add padding for dealiasing
+    temp_big=cmplx(0.0,0.0)
+    DO i=0,nkx0-1
+        temp_big(i,0:hky_ind,0:hkz_ind)=temp_small(i,0:hky_ind,0:hkz_ind)    !kz positive, ky positive    
+        temp_big(i,0:hky_ind,lkz_big:nz0_big-1)=temp_small(i,0:hky_ind,lkz_ind:nkz0-1) !kz negative, ky positive
+        temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
+        temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
+    END DO!k loop
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxdxbx(0,0,0))
+   
+   !dxdybx
+  DO i=0,nkx0-1
+    DO j=0,nky0-1
+        temp_small(i,j,:)=i_complex*kxgrid(i)*kygrid(j)*b_inx0(i,j,:)
+    END DO
+    END DO
+        !Add padding for dealiasing
+    temp_big=cmplx(0.0,0.0)
+    DO i=0,nkx0-1
+        temp_big(i,0:hky_ind,0:hkz_ind)=temp_small(i,0:hky_ind,0:hkz_ind)    !kz positive, ky positive    
+        temp_big(i,0:hky_ind,lkz_big:nz0_big-1)=temp_small(i,0:hky_ind,lkz_ind:nkz0-1) !kz negative, ky positive
+        temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
+        temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
+    END DO!k loop
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxdybx(0,0,0))
+    
+     !dxdzbx
+  DO i=0,nkx0-1
+    DO j=0,nkz0-1
+        temp_small(i,j,:)=i_complex*kxgrid(i)*kzgrid(k)*b_inx0(i,:,k)
+    END DO
+    END DO
+        !Add padding for dealiasing
+    temp_big=cmplx(0.0,0.0)
+    DO i=0,nkx0-1
+        temp_big(i,0:hky_ind,0:hkz_ind)=temp_small(i,0:hky_ind,0:hkz_ind)    !kz positive, ky positive    
+        temp_big(i,0:hky_ind,lkz_big:nz0_big-1)=temp_small(i,0:hky_ind,lkz_ind:nkz0-1) !kz negative, ky positive
+        temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
+        temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
+    END DO!k loop
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxdzbx(0,0,0))
+    
+   ! DYDYbX
+  DO i=0,nky0-1
+    DO j=0,nky0-1
+        temp_small(i,j,:)=i_complex*kygrid(i)*kygrid(j)*b_inx0(:,j,:)  ! towo y grid
+    END DO
+    END DO
+        !Add padding for dealiasing
+    temp_big=cmplx(0.0,0.0)
+    DO i=0,nkx0-1
+        temp_big(i,0:hky_ind,0:hkz_ind)=temp_small(i,0:hky_ind,0:hkz_ind)    !kz positive, ky positive    
+        temp_big(i,0:hky_ind,lkz_big:nz0_big-1)=temp_small(i,0:hky_ind,lkz_ind:nkz0-1) !kz negative, ky positive
+        temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
+        temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
+    END DO!k loop
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dydyvb(0,0,0))
+    
+     ! DYDzbX
+  DO i=0,nky0-1
+    DO j=0,nkz0-1
+        temp_small(i,j,:)=i_complex*kygrid(i)*kzgrid(k)*b_inx0(:,j,k)  
+    END DO
+    END DO
+        !Add padding for dealiasing
+    temp_big=cmplx(0.0,0.0)
+    DO i=0,nkx0-1
+        temp_big(i,0:hky_ind,0:hkz_ind)=temp_small(i,0:hky_ind,0:hkz_ind)    !kz positive, ky positive    
+        temp_big(i,0:hky_ind,lkz_big:nz0_big-1)=temp_small(i,0:hky_ind,lkz_ind:nkz0-1) !kz negative, ky positive
+        temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
+        temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
+    END DO!k loop
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dydzbx(0,0,0))
+    
+     ! DzDzbX
+  DO i=0,nkz0-1
+    DO j=0,nkz0-1
+        temp_small(i,j,:)=i_complex*kygrid(k)*kzgrid(k)*b_inx0(:,:,k)  !two kz grid
+    END DO
+    END DO
+        !Add padding for dealiasing
+    temp_big=cmplx(0.0,0.0)
+    DO i=0,nkx0-1
+        temp_big(i,0:hky_ind,0:hkz_ind)=temp_small(i,0:hky_ind,0:hkz_ind)    !kz positive, ky positive    
+        temp_big(i,0:hky_ind,lkz_big:nz0_big-1)=temp_small(i,0:hky_ind,lkz_ind:nkz0-1) !kz negative, ky positive
+        temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
+        temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
+    END DO!k loop
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dzdzvbx(0,0,0))
+   
+   !$$$$%%%%%%%%%%%&&&&&&&&&&&&&&& SECOND ORDER  BX TERMS END
+   
+! SECOND ORDER  bY TERMS DXDXBY,DXDYBY,DXDZBY, DYDYBY,DYDZBY, DZDZBY 
+!$$$$$$$$$$#########%%%%%%%%%$$$$$$$$$$$$
+!dxdxby
+  DO i=0,nkx0-1
+    DO i=0,nkx0-1
+        temp_small(i,j,:)=i_complex*kxgrid(i)*kxgrid(i)*b_iny0(i,:,:) ! there is  two i's in the 
+    END DO
+    END DO
+        !Add padding for dealiasing
+    temp_big=cmplx(0.0,0.0)
+    DO i=0,nkx0-1
+        temp_big(i,0:hky_ind,0:hkz_ind)=temp_small(i,0:hky_ind,0:hkz_ind)    !kz positive, ky positive    
+        temp_big(i,0:hky_ind,lkz_big:nz0_big-1)=temp_small(i,0:hky_ind,lkz_ind:nkz0-1) !kz negative, ky positive
+        temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
+        temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
+    END DO!k loop
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxdxby(0,0,0))
+   
+   !dxdyvy
+  DO i=0,nkx0-1
+    DO j=0,nky0-1
+        temp_small(i,j,:)=i_complex*kxgrid(i)*kygrid(j)*b_iny0(i,j,:)
+    END DO
+    END DO
+        !Add padding for dealiasing
+    temp_big=cmplx(0.0,0.0)
+    DO i=0,nkx0-1
+        temp_big(i,0:hky_ind,0:hkz_ind)=temp_small(i,0:hky_ind,0:hkz_ind)    !kz positive, ky positive    
+        temp_big(i,0:hky_ind,lkz_big:nz0_big-1)=temp_small(i,0:hky_ind,lkz_ind:nkz0-1) !kz negative, ky positive
+        temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
+        temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
+    END DO!k loop
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxdyby(0,0,0))
+    
+     !dxdzby
+  DO i=0,nkx0-1
+    DO j=0,nkz0-1
+        temp_small(i,j,:)=i_complex*kxgrid(i)*kzgrid(k)*b_iny0(i,:,k)
+    END DO
+    END DO
+        !Add padding for dealiasing
+    temp_big=cmplx(0.0,0.0)
+    DO i=0,nkx0-1
+        temp_big(i,0:hky_ind,0:hkz_ind)=temp_small(i,0:hky_ind,0:hkz_ind)    !kz positive, ky positive    
+        temp_big(i,0:hky_ind,lkz_big:nz0_big-1)=temp_small(i,0:hky_ind,lkz_ind:nkz0-1) !kz negative, ky positive
+        temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
+        temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
+    END DO!k loop
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxdzby(0,0,0))
+   ! DYDYby
+  DO i=0,nky0-1
+    DO j=0,nky0-1
+        temp_small(i,j,:)=i_complex*kygrid(i)*kygrid(j)*b_iny0(:,j,:)  ! towo y grid
+    END DO
+    END DO
+        !Add padding for dealiasing
+    temp_big=cmplx(0.0,0.0)
+    DO i=0,nkx0-1
+        temp_big(i,0:hky_ind,0:hkz_ind)=temp_small(i,0:hky_ind,0:hkz_ind)    !kz positive, ky positive    
+        temp_big(i,0:hky_ind,lkz_big:nz0_big-1)=temp_small(i,0:hky_ind,lkz_ind:nkz0-1) !kz negative, ky positive
+        temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
+        temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
+    END DO!k loop
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dydyby(0,0,0))
+    
+     ! DYDzbY
+  DO i=0,nky0-1
+    DO j=0,nkz0-1
+        temp_small(i,j,:)=i_complex*kygrid(i)*kzgrid(k)*b_iny0(:,j,k)  
+    END DO
+    END DO
+        !Add padding for dealiasing
+    temp_big=cmplx(0.0,0.0)
+    DO i=0,nkx0-1
+        temp_big(i,0:hky_ind,0:hkz_ind)=temp_small(i,0:hky_ind,0:hkz_ind)    !kz positive, ky positive    
+        temp_big(i,0:hky_ind,lkz_big:nz0_big-1)=temp_small(i,0:hky_ind,lkz_ind:nkz0-1) !kz negative, ky positive
+        temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
+        temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
+    END DO!k loop
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dydzby(0,0,0))
+    
+     ! DzDzbY
+  DO i=0,nkz0-1
+    DO j=0,nkz0-1
+        temp_small(i,j,:)=i_complex*kygrid(k)*kzgrid(k)*b_iny0(:,:,k)  !two kz grid
+    END DO
+    END DO
+        !Add padding for dealiasing
+    temp_big=cmplx(0.0,0.0)
+    DO i=0,nkx0-1
+        temp_big(i,0:hky_ind,0:hkz_ind)=temp_small(i,0:hky_ind,0:hkz_ind)    !kz positive, ky positive    
+        temp_big(i,0:hky_ind,lkz_big:nz0_big-1)=temp_small(i,0:hky_ind,lkz_ind:nkz0-1) !kz negative, ky positive
+        temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
+        temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
+    END DO!k loop
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dzdzby(0,0,0))
+    
+!!!!!!!!!!!!!!$$$$$$$$$%%%%%%%%%%%%%%&&&&&&&&&&&&& END SECOND ORDER bY TERMS
+
+!@@@@@@@@@@%%%%%%%%%%%%%$$$$$$$$$$ SECOND ORDER  BZ TERMS DXDXBZ,DXDYBZ,DXDZBZ, DYDYBz,DYDZBz, DZDZBz
+!dxdxbz
+  DO i=0,nkx0-1
+    DO i=0,nkx0-1
+        temp_small(i,j,:)=i_complex*kxgrid(i)*kxgrid(i)*b_inz0(i,:,:) ! there is  two i's in the 
+    END DO
+    END DO
+        !Add padding for dealiasing
+    temp_big=cmplx(0.0,0.0)
+    DO i=0,nkx0-1
+        temp_big(i,0:hky_ind,0:hkz_ind)=temp_small(i,0:hky_ind,0:hkz_ind)    !kz positive, ky positive    
+        temp_big(i,0:hky_ind,lkz_big:nz0_big-1)=temp_small(i,0:hky_ind,lkz_ind:nkz0-1) !kz negative, ky positive
+        temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
+        temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
+    END DO!k loop
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxdxbz(0,0,0))
+   
+   !dxdyvz
+  DO i=0,nkx0-1
+    DO j=0,nky0-1
+        temp_small(i,j,:)=i_complex*kxgrid(i)*kygrid(j)*b_inz0(i,j,:)
+    END DO
+    END DO
+        !Add padding for dealiasing
+    temp_big=cmplx(0.0,0.0)
+    DO i=0,nkx0-1
+        temp_big(i,0:hky_ind,0:hkz_ind)=temp_small(i,0:hky_ind,0:hkz_ind)    !kz positive, ky positive    
+        temp_big(i,0:hky_ind,lkz_big:nz0_big-1)=temp_small(i,0:hky_ind,lkz_ind:nkz0-1) !kz negative, ky positive
+        temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
+        temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
+    END DO!k loop
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxdybz(0,0,0))
+    
+     !dxdzbz
+  DO i=0,nkx0-1
+    DO j=0,nkz0-1
+        temp_small(i,j,:)=i_complex*kxgrid(i)*kzgrid(k)*b_inz0(i,:,k)
+    END DO
+    END DO
+        !Add padding for dealiasing
+    temp_big=cmplx(0.0,0.0)
+    DO i=0,nkx0-1
+        temp_big(i,0:hky_ind,0:hkz_ind)=temp_small(i,0:hky_ind,0:hkz_ind)    !kz positive, ky positive    
+        temp_big(i,0:hky_ind,lkz_big:nz0_big-1)=temp_small(i,0:hky_ind,lkz_ind:nkz0-1) !kz negative, ky positive
+        temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
+        temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
+    END DO!k loop
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxdzbz(0,0,0))
+   ! DYDYbz
+  DO i=0,nky0-1
+    DO j=0,nky0-1
+        temp_small(i,j,:)=i_complex*kygrid(i)*kygrid(j)*b_inz0(:,j,:)  ! towo y grid
+    END DO
+    END DO
+        !Add padding for dealiasing
+    temp_big=cmplx(0.0,0.0)
+    DO i=0,nkx0-1
+        temp_big(i,0:hky_ind,0:hkz_ind)=temp_small(i,0:hky_ind,0:hkz_ind)    !kz positive, ky positive    
+        temp_big(i,0:hky_ind,lkz_big:nz0_big-1)=temp_small(i,0:hky_ind,lkz_ind:nkz0-1) !kz negative, ky positive
+        temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
+        temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
+    END DO!k loop
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dydybz(0,0,0))
+    
+     ! DYDzbz
+  DO i=0,nky0-1
+    DO j=0,nkz0-1
+        temp_small(i,j,:)=i_complex*kygrid(i)*kzgrid(k)*b_inz0(:,j,k)  
+    END DO
+    END DO
+        !Add padding for dealiasing
+    temp_big=cmplx(0.0,0.0)
+    DO i=0,nkx0-1
+        temp_big(i,0:hky_ind,0:hkz_ind)=temp_small(i,0:hky_ind,0:hkz_ind)    !kz positive, ky positive    
+        temp_big(i,0:hky_ind,lkz_big:nz0_big-1)=temp_small(i,0:hky_ind,lkz_ind:nkz0-1) !kz negative, ky positive
+        temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
+        temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
+    END DO!k loop
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dydzbz(0,0,0))
+    
+     ! DzDzbz
+  DO i=0,nkz0-1
+    DO j=0,nkz0-1
+        temp_small(i,j,:)=i_complex*kygrid(k)*kzgrid(k)*b_inz0(:,:,k)  !two kz grid
+    END DO
+    END DO
+        !Add padding for dealiasing
+    temp_big=cmplx(0.0,0.0)
+    DO i=0,nkx0-1
+        temp_big(i,0:hky_ind,0:hkz_ind)=temp_small(i,0:hky_ind,0:hkz_ind)    !kz positive, ky positive    
+        temp_big(i,0:hky_ind,lkz_big:nz0_big-1)=temp_small(i,0:hky_ind,lkz_ind:nkz0-1) !kz negative, ky positive
+        temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
+        temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
+    END DO!k loop
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dzdzvbz(0,0,0))
+    
+!$$$$$$$$$$$$###############@@@@@@&&&&&&&&&&&&&&& END SECOND ORDER BZ TERMS
+
+!bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
 
     !dx phi
     !bx
