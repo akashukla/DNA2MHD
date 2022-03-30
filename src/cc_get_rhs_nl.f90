@@ -40,7 +40,8 @@ MODULE nonlinearity
                                                           !REAL :: dyphi(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1)
                                                           !REAL :: dxg(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1)
                                                           !REAL :: dyg(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1)
-  COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:,:,:) :: g_in0
+                                                       ! COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:,:,:) :: g_in0
+ COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:,:,:) :: b_in0x, b_in0y,  b_in0z, v_in0x, v_in0y,  v_in0z,
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:) :: temp_small,temp_big
                                                           !REAL, ALLOCATABLE, DIMENSION(:,:,:) :: dxphi,dyphi,dxg,dyg
   REAL, ALLOCATABLE, DIMENSION(:,:,:) :: bx,by,bz, dxbx, dybx,dzbx, dxby,dyby,dzbz, dxbz,dybz,dzbz
