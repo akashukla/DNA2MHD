@@ -14,8 +14,6 @@
 !!                                                                     1.000 !!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-
-
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!                                                                           !!
 !!                               nonlinearity                                !!
@@ -75,10 +73,10 @@ MODULE nonlinearity
  
   CONTAINS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
   
-
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!                             initialize_fourier                            !!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
 SUBROUTINE initialize_fourier
 
     CALL initialize_fourier_ae_mu0
@@ -231,8 +229,7 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v)
                                                                 !REAL :: dyphi(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1)
                                                                 !REAL :: dxg(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1)
                                                                 !REAL :: dyg(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1)
- 
-  INTEGER :: i,j,l,k,h, ierr
+   INTEGER :: i,j,l,k,h, ierr
 
   IF(np_spec.gt.1) STOP "get_rhs_nl1 not yet implemented for np_spec.gt.1"
   IF(np_kz.gt.1) STOP "get_rhs_nl1 not yet implemented for np_kz.gt.1"
@@ -281,7 +278,7 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v)
   ALLOCATE(dxg(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
   ALLOCATE(dyg(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
   
-  !ALLOCATE(g_in0(0:nkx0-1,0:nky0-1,lkz1:lkz2,lv1:lv2,lh1:lh2,ls1:ls2))
+                                                     !ALLOCATE(g_in0(0:nkx0-1,0:nky0-1,lkz1:lkz2,lv1:lv2,lh1:lh2,ls1:ls2))
   ALLOCATE(b_inx0(0:nkx0-1,0:nky0-1,lkz1:lkz2))
   ALLOCATE(b_iny0(0:nkx0-1,0:nky0-1,lkz1:lkz2))
   ALLOCATE(b_inz0(0:nkx0-1,0:nky0-1,lkz1:lkz2))
@@ -289,12 +286,12 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v)
   ALLOCATE(v_iny0(0:nkx0-1,0:nky0-1,lkz1:lkz2))
   ALLOCATE(v_inz0(0:nkx0-1,0:nky0-1,lkz1:lkz2))
 
-! Some test for the inverse hankel transform
-!  IF (mype==0) THEN
-!  DO i=0,nkx0-1
-!DELETED NO NEED 
-!    END DO
-!  ENDIF
+                                                                  ! Some test for the inverse hankel transform
+                                                                  !  IF (mype==0) THEN
+                                                                  !  DO i=0,nkx0-1
+                                                                  !DELETED NO NEED 
+                                                                  !    END DO
+                                                                  !  ENDIF
  
   ! I dont want to change g_in, so I copy temporaly to g_in0
   !g_in0 = g_in
@@ -318,7 +315,7 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v)
    !     phi_in(:,:,k)=J0a(:,:)*J0_fac(:,:,h)*phi_in0(:,:,k)
    ! END DO
    
-   !$$$$$$$%%%%%%%&&&&&&&&&&& ! SECOND ORDER  VX TERMS DXDXVX,DXDYVX,DXDZVX,  DYDYVX,DYDZVX, DZDZVX
+   ! %%%%%%%&&&&&&&&&&&  SECOND ORDER  VX TERMS DXDXVX,   DXDYVX,   DXDZVX,  DYDYVX,   DYDZVX, DZDZVX
     !dxdxvx
   DO i=0,nkx0-1
     DO i=0,nkx0-1
@@ -417,8 +414,8 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v)
    !$$$$%%%%%%%%%%%&&&&&&&&&&&&&&& SECOND ORDER  VX TERMS END
    
 ! SECOND ORDER  VY TERMS DXDXVY,DXDYVY,DXDZVY, DYDYVY,DYDZVY, DZDZVY 
-!$$$$$$$$$$#########%%%%%%%%%$$$$$$$$$$$$
-!dxdxvy
+
+  !dxdxvy
   DO i=0,nkx0-1
     DO i=0,nkx0-1
         temp_small(i,j,:)=i_complex*kxgrid(i)*kxgrid(i)*v_iny0(i,:,:) ! there is  two i's in the 
@@ -515,7 +512,7 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v)
     
 !!!!!!!!!!!!!!$$$$$$$$$%%%%%%%%%%%%%%&&&&&&&&&&&&& END SECOND ORDER VY TERMS
 
-!@@@@@@@@@@%%%%%%%%%%%%%$$$$$$$$$$ SECOND ORDER  VZ TERMS DXDXVZ,DXDYVZ,DXDZVZ, DYDYVz,DYDZVz, DZDZVz
+! %%%%%%%%%%%%%$$$$$$$$$$ SECOND ORDER  VZ TERMS DXDXVZ,DXDYVZ,DXDZVZ, DYDYVz,DYDZVz, DZDZVz
 !dxdxvz
   DO i=0,nkx0-1
     DO i=0,nkx0-1
@@ -611,7 +608,7 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v)
     END DO!k loop
     CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dzdzvz(0,0,0))
     
-!$$$$$$$$$$$$###############@@@@@@&&&&&&&&&&&&&&& END SECOND ORDER VZ TERMS
+! @@@@@@&&&&&&&&&&&&&&& END SECOND ORDER VZ TERMS
 
 !bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb   SECOND ORDER b terms  bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
 
@@ -712,10 +709,10 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v)
     END DO!k loop
     CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dzdzvbx(0,0,0))
    
-   !$$$$%%%%%%%%%%%&&&&&&&&&&&&&&& SECOND ORDER  BX TERMS END
+   !%%%%%%%%%%%&&&&&&&&&&&&&&& SECOND ORDER  BX TERMS END
    
-! SECOND ORDER  bY TERMS DXDXBY,DXDYBY,DXDZBY, DYDYBY,DYDZBY, DZDZBY 
-!$$$$$$$$$$#########%%%%%%%%%$$$$$$$$$$$$
+! SECOND ORDER  by TERMS DXDXBY,DXDYBY,DXDZBY, DYDYBY,DYDZBY, DZDZBY 
+
 !dxdxby
   DO i=0,nkx0-1
     DO i=0,nkx0-1
@@ -811,9 +808,9 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v)
     END DO!k loop
     CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dzdzby(0,0,0))
     
-!!!!!!!!!!!!!!$$$$$$$$$%%%%%%%%%%%%%%&&&&&&&&&&&&& END SECOND ORDER bY TERMS
+! %%%%%%%%%%%%%%&&&&&&&&&&&&& END SECOND ORDER bY TERMS
 
-!@@@@@@@@@@%%%%%%%%%%%%%$$$$$$$$$$ SECOND ORDER  BZ TERMS DXDXBZ,DXDYBZ,DXDZBZ, DYDYBz,DYDZBz, DZDZBz
+! %%%%%%%%%%%%%$$$$$$$$$$ SECOND ORDER  BZ TERMS DXDXBZ,DXDYBZ,DXDZBZ, DYDYBz,DYDZBz, DZDZBz
 !dxdxbz
   DO i=0,nkx0-1
     DO i=0,nkx0-1
@@ -911,7 +908,9 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v)
     
 !$$$$$$$$$$$$###############@@@@@@&&&&&&&&&&&&&&& END SECOND ORDER BZ TERMS
 
-!bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+!    END ALL SECOND ORDER B TERMS   bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+
+! TERMS BX BY BZ
 
     !dx phi
     !bx
@@ -957,7 +956,7 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v)
     END DO!k loop
     CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),bz(0,0,0))
 
-!!! Prerana do vx,vy,vz terms just like bx,by,bz above  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!! TERMS  vx,vy,vz 
 !vx
     DO i=0,nkx0-1
                                !temp_small(i,:,:)=i_complex*kxgrid(i)*phi_in(i,:,:)
@@ -1001,7 +1000,7 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v)
     END DO!k loop
     CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),vz(0,0,0))
 
-!! PRERANA !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!  FIRST ORDER VX TERMS DXVX , DYVX,  DZVX
 
     ! dxvx
     DO i=0,nkx0-1
@@ -1045,8 +1044,8 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v)
     END DO!k loop
     CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dzvx(0,0,0))
     
-    !Prerana do
-!!  ! &&&&&&&&&&&&&&&&&&&&&&&  Prerana do dxvy dyvy dzvz, 
+   !  FIRST ORDER VY TERMS  dxvy dyvy dzvz, 
+
     ! dxvy
     DO i=0,nkx0-1
         temp_small(i,:,:)=i_complex*kxgrid(i)*v_iny0(i,:,:)
@@ -1089,7 +1088,7 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v)
     END DO!k loop
     CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dzvy(0,0,0))
     
-    ! &&&&&&&&&&&&&&&&&&&&&&& dxvz dyvz dzvz
+    !  FIRST ORDER VZ TERMS  dxvz dyvz dzvz
     ! dxvz
     DO i=0,nkx0-1
         temp_small(i,:,:)=i_complex*kxgrid(i)*v_inz0(i,:,:)
@@ -1132,14 +1131,14 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v)
     END DO!k loop
     CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dzvz(0,0,0))
     
-    !&&&&&&&&&&&&&&& DONE ALL  dxvx dyvx dzvx,dxvy dyvy,dzvy, dxvz,dyvz,dzvz
+    ! DONE ALL FIRST ORDER VX,VY AND VZ TERMS i.e.  dxvx dyvx dzvx,dxvy dyvy,dzvy, dxvz,dyvz,dzvz
     
-    ! NOW FOR bx
+    ! NOW FOR FIRST ORDER BX,BY,BZ
      !! Prerana do dxbx dybx dzbx
     !! dxby dyby dzby
     !! dxbz dybz dzbz
     
-    !&&&&&&&&&&& dxbx dybx dzbx` 
+    ! FIRST ORDER BX TERMS ie. dxbx dybx dzbx` 
      ! dxbx
     DO i=0,nkx0-1
         temp_small(i,:,:)=i_complex*kxgrid(i)*b_inx0(i,:,:)
@@ -1181,9 +1180,8 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v)
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
     END DO!k loop
     CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dzbx(0,0,0))
-    
-    
-    ! !&&&&&&&&&&&&&&&&&&&&&& dxby dyby dzby
+        
+    !  FIRST ORDER BY TERMS ie. dxby dyby dzby
      ! dxby
     DO i=0,nkx0-1
         temp_small(i,:,:)=i_complex*kxgrid(i)*b_iny0(i,:,:)
@@ -1227,7 +1225,7 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v)
     CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dzby(0,0,0))
     
     
-    !! &&&&&&&&&&&&&&&& dxbz dybz dzbz
+    !! FIRST ORDER BZ TERMS ie. dxbz dybz dzbz
 
 ! dxbz
     DO i=0,nkx0-1
@@ -1271,7 +1269,26 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v)
     END DO!k loop
     CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dzbz(0,0,0))
 
-!&&&&&&&&&&&&&&& DONE ALL  dxbx dybx dzbx,dxbydyby,dzby, dxbz,dybz,dzbz
+! DONE ALL FIRST ORDER BX,BY BZ TERMS TERMS ie. dxbx dybx dzbx,  dxby, dyby,dzby,  dxbz,dybz,dzbz
+
+! NOW THE TERMS REQUIRED FOR EQUATION 14 
+P1 = bx*dxvx+by*dyvx+bz*dzvx
+Q1=vx*dxbx+vy*dybx+vz*dzbx
+R1=bx*dxdybz+by*dydybz+bz*dzdybz-bx*dxdzby-by*dydzby-bz*dzdzby
+S1=dybz*dxbx-dzby*dxbx-dxbz*dybx+dzbx*dybx+dxby*dzbx-dybx*dz*bx 
+
+P2 = bx*dxvy+by*dyvy+bz*dzvy
+Q2=vx*dxby+vy*dyby+vz*dzby
+R2=bx*dxdzbx+by*dydzbx+bz*dzdzbx-bx*dxdxbz-by*dydxbz-bz*dzdxbz
+S2=dybz*dxby-dzby*dxby-dxbz*dyby+dzbx*dyby+dxby*dzby-dybx*dz*by 
+
+P3 = bx*dxvz+by*dyvz+bz*dzvz
+Q3=vx*dxbz+vy*dybz+vz*dzbz
+R3=bx*dxdxby+by*dydxby+bz*dzdxby-bx*dxdybx-by*dydybx-bz*dzdybx
+S3=dybz*dxbz-dzby*dxbz-dxbz*dybz+dzbx*dybz+dxby*dzbz-dybx*dz*bz 
+
+
+
 
     IF(first_stage) ve_max(1)=maxval(abs(dxphi)) 
 
