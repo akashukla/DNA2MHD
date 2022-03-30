@@ -1271,7 +1271,7 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v)
 
 ! DONE ALL FIRST ORDER BX,BY BZ TERMS TERMS ie. dxbx dybx dzbx,  dxby, dyby,dzby,  dxbz,dybz,dzbz
 
-! NOW THE TERMS REQUIRED FOR EQUATION 14 
+! EQUATION 14 1=xcomp, 2=ycomp 3=zcomp
 P1 = bx*dxvx+by*dyvx+bz*dzvx
 Q1=vx*dxbx+vy*dybx+vz*dzbx
 R1=bx*dxdybz+by*dydybz+bz*dzdybz-bx*dxdzby-by*dydzby-bz*dzdzby
@@ -1286,8 +1286,18 @@ P3 = bx*dxvz+by*dyvz+bz*dzvz
 Q3=vx*dxbz+vy*dybz+vz*dzbz
 R3=bx*dxdxby+by*dydxby+bz*dzdxby-bx*dxdybx-by*dydybx-bz*dzdybx
 S3=dybz*dxbz-dzby*dxbz-dxbz*dybz+dzbx*dybz+dxby*dzbz-dybx*dz*bz 
+! equation (15)
+U1= vx*dxvx+vy*dyvx+vz*dzvx
+V2 = bx*dxvx+by*dyvx+bz*dzvx
+W1= (0.5)*dyb^2
 
+U2= vx*dxvy+vy*dyvy+vz*dzvy
+V2 = bx*dxvy+by*dyvy+bz*dzvy
+W2= (0.5)*dyb^2
 
+U3= vx*dxvz+vy*dyvz+vz*dzvz
+V3 = bx*dxvz+by*dyvz+bz*dzvz
+W3= (0.5)*dzb^2
 
 
     IF(first_stage) ve_max(1)=maxval(abs(dxphi)) 
