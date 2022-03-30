@@ -1378,15 +1378,11 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v)
   USE par_mod
   IMPLICIT NONE
   include 'fftw3.f'
-
-
   COMPLEX, INTENT(in) :: g_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,lv1:lv2,lh1:lh2,ls1:ls2)
   COMPLEX, INTENT(inout) :: phi_in0(0:nkx0-1,0:nky0-1,lkz1:lkz2)
   !COMPLEX :: phi_in(0:nkx0-1,0:nky0-1,0:nkz0-1)
   COMPLEX, INTENT(inout) :: rhs_out(0:nkx0-1,0:nky0-1,lkz1:lkz2,lv1:lv2,lh1:lh2,ls1:ls2)
- 
-  INTEGER :: i,j,l,k
-
+   INTEGER :: i,j,l,k
   IF(np_hank.gt.1) STOP "get_rhs_nl2 not yet implemented for np_hank.gt.1"
   IF(np_spec.gt.1) STOP "get_rhs_nl2 not yet implemented for np_spec.gt.1"
   IF(np_kz.gt.1) STOP "get_rhs_nl2 not yet implemented for np_kz.gt.1"
@@ -1502,122 +1498,12 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v)
 
 END SUBROUTINE get_rhs_nl2
 
-
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!                                 get_rhs_nl3                               !!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 SUBROUTINE get_rhs_nl3(g_in,phi_in0,rhs_out)
-  USE par_mod
-  include 'fftw3.f'
 
-  COMPLEX, INTENT(in) :: g_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,lv1:lv2,lh1:lh2,ls1:ls2)
-  COMPLEX, INTENT(in) :: phi_in0(0:nkx0-1,0:nky0-1,lkz1:lkz2)
-  COMPLEX :: phi_in(0:nkx0-1,0:nky0-1,lkz1:lkz2)
-  COMPLEX, INTENT(inout) :: rhs_out(0:nkx0-1,0:nky0-1,lkz1:lkz2,lv1:lv2,lh1:lh2,ls1:ls2)
-  COMPLEX :: temp_small(0:nkx0-1,0:nky0-1,lkz1:lkz2)
-  COMPLEX :: temp_big(0:nx0_big/2,0:ny0_big-1,0:nz0_big-1)
-  REAL :: dxphi(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1)
-  REAL :: dyphi(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1)
-  REAL :: dxg(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1)
-  REAL :: dyg(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1)
-!  REAL :: nl_tot_real(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1)
- 
-  INTEGER :: i,j,l,k
-
-  IF(np_hank.gt.1) STOP "get_rhs_nl3 not yet implemented for np_hank.gt.1"
-  IF(np_spec.gt.1) STOP "get_rhs_nl3 not yet implemented for np_spec.gt.1"
-  IF(np_kz.gt.1) STOP "get_rhs_nl3 not yet implemented for np_kz.gt.1"
-
-  IF(np_kz.ne.1) STOP "get_rhs_nl3 only suitable for np_kz=1"
-  !IF(mype==0.and.first_stage) WRITE(*,*) "mype,itime,rhs_lin",mype,itime,abs(sum(sum(sum(sum(rhs_out,1),1),1),1))
-  DO k=0,nkz0-1
-    phi_in(:,:,k)=J0a(:,:)*phi_in0(:,:,k)
-  END DO
-
-  !dx phi
-  DO i=0,nkx0-1
-    temp_small(i,:,:)=i_complex*kxgrid(i)*phi_in(i,:,:)
-  END DO
-
-  !Add padding for dealiasing
-  temp_big=cmplx(0.0,0.0)
-!  DO i=0,nkx0-1
-    temp_big(0:nkx0-1,0:hky_ind,0:hkz_ind)=temp_small(0:nkx0-1,0:hky_ind,0:hkz_ind)    !kz positive, ky positive    
-    temp_big(0:nkx0-1,0:hky_ind,lkz_big:nz0_big-1)=temp_small(0:nkx0-1,0:hky_ind,lkz_ind:nkz0-1) !kz negative, ky positive
-    temp_big(0:nkx0-1,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(0:nkx0-1,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
-    temp_big(0:nkx0-1,lky_big:ny0_big-1,0:hkz_ind)=temp_small(0:nkx0-1,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
-!  END DO!k loop
-  
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxphi(0,0,0))
-
-  IF(first_stage) ve_max(1)=maxval(abs(dxphi)) 
-
-  !Now dy phi
-  DO j=0,nky0-1
-    temp_small(:,j,:)=i_complex*kygrid(j)*phi_in(:,j,:)
-  END DO
-
-  !Add padding for dealiasing
-  temp_big=cmplx(0.0,0.0)
-!  DO i=0,nkx0-1
-    temp_big(0:nkx0-1,0:hky_ind,0:hkz_ind)=temp_small(0:nkx0-1,0:hky_ind,0:hkz_ind)    !kz positive, ky positive    
-    temp_big(0:nkx0-1,0:hky_ind,lkz_big:nz0_big-1)=temp_small(0:nkx0-1,0:hky_ind,lkz_ind:nkz0-1) !kz negative, ky positive
-    temp_big(0:nkx0-1,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(0:nkx0-1,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
-    temp_big(0:nkx0-1,lky_big:ny0_big-1,0:hkz_ind)=temp_small(0:nkx0-1,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
-!  END DO!i loop
- 
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dyphi(0,0,0))
-
-  IF(first_stage) ve_max(2)=maxval(abs(dyphi)) 
-
-  DO l=lv1,lv2
-
-    !dx g
-    DO i=0,nkx0-1
-      temp_small(i,:,:)=i_complex*kxgrid(i)*g_in(i,:,:,l,0,0)
-    END DO
-    temp_big=cmplx(0.0,0.0)
-    !DO i=0,nkx0-1
-      temp_big(0:nkx0-1,0:hky_ind,0:hkz_ind)=temp_small(0:nkx0-1,0:hky_ind,0:hkz_ind)    !kz positive, ky positive    
-      temp_big(0:nkx0-1,0:hky_ind,lkz_big:nz0_big-1)=temp_small(0:nkx0-1,0:hky_ind,lkz_ind:nkz0-1) !kz negative, ky positive
-      temp_big(0:nkx0-1,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(0:nkx0-1,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
-      temp_big(0:nkx0-1,lky_big:ny0_big-1,0:hkz_ind)=temp_small(0:nkx0-1,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
-    !END DO!i loop
-
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxg(0,0,0))
-    
-    !dy g
-    DO j=0,nky0-1
-      temp_small(:,j,:)=i_complex*kygrid(j)*g_in(:,j,:,l,0,0)
-    END DO
-    temp_big=cmplx(0.0,0.0)
-    !DO i=0,nkx0-1
-      temp_big(0:nkx0-1,0:hky_ind,0:hkz_ind)=temp_small(0:nkx0-1,0:hky_ind,0:hkz_ind)    !kz positive, ky positive    
-      temp_big(0:nkx0-1,0:hky_ind,lkz_big:nz0_big-1)=temp_small(0:nkx0-1,0:hky_ind,lkz_ind:nkz0-1) !kz negative, ky positive
-      temp_big(0:nkx0-1,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(0:nkx0-1,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
-      temp_big(0:nkx0-1,lky_big:ny0_big-1,0:hkz_ind)=temp_small(0:nkx0-1,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
-    !END DO!i loop
-
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dyg(0,0,0))
-
-    !re-USE dxg to store the product
-    dxg=dyphi*dxg-dxphi*dyg
-    !inverse FFT to get back to Fourier
-    CALL dfftw_execute_dft_r2c(plan_r2c,dxg(0,0,0),temp_big(0,0,0)) 
-
-    !Now fill in appropriate rhs elements
-    !DO i=0,nkx0-1
-      rhs_out(0:nkx0-1,0:hky_ind,0:hkz_ind,l,0,0)=rhs_out(0:nkx0-1,0:hky_ind,0:hkz_ind,l,0,0)+&           !kz positive, ky positive
-                                       temp_big(0:nkx0-1,0:hky_ind,0:hkz_ind)*fft_norm
-      rhs_out(0:nkx0-1,0:hky_ind,lkz_ind:nkz0-1,l,0,0)=rhs_out(0:nkx0-1,0:hky_ind,lkz_ind:nkz0-1,l,0,0)+& !kz negative, ky positive
-                                       temp_big(0:nkx0-1,0:hky_ind,lkz_big:nz0_big-1)*fft_norm
-      rhs_out(0:nkx0-1,lky_ind:nky0-1,lkz_ind:nkz0-1,l,0,0)=rhs_out(0:nkx0-1,lky_ind:nky0-1,lkz_ind:nkz0-1,l,0,0)+& !kz negative, ky negative
-                                       temp_big(0:nkx0-1,lky_big:ny0_big-1,lkz_big:nz0_big-1)*fft_norm
-      rhs_out(0:nkx0-1,lky_ind:nky0-1,0:hkz_ind,l,0,0)=rhs_out(0:nkx0-1,lky_ind:nky0-1,0:hkz_ind,l,0,0)+& !kz positive, ky negative
-                                       temp_big(0:nkx0-1,lky_big:ny0_big-1,0:hkz_ind)*fft_norm
-    !END DO!i loop
-
-  END DO
+   ! DELETED get_rhs_nl3
 
 END SUBROUTINE get_rhs_nl3
 
@@ -1625,123 +1511,10 @@ END SUBROUTINE get_rhs_nl3
 !!                                 get_rhs_nl4                               !!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !For nkz0=1
+
 SUBROUTINE get_rhs_nl4(g_in,phi_in0,rhs_out)
-  USE par_mod
-  IMPLICIT NONE
-  include 'fftw3.f'
-
-
-  COMPLEX, INTENT(in) :: g_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,lv1:lv2,lh1:lh2,ls1:ls2)
-  COMPLEX, INTENT(inout) :: phi_in0(0:nkx0-1,0:nky0-1,lkz1:lkz2)
-  !COMPLEX :: phi_in(0:nkx0-1,0:nky0-1,0:nkz0-1)
-  COMPLEX, INTENT(inout) :: rhs_out(0:nkx0-1,0:nky0-1,lkz1:lkz2,lv1:lv2,lh1:lh2,ls1:ls2)
- 
-  INTEGER :: i,j,l,k
-
-  IF(np_hank.gt.1) STOP "get_rhs_nl2 not yet implemented for np_hank.gt.1"
-  IF(np_spec.gt.1) STOP "get_rhs_nl2 not yet implemented for np_spec.gt.1"
-  IF(np_kz.gt.1) STOP "get_rhs_nl2 not yet implemented for np_kz.gt.1"
-
-  ALLOCATE(temp_small_2d(0:nkx0-1,0:nky0-1))
-  ALLOCATE(temp_big_2d(0:nx0_big/2,0:ny0_big-1))
-  ALLOCATE(dxphi_2d(0:nx0_big-1,0:ny0_big-1))
-  ALLOCATE(dyphi_2d(0:nx0_big-1,0:ny0_big-1))
-  ALLOCATE(dxg_2d(0:nx0_big-1,0:ny0_big-1))
-  ALLOCATE(dyg_2d(0:nx0_big-1,0:ny0_big-1))
-
-  !Gyroaverage
-  DO k=0,nkz0-1
-    phi_in0(0:nkx0-1,0:nky0-1,k)=J0a(0:nkx0-1,0:nky0-1)*phi_in0(0:nkx0-1,0:nky0-1,k)
-  END DO
-
-  !dx phi
-!  DO i=0,nkx0-1
-!    temp_small_2d(i,:,:)=i_complex*kxgrid(i)*phi_in(i,:,:)
-!  END DO
-
-  !Add padding for dealiasing
-  temp_big_2d=cmplx(0.0,0.0)
-  DO i=0,nkx0-1
-    temp_big_2d(i,0:hky_ind)=i_complex*kxgrid(i)*phi_in0(i,0:hky_ind,0)    !ky positive    
-    temp_big_2d(i,lky_big:ny0_big-1)=i_complex*kxgrid(i)*phi_in0(i,lky_ind:nky0-1,0) !ky negative
-  END DO!k loop
-  
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big_2d(0,0),dxphi_2d(0,0))
-
-  IF(first_stage) ve_max(1)=maxval(abs(dxphi_2d)) 
-
-  !Now dy phi
-  DO j=0,nky0-1
-    temp_small_2d(:,j)=i_complex*kygrid(j)*phi_in0(:,j,0)
-  END DO
-
-  !Add padding for dealiasing
-  temp_big_2d=cmplx(0.0,0.0)
-  !DO i=0,nkx0-1
-    temp_big_2d(0:nkx0-1,0:hky_ind)=temp_small_2d(0:nkx0-1,0:hky_ind)    !kz positive, ky positive    
-    temp_big_2d(0:nkx0-1,lky_big:ny0_big-1)=temp_small_2d(0:nkx0-1,lky_ind:nky0-1) !kz negative, ky negative
-  !END DO!i loop
- 
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big_2d(0,0),dyphi_2d(0,0))
-
-  IF(first_stage) ve_max(2)=maxval(abs(dyphi_2d)) 
-
-  DO l=lv1,lv2
-
-    !dx g
-    !DO i=0,nkx0-1
-    !  temp_small(i,:,:)=i_complex*kxgrid(i)*g_in(i,:,:,l)
-    !END DO
-    temp_big_2d=cmplx(0.0,0.0)
-    DO i=0,nkx0-1
-      temp_big_2d(i,0:hky_ind)=i_complex*kxgrid(i)*g_in(i,0:hky_ind,0,l,0,0)    ! ky positive    
-      temp_big_2d(i,lky_big:ny0_big-1)=i_complex*kxgrid(i)*g_in(i,lky_ind:nky0-1,0,l,0,0) ! ky negative
-    END DO!i loop
-
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big_2d(0,0),dxg_2d(0,0))
-    
-    !dy g
-    DO j=0,nky0-1
-      temp_small_2d(:,j)=i_complex*kygrid(j)*g_in(:,j,0,l,0,0)
-    END DO
-    temp_big_2d=cmplx(0.0,0.0)
-    !DO i=0,nkx0-1
-      temp_big_2d(0:nkx0-1,0:hky_ind)=temp_small_2d(0:nkx0-1,0:hky_ind)    !ky positive    
-      temp_big_2d(0:nkx0-1,lky_big:ny0_big-1)=temp_small_2d(0:nkx0-1,lky_ind:nky0-1) ! ky negative
-    !END DO!i loop
-
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big_2d(0,0),dyg_2d(0,0))
-
-    !re-USE dxg_2d to store the product
-    dxg_2d=dyphi_2d*dxg_2d-dxphi_2d*dyg_2d
-    !inverse FFT to get back to Fourier
-    CALL dfftw_execute_dft_r2c(plan_r2c,dxg_2d(0,0),temp_big_2d(0,0)) 
-
-    !Now fill in appropriate rhs elements
-    !DO i=0,nkx0-1
-      rhs_out(0:nkx0-1,0:hky_ind,0,l,0,0)=rhs_out(0:nkx0-1,0:hky_ind,0,l,0,0)+&           ! ky positive
-                                       temp_big_2d(0:nkx0-1,0:hky_ind)*fft_norm
-      rhs_out(0:nkx0-1,lky_ind:nky0-1,0,l,0,0)=rhs_out(0:nkx0-1,lky_ind:nky0-1,0,l,0,0)+& !kz negative, ky negative
-                                       temp_big_2d(0:nkx0-1,lky_big:ny0_big-1)*fft_norm
-    !END DO!i loop
-
-  END DO
-
-  !de-gyroaverage
-  DO k=0,nkz0-1
-    phi_in0(0:nkx0-1,0:nky0-1,k)=phi_in0(0:nkx0-1,0:nky0-1,k)/J0a(0:nkx0-1,0:nky0-1)
-  END DO
-
-  DEALLOCATE(temp_small_2d)
-  DEALLOCATE(temp_big_2d)
-  DEALLOCATE(dxphi_2d)
-  DEALLOCATE(dyphi_2d)
-  DEALLOCATE(dxg_2d)
-  DEALLOCATE(dyg_2d)
-
+  ! get_rhs_nl4
 END SUBROUTINE get_rhs_nl4
-
-
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!                              get_rhs_nl_convolution                       !!
