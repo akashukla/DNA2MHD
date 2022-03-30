@@ -219,22 +219,28 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v)
   ALLOCATE(vy(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
   ALLOCATE(vz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
 ! all first order v arrays
+  !vx
   ALLOCATE(dxvx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
   ALLOCATE(dyvx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
   ALLOCATE(dzvx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  !vy
   ALLOCATE(dxvy(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
   ALLOCATE(dyvy(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
   ALLOCATE(dzvy(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  !vz
   ALLOCATE(dxvz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
   ALLOCATE(dyvz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
   ALLOCATE(dzvz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
 ! all first order b arrays 
+ !bx
   ALLOCATE(dxbx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
   ALLOCATE(dybx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
   ALLOCATE(dzbx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  !by
   ALLOCATE(dxby(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
   ALLOCATE(dyby(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
   ALLOCATE(dzby(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  !bz
   ALLOCATE(dxbz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
   ALLOCATE(dybz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
   ALLOCATE(dzbz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
@@ -260,8 +266,7 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v)
   ALLOCATE(dydybz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
   ALLOCATE(dydzbz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
   ALLOCATE(dzdzbz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  
-  
+    
   ! all  second order vx arrays i.e. DXDXVX,   DXDYVX,   DXDZVX,  DYDYVX,   DYDZVX, DZDZVX
   ALLOCATE(dxdxvx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
   ALLOCATE(dxdyvx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
