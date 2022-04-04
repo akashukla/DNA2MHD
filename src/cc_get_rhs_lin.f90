@@ -34,12 +34,12 @@ MODULE linear_rhs
 SUBROUTINE get_rhs_lin(b_in, v_in, rhs_out_b, rhs_out_v, which_term)
   IMPLICIT NONE
 
-! COMPLEX, INTENT(in) :: g_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,lv1:lv2,lh1:lh2,ls1:ls2)
-! COMPLEX :: g_bounds(0:nkx0-1,0:nky0-1,lkz1:lkz2,lh1:lh2,2)
-! !COMPLEX, INTENT(out) :: rhs_out(0:nkx0-1,0:nky0-1,lkz1:lkz2,lv1:lv2,lh1:lh2)
-! COMPLEX, INTENT(out) :: rhs_out(0:nkx0-1,0:nky0-1,lkz1:lkz2,lv1:lv2,lh1:lh2,ls1:ls2)
-! !COMPLEX :: g_wb(0:nkx0-1,0:nky0-1,0:nkz0-1,lbv:ubv)
-! INTEGER, INTENT(in) :: which_term
+                                                                          ! COMPLEX, INTENT(in) :: g_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,lv1:lv2,lh1:lh2,ls1:ls2)
+                                                                          ! COMPLEX :: g_bounds(0:nkx0-1,0:nky0-1,lkz1:lkz2,lh1:lh2,2)
+                                                                          ! !COMPLEX, INTENT(out) :: rhs_out(0:nkx0-1,0:nky0-1,lkz1:lkz2,lv1:lv2,lh1:lh2)
+                                                                          ! COMPLEX, INTENT(out) :: rhs_out(0:nkx0-1,0:nky0-1,lkz1:lkz2,lv1:lv2,lh1:lh2,ls1:ls2)
+                                                                          ! !COMPLEX :: g_wb(0:nkx0-1,0:nky0-1,0:nkz0-1,lbv:ubv)
+                                                                          ! INTEGER, INTENT(in) :: which_term
 
 
  !COMPLEX, INTENT(in) :: g_bounds(0:nkx0-1,0:nky0-1,lkz1:lkz2,lh1:lh2,2)
@@ -50,9 +50,9 @@ SUBROUTINE get_rhs_lin(b_in, v_in, rhs_out_b, rhs_out_v, which_term)
  INTEGER, INTENT(in) :: which_term
 
 
-! IF(np_herm.gt.1) THEN
-!    CALL get_v_boundaries2(g_in,g_bounds)
-! END IF
+                                                                                        ! IF(np_herm.gt.1) THEN
+                                                                                        !    CALL get_v_boundaries2(g_in,g_bounds)
+                                                                                        ! END IF
 
  IF(rhs_lin_version==1) THEN
    !If works for mu integrated as well for hankel/vperp version
@@ -71,7 +71,7 @@ SUBROUTINE get_rhs_lin1_ae(b_in, v_in, rhs_out_b,rhs_out_v, which_term)
  COMPLEX, INTENT(in) :: v_in(0:nkx0-1,0:nky0-1,lkz1:lkz2, 0:2)
  COMPLEX, INTENT(out) :: rhs_out_b(0:nkx0-1,0:nky0-1,lkz1:lkz2, 0:2)
  COMPLEX, INTENT(out) :: rhs_out_v(0:nkx0-1,0:nky0-1,lkz1:lkz2, 0:2)
- INTEGER, INTENT(in) :: which_term
+                                                                                    !INTEGER, INTENT(in) :: which_term
 
  INTEGER :: i,j,k,l,h,ierr
  !for transpose for left ev's
@@ -79,36 +79,36 @@ SUBROUTINE get_rhs_lin1_ae(b_in, v_in, rhs_out_b,rhs_out_v, which_term)
  INTEGER :: grad2_flag
  COMPLEX :: phi_mod1,phi_mod2,g0_bcast
  COMPLEX :: g_closure
- !which_term=0:  Everything
- !which_term=1:  Collisions
- !which_term=2:  Hyper-collisions
- !which_term=3:  Phase mixing n-1
- !which_term=4:  omn term
- !which_term=5:  Landau damping (n=1)
- !which_term=6:  Drive
- !which_term=7:  Extra FLR term (n=0)
- !which_term=8:  hyp_x,y,z
- !which_term=9:  Phase mixing n+1
- !which_term=10:  hyp_conv
+                                                                           !which_term=0:  Everything
+                                                                           !which_term=1:  Collisions
+                                                                           !which_term=2:  Hyper-collisions
+                                                                           !which_term=3:  Phase mixing n-1
+                                                                           !which_term=4:  omn term
+                                                                           !which_term=5:  Landau damping (n=1)
+                                                                           !which_term=6:  Drive
+                                                                           !which_term=7:  Extra FLR term (n=0)
+                                                                           !which_term=8:  hyp_x,y,z
+                                                                           !which_term=9:  Phase mixing n+1
+                                                                           !which_term=10:  hyp_conv
 
-!  !for transpose for left ev's
-!  grad1_flag=1
-!  grad2_flag=2
-!  phi_mod1=cmplx(1.0,0.0)
-!  phi_mod2=cmplx(1.0,0.0)
-! 
-!  !IF(verbose.and.mype==0) WRITE(*,*) "get_rhs_lin1", 55
-!  !IF(verbose.and.mype==0) WRITE(*,*) "nkx0,nky0,nkz0",nkx0,nky0,nkz0
-!  IF(left_ev) THEN
-!    !The matrix is symmetric with the exception of these two terms
-!    grad1_flag=0
-!    grad2_flag=0
-!    g0_bcast=v_in(0,0,0)
-!    CALL MPI_BCAST(g0_bcast,1,MPI_DOUBLE_COMPLEX,0,MPI_COMM_WORLD,ierr) 
-!    !WRITE(*,*) "!!!g0_bcast",g0_bcast
-!    IF((1.ge.lv1).and.(1.le.lv2)) phi_mod1=g_in(0,0,0,1,0,0)/g0_bcast
-!    IF((2.ge.lv1).and.(2.le.lv2)) phi_mod2=g_in(0,0,0,2,0,0)/g0_bcast
-!  END IF
+                                                                          !  !for transpose for left ev's
+                                                                          !  grad1_flag=1
+                                                                          !  grad2_flag=2
+                                                                          !  phi_mod1=cmplx(1.0,0.0)
+                                                                          !  phi_mod2=cmplx(1.0,0.0)
+                                                                          ! 
+                                                                          !  !IF(verbose.and.mype==0) WRITE(*,*) "get_rhs_lin1", 55
+                                                                          !  !IF(verbose.and.mype==0) WRITE(*,*) "nkx0,nky0,nkz0",nkx0,nky0,nkz0
+                                                                          !  IF(left_ev) THEN
+                                                                          !    !The matrix is symmetric with the exception of these two terms
+                                                                          !    grad1_flag=0
+                                                                          !    grad2_flag=0
+                                                                          !    g0_bcast=v_in(0,0,0)
+                                                                          !    CALL MPI_BCAST(g0_bcast,1,MPI_DOUBLE_COMPLEX,0,MPI_COMM_WORLD,ierr) 
+                                                                          !    !WRITE(*,*) "!!!g0_bcast",g0_bcast
+                                                                          !    IF((1.ge.lv1).and.(1.le.lv2)) phi_mod1=g_in(0,0,0,1,0,0)/g0_bcast
+                                                                          !    IF((2.ge.lv1).and.(2.le.lv2)) phi_mod2=g_in(0,0,0,2,0,0)/g0_bcast
+                                                                          !  END IF
 
  rhs_out_b=cmplx(0.0,0.0)
  rhs_out_v=cmplx(0.0,0.0)
@@ -117,16 +117,16 @@ SUBROUTINE get_rhs_lin1_ae(b_in, v_in, rhs_out_b,rhs_out_v, which_term)
  DO i=0,nkx0-1
    DO j=0,nky0-1
      DO k=lkz1,lkz2
+     
+     !eqn 14
         rhs_out_b(i,j,k,0) = i_complex*kzgrid(k)*v_in(i,j,k,0) + i_complex*kygrid(j)*b_in(i,j,k,2) -i_complex*kzgrid(k)*b_in(i,j,k,1)
         rhs_out_b(i,j,k,1) = i_complex*kzgrid(k)*v_in(i,j,k,1) + i_complex*kzgrid(k)*b_in(i,j,k,0) -i_complex*kxgrid(i)*b_in(i,j,k,2)
         rhs_out_b(i,j,k,2) = i_complex*kzgrid(k)*v_in(i,j,k,2) + i_complex*kxgrid(i)*b_in(i,j,k,1) -i_complex*kygrid(y)*b_in(i,j,k,0)
 
-
-
-
-        rhs_out_vx(i,j,k) = i_complex*kzgrid(k)*b_inx(i,j,k)-i_complex*kxgrid(k)*b_inz(i,j,k)
-        rhs_out_vy(i,j,k) = i_complex*kzgrid(k)*b_iny(i,j,k)-i_complex*kygrid(k)*b_inz(i,j,k)
-        rhs_out_vz(i,j,k) = 0
+      !Eqn 15
+        rhs_out_v(i,j,k,0) = i_complex*kzgrid(k)*b_in(i,j,k,0)-i_complex*kxgrid(k)*b_in(i,j,k,2)
+        rhs_out_v(i,j,k,1) = i_complex*kzgrid(k)*b_in(i,j,k,1)-i_complex*kygrid(k)*b_in(i,j,k,2)
+        rhs_out_v(i,j,k,2) = 0
 
 !       !IF(mype==0.and.verbose) WRITE(*,*) "kxgrid(i),kygrid(j),kzgrid(k)",kxgrid(i),kygrid(j),kzgrid(k)
 !       !IF(mype==0.and.verbose) WRITE(*,*) "kxmax_hyp,kymax_hyp,kzmax_hyp",kxmax_hyp,kymax_hyp,kzmax_hyp
