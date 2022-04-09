@@ -22,40 +22,33 @@
 MODULE nonlinearity
   USE mpi
   USE par_mod
-  USE hk_effects
-  USE flr_effects
+  !USE hk_effects
+  !USE flr_effects
   IMPLICIT NONE
 
   PUBLIC :: initialize_fourier,get_rhs_nl,&
-            get_rhs_nl_convolution,get_k_indices,get_rhs_nl2,get_rhs_nl1,&
-            initialize_fourier_ae_mu0 !,initialize_fourier2
+            get_rhs_nl_convolution,get_k_indices,get_rhs_nl1,&
+            initialize_fourier_ae_mu0 !,initialize_fourier2, get_rhs_nl2
   
   REAL, PUBLIC :: ve_max(2)
 
   PRIVATE
 
-                                                          !COMPLEX :: temp_small(0:nkx0-1,0:nky0-1,0:nkz0-1)
-                                                          !COMPLEX :: temp_big(0:nx0_big/2,0:ny0_big-1,0:nz0_big-1)
-                                                          !REAL :: dxphi(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1)
-                                                          !REAL :: dyphi(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1)
-                                                          !REAL :: dxg(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1)
-                                                          !REAL :: dyg(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1)
-                                                       ! COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:,:,:) :: g_in0
- COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:,:,:) :: b_in0x, b_in0y,  b_in0z, v_in0x, v_in0y,  v_in0z,
-  COMPLEX, ALLOCATABLE, DIMENSION(:,:,:) :: temp_small,temp_big
-                                                          !REAL, ALLOCATABLE, DIMENSION(:,:,:) :: dxphi,dyphi,dxg,dyg
-  REAL, ALLOCATABLE, DIMENSION(:,:,:) :: bx,by,bz, dxbx, dybx,dzbx, dxby,dyby,dzbz, dxbz,dybz,dzbz
-  REAL, ALLOCATABLE, DIMENSION(:,:,:) :: dxdxbx, dxdybx, dxdzbx, dxdybx, dydybx, dzdybx, dxdzbx, dydzbx, dzdzbx
-  REAL, ALLOCATABLE, DIMENSION(:,:,:) :: dxdxby, dxdyby, dxdzby, dxdyby, dydyby, dzdyby, dxdzby, dydzby, dzdzby
-  REAL, ALLOCATABLE, DIMENSION(:,:,:) :: dxdxbz, dxdybz, dxdzbz, dxdybz, dydybz, dzdybz, dxdzbz, dydzbz, dzdzbz
+  COMPLEX, ALLOCATABLE, DIMENSION(:,:,:) :: b_inx0, b_iny0,  b_inz0, v_inx0, v_iny0,  v_inz0
+  COMPLEX, ALLOCATABLE, DIMENSION(:,:,:) :: temp_small,temp_big, temp_bigx, temp_bigy, temp_bigz, store_x, store_y, store_z
+  REAL, ALLOCATABLE, DIMENSION(:,:,:) :: bmag_in, bmag, dxbmag, dybmag, dzbmag
+
+  REAL, ALLOCATABLE, DIMENSION(:,:,:) :: bx,by,bz, dxbx, dybx,dzbx, dxby,dyby,dzby, dxbz,dybz,dzbz
+  REAL, ALLOCATABLE, DIMENSION(:,:,:) :: vx,vy,vz, dxvx, dyvx,dzvx, dxvy,dyvy,dzvy, dxvz,dyvz,dzvz
+
+  REAL, ALLOCATABLE, DIMENSION(:,:,:) :: dxdxbx, dxdybx, dxdzbx, dydybx, dydzbx, dzdzbx
+  REAL, ALLOCATABLE, DIMENSION(:,:,:) :: dxdxby, dxdyby, dxdzby, dydyby, dydzby, dzdzby
+  REAL, ALLOCATABLE, DIMENSION(:,:,:) :: dxdxbz, dxdybz, dxdzbz, dydybz, dydzbz, dzdzbz
     
-  REAL, ALLOCATABLE, DIMENSION(:,:,:) :: vx,vy,vz, dxvx, dyvx,dzvx, dxvy,dyvy,dzvz, dxvz,dyvz,dzvz
-  REAL, ALLOCATABLE, DIMENSION(:,:,:) :: dxdxvx, dxdyvx, dxdzvx, dxdyvx, dydyvx, dzdyvx, dxdzvx, dydzvx, dzdzvx
-  REAL, ALLOCATABLE, DIMENSION(:,:,:) :: dxdxvy, dxdyvy, dxdzvy, dxdyvy, dydyvy, dzdyvy, dxdzvy, dydzvy, dzdzvy
-  REAL, ALLOCATABLE, DIMENSION(:,:,:) :: dxdxvz, dxdyvz, dxdzvz, dxdyvz, dydyvz, dzdyvz, dxdzvz, dydzvz, dzdzvz
-  
-                                                        ! COMPLEX, ALLOCATABLE, DIMENSION(:,:) :: temp_small_2d,temp_big_2d
-                                                        ! REAL, ALLOCATABLE, DIMENSION(:,:) :: dxphi_2d,dyphi_2d,dxg_2d,dyg_2d
+  REAL, ALLOCATABLE, DIMENSION(:,:,:) :: dxdxvx, dxdyvx, dxdzvx, dydyvx, dydzvx, dzdzvx
+  REAL, ALLOCATABLE, DIMENSION(:,:,:) :: dxdxvy, dxdyvy, dxdzvy, dydyvy, dydzvy, dzdzvy
+  REAL, ALLOCATABLE, DIMENSION(:,:,:) :: dxdxvz, dxdyvz, dxdzvz, dydyvz, dydzvz, dzdzvz
+
 
 
   !For fft's
@@ -154,7 +147,7 @@ END SUBROUTINE initialize_fourier_ae_mu0
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!                                   get_rhs_nl                              !!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-SUBROUTINE get_rhs_nl(b_in, v_in, rhs_out_b, rhs_out_v,0)
+SUBROUTINE get_rhs_nl(b_in, v_in, rhs_out_b, rhs_out_v)
   USE par_mod
   include 'fftw3.f'
 
@@ -165,12 +158,12 @@ SUBROUTINE get_rhs_nl(b_in, v_in, rhs_out_b, rhs_out_v,0)
 
   IF(rhs_nl_version==1) THEN
     CALL get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v)
-  ELSE IF(rhs_nl_version==2) THEN
-    CALL get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v)
-  ELSE IF(rhs_nl_version==3) THEN
-    CALL get_rhs_nl3(b_in,v_in,rhs_out_b,rhs_out_v)
-  ELSE IF(rhs_nl_version==4) THEN
-    CALL get_rhs_nl4(b_in,v_in,rhs_out_b,rhs_out_v)
+!  ELSE IF(rhs_nl_version==2) THEN
+!    CALL get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v)
+!  ELSE IF(rhs_nl_version==3) THEN
+!    CALL get_rhs_nl3(b_in,v_in,rhs_out_b,rhs_out_v)
+!  ELSE IF(rhs_nl_version==4) THEN
+!    CALL get_rhs_nl4(b_in,v_in,rhs_out_b,rhs_out_v)
   END IF
  
 END SUBROUTINE get_rhs_nl
@@ -669,7 +662,7 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v)
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
     END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dydyvb(0,0,0))
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dydybx(0,0,0))
     
      ! DYDzbX
   DO j=0,nky0-1
@@ -699,7 +692,7 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v)
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
     END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dzdzvbx(0,0,0))
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dzdzbx(0,0,0))
    
    ! FINISHED SECOND ORDER  BX TERMS 
    
@@ -884,7 +877,7 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v)
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
     END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dzdzvbz(0,0,0))
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dzdzbz(0,0,0))
     
 !finished END SECOND ORDER BZ TERMS
 
@@ -906,7 +899,7 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v)
     CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),bmag(0,0,0))
     !dxbmag
     DO i=0,nkx0-1
-        temp_small(i,:,:)=i_complex*kxgrid(x)*bmag_in(i,:,:)
+        temp_small(i,:,:)=i_complex*kxgrid(i)*bmag_in(i,:,:)
     END DO
     !Add padding for dealiasing
     temp_big=cmplx(0.0,0.0)
@@ -1196,7 +1189,7 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v)
 
     ! dzbx
     DO k=0,nkz0-1
-        temp_small(:,:,k)=i_complex*kzgrid(k)*b_inx(:,:,k)
+        temp_small(:,:,k)=i_complex*kzgrid(k)*b_inx0(:,:,k)
     END DO
     !Add padding for dealiasing
     temp_big=cmplx(0.0,0.0)
@@ -1268,7 +1261,7 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v)
  
     ! dybz
     DO j=0,nky0-1
-        temp_small(:,j,:)=i_complex*kygrid(j)*v_inz(:,j,:)
+        temp_small(:,j,:)=i_complex*kygrid(j)*v_inz0(:,j,:)
     END DO
     !Add padding for dealiasing
     temp_big=cmplx(0.0,0.0)
@@ -1282,7 +1275,7 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v)
 
     ! dzbz
     DO k=0,nkz0-1
-        temp_small(:,:,k)=i_complex*kzgrid(k)*b_inz(:,:,k)
+        temp_small(:,:,k)=i_complex*kzgrid(k)*b_inz0(:,:,k)
     END DO
     !Add padding for dealiasing
     temp_big=cmplx(0.0,0.0)
