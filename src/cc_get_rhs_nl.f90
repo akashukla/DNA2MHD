@@ -154,7 +154,7 @@ END SUBROUTINE initialize_fourier_ae_mu0
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!                                   get_rhs_nl                              !!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-SUBROUTINE get_rhs_nl(b_in, v_in, rhs_out_b, rhs_out_v)
+SUBROUTINE get_rhs_nl(b_in, v_in, rhs_out_b, rhs_out_v,0)
   USE par_mod
   include 'fftw3.f'
 

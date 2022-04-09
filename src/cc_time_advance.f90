@@ -99,32 +99,44 @@ SUBROUTINE get_g_next(b_in, v_in)
 !  first_stage=.false.
 !  !CALL get_rhs(g_in+0.5*dt*k1,k2)
 !  k1=g_in+0.5*dt*k1
+
 !  CALL get_rhs(k1,k2)
 !  g_2=g_2+(1.0/3.0)*dt*k2
 !  k2=g_in+0.5*dt*k2
+
 !  CALL get_rhs(k2,k1)
 !  g_2=g_2+(1.0/3.0)*dt*k1
 !  k1=g_in+dt*k1
+
 !  CALL get_rhs(k1,k2)
 !  g_in=g_2+(1.0/6.0)*dt*k2
 !  !g_in=g_2 
 
  !4th order Runge-Kutta
  first_stage=.true.
- CALL get_rhs(b_in,bk1)
+ CALL get_rhs(b_in, v_in, bk1, vk1)
  b_2=b_in+(1.0/6.0)*dt*bk1
+ v_2=v_in+(1.0/6.0)*dt*vk1
  first_stage=.false.
  !CALL get_rhs(b_in+0.5*dt*bk1,bk2)
  bk1=b_in+0.5*dt*bk1
- CALL get_rhs(bk1,bk2)
+ vk1=v_in+0.5*dt*vk1
+
+ CALL get_rhs(bk1,,vk1,bk2,vk2)
  b_2=b_2+(1.0/3.0)*dt*bk2
  bk2=b_in+0.5*dt*bk2
- CALL get_rhs(bk2,bk1)
+ v_2=v_2+(1.0/3.0)*dt*vk2
+ vk2=v_in+0.5*dt*vk2
+
+ CALL get_rhs(bk2,vk2,bk1,vk1)
  b_2=b_2+(1.0/3.0)*dt*bk1
  bk1=b_in+dt*bk1
- CALL get_rhs(bk1,bk2)
+ v_2=v_2+(1.0/3.0)*dt*vk1
+ vk1=v_in+dt*vk1
+
+ CALL get_rhs(bk1,vk1,bk2,vk2)
  b_in=b_2+(1.0/6.0)*dt*bk2
- !b_in=b_2 
+ v_in=v_2+(1.0/6.0)*dt*vk2
 
  !4th order Runge-Kutta
  first_stage=.true.
@@ -173,13 +185,13 @@ END SUBROUTINE get_g_next
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!                                    get_rhs                                !!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-SUBROUTINE get_rhs(b_in, rhs_out_b, 0)
+SUBROUTINE get_rhs(b_in,v_in, rhs_out_b,rhs_out_v)
 
  COMPLEX, INTENT(in) :: b_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
- !COMPLEX, INTENT(in) :: v_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+ COMPLEX, INTENT(in) :: v_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
 
  COMPLEX, INTENT(out) :: rhs_out_b(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
- !COMPLEX, INTENT(out) :: rhs_out_v(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+ COMPLEX, INTENT(out) :: rhs_out_v(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
 
 !  COMPLEX, INTENT(in) :: g_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,lv1:lv2,lh1:lh2,ls1:ls2)
 !  COMPLEX, INTENT(out) :: rhs_out(0:nkx0-1,0:nky0-1,lkz1:lkz2,lv1:lv2,lh1:lh2,ls1:ls2)
@@ -187,7 +199,7 @@ SUBROUTINE get_rhs(b_in, rhs_out_b, 0)
 
   CALL get_rhs_lin(b_in,v_in,rhs_out_b, rhs_out_v,0)
 
-  IF(nonlinear.and..not.linear_nlbox) CALL get_rhs_nl(b_in, v_in,rhs_out_b,rhs_out_v,0)
+  IF(nonlinear.and..not.linear_nlbox) CALL get_rhs_nl(b_in, v_in,rhs_out_b,rhs_out_v)
 
 END SUBROUTINE get_rhs
 
