@@ -18,7 +18,7 @@
 !!  Initiating the current run of the simulation
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 SUBROUTINE init_run
-  USE calculate_time_step, ONLY: calc_initial_dt, initialize_adapt_dt
+  !USE calculate_time_step, ONLY: calc_initial_dt, initialize_adapt_dt
   !USE diagnostics, ONLY: initialize_diagnostics
   USE nonlinearity, ONLY: initialize_fourier  
   USE par_mod
@@ -31,10 +31,10 @@ SUBROUTINE init_run
   !! Initial value computation
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   IF (verbose) WRITE(*,*) "Starting initial value computation.",mype
-  IF(calc_dt.and.nonlinear) THEN
-      CALL calc_initial_dt
-      CALL output_parameters
-  END IF
+  !IF(calc_dt.and.nonlinear) THEN
+  !    CALL calc_initial_dt
+  !    CALL output_parameters
+  !END IF
   !IF(calc_dt.and.dt_slepc.and.nonlinear) THEN 
   !  !calculates time step by solving for ev's of every kx,ky,kz
   !  IF(mype==0) WRITE(*,*) "Calculation dt_max with SLEPc"
@@ -57,7 +57,7 @@ SUBROUTINE init_run
   !!!!!!!!!!!!!!!!!!!!
   CALL initial_condition(init_cond)   !checkpoint must be READ before others
   CALL initialize_diagnostics
-  IF(nonlinear) CALL initialize_adapt_dt
+  !IF(nonlinear) CALL initialize_adapt_dt
   IF(nonlinear) CALL initialize_fourier
   
 END SUBROUTINE init_run
@@ -73,7 +73,7 @@ END SUBROUTINE init_run
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 SUBROUTINE arrays
   USE par_mod
-  USE flr_effects
+  !USE flr_effects
   !USE hk_effects
   !USE Gaussquadrature
   IMPLICIT NONE

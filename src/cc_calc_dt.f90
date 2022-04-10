@@ -27,10 +27,10 @@
 MODULE calculate_time_step
   USE par_mod
   USE mpi
-#ifdef WITHSLEPC
-  USE eigen_iterative, ONLY: calc_dt_ev, current_evs
-#endif
-  USE eigen_direct, ONLY: calc_dt_ev_lapack
+!#ifdef WITHSLEPC
+!  USE eigen_iterative, ONLY: calc_dt_ev, current_evs
+!#endif
+!  USE eigen_direct, ONLY: calc_dt_ev_lapack
   USE communications
   USE nonlinearity, ONLY: ve_max
 
@@ -62,9 +62,9 @@ SUBROUTINE calc_initial_dt
 #else
     stop "Must link with SLEPC in order to use calc_dt_slepc!"
 #endif
-  ELSE
-    IF(mype==0) WRITE(*,*) "Caculating dt_max with LAPACK."
-    CALL calc_dt_lapack
+  !ELSE
+  !  IF(mype==0) WRITE(*,*) "Caculating dt_max with LAPACK."
+  !  CALL calc_dt_lapack
   END IF
 
 END SUBROUTINE calc_initial_dt
@@ -72,159 +72,159 @@ END SUBROUTINE calc_initial_dt
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!                             calc_dt_lapack                                 !!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-SUBROUTINE calc_dt_lapack
-
-  INTEGER :: i,j,k,l
-  INTEGER :: nkx0_bak,nky0_bak,nkz0_bak
-  INTEGER :: np_herm_bak,np_kz_bak,np_spec_bak,np_hank_bak
-  LOGICAL :: nonlinear_bak
-  REAL :: kxmin_bak,kymin_bak,kzmin_bak
-  REAL :: kxmax_bak,kymax_bak,kzmax_bak
-  !REAL :: dt_min
-  !REAL :: kx_dtmin,ky_dtmin,kz_dtmin
-  LOGICAL :: kmin_eq_0_bak,evenyz_bak
-  COMPLEX :: max_omega_final
-  REAL :: dt_temp
-  REAL :: kx_temp(3)
-  REAL :: ky_temp(3)
-  REAL :: kz_temp(3)
-  COMPLEX :: phase
-  REAL :: dt_lim,angle
-  CHARACTER(len=1) :: chnum1,chnum2,chnum3
-  COMPLEX :: current_evs(nv0*nh0*nspec)
-  INTEGER :: ierr
-
-  IF(mype==0) WRITE(*,*) "Calculating time step with LAPACK."
-
-  max_omega_final=cmplx(0.0,0.0)
-  nonlinear_bak=nonlinear
-  nonlinear=.false.
-
-  kmin_eq_0_bak=kmin_eq_0
-  kmin_eq_0=.false.
-
-  evenyz_bak=evenyz
-  evenyz=.false.
-
-  kx_temp(1)=0.0
-  kx_temp(2)=kxmin
-  kx_temp(3)=kxmin*hkx_ind
-  ky_temp(1)=0.0
-  ky_temp(2)=kymin
-  ky_temp(3)=kymin*(hky_ind)
-  IF(spatial2d) THEN
-    kz_temp(1)=0.0
-    kz_temp(2)=kzmin
-    kz_temp(3)=kzmin*(hky_ind)
-  ELSE
-    kz_temp(1)=0.0
-    kz_temp(2)=kzmin
-    kz_temp(3)=kzmin*(hkz_ind)
-  END IF
-
-  nkx0_bak=nkx0 
-  nky0_bak=nky0 
-  nkz0_bak=nkz0 
-
-  nkx0=1
-  nky0=1
-  nkz0=1
-
-  kxmin_bak=kxmin 
-  kymin_bak=kymin 
-  kzmin_bak=kzmin 
-  kxmax_bak=kxmax 
-  kymax_bak=kymax 
-  kzmax_bak=kzmax 
-
-  np_herm_bak=np_herm
-  np_herm=1
-  np_hank_bak=np_hank
-  np_hank=1
-  np_kz_bak=np_kz
-  np_kz=1
-  np_spec_bak=np_spec
-  np_spec=1
-
-  n_ev=nv0*nh0*nspec
-
-  dt_max=100.0
-
-  CALL finalize_arrays
-
-  !write(*,*) "Before call comm", mype
-  !CALL comm
-  !write(*,*) "After call comm", mype
-
-  DO i=1,3
-    !IF(mype==0) WRITE(*,*) "i=",i
-    DO j=1,3
-      DO k=1,3
-       IF((i.ne.1).or.(j.ne.1)) THEN
-        IF(mype==0) WRITE(chnum1,'(i1.1)') i
-        IF(mype==0) WRITE(chnum2,'(i1.1)') j
-        IF(mype==0) WRITE(chnum3,'(i1.1)') k
-        IF(mype==0) OPEN(unit=100,file=trim(diagdir)//'/dtevl_'//chnum1//chnum2//chnum3,status='unknown')
-        kxmin=kx_temp(i)
-        kymin=ky_temp(j)
-        kzmin=kz_temp(k)
-        !IF(mype==0) WRITE(*,*) kxmin,kymin,kzmin 
-        CALL arrays_temp
-        kxmax=kxmax_bak
-        kymax=kymax_bak
-        kzmax=kzmax_bak
-        !WRITE(*,*) "Before CALL calc_dt_ev",mype
-        CALL calc_dt_ev_lapack(current_evs)
-        !IF(mype==0) WRITE(*,*) current_evs
-        dt_temp=100.0
-        !WRITE(*,*) "Before CALL compute_stability_criterion",mype
-        DO l=1,nv0*nh0*nspec
-         IF(mype==0) WRITE(100,*) REAL(current_evs(l)),aimag(current_evs(l))
-         IF(REAL(current_evs(l)).ne.0.0.or.aimag(current_evs(l)).ne.0.0) THEN
-           IF(REAL(current_evs(l)).lt.0.0) CALL compute_stability_criterion(current_evs(l),dt_temp)
-         END IF
-         IF(dt_temp.lt.dt_max) THEN
-          dt_max=dt_temp
-          IF(mype==0) WRITE(*,*) "New dt_max:",dt_max
-          IF(mype==0) WRITE(*,*) "Omega",current_evs(l)
-          IF(mype==0) WRITE(*,*) "kx,ky,kz",kxmin,kymin,kzmin
-         END IF
-        END DO
-        CALL finalize_arrays 
-        IF(mype==0) CLOSE(100)
-       END IF
-      END DO
-    END DO
-  END DO
-
-  dt_max=dt_max*0.95
-  CALL MPI_ALLREDUCE(dt_max,dt_temp, 1, MPI_DOUBLE_PRECISION, MPI_SUM , MPI_COMM_WORLD,ierr)
-  dt_max=dt_temp/float(n_mpi_procs)
-  IF(mype==0) WRITE(*,*) "dt_max=",dt_max
-
-  nkx0=nkx0_bak
-  nky0=nky0_bak
-  nkz0=nkz0_bak
-
-  kxmin=kxmin_bak
-  kymin=kymin_bak
-  kzmin=kzmin_bak
-
-  nonlinear=nonlinear_bak
-  kmin_eq_0=kmin_eq_0_bak
-  evenyz=evenyz_bak
-
-  np_herm=np_herm_bak
-  np_hank=np_hank_bak
-  np_kz=np_kz_bak
-  np_spec=np_spec_bak
-
-  !CALL finalize_comm
-  !CALL comm
-
-  CALL arrays
-
-END SUBROUTINE calc_dt_lapack
+!SUBROUTINE calc_dt_lapack
+!
+!  INTEGER :: i,j,k,l
+!  INTEGER :: nkx0_bak,nky0_bak,nkz0_bak
+!  INTEGER :: np_herm_bak,np_kz_bak,np_spec_bak,np_hank_bak
+!  LOGICAL :: nonlinear_bak
+!  REAL :: kxmin_bak,kymin_bak,kzmin_bak
+!  REAL :: kxmax_bak,kymax_bak,kzmax_bak
+!  !REAL :: dt_min
+!  !REAL :: kx_dtmin,ky_dtmin,kz_dtmin
+!  LOGICAL :: kmin_eq_0_bak,evenyz_bak
+!  COMPLEX :: max_omega_final
+!  REAL :: dt_temp
+!  REAL :: kx_temp(3)
+!  REAL :: ky_temp(3)
+!  REAL :: kz_temp(3)
+!  COMPLEX :: phase
+!  REAL :: dt_lim,angle
+!  CHARACTER(len=1) :: chnum1,chnum2,chnum3
+!  COMPLEX :: current_evs(nv0*nh0*nspec)
+!  INTEGER :: ierr
+!
+!  IF(mype==0) WRITE(*,*) "Calculating time step with LAPACK."
+!
+!  max_omega_final=cmplx(0.0,0.0)
+!  nonlinear_bak=nonlinear
+!  nonlinear=.false.
+!
+!  kmin_eq_0_bak=kmin_eq_0
+!  kmin_eq_0=.false.
+!
+!  evenyz_bak=evenyz
+!  evenyz=.false.
+!
+!  kx_temp(1)=0.0
+!  kx_temp(2)=kxmin
+!  kx_temp(3)=kxmin*hkx_ind
+!  ky_temp(1)=0.0
+!  ky_temp(2)=kymin
+!  ky_temp(3)=kymin*(hky_ind)
+!  IF(spatial2d) THEN
+!    kz_temp(1)=0.0
+!    kz_temp(2)=kzmin
+!    kz_temp(3)=kzmin*(hky_ind)
+!  ELSE
+!    kz_temp(1)=0.0
+!    kz_temp(2)=kzmin
+!    kz_temp(3)=kzmin*(hkz_ind)
+!  END IF
+!
+!  nkx0_bak=nkx0 
+!  nky0_bak=nky0 
+!  nkz0_bak=nkz0 
+!
+!  nkx0=1
+!  nky0=1
+!  nkz0=1
+!
+!  kxmin_bak=kxmin 
+!  kymin_bak=kymin 
+!  kzmin_bak=kzmin 
+!  kxmax_bak=kxmax 
+!  kymax_bak=kymax 
+!  kzmax_bak=kzmax 
+!
+!  np_herm_bak=np_herm
+!  np_herm=1
+!  np_hank_bak=np_hank
+!  np_hank=1
+!  np_kz_bak=np_kz
+!  np_kz=1
+!  np_spec_bak=np_spec
+!  np_spec=1
+!
+!  n_ev=nv0*nh0*nspec
+!
+!  dt_max=100.0
+!
+!  CALL finalize_arrays
+!
+!  !write(*,*) "Before call comm", mype
+!  !CALL comm
+!  !write(*,*) "After call comm", mype
+!
+!  DO i=1,3
+!    !IF(mype==0) WRITE(*,*) "i=",i
+!    DO j=1,3
+!      DO k=1,3
+!       IF((i.ne.1).or.(j.ne.1)) THEN
+!        IF(mype==0) WRITE(chnum1,'(i1.1)') i
+!        IF(mype==0) WRITE(chnum2,'(i1.1)') j
+!        IF(mype==0) WRITE(chnum3,'(i1.1)') k
+!        IF(mype==0) OPEN(unit=100,file=trim(diagdir)//'/dtevl_'//chnum1//chnum2//chnum3,status='unknown')
+!        kxmin=kx_temp(i)
+!        kymin=ky_temp(j)
+!        kzmin=kz_temp(k)
+!        !IF(mype==0) WRITE(*,*) kxmin,kymin,kzmin 
+!        CALL arrays_temp
+!        kxmax=kxmax_bak
+!        kymax=kymax_bak
+!        kzmax=kzmax_bak
+!        !WRITE(*,*) "Before CALL calc_dt_ev",mype
+!        CALL calc_dt_ev_lapack(current_evs)
+!        !IF(mype==0) WRITE(*,*) current_evs
+!        dt_temp=100.0
+!        !WRITE(*,*) "Before CALL compute_stability_criterion",mype
+!        DO l=1,nv0*nh0*nspec
+!         IF(mype==0) WRITE(100,*) REAL(current_evs(l)),aimag(current_evs(l))
+!         IF(REAL(current_evs(l)).ne.0.0.or.aimag(current_evs(l)).ne.0.0) THEN
+!           IF(REAL(current_evs(l)).lt.0.0) CALL compute_stability_criterion(current_evs(l),dt_temp)
+!         END IF
+!         IF(dt_temp.lt.dt_max) THEN
+!          dt_max=dt_temp
+!          IF(mype==0) WRITE(*,*) "New dt_max:",dt_max
+!          IF(mype==0) WRITE(*,*) "Omega",current_evs(l)
+!          IF(mype==0) WRITE(*,*) "kx,ky,kz",kxmin,kymin,kzmin
+!         END IF
+!        END DO
+!        CALL finalize_arrays 
+!        IF(mype==0) CLOSE(100)
+!       END IF
+!      END DO
+!    END DO
+!  END DO
+!
+!  dt_max=dt_max*0.95
+!  CALL MPI_ALLREDUCE(dt_max,dt_temp, 1, MPI_DOUBLE_PRECISION, MPI_SUM , MPI_COMM_WORLD,ierr)
+!  dt_max=dt_temp/float(n_mpi_procs)
+!  IF(mype==0) WRITE(*,*) "dt_max=",dt_max
+!
+!  nkx0=nkx0_bak
+!  nky0=nky0_bak
+!  nkz0=nkz0_bak
+!
+!  kxmin=kxmin_bak
+!  kymin=kymin_bak
+!  kzmin=kzmin_bak
+!
+!  nonlinear=nonlinear_bak
+!  kmin_eq_0=kmin_eq_0_bak
+!  evenyz=evenyz_bak
+!
+!  np_herm=np_herm_bak
+!  np_hank=np_hank_bak
+!  np_kz=np_kz_bak
+!  np_spec=np_spec_bak
+!
+!  !CALL finalize_comm
+!  !CALL comm
+!
+!  CALL arrays
+!
+!END SUBROUTINE calc_dt_lapack
 
   
 

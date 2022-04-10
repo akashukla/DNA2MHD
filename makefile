@@ -88,7 +88,7 @@ F90SRC = cc_comm.f90 \
 
 #ifeq ($(SLEPC),yes)
 #  F90SRC2 = ee_eigen_iterative.F90 \
-#  		  ee_petsc_aux.F90 \
+#/work2/04943/akshukla/stampede2/DNA2MHD/src/cc_calc_dt.f90  		  ee_petsc_aux.F90 \
 #  		  ee_slepc_aux.F90
 #endif
 		  
@@ -106,7 +106,7 @@ OBJLIST = $(F90OBJ) $(F90OBJ2)
 #				cc_initial_condition.o cc_field_solver.o
 #  cc_calc_dt.o:	cc_par_mod.o ee_eigen_iterative.o  cc_get_rhs_nl.o ee_eigen_direct.o
 #else
-cc_calc_dt.o:	cc_par_mod.o  cc_get_rhs_nl.o #ee_eigen_direct.o
+#cc_calc_dt.o:	cc_par_mod.o  cc_get_rhs_nl.o #ee_eigen_direct.o
 #endif
 
 cc_comm.o:	cc_par_mod.o
@@ -115,16 +115,16 @@ cc_comm.o:	cc_par_mod.o
 #cc_hk.o:	cc_par_mod.o cc_aux_func.o cc_comm.o
 cc_get_rhs_lin.o:	cc_par_mod.o #cc_flr.o cc_hk.o
 cc_get_rhs_nl.o:	cc_par_mod.o #cc_field_solver.o
-cc_init.o:	cc_par_mod.o cc_calc_dt.o #cc_calc_dt.o #ee_diagnostics.o \
+cc_init.o:	cc_par_mod.o #cc_calc_dt.o #ee_diagnostics.o \
                     #cc_hk.o cc_gaussquadrature.o #cc_field_solver.o cc_flr.o 
 cc_initial_condition.o:	cc_par_mod.o cc_par_io.o ee_mtrandom.o
 cc_par_io.o:	cc_par_mod.o #cc_gaussquadrature.o
 #cc_gaussquadrature.o:	cc_par_mod.o
-cc_time_advance.o:	cc_par_mod.o cc_get_rhs_lin.o cc_get_rhs_nl.o cc_calc_dt.o \
+cc_time_advance.o:	cc_par_mod.o cc_get_rhs_lin.o cc_get_rhs_nl.o \
 					#cc_calc_dt.o #cc_field_solver.o ee_diagnostics.o 
 cc_main.o:			ee_performance.o cc_par_mod.o cc_comm.o cc_init.o \
 				cc_par_io.o cc_time_advance.o  \
-				cc_get_rhs_nl.o ee_triple_transfers.o  cc_calc_dt.o #cc_hk.o cc_flr.o  ee_diagnostics.o `
+				cc_get_rhs_nl.o ee_triple_transfers.o  #cc_hk.o cc_flr.o  ee_diagnostics.o `
 
 #ee_diagnostics.o:	cc_par_mod.o cc_get_rhs_lin.o cc_get_rhs_nl.o \
 				cc_par_io.o #cc_flr.o cc_hk.o ee_Gyro_LES.o #cc_field_solver.o 

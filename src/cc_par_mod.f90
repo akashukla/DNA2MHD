@@ -196,7 +196,9 @@ MODULE par_mod
   !Arrays and Matrices
 
   !distribution function
-  COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:,:,:) :: g_1
+  !COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:,:,:) :: g_1
+  COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:) :: b_1
+  COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:) :: v_1
   REAL, ALLOCATABLE, DIMENSION(:,:) :: kperp2
   REAL, ALLOCATABLE, DIMENSION(:) :: kxgrid,kygrid,kzgrid,herm_grid,hgrid_loc,&
                             hkgrid,vgrid,delta_hk, delta_v
