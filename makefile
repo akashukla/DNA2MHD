@@ -69,8 +69,7 @@ include $(HOSTDIR)/$(HOST).mk
 
 ##### THE FILES                                                
 ###############################################################################
-F90SRC = cc_calc_dt.f90 \
-		 cc_comm.f90 \
+F90SRC = cc_comm.f90 \
 		 cc_get_rhs_lin.f90 \
 		 cc_get_rhs_nl.f90 \
 		 cc_init.f90 \
@@ -79,17 +78,19 @@ F90SRC = cc_calc_dt.f90 \
 		 cc_main.f90 \
 		 cc_par_mod.f90 \
 		 cc_time_advance.f90 \
-		 ee_diagnostics.f90 \
+		 cc_calc_dt.f90 \
+#		 ee_diagnostics.f90 \
 		 ee_eigen_direct.f90 \
 		 ee_performance.f90 \
 		 ee_triple_transfers.f90 \
 		 ee_mtrandom.f90 \
 
-ifeq ($(SLEPC),yes)
-  F90SRC2 = ee_eigen_iterative.F90 \
-  		  ee_petsc_aux.F90 \
-  		  ee_slepc_aux.F90
-endif
+
+#ifeq ($(SLEPC),yes)
+#  F90SRC2 = ee_eigen_iterative.F90 \
+#  		  ee_petsc_aux.F90 \
+#  		  ee_slepc_aux.F90
+#endif
 		  
 F90OBJ  = $(F90SRC:.f90=.o)
 F90OBJ2 = $(F90SRC2:.F90=.o)
@@ -98,39 +99,39 @@ OBJLIST = $(F90OBJ) $(F90OBJ2)
 
 ##### THE DEPENDENCIES                                                
 ###############################################################################
-ifeq ($(SLEPC),yes)
-  ee_petsc_aux.o:	cc_par_mod.o cc_field_solver.o cc_get_rhs_lin.o 
-  ee_slepc_aux.o:	cc_par_mod.o ee_petsc_aux.o 
-  ee_eigen_iterative.o:	cc_par_mod.o ee_petsc_aux.o ee_slepc_aux.o cc_get_rhs_lin.o \
-				cc_initial_condition.o cc_field_solver.o
-  cc_calc_dt.o:	cc_par_mod.o ee_eigen_iterative.o  cc_get_rhs_nl.o ee_eigen_direct.o
-else
-  cc_calc_dt.o:	cc_par_mod.o  cc_get_rhs_nl.o ee_eigen_direct.o
-endif
+#ifeq ($(SLEPC),yes)
+#  ee_petsc_aux.o:	cc_par_mod.o cc_field_solver.o cc_get_rhs_lin.o 
+#  ee_slepc_aux.o:	cc_par_mod.o ee_petsc_aux.o 
+#  ee_eigen_iterative.o:	cc_par_mod.o ee_petsc_aux.o ee_slepc_aux.o cc_get_rhs_lin.o \
+#				cc_initial_condition.o cc_field_solver.o
+#  cc_calc_dt.o:	cc_par_mod.o ee_eigen_iterative.o  cc_get_rhs_nl.o ee_eigen_direct.o
+#else
+cc_calc_dt.o:	cc_par_mod.o  cc_get_rhs_nl.o #ee_eigen_direct.o
+#endif
 
 cc_comm.o:	cc_par_mod.o
 #cc_field_solver.o:	cc_par_mod.o cc_flr.o cc_aux_func.o cc_hk.o
 #cc_flr.o:	cc_par_mod.o cc_aux_func.o
 #cc_hk.o:	cc_par_mod.o cc_aux_func.o cc_comm.o
-cc_get_rhs_lin.o:	cc_par_mod.o cc_flr.o cc_hk.o
+cc_get_rhs_lin.o:	cc_par_mod.o #cc_flr.o cc_hk.o
 cc_get_rhs_nl.o:	cc_par_mod.o #cc_field_solver.o
-cc_init.o:	cc_par_mod.o cc_flr.o cc_calc_dt.o ee_diagnostics.o \
-                    #cc_hk.o cc_gaussquadrature.o #cc_field_solver.o 
+cc_init.o:	cc_par_mod.o cc_calc_dt.o #cc_calc_dt.o #ee_diagnostics.o \
+                    #cc_hk.o cc_gaussquadrature.o #cc_field_solver.o cc_flr.o 
 cc_initial_condition.o:	cc_par_mod.o cc_par_io.o ee_mtrandom.o
 cc_par_io.o:	cc_par_mod.o #cc_gaussquadrature.o
 #cc_gaussquadrature.o:	cc_par_mod.o
-cc_time_advance.o:	cc_par_mod.o cc_get_rhs_lin.o cc_get_rhs_nl.o \
-					ee_diagnostics.o cc_calc_dt.o #cc_field_solver.o 
+cc_time_advance.o:	cc_par_mod.o cc_get_rhs_lin.o cc_get_rhs_nl.o cc_calc_dt.o \
+					#cc_calc_dt.o #cc_field_solver.o ee_diagnostics.o 
 cc_main.o:			ee_performance.o cc_par_mod.o cc_comm.o cc_init.o \
-				cc_par_io.o cc_time_advance.o cc_calc_dt.o  \
-				ee_diagnostics.o cc_get_rhs_nl.o ee_triple_transfers.o #cc_hk.o cc_flr.o  
+				cc_par_io.o cc_time_advance.o  \
+				cc_get_rhs_nl.o ee_triple_transfers.o  cc_calc_dt.o #cc_hk.o cc_flr.o  ee_diagnostics.o `
 
-ee_diagnostics.o:	cc_par_mod.o cc_get_rhs_lin.o cc_get_rhs_nl.o \
+#ee_diagnostics.o:	cc_par_mod.o cc_get_rhs_lin.o cc_get_rhs_nl.o \
 				cc_par_io.o #cc_flr.o cc_hk.o ee_Gyro_LES.o #cc_field_solver.o 
-ee_eigen_direct.o:	cc_par_mod.o cc_get_rhs_lin.o #cc_field_solver.o
-ee_performance.o:	cc_par_mod.o cc_get_rhs_lin.o cc_get_rhs_nl.o \
+#ee_eigen_direct.o:	cc_par_mod.o cc_get_rhs_lin.o #cc_field_solver.o
+#ee_performance.o:	cc_par_mod.o cc_get_rhs_lin.o cc_get_rhs_nl.o \
 				cc_time_advance.o #cc_field_solver.o 
-ee_triple_transfers.o:	cc_par_mod.o cc_get_rhs_nl.o #cc_field_solver.o 			
+#ee_triple_transfers.o:	cc_par_mod.o cc_get_rhs_nl.o #cc_field_solver.o 			
 #ee_Gyro_LES.o:	cc_field_solver.o cc_par_mod.o cc_get_rhs_nl.o \
 				cc_par_io.o cc_flr.o
 

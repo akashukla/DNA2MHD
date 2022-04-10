@@ -19,11 +19,11 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 SUBROUTINE init_run
   USE calculate_time_step, ONLY: calc_initial_dt, initialize_adapt_dt
-  USE diagnostics, ONLY: initialize_diagnostics
+  !USE diagnostics, ONLY: initialize_diagnostics
   USE nonlinearity, ONLY: initialize_fourier  
   USE par_mod
-  USE hk_effects
-  USE GaussQuadrature
+  !USE hk_effects
+  !USE GaussQuadrature
   IMPLICIT NONE
   
   CALL arrays
@@ -74,8 +74,8 @@ END SUBROUTINE init_run
 SUBROUTINE arrays
   USE par_mod
   USE flr_effects
-  USE hk_effects
-  USE Gaussquadrature
+  !USE hk_effects
+  !USE Gaussquadrature
   IMPLICIT NONE
   
   INTEGER :: i,j,l,hypv_handle
@@ -156,18 +156,18 @@ SUBROUTINE arrays
   ELSE
     IF(.not.allocated(kzgrid)) ALLOCATE(kzgrid(0:nkz0-1))
   END IF
-  IF(.not.allocated(herm_grid)) ALLOCATE(herm_grid(0:nv0-1))
-  IF(.not.allocated(hgrid_loc)) ALLOCATE(hgrid_loc(lv1:lv2))
-  IF(.not.allocated(hkgrid)) ALLOCATE(hkgrid(0:nh0-1))
-  IF(.not.allocated(delta_hk)) ALLOCATE(delta_hk(0:nh0-1))
-  IF(.not.allocated(vgrid)) ALLOCATE(vgrid(0:nh0-1))
-  IF(.not.allocated(delta_v)) ALLOCATE(delta_v(0:nh0-1))
-  IF(.not.allocated(kperp2)) ALLOCATE(kperp2(0:nkx0-1,0:nky0-1))
-  IF(.not.allocated(hyp_x_herm1)) ALLOCATE(hyp_x_herm1(lv1:lv2)) 
-  IF(.not.allocated(hyp_y_herm1)) ALLOCATE(hyp_y_herm1(lv1:lv2)) 
+  !IF(.not.allocated(herm_grid)) ALLOCATE(herm_grid(0:nv0-1))
+  !IF(.not.allocated(hgrid_loc)) ALLOCATE(hgrid_loc(lv1:lv2))
+  !IF(.not.allocated(hkgrid)) ALLOCATE(hkgrid(0:nh0-1))
+  !IF(.not.allocated(delta_hk)) ALLOCATE(delta_hk(0:nh0-1))
+  !IF(.not.allocated(vgrid)) ALLOCATE(vgrid(0:nh0-1))
+  !IF(.not.allocated(delta_v)) ALLOCATE(delta_v(0:nh0-1))
+  !IF(.not.allocated(kperp2)) ALLOCATE(kperp2(0:nkx0-1,0:nky0-1))
+  !IF(.not.allocated(hyp_x_herm1)) ALLOCATE(hyp_x_herm1(lv1:lv2)) 
+  !IF(.not.allocated(hyp_y_herm1)) ALLOCATE(hyp_y_herm1(lv1:lv2)) 
 
-  hyp_x_herm1(:) = 0.001 
-  hyp_y_herm1(:) = 0.001 
+  !hyp_x_herm1(:) = 0.001 
+  !hyp_y_herm1(:) = 0.001 
 
  
   IF(kmin_eq_0) THEN
@@ -208,58 +208,58 @@ SUBROUTINE arrays
     kzmax=kzmin
   END IF
 
-  DO i=0,nv0-1
-    herm_grid(i)=REAL(i)
-  END DO 
+  !DO i=0,nv0-1
+  !  herm_grid(i)=REAL(i)
+  !END DO 
 
-  DO i=lv1,lv2
-    hgrid_loc(i)=REAL(i)
-  END DO 
+  !DO i=lv1,lv2
+  !  hgrid_loc(i)=REAL(i)
+  !END DO 
 
-  DO i=0,nkx0-1
-    DO j=0,nky0-1
-      kperp2(i,j) = kxgrid(i)**2 + kygrid(j)**2
-    ENDDO
-  ENDDO
+  !DO i=0,nkx0-1
+  !  DO j=0,nky0-1
+  !    kperp2(i,j) = kxgrid(i)**2 + kygrid(j)**2
+  !  ENDDO
+  !ENDDO
 
   !Hankel grid
 
-  IF (.not.mu_integrated) THEN
-     IF (hankel) THEN
-        IF(.not.allocated(T_hkv)) ALLOCATE(T_hkv(0:nh0-1,0:nh0-1))
-        IF(.not.allocated(m1_v)) ALLOCATE(m1_v(0:nh0-1))
-        IF(.not.allocated(m2_hk)) ALLOCATE(m2_hk(0:nh0-1))
-        !IF(.not.allocated(f_in)) ALLOCATE(f_in(lh1:lh2))
-        hkmax = sqrt(2*maxval(kperp2))
-        call Gethankelgrid(hkmax,vmax,delta_hk,delta_v,hkgrid,vgrid,m1_v,m2_hk,T_hkv)
-        !f_in(lh1:lh2) = e**(-hkgrid(lh1:lh2)**2./2)
-        !CALL hankel_transform(f_in,.true.)
-        !CALL hankel_transform(f_in,.false.)
-     ELSE 
-        CALL GetMuWeightsAndKnots(delta_v,vgrid,vmax,nh0)
-     END IF
-  END IF
+!  IF (.not.mu_integrated) THEN
+!     IF (hankel) THEN
+!        IF(.not.allocated(T_hkv)) ALLOCATE(T_hkv(0:nh0-1,0:nh0-1))
+!        IF(.not.allocated(m1_v)) ALLOCATE(m1_v(0:nh0-1))
+!        IF(.not.allocated(m2_hk)) ALLOCATE(m2_hk(0:nh0-1))
+!        !IF(.not.allocated(f_in)) ALLOCATE(f_in(lh1:lh2))
+!        hkmax = sqrt(2*maxval(kperp2))
+!        call Gethankelgrid(hkmax,vmax,delta_hk,delta_v,hkgrid,vgrid,m1_v,m2_hk,T_hkv)
+!        !f_in(lh1:lh2) = e**(-hkgrid(lh1:lh2)**2./2)
+!        !CALL hankel_transform(f_in,.true.)
+!        !CALL hankel_transform(f_in,.false.)
+!     ELSE 
+!        CALL GetMuWeightsAndKnots(delta_v,vgrid,vmax,nh0)
+!     END IF
+!  END IF
 
   !Set up FLR terms
-  CALL get_J0
-  
-  !Set up Hankel terms
-  CALL get_hk
-
-  IF(hyp_v.ne.0.0) THEN
-    CALL get_io_number
-    hypv_handle=io_number
-    IF(mype==0) THEN
-      OPEN(unit=hypv_handle,file=trim(diagdir)//'/hypv_vs_coll.dat',status='unknown')
-      WRITE(hypv_handle,*) "#coll=",nu
-      WRITE(hypv_handle,*) "#hypv=",hyp_v
-      WRITE(hypv_handle,*) "#hypv_order=",hypv_order
-      DO l=0,nv0-1
-        WRITE(hypv_handle,*) l,nu*herm_grid(l),hyp_v*(REAL(herm_grid(l))/REAL(nv0))**hypv_order 
-      END DO
-      CLOSE(hypv_handle)
-    END IF
-  END IF
+!  CALL get_J0
+!  
+!  !Set up Hankel terms
+!  CALL get_hk
+!
+!  IF(hyp_v.ne.0.0) THEN
+!    CALL get_io_number
+!    hypv_handle=io_number
+!    IF(mype==0) THEN
+!      OPEN(unit=hypv_handle,file=trim(diagdir)//'/hypv_vs_coll.dat',status='unknown')
+!      WRITE(hypv_handle,*) "#coll=",nu
+!      WRITE(hypv_handle,*) "#hypv=",hyp_v
+!      WRITE(hypv_handle,*) "#hypv_order=",hypv_order
+!      DO l=0,nv0-1
+!        WRITE(hypv_handle,*) l,nu*herm_grid(l),hyp_v*(REAL(herm_grid(l))/REAL(nv0))**hypv_order 
+!      END DO
+!      CLOSE(hypv_handle)
+!    END IF
+!  END IF
 
   itime_start=itime
 
@@ -276,9 +276,9 @@ END SUBROUTINE arrays
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 SUBROUTINE arrays_temp
   USE par_mod
-  USE flr_effects
-  USE hk_effects
-  USE Gaussquadrature
+  !USE flr_effects
+  !USE hk_effects
+  !USE Gaussquadrature
   IMPLICIT NONE
   
   INTEGER :: i,l,j,hypv_handle
@@ -301,14 +301,14 @@ SUBROUTINE arrays_temp
     WRITE(*,*) "lkz_ind",lkz_ind
   END IF
 
-  !Info for v grid and parallelization
-  lv0=nv0  !Number of hermites per processor
-  lv1=0
-  lv2=lv0-1    !Upper index on processor mype
-  lbv=lv1-1             !Lower boundary index 
-  IF(mype_herm==0) lbv=0     
-  ubv=lv2+1             !Upper boundary index
-  IF(mype_herm==np_herm-1) ubv=lv2  
+!  !Info for v grid and parallelization
+!  lv0=nv0  !Number of hermites per processor
+!  lv1=0
+!  lv2=lv0-1    !Upper index on processor mype
+!  lbv=lv1-1             !Lower boundary index 
+!  IF(mype_herm==0) lbv=0     
+!  ubv=lv2+1             !Upper boundary index
+!  IF(mype_herm==np_herm-1) ubv=lv2  
 
   !Info for kz grid
   lkz0=nkz0
@@ -318,15 +318,15 @@ SUBROUTINE arrays_temp
   lbkz=lkz1
   ubkz=lkz2
 
-  !Info for Hankel grid
-  lh0=nh0
-  lh1=0
-  lh2=lh0-1
-  !Verify the following when implementing h parallelization
-  !As a first implementation, no collision operator, so nhb = 0
-  nhb  = 0
-  lbh=lh1 - nhb
-  ubh=lh2 + nhb
+!  !Info for Hankel grid
+!  lh0=nh0
+!  lh1=0
+!  lh2=lh0-1
+!  !Verify the following when implementing h parallelization
+!  !As a first implementation, no collision operator, so nhb = 0
+!  nhb  = 0
+!  lbh=lh1 - nhb
+!  ubh=lh2 + nhb
 
 
   !Info for species grid
@@ -337,9 +337,9 @@ SUBROUTINE arrays_temp
   lbs=ls1
   ubs=ls2
 
-  lxyzvhs0=nkx0*nky0*lkz0*lv0*lh0*ls0   
-  ev_size_loc=lxyzvhs0
-  ev_size=lxyzvhs0*np_herm*np_hank*np_kz*np_spec
+!   lxyzvhs0=nkx0*nky0*lkz0*lv0*lh0*ls0   
+!   ev_size_loc=lxyzvhs0
+!   ev_size=lxyzvhs0*np_herm*np_hank*np_kz*np_spec
   
 !  IF(.not.allocated(g_1))&
 !      ALLOCATE(g_1(0:nkx0-1,0:nky0-1,lkz1:lkz2,lv1:lv2,lh1:lh2,ls1:ls2)) 
@@ -355,18 +355,18 @@ SUBROUTINE arrays_temp
   ELSE
     IF(.not.allocated(kzgrid)) ALLOCATE(kzgrid(0:nkz0-1))
   END IF
-  IF(.not.allocated(herm_grid)) ALLOCATE(herm_grid(0:nv0-1))
-  IF(.not.allocated(hgrid_loc)) ALLOCATE(hgrid_loc(lv1:lv2))
-  IF(.not.allocated(hkgrid)) ALLOCATE(hkgrid(0:nh0-1))
-  IF(.not.allocated(vgrid)) ALLOCATE(vgrid(0:nh0-1))
-  IF(.not.allocated(delta_hk)) ALLOCATE(delta_hk(0:nh0-1))
-  IF(.not.allocated(delta_v)) ALLOCATE(delta_v(0:nh0-1))
-  IF(.not.allocated(kperp2)) ALLOCATE(kperp2(0:nkx0-1,0:nky0-1))
-  IF(.not.allocated(hyp_x_herm1)) ALLOCATE(hyp_x_herm1(lv1:lv2)) 
-  IF(.not.allocated(hyp_y_herm1)) ALLOCATE(hyp_y_herm1(lv1:lv2)) 
+!  IF(.not.allocated(herm_grid)) ALLOCATE(herm_grid(0:nv0-1))
+!  IF(.not.allocated(hgrid_loc)) ALLOCATE(hgrid_loc(lv1:lv2))
+!  IF(.not.allocated(hkgrid)) ALLOCATE(hkgrid(0:nh0-1))
+!  IF(.not.allocated(vgrid)) ALLOCATE(vgrid(0:nh0-1))
+!  IF(.not.allocated(delta_hk)) ALLOCATE(delta_hk(0:nh0-1))
+!  IF(.not.allocated(delta_v)) ALLOCATE(delta_v(0:nh0-1))
+!  IF(.not.allocated(kperp2)) ALLOCATE(kperp2(0:nkx0-1,0:nky0-1))
+!  IF(.not.allocated(hyp_x_herm1)) ALLOCATE(hyp_x_herm1(lv1:lv2)) 
+!  IF(.not.allocated(hyp_y_herm1)) ALLOCATE(hyp_y_herm1(lv1:lv2)) 
 
-  hyp_x_herm1(:) = 0.001 
-  hyp_y_herm1(:) = 0.001 
+!  hyp_x_herm1(:) = 0.001 
+!  hyp_y_herm1(:) = 0.001 
 
 
   IF(kmin_eq_0) THEN
@@ -408,58 +408,58 @@ SUBROUTINE arrays_temp
     kzmax=kzmin
   END IF
 
-  DO i=0,nv0-1
-    herm_grid(i)=REAL(i)
-  END DO 
-
-  DO i=lv1,lv2
-    hgrid_loc(i)=REAL(i)
-  END DO 
-
-
-   DO i=0,nkx0-1
-    DO j=0,nky0-1
-      kperp2(i,j) = kxgrid(i)**2 + kygrid(j)**2
-    ENDDO
-   ENDDO
-
-  !Hankel grid
-  IF (.not.mu_integrated) THEN
-     IF (hankel) THEN
-        IF(.not.allocated(T_hkv)) ALLOCATE(T_hkv(0:nh0-1,0:nh0-1))
-        IF(.not.allocated(m1_v)) ALLOCATE(m1_v(0:nh0-1))
-        IF(.not.allocated(m2_hk)) ALLOCATE(m2_hk(0:nh0-1))
-        !IF(.not.allocated(f_in)) ALLOCATE(f_in(lh1:lh2))
-        hkmax = sqrt(2*maxval(kperp2))
-        call Gethankelgrid(hkmax,vmax,delta_hk,delta_v,hkgrid,vgrid,m1_v,m2_hk,T_hkv)
-        !f_in(lh1:lh2) = e**(-hkgrid(lh1:lh2)**2./2)
-        !CALL hankel_transform(f_in,.true.)
-        !CALL hankel_transform(f_in,.false.)
-     ELSE 
-        CALL GetMuWeightsAndKnots(delta_v,vgrid,vmax,nh0)
-     END IF
-  END IF
+!  DO i=0,nv0-1
+!    herm_grid(i)=REAL(i)
+!  END DO 
+!
+!  DO i=lv1,lv2
+!    hgrid_loc(i)=REAL(i)
+!  END DO 
+!
+!
+!   DO i=0,nkx0-1
+!    DO j=0,nky0-1
+!      kperp2(i,j) = kxgrid(i)**2 + kygrid(j)**2
+!    ENDDO
+!   ENDDO
+!
+!  !Hankel grid
+!  IF (.not.mu_integrated) THEN
+!     IF (hankel) THEN
+!        IF(.not.allocated(T_hkv)) ALLOCATE(T_hkv(0:nh0-1,0:nh0-1))
+!        IF(.not.allocated(m1_v)) ALLOCATE(m1_v(0:nh0-1))
+!        IF(.not.allocated(m2_hk)) ALLOCATE(m2_hk(0:nh0-1))
+!        !IF(.not.allocated(f_in)) ALLOCATE(f_in(lh1:lh2))
+!        hkmax = sqrt(2*maxval(kperp2))
+!        call Gethankelgrid(hkmax,vmax,delta_hk,delta_v,hkgrid,vgrid,m1_v,m2_hk,T_hkv)
+!        !f_in(lh1:lh2) = e**(-hkgrid(lh1:lh2)**2./2)
+!        !CALL hankel_transform(f_in,.true.)
+!        !CALL hankel_transform(f_in,.false.)
+!     ELSE 
+!        CALL GetMuWeightsAndKnots(delta_v,vgrid,vmax,nh0)
+!     END IF
+!  END IF
 
   !Set up FLR terms
-  CALL get_J0
-  
-  !Set up Hankel terms
-  CALL get_hk
-
-  IF(hyp_v.ne.0.0) THEN
-    CALL get_io_number
-    hypv_handle=io_number
-    IF(mype==0) THEN
-      OPEN(unit=hypv_handle,file=trim(diagdir)//'/hypv_vs_coll.dat',status='unknown')
-      WRITE(hypv_handle,*) "#coll=",nu
-      WRITE(hypv_handle,*) "#hypv=",hyp_v
-      WRITE(hypv_handle,*) "#hypv_order=",hypv_order
-      DO l=0,nv0-1
-        WRITE(hypv_handle,*) l,nu*herm_grid(l),hyp_v*(REAL(herm_grid(l))/REAL(nv0))**hypv_order 
-      END DO
-      CLOSE(hypv_handle)
-    END IF
-  END IF
+!  CALL get_J0
+!  
+!  !Set up Hankel terms
+!  CALL get_hk
+!
+!  IF(hyp_v.ne.0.0) THEN
+!    CALL get_io_number
+!    hypv_handle=io_number
+!    IF(mype==0) THEN
+!      OPEN(unit=hypv_handle,file=trim(diagdir)//'/hypv_vs_coll.dat',status='unknown')
+!      WRITE(hypv_handle,*) "#coll=",nu
+!      WRITE(hypv_handle,*) "#hypv=",hyp_v
+!      WRITE(hypv_handle,*) "#hypv_order=",hypv_order
+!      DO l=0,nv0-1
+!        WRITE(hypv_handle,*) l,nu*herm_grid(l),hyp_v*(REAL(herm_grid(l))/REAL(nv0))**hypv_order 
+!      END DO
+!      CLOSE(hypv_handle)
+!    END IF
+!  END IF
 
   itime_start=itime
 
@@ -483,18 +483,18 @@ SUBROUTINE finalize_arrays
   IF(allocated(kxgrid)) DEALLOCATE(kxgrid)
   IF(allocated(kygrid)) DEALLOCATE(kygrid)
   IF(allocated(kzgrid)) DEALLOCATE(kzgrid)
-  IF(allocated(herm_grid)) DEALLOCATE(herm_grid)
-  IF(allocated(hgrid_loc)) DEALLOCATE(hgrid_loc)
-  IF(allocated(delta_hk)) DEALLOCATE(delta_hk)
-  IF(allocated(delta_v)) DEALLOCATE(delta_v)
-  IF(allocated(hkgrid)) DEALLOCATE(hkgrid)
-  IF(allocated(vgrid)) DEALLOCATE(vgrid)
-  IF(allocated(kperp2)) DEALLOCATE(kperp2)
-  IF(allocated(T_hkv)) DEALLOCATE(T_hkv)
-  IF(allocated(m1_v)) DEALLOCATE(m1_v)
-  IF(allocated(m2_hk)) DEALLOCATE(m2_hk)
-  IF(allocated(hyp_x_herm1)) DEALLOCATE(hyp_x_herm1)
-  IF(allocated(hyp_y_herm1)) DEALLOCATE(hyp_y_herm1)
+!  IF(allocated(herm_grid)) DEALLOCATE(herm_grid)
+!  IF(allocated(hgrid_loc)) DEALLOCATE(hgrid_loc)
+!  IF(allocated(delta_hk)) DEALLOCATE(delta_hk)
+!  IF(allocated(delta_v)) DEALLOCATE(delta_v)
+!  IF(allocated(hkgrid)) DEALLOCATE(hkgrid)
+!  IF(allocated(vgrid)) DEALLOCATE(vgrid)
+!  IF(allocated(kperp2)) DEALLOCATE(kperp2)
+!  IF(allocated(T_hkv)) DEALLOCATE(T_hkv)
+!  IF(allocated(m1_v)) DEALLOCATE(m1_v)
+!  IF(allocated(m2_hk)) DEALLOCATE(m2_hk)
+!  IF(allocated(hyp_x_herm1)) DEALLOCATE(hyp_x_herm1)
+!  IF(allocated(hyp_y_herm1)) DEALLOCATE(hyp_y_herm1)
   !IF(allocated(f_in)) DEALLOCATE(f_in)
 
 END SUBROUTINE finalize_arrays

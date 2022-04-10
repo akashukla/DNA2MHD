@@ -24,7 +24,7 @@ MODULE time_advance
   USE linear_rhs
   USE nonlinearity
   USE diagnostics
-  USE field_solver
+  !USE field_solver
   USE calculate_time_step, ONLY: adapt_dt
 
   PUBLIC :: iv_solver,rk4_stability

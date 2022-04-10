@@ -27,8 +27,8 @@ MODULE nonlinearity
   IMPLICIT NONE
 
   PUBLIC :: initialize_fourier,get_rhs_nl,&
-            get_rhs_nl_convolution,get_k_indices,get_rhs_nl1,&
-            initialize_fourier_ae_mu0 !,initialize_fourier2, get_rhs_nl2
+            get_k_indices,get_rhs_nl1,&
+            initialize_fourier_ae_mu0 !,initialize_fourier2, get_rhs_nl2, get_rhs_nl_convolution
   
   REAL, PUBLIC :: ve_max(2)
 
@@ -189,7 +189,7 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v)
   COMPLEX, INTENT(in) :: b_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
   COMPLEX, INTENT(in) :: v_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
   COMPLEX, INTENT(inout) :: rhs_out_b(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
-  COMPLEX, INTENT(inout) :: rhs_out_v(0:nkx0-1,0:nky0-1,0:2)
+  COMPLEX, INTENT(inout) :: rhs_out_v(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
                                                                 !COMPLEX :: temp_small(0:nkx0-1,0:nky0-1,0:nkz0-1)
                                                                 !COMPLEX :: temp_big(0:nx0_big/2,0:ny0_big-1,0:nz0_big-1)
                                                                 !REAL :: dxphi(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1)
@@ -1309,11 +1309,20 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v)
 !S3=dybz*dxbz-dzby*dxbz-dxbz*dybz+dzbx*dybz+dxby*dzbz-dybx*dz*bz 
 
 !Use store_i to store each product
-store_x = (bx*dxvx+by*dyvx+bz*dzvx) - (vx*dxbx+vy*dybx+vz*dzbx) - (bx*dxdybz+by*dydybz+bz*dzdybz-bx*dxdzby-by*dydzby-bz*dzdzby) + (dybz*dxbx-dzby*dxbx-dxbz*dybx+dzbx*dybx+dxby*dzbx-dybx*dz*bx)
+!store_x = (bx*dxvx+by*dyvx+bz*dzvx) - (vx*dxbx+vy*dybx+vz*dzbx) - (bx*dxdybz+by*dydybz+bz*dzdybz-bx*dxdzby-by*dydzby-bz*dzdzby) + (dybz*dxbx-dzby*dxbx-dxbz*dybx+dzbx*dybx+dxby*dzbx-dybx*dz*bx)
+!
+!store_y = (bx*dxvy+by*dyvy+bz*dzvy) - (vx*dxby+vy*dyby+vz*dzby) - (bx*dxdzbx+by*dydzbx+bz*dzdzbx-bx*dxdxbz-by*dydxbz-bz*dzdxbz) + (dybz*dxby-dzby*dxby-dxbz*dyby+dzbx*dyby+dxby*dzby-dybx*dz*by)
+!
+!store_z = (bx*dxvz+by*dyvz+bz*dzvz)- (vx*dxbz+vy*dybz+vz*dzbz)- (bx*dxdxby+by*dydxby+bz*dzdxby-bx*dxdybx-by*dydybx-bz*dzdybx)+ (dybz*dxbz-dzby*dxbz-dxbz*dybz+dzbx*dybz+dxby*dzbz-dybx*dz*bz )
+!
+!Redo with correct order in terms
+store_x = (bx*dxvx+by*dyvx+bz*dzvx) - (vx*dxbx+vy*dybx+vz*dzbx) - (bx*dxdybz+by*dydybz+bz*dydzbz-bx*dxdzby-by*dydzby-bz*dzdzby) + (dybz*dxbx-dzby*dxbx-dxbz*dybx+dzbx*dybx+dxby*dzbx-dybx*dzbx)
 
-store_y = (bx*dxvy+by*dyvy+bz*dzvy) - (vx*dxby+vy*dyby+vz*dzby) - (bx*dxdzbx+by*dydzbx+bz*dzdzbx-bx*dxdxbz-by*dydxbz-bz*dzdxbz) + (dybz*dxby-dzby*dxby-dxbz*dyby+dzbx*dyby+dxby*dzby-dybx*dz*by)
+store_y = (bx*dxvy+by*dyvy+bz*dzvy) - (vx*dxby+vy*dyby+vz*dzby) - (bx*dxdzbx+by*dydzbx+bz*dzdzbx-bx*dxdxbz-by*dxdybz-bz*dxdzbz) + (dybz*dxby-dzby*dxby-dxbz*dyby+dzbx*dyby+dxby*dzby-dybx*dzby)
 
-store_z = (bx*dxvz+by*dyvz+bz*dzvz)- (vx*dxbz+vy*dybz+vz*dzbz)- (bx*dxdxby+by*dydxby+bz*dzdxby-bx*dxdybx-by*dydybx-bz*dzdybx)+ (dybz*dxbz-dzby*dxbz-dxbz*dybz+dzbx*dybz+dxby*dzbz-dybx*dz*bz )
+store_z = (bx*dxvz+by*dyvz+bz*dzvz)- (vx*dxbz+vy*dybz+vz*dzbz)- (bx*dxdxby+by*dxdyby+bz*dxdzby-bx*dxdybx-by*dydybx-bz*dydzbx)+ (dybz*dxbz-dzby*dxbz-dxbz*dybz+dzbx*dybz+dxby*dzbz-dybx*dzbz )
+
+
 
 !inverse FFT to get back to Fourier
 CALL dfftw_execute_dft_r2c(plan_r2c,store_x(0,0,0),temp_bigx(0,0,0))
@@ -1557,117 +1566,117 @@ END SUBROUTINE get_rhs_nl1
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!  Only for comparison with pseudospectral version.
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-SUBROUTINE get_rhs_nl_convolution(g_in,phi_in0,rhs_out)
-  USE par_mod
-  IMPLICIT NONE
-
-  COMPLEX, INTENT(in) :: g_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,lv1:lv2,lh1:lh2,ls1:ls2)
-  COMPLEX, INTENT(in) :: phi_in0(0:nkx0-1,0:nky0-1,lkz1:lkz2)
-  COMPLEX :: phi_in(0:nkx0-1,0:nky0-1,lkz1:lkz2)
-  COMPLEX, INTENT(inout) :: rhs_out(0:nkx0-1,0:nky0-1,lkz1:lkz2,lv1:lv2,lh1:lh2,ls1:ls2)
- 
-  INTEGER :: i,j,k,l,ip,jp,kp
-  REAL :: ckxmax,ckymax,ckzmax
-  REAL :: kx,ky,kz,kxp,kyp,kzp,kxpp,kypp,kzpp
-  INTEGER :: xi,yi,zi,xip,yip,zip,xipp,yipp,zipp
-  LOGICAL :: take_conjgp,take_conjgpp
-  COMPLEX :: phi_kp,g_kpp
-
-  IF(np_hank.gt.1) STOP "get_rhs_convolution not yet implemented for np_hank.gt.1"
-  IF(np_spec.gt.1) STOP "get_rhs_convolution not yet implemented for np_spec.gt.1"
-  IF(np_kz.gt.1) STOP "get_rhs_convolution not yet implemented for np_kz.gt.1"
-
-  IF(np_kz.ne.1) STOP "get_rhs_convolution only suitable for np_kz=1"
-  DO k=0,nkz0-1
-    phi_in(:,:,k)=J0a(:,:)*phi_in0(:,:,k)
-  END DO
-
-  ckxmax=REAL(hkx_ind)*kxmin
-  ckymax=REAL(hky_ind)*kymin
-  ckzmax=REAL(hkz_ind)*kzmin
-
-!  IF(mype==0) OPEN(unit=200,file='temp.dat',status='unknown')
-
-  DO l=lv1,lv2
-    !WRITE(*,*) "l=",l
-    DO i=0,hkx_ind      !kx loop
-      DO j=-hky_ind,hky_ind    !ky loop
-        DO k=-hkz_ind,hkz_ind          !kz loop
-
-           kx=REAL(i)*kxmin
-           ky=REAL(j)*kymin
-           kz=REAL(k)*kzmin
-           CALL get_k_indices(kx,ky,kz,xi,yi,zi,take_conjgp)
-           IF(take_conjgp) STOP "Error!"                   
-
-           DO ip=-hkx_ind,hkx_ind   !kxp loop
-             DO jp=-hky_ind,hky_ind !kyp loop
-               DO kp=-hkz_ind,hkz_ind     !kzp loop
-
-                  kxp=REAL(ip)*kxmin 
-                  kyp=REAL(jp)*kymin 
-                  kzp=REAL(kp)*kzmin 
-
-                  kxpp=kx-kxp
-                  kypp=ky-kyp
-                  kzpp=kz-kzp
- 
-                  !IF(i==2.and.j==0.and.k==0.and.ip==-13.and.jp==-1.and.kp==0.and.l==1) WRITE(*,*) "Before check.",&
-                  !           kxp,kyp,kzp,kxpp,kypp,kzpp,ckxmax,ckymax,ckzmax
-
-                  IF((abs(kxpp).le.(ckxmax+0.001)).and.(abs(kypp).le.(ckymax+0.001)).and.(abs(kzpp).le.(ckzmax+0.001))) THEN
-
-
-                    CALL get_k_indices(kxp,kyp,kzp,xip,yip,zip,take_conjgp)
-                    IF(take_conjgp) THEN
-                      phi_kp=conjg(phi_in(xip,yip,zip))
-                    ELSE
-                      phi_kp=phi_in(xip,yip,zip)
-                    END IF
-
-                    CALL get_k_indices(kxpp,kypp,kzpp,xipp,yipp,zipp,take_conjgpp)
-                    IF(take_conjgpp) THEN
-                      g_kpp=conjg(g_in(xipp,yipp,zipp,l,0,0))
-                    ELSE
-                      g_kpp=g_in(xipp,yipp,zipp,l,0,0)
-                    END IF
-        
-                    rhs_out(xi,yi,zi,l,0,0)=rhs_out(xi,yi,zi,l,0,0)+&
-                                (kxp*ky-kx*kyp)*phi_kp*g_kpp
-
-                  !IF(i==2.and.j==0.and.k==0.and.ip==-13.and.jp==-1.and.kp==0.and.l==1) WRITE(*,*) "After check.",&
-                  !              (kxp*ky-kx*kyp)*phi_kp*g_kpp
-
-!           IF(mype==0) THEN 
-!             IF(i==2.and.j==0.and.k==0.and.(abs((kxp*ky-kx*kyp)*phi_kp*g_kpp).ne.0.0)) THEN
-!                  WRITE(200,*) "i,j,k",i,j,k
-!                  WRITE(200,*) "xip,yip,zip",xip,yip,zip
-!                  WRITE(200,*) "xipp,yipp,zipp",xipp,yipp,zipp
-!                  WRITE(200,*) "take_conjgp",take_conjgp
-!                  WRITE(200,*) "take_conjgpp",take_conjgpp
-!                  WRITE(200,*) "kxp,ky,kx,kyp",kxp,ky,kx,kyp
-!                  WRITE(200,*) "C_k,kp",kxp*ky-kx*kyp
-!                  WRITE(200,*) "phi_kp",phi_kp
-!                  WRITE(200,*) "g_kpp",g_kpp
-!                  WRITE(200,*) "(kxp*ky-kx*kyp)*phi_kp*g_kpp",(kxp*ky-kx*kyp)*phi_kp*g_kpp
-!             END IF
-!           END IF
-
-                  END IF
-                  
-               END DO
-             END DO
-           END DO
-
-        END DO
-      END DO
-    END DO
-  END DO
-
-
-!  IF(mype==0) CLOSE(200)
-
-END SUBROUTINE get_rhs_nl_convolution
+!  SUBROUTINE get_rhs_nl_convolution(g_in,phi_in0,rhs_out)
+!    USE par_mod
+!    IMPLICIT NONE
+!  
+!    COMPLEX, INTENT(in) :: g_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,lv1:lv2,lh1:lh2,ls1:ls2)
+!    COMPLEX, INTENT(in) :: phi_in0(0:nkx0-1,0:nky0-1,lkz1:lkz2)
+!    COMPLEX :: phi_in(0:nkx0-1,0:nky0-1,lkz1:lkz2)
+!    COMPLEX, INTENT(inout) :: rhs_out(0:nkx0-1,0:nky0-1,lkz1:lkz2,lv1:lv2,lh1:lh2,ls1:ls2)
+!   
+!    INTEGER :: i,j,k,l,ip,jp,kp
+!    REAL :: ckxmax,ckymax,ckzmax
+!    REAL :: kx,ky,kz,kxp,kyp,kzp,kxpp,kypp,kzpp
+!    INTEGER :: xi,yi,zi,xip,yip,zip,xipp,yipp,zipp
+!    LOGICAL :: take_conjgp,take_conjgpp
+!    COMPLEX :: phi_kp,g_kpp
+!  
+!    IF(np_hank.gt.1) STOP "get_rhs_convolution not yet implemented for np_hank.gt.1"
+!    IF(np_spec.gt.1) STOP "get_rhs_convolution not yet implemented for np_spec.gt.1"
+!    IF(np_kz.gt.1) STOP "get_rhs_convolution not yet implemented for np_kz.gt.1"
+!  
+!    IF(np_kz.ne.1) STOP "get_rhs_convolution only suitable for np_kz=1"
+!    DO k=0,nkz0-1
+!      phi_in(:,:,k)=J0a(:,:)*phi_in0(:,:,k)
+!    END DO
+!  
+!    ckxmax=REAL(hkx_ind)*kxmin
+!    ckymax=REAL(hky_ind)*kymin
+!    ckzmax=REAL(hkz_ind)*kzmin
+!  
+!  !  IF(mype==0) OPEN(unit=200,file='temp.dat',status='unknown')
+!  
+!    DO l=lv1,lv2
+!      !WRITE(*,*) "l=",l
+!      DO i=0,hkx_ind      !kx loop
+!        DO j=-hky_ind,hky_ind    !ky loop
+!          DO k=-hkz_ind,hkz_ind          !kz loop
+!  
+!             kx=REAL(i)*kxmin
+!             ky=REAL(j)*kymin
+!             kz=REAL(k)*kzmin
+!             CALL get_k_indices(kx,ky,kz,xi,yi,zi,take_conjgp)
+!             IF(take_conjgp) STOP "Error!"                   
+!  
+!             DO ip=-hkx_ind,hkx_ind   !kxp loop
+!               DO jp=-hky_ind,hky_ind !kyp loop
+!                 DO kp=-hkz_ind,hkz_ind     !kzp loop
+!  
+!                    kxp=REAL(ip)*kxmin 
+!                    kyp=REAL(jp)*kymin 
+!                    kzp=REAL(kp)*kzmin 
+!  
+!                    kxpp=kx-kxp
+!                    kypp=ky-kyp
+!                    kzpp=kz-kzp
+!   
+!                    !IF(i==2.and.j==0.and.k==0.and.ip==-13.and.jp==-1.and.kp==0.and.l==1) WRITE(*,*) "Before check.",&
+!                    !           kxp,kyp,kzp,kxpp,kypp,kzpp,ckxmax,ckymax,ckzmax
+!  
+!                    IF((abs(kxpp).le.(ckxmax+0.001)).and.(abs(kypp).le.(ckymax+0.001)).and.(abs(kzpp).le.(ckzmax+0.001))) THEN
+!  
+!  
+!                      CALL get_k_indices(kxp,kyp,kzp,xip,yip,zip,take_conjgp)
+!                      IF(take_conjgp) THEN
+!                        phi_kp=conjg(phi_in(xip,yip,zip))
+!                      ELSE
+!                        phi_kp=phi_in(xip,yip,zip)
+!                      END IF
+!  
+!                      CALL get_k_indices(kxpp,kypp,kzpp,xipp,yipp,zipp,take_conjgpp)
+!                      IF(take_conjgpp) THEN
+!                        g_kpp=conjg(g_in(xipp,yipp,zipp,l,0,0))
+!                      ELSE
+!                        g_kpp=g_in(xipp,yipp,zipp,l,0,0)
+!                      END IF
+!          
+!                      rhs_out(xi,yi,zi,l,0,0)=rhs_out(xi,yi,zi,l,0,0)+&
+!                                  (kxp*ky-kx*kyp)*phi_kp*g_kpp
+!  
+!                    !IF(i==2.and.j==0.and.k==0.and.ip==-13.and.jp==-1.and.kp==0.and.l==1) WRITE(*,*) "After check.",&
+!                    !              (kxp*ky-kx*kyp)*phi_kp*g_kpp
+!  
+!  !           IF(mype==0) THEN 
+!  !             IF(i==2.and.j==0.and.k==0.and.(abs((kxp*ky-kx*kyp)*phi_kp*g_kpp).ne.0.0)) THEN
+!  !                  WRITE(200,*) "i,j,k",i,j,k
+!  !                  WRITE(200,*) "xip,yip,zip",xip,yip,zip
+!  !                  WRITE(200,*) "xipp,yipp,zipp",xipp,yipp,zipp
+!  !                  WRITE(200,*) "take_conjgp",take_conjgp
+!  !                  WRITE(200,*) "take_conjgpp",take_conjgpp
+!  !                  WRITE(200,*) "kxp,ky,kx,kyp",kxp,ky,kx,kyp
+!  !                  WRITE(200,*) "C_k,kp",kxp*ky-kx*kyp
+!  !                  WRITE(200,*) "phi_kp",phi_kp
+!  !                  WRITE(200,*) "g_kpp",g_kpp
+!  !                  WRITE(200,*) "(kxp*ky-kx*kyp)*phi_kp*g_kpp",(kxp*ky-kx*kyp)*phi_kp*g_kpp
+!  !             END IF
+!  !           END IF
+!  
+!                    END IF
+!                    
+!                 END DO
+!               END DO
+!             END DO
+!  
+!          END DO
+!        END DO
+!      END DO
+!    END DO
+!  
+!  
+!  !  IF(mype==0) CLOSE(200)
+!  
+!  END SUBROUTINE get_rhs_nl_convolution
 
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

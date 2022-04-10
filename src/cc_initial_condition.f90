@@ -34,6 +34,8 @@ SUBROUTINE initial_condition(which_init0)
   INTEGER :: rseed_size
    
   g_1(:,:,:,:,:,:)=cmplx(0.0,0.0)
+  b_1(:,:,:,:)=cmplx(0.0,0.0)
+  v_1(:,:,:,:)=cmplx(0.0,0.0)
   !init_prefactor=0.001
 
   which_init=which_init0 
