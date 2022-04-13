@@ -56,7 +56,7 @@ SUBROUTINE init_run
   !! Initialised run
   !!!!!!!!!!!!!!!!!!!!
   CALL initial_condition(init_cond)   !checkpoint must be READ before others
-  CALL initialize_diagnostics
+  !CALL initialize_diagnostics
   !IF(nonlinear) CALL initialize_adapt_dt
   IF(nonlinear) CALL initialize_fourier
   

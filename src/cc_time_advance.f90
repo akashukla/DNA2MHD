@@ -23,9 +23,9 @@ MODULE time_advance
   USE par_mod
   USE linear_rhs
   USE nonlinearity
-  USE diagnostics
+  !USE diagnostics
   !USE field_solver
-  USE calculate_time_step, ONLY: adapt_dt
+  !USE calculate_time_step, ONLY: adapt_dt
 
   PUBLIC :: iv_solver,rk4_stability
   
@@ -50,23 +50,23 @@ SUBROUTINE iv_solver
  IF(mype==0) WRITE(*,*) "max_time=",max_time
  DO WHILE(time.lt.max_time.and.itime.lt.max_itime.and.continue_run)
  
-   IF(verbose) WRITE(*,*) "Calling diagnostics",time,itime,mype
-   CALL diag
-   IF(verbose) WRITE(*,*) "Done with diagnostics",time,itime,mype
+   !IF(verbose) WRITE(*,*) "Calling diagnostics",time,itime,mype
+   !CALL diag
+   !IF(verbose) WRITE(*,*) "Done with diagnostics",time,itime,mype
 
    IF(verbose) WRITE(*,*) "iv_solver: before get_g_next",time,itime,mype
    CALL get_g_next(b_1, v_1)
    itime=itime+1 
    IF(mype==0.and.verbose) WRITE(*,*) "itime:",itime
    time=time+dt
-   IF(mype==0.and.dt_output) WRITE(*,*) "Before adapt: dt_max,dt",dt_max,dt
-   IF(adapt_dt_nl) CALL adapt_dt 
-   IF(mype==0.and.dt_output) WRITE(*,*) "After adapt: dt_max,dt",dt_max,dt
-   CALL check_wallclock
-   IF(current_wallclock.gt.REAL(max_walltime)) THEN
-     IF(mype==0) WRITE(*,*) "Maximum wall time exceeded.", current_wallclock, max_walltime
-     continue_run=.false. 
-   END IF
+   !IF(mype==0.and.dt_output) WRITE(*,*) "Before adapt: dt_max,dt",dt_max,dt
+   !IF(adapt_dt_nl) CALL adapt_dt 
+   !IF(mype==0.and.dt_output) WRITE(*,*) "After adapt: dt_max,dt",dt_max,dt
+   !CALL check_wallclock
+   !IF(current_wallclock.gt.REAL(max_walltime)) THEN
+   !  IF(mype==0) WRITE(*,*) "Maximum wall time exceeded.", current_wallclock, max_walltime
+   !  continue_run=.false. 
+   !END IF
 
  END DO
  IF(verbose) WRITE(*,*) "time,itime,mype",time,itime,mype
@@ -80,8 +80,8 @@ END SUBROUTINE iv_solver
 SUBROUTINE get_g_next(b_in, v_in)
 
 ! COMPLEX, INTENT(inout) :: g_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,lv1:lv2,lh1:lh2,ls1:ls2)
- COMPLEX, INTENT(in) :: b_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
- COMPLEX, INTENT(in) :: v_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+ COMPLEX, INTENT(inout) :: b_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+ COMPLEX, INTENT(inout) :: v_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
  
  
  ALLOCATE(b_2(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
@@ -122,7 +122,7 @@ SUBROUTINE get_g_next(b_in, v_in)
  bk1=b_in+0.5*dt*bk1
  vk1=v_in+0.5*dt*vk1
 
- CALL get_rhs(bk1,,vk1,bk2,vk2)
+ CALL get_rhs(bk1,vk1,bk2,vk2)
  b_2=b_2+(1.0/3.0)*dt*bk2
  bk2=b_in+0.5*dt*bk2
  v_2=v_2+(1.0/3.0)*dt*vk2
@@ -138,37 +138,37 @@ SUBROUTINE get_g_next(b_in, v_in)
  b_in=b_2+(1.0/6.0)*dt*bk2
  v_in=v_2+(1.0/6.0)*dt*vk2
 
- !4th order Runge-Kutta
- first_stage=.true.
- CALL get_rhs(v_in,vk1)
- v_2=v_in+(1.0/6.0)*dt*vk1
- first_stage=.false.
- !CALL get_rhs(v_in+0.5*dt*vk1,vk2)
- vk1=v_in+0.5*dt*vk1
- CALL get_rhs(vk1,vk2)
- v_2=v_2+(1.0/3.0)*dt*vk2
- vk2=v_in+0.5*dt*vk2
- CALL get_rhs(vk2,vk1)
- v_2=v_2+(1.0/3.0)*dt*vk1
- vk1=v_in+dt*vk1
- CALL get_rhs(vk1,vk2)
- v_in=v_2+(1.0/6.0)*dt*vk2
- !v_in=v_2 
+ !!4th order Runge-Kutta
+ !first_stage=.true.
+ !CALL get_rhs(v_in,vk1)
+ !v_2=v_in+(1.0/6.0)*dt*vk1
+ !first_stage=.false.
+ !!CALL get_rhs(v_in+0.5*dt*vk1,vk2)
+ !vk1=v_in+0.5*dt*vk1
+ !CALL get_rhs(vk1,vk2)
+ !v_2=v_2+(1.0/3.0)*dt*vk2
+ !vk2=v_in+0.5*dt*vk2
+ !CALL get_rhs(vk2,vk1)
+ !v_2=v_2+(1.0/3.0)*dt*vk1
+ !vk1=v_in+dt*vk1
+ !CALL get_rhs(vk1,vk2)
+ !v_in=v_2+(1.0/6.0)*dt*vk2
+ !!v_in=v_2 
 
 
- IF(force_kz0eq0) b_in(:,:,0,:,:,:)=cmplx(0.0,0.0)
- IF(force_ky0eq0) b_in(:,0,:,:,:,:)=cmplx(0.0,0.0)
- IF(force_kx0eq0) b_in(0,:,:,:,:,:)=cmplx(0.0,0.0)
- IF(nkz0.ge.2) b_in(:,:,hkz_ind+1,:,:,:)=cmplx(0.0,0.0)
- b_in(:,hky_ind+1,:,:,:,:)=cmplx(0.0,0.0)
- b_in(0,0,:,:,:,:)=cmplx(0.0,0.0)
+ IF(force_kz0eq0) b_in(:,:,0,:)=cmplx(0.0,0.0)
+ IF(force_ky0eq0) b_in(:,0,:,:)=cmplx(0.0,0.0)
+ IF(force_kx0eq0) b_in(0,:,:,:)=cmplx(0.0,0.0)
+ IF(nkz0.ge.2) b_in(:,:,hkz_ind+1,:)=cmplx(0.0,0.0)
+ b_in(:,hky_ind+1,:,:)=cmplx(0.0,0.0)
+ b_in(0,0,:,:)=cmplx(0.0,0.0)
 
- IF(force_kz0eq0) v_in(:,:,0,:,:,:)=cmplx(0.0,0.0)
- IF(force_ky0eq0) v_in(:,0,:,:,:,:)=cmplx(0.0,0.0)
- IF(force_kx0eq0) v_in(0,:,:,:,:,:)=cmplx(0.0,0.0)
- IF(nkz0.ge.2) v_in(:,:,hkz_ind+1,:,:,:)=cmplx(0.0,0.0)
- v_in(:,hky_ind+1,:,:,:,:)=cmplx(0.0,0.0)
- v_in(0,0,:,:,:,:)=cmplx(0.0,0.0)
+ IF(force_kz0eq0) v_in(:,:,0,:)=cmplx(0.0,0.0)
+ IF(force_ky0eq0) v_in(:,0,:,:)=cmplx(0.0,0.0)
+ IF(force_kx0eq0) v_in(0,:,:,:)=cmplx(0.0,0.0)
+ IF(nkz0.ge.2) v_in(:,:,hkz_ind+1,:)=cmplx(0.0,0.0)
+ v_in(:,hky_ind+1,:,:)=cmplx(0.0,0.0)
+ v_in(0,0,:,:)=cmplx(0.0,0.0)
 
 
 

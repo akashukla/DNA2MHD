@@ -228,146 +228,146 @@ END SUBROUTINE calc_initial_dt
 
   
 
-#ifdef WITHSLEPC
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!                             calc_dt_slepc                                 !!
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-SUBROUTINE calc_dt_slepc
-
-  INTEGER :: i,j,k,l
-  INTEGER :: nkx0_bak,nky0_bak,nkz0_bak
-  LOGICAL :: nonlinear_bak
-  REAL :: kxmin_bak,kymin_bak,kzmin_bak
-  REAL :: kxmax_bak,kymax_bak,kzmax_bak
-  !REAL :: dt_min
-  !REAL :: kx_dtmin,ky_dtmin,kz_dtmin
-  LOGICAL :: kmin_eq_0_bak,evenyz_bak
-  COMPLEX :: max_omega_final
-  REAL :: dt_temp
-  REAL :: kx_temp(3)
-  REAL :: ky_temp(3)
-  REAL :: kz_temp(3)
-  COMPLEX :: phase
-  REAL :: dt_lim,angle
-  CHARACTER(len=1) :: chnum1,chnum2,chnum3
-
-  IF(mype==0) WRITE(*,*) "Calculating time step with SLEPc."
-
-  max_omega_final=cmplx(0.0,0.0)
-  nonlinear_bak=nonlinear
-  nonlinear=.false.
-
-  kmin_eq_0_bak=kmin_eq_0
-  kmin_eq_0=.false.
-
-  evenyz_bak=evenyz
-  evenyz=.false.
-
-  kx_temp(1)=0.0
-  kx_temp(2)=kxmin
-  kx_temp(3)=kxmin*hkx_ind
-  ky_temp(1)=0.0
-  ky_temp(2)=kymin
-  ky_temp(3)=kymin*(hky_ind)
-  kz_temp(1)=0.0
-  kz_temp(2)=kzmin
-  kz_temp(3)=kzmin*(hkz_ind)
-
-  nkx0_bak=nkx0 
-  nky0_bak=nky0 
-  nkz0_bak=nkz0 
-
-  nkx0=1
-  nky0=1
-  nkz0=1
-
-  kxmin_bak=kxmin 
-  kymin_bak=kymin 
-  kzmin_bak=kzmin 
-  kxmax_bak=kxmax 
-  kymax_bak=kymax 
-  kzmax_bak=kzmax 
-
-  n_ev=nv0
-
-  dt_max=100.0
-
-  CALL finalize_arrays
-  ALLOCATE(current_evs(nv0))
-
-  DO i=1,3
-    !IF(mype==0) WRITE(*,*) "i=",i
-    DO j=1,3
-      DO k=1,3
-       IF((i.ne.1).or.(j.ne.1)) THEN
-        WRITE(chnum1,'(i1.1)') i
-        WRITE(chnum2,'(i1.1)') j
-        WRITE(chnum3,'(i1.1)') k
-        OPEN(unit=100,file=trim(diagdir)//'/dtevs_'//chnum1//chnum2//chnum3,status='unknown')
-        kxmin=kx_temp(i)
-        kymin=ky_temp(j)
-        kzmin=kz_temp(k)
-        !IF(mype==0) WRITE(*,*) kxmin,kymin,kzmin 
-        CALL arrays
-        kxmax=kxmax_bak
-        kymax=kymax_bak
-        kzmax=kzmax_bak
-        !WRITE(*,*) "Before CALL calc_dt_ev",mype
-        CALL calc_dt_ev
-        dt_temp=100.0
-        !WRITE(*,*) "Before CALL compute_stability_criterion",mype
-        DO l=1,nv0
-         WRITE(100,*) REAL(current_evs(l)),aimag(current_evs(l))
-         IF(REAL(current_evs(l)).ne.0.0.or.aimag(current_evs(l)).ne.0.0) THEN
-           IF(REAL(current_evs(l)).lt.0.0) CALL compute_stability_criterion(current_evs(l),dt_temp)
-         END IF
-         IF(dt_temp.lt.dt_max) THEN
-          dt_max=dt_temp
-          IF(mype==0) WRITE(*,*) "New dt_max:",dt_max
-          IF(mype==0) WRITE(*,*) "Omega",current_evs(l)
-          IF(mype==0) WRITE(*,*) "kx,ky,kz",kxmin,kymin,kzmin
-         END IF
-        END DO
-        CALL finalize_arrays 
-        CLOSE(100)
-       END IF
-      END DO
-    END DO
-  END DO
-
-  dt_max=dt_max*0.95
-  IF(mype==0) WRITE(*,*) "dt_max=",dt_max
-
-  DEALLOCATE(current_evs)
-  nkx0=nkx0_bak
-  nky0=nky0_bak
-  nkz0=nkz0_bak
-
-  kxmin=kxmin_bak
-  kymin=kymin_bak
-  kzmin=kzmin_bak
-
-  nonlinear=nonlinear_bak
-  kmin_eq_0=kmin_eq_0_bak
-  evenyz=evenyz_bak
-
-  CALL arrays
-
-  OPEN(unit=100,file=trim(diagdir)//'/rk_stability.dat',status='unknown')
-  DO i=0,500
-    angle=2.0*pi*(i-1)/(500.0)
-    phase=cmplx(cos(angle),sin(angle))
-    phase=phase/abs(phase)
-    IF(REAL(phase).lt.0.0) THEN
-        CALL compute_stability_criterion(phase,dt_lim) 
-        WRITE(100,*) REAL(phase)*dt_lim/dt_max,aimag(phase)*dt_lim/dt_max,dt_lim
-    END IF
-  END DO
-  CLOSE(100)
-
-
-END SUBROUTINE calc_dt_slepc
-#endif
+!  #ifdef WITHSLEPC
+!  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!  !!                             calc_dt_slepc                                 !!
+!  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!  SUBROUTINE calc_dt_slepc
+!  
+!    INTEGER :: i,j,k,l
+!    INTEGER :: nkx0_bak,nky0_bak,nkz0_bak
+!    LOGICAL :: nonlinear_bak
+!    REAL :: kxmin_bak,kymin_bak,kzmin_bak
+!    REAL :: kxmax_bak,kymax_bak,kzmax_bak
+!    !REAL :: dt_min
+!    !REAL :: kx_dtmin,ky_dtmin,kz_dtmin
+!    LOGICAL :: kmin_eq_0_bak,evenyz_bak
+!    COMPLEX :: max_omega_final
+!    REAL :: dt_temp
+!    REAL :: kx_temp(3)
+!    REAL :: ky_temp(3)
+!    REAL :: kz_temp(3)
+!    COMPLEX :: phase
+!    REAL :: dt_lim,angle
+!    CHARACTER(len=1) :: chnum1,chnum2,chnum3
+!  
+!    IF(mype==0) WRITE(*,*) "Calculating time step with SLEPc."
+!  
+!    max_omega_final=cmplx(0.0,0.0)
+!    nonlinear_bak=nonlinear
+!    nonlinear=.false.
+!  
+!    kmin_eq_0_bak=kmin_eq_0
+!    kmin_eq_0=.false.
+!  
+!    evenyz_bak=evenyz
+!    evenyz=.false.
+!  
+!    kx_temp(1)=0.0
+!    kx_temp(2)=kxmin
+!    kx_temp(3)=kxmin*hkx_ind
+!    ky_temp(1)=0.0
+!    ky_temp(2)=kymin
+!    ky_temp(3)=kymin*(hky_ind)
+!    kz_temp(1)=0.0
+!    kz_temp(2)=kzmin
+!    kz_temp(3)=kzmin*(hkz_ind)
+!  
+!    nkx0_bak=nkx0 
+!    nky0_bak=nky0 
+!    nkz0_bak=nkz0 
+!  
+!    nkx0=1
+!    nky0=1
+!    nkz0=1
+!  
+!    kxmin_bak=kxmin 
+!    kymin_bak=kymin 
+!    kzmin_bak=kzmin 
+!    kxmax_bak=kxmax 
+!    kymax_bak=kymax 
+!    kzmax_bak=kzmax 
+!  
+!    n_ev=nv0
+!  
+!    dt_max=100.0
+!  
+!    CALL finalize_arrays
+!    ALLOCATE(current_evs(nv0))
+!  
+!    DO i=1,3
+!      !IF(mype==0) WRITE(*,*) "i=",i
+!      DO j=1,3
+!        DO k=1,3
+!         IF((i.ne.1).or.(j.ne.1)) THEN
+!          WRITE(chnum1,'(i1.1)') i
+!          WRITE(chnum2,'(i1.1)') j
+!          WRITE(chnum3,'(i1.1)') k
+!          OPEN(unit=100,file=trim(diagdir)//'/dtevs_'//chnum1//chnum2//chnum3,status='unknown')
+!          kxmin=kx_temp(i)
+!          kymin=ky_temp(j)
+!          kzmin=kz_temp(k)
+!          !IF(mype==0) WRITE(*,*) kxmin,kymin,kzmin 
+!          CALL arrays
+!          kxmax=kxmax_bak
+!          kymax=kymax_bak
+!          kzmax=kzmax_bak
+!          !WRITE(*,*) "Before CALL calc_dt_ev",mype
+!          CALL calc_dt_ev
+!          dt_temp=100.0
+!          !WRITE(*,*) "Before CALL compute_stability_criterion",mype
+!          DO l=1,nv0
+!           WRITE(100,*) REAL(current_evs(l)),aimag(current_evs(l))
+!           IF(REAL(current_evs(l)).ne.0.0.or.aimag(current_evs(l)).ne.0.0) THEN
+!             IF(REAL(current_evs(l)).lt.0.0) CALL compute_stability_criterion(current_evs(l),dt_temp)
+!           END IF
+!           IF(dt_temp.lt.dt_max) THEN
+!            dt_max=dt_temp
+!            IF(mype==0) WRITE(*,*) "New dt_max:",dt_max
+!            IF(mype==0) WRITE(*,*) "Omega",current_evs(l)
+!            IF(mype==0) WRITE(*,*) "kx,ky,kz",kxmin,kymin,kzmin
+!           END IF
+!          END DO
+!          CALL finalize_arrays 
+!          CLOSE(100)
+!         END IF
+!        END DO
+!      END DO
+!    END DO
+!  
+!    dt_max=dt_max*0.95
+!    IF(mype==0) WRITE(*,*) "dt_max=",dt_max
+!  
+!    DEALLOCATE(current_evs)
+!    nkx0=nkx0_bak
+!    nky0=nky0_bak
+!    nkz0=nkz0_bak
+!  
+!    kxmin=kxmin_bak
+!    kymin=kymin_bak
+!    kzmin=kzmin_bak
+!  
+!    nonlinear=nonlinear_bak
+!    kmin_eq_0=kmin_eq_0_bak
+!    evenyz=evenyz_bak
+!  
+!    CALL arrays
+!  
+!    OPEN(unit=100,file=trim(diagdir)//'/rk_stability.dat',status='unknown')
+!    DO i=0,500
+!      angle=2.0*pi*(i-1)/(500.0)
+!      phase=cmplx(cos(angle),sin(angle))
+!      phase=phase/abs(phase)
+!      IF(REAL(phase).lt.0.0) THEN
+!          CALL compute_stability_criterion(phase,dt_lim) 
+!          WRITE(100,*) REAL(phase)*dt_lim/dt_max,aimag(phase)*dt_lim/dt_max,dt_lim
+!      END IF
+!    END DO
+!    CLOSE(100)
+!  
+!  
+!  END SUBROUTINE calc_dt_slepc
+!  #endif
 
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

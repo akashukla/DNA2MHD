@@ -31,17 +31,17 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 PROGRAM dna
   !USE calculate_time_step, ONLY:  finalize_adapt_dt!, calc_dt_lapack
-  USE communications, ONLY: finalize_mpi, init_comm, comm
+  !USE communications, ONLY: finalize_mpi, init_comm, comm
   !USE diagnostics, ONLY: finalize_diagnostics, nl_test, start_wallclock
   !USE eigen_iterative, ONLY: ev_iterative
   !USE flr_effects, ONLY: finalize_flr
   !USE hk_effects, ONLY: finalize_hk
-  USE mpi
+  !USE mpi
   USE nonlinearity, ONLY: initialize_fourier  
   USE par_mod
   !USE performance, ONLY: end_clock, performance_compute, start_clock
   USE time_advance, ONLY: iv_solver, rk4_stability
-  USE triple_transfers, ONLY: get_triple_transfers
+  !USE triple_transfers, ONLY: get_triple_transfers
   IMPLICIT NONE
   
   CHARACTER(len=40) :: ic_temp
@@ -49,8 +49,8 @@ PROGRAM dna
   INTEGER :: run_type
   !! Starting the MPI communication enviromen and the wallclock
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!  
-  CALL init_comm
-  CALL start_wallclock
+  !CALL init_comm
+  !CALL start_wallclock
   
   !! Reading the input parameters 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -62,7 +62,7 @@ PROGRAM dna
   
   !if(calc_dt.and..not.dt_slepc) call calc_dt_lapack
 
-  CALL comm
+  !CALL comm
   
   !! Initiating the current run of the simulation
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -107,7 +107,7 @@ PROGRAM dna
         WRITE(999,*) "time",time
         CLOSE(999)
       END IF
-    END IF
+    !END IF
 
   !! Eigenvalue calculation
   !!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -163,6 +163,6 @@ PROGRAM dna
 
   !! Shuts down the MPI enviroment 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  CALL finalize_mpi
+  !CALL finalize_mpi
 
 END PROGRAM dna

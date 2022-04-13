@@ -33,7 +33,7 @@ SUBROUTINE read_parameters
       kzmin,kymin,kxmin,nkx0,nky0,nkz0,nv0,nh0,nspec,&
       hyp_v,hyp_x,hyp_y,hyp_z,hypv_order,np_herm,&
       np_kz,np_spec,np_hank,&
-      courant,hyp_conv,num_k_hyp_conv,hyp_conv_ky,hypx_order,hypy_order,hypz_order,&
+      courant,hyp_conv,num_k_hyp_conv,hyp_conv_ky,hypx_order,hypy_order,hypz_order!,&
       !mu_grid_type, vmax,hyp_nu,fracx, fracy
 
   NAMELIST /physical_parameters/ &
@@ -418,143 +418,144 @@ END SUBROUTINE output_parameters
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!  Writing checkpoints
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!    SUBROUTINE checkpoint_out(purpose)
-!!      USE par_mod
-!!      USE mpi
-!!      USE field_solver, only: get_phi
-!!      USE nonlinearity, only: get_rhs_nl
-!!      IMPLICIT NONE
-!!    
-!!      INTEGER, INTENT(in) :: purpose
-!!      CHARACTER(len=100) :: chp_name
-!!      INTEGER :: chp_handle
-!!      INTEGER :: l,p
-!!      !COMPLEX :: g_out(0:nkx0-1,0:nky0-1,0:nkz0-1,0:lv0-1)
-!!      COMPLEX :: b_out(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2)
-!!      COMPLEX :: v_out(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2)
-!!      INTEGER :: stat(MPI_STATUS_SIZE)
-!!      INTEGER :: send_proc,recv_proc,ierr
-!!      LOGICAL :: g_output,not_first,b_output,v_output
-!!    
-!!       IF(np_hank.gt.1) STOP "checkpoint_out not yet implemented for np_hank.gt.1"
-!!       IF(np_spec.gt.1) STOP "checkpoint_out not yet implemented for np_spec.gt.1"
-!!       IF(np_kz.gt.1) STOP "checkpoint_out not yet implemented for np_kz.gt.1"
-!!    
-!!      not_first=.false.
-!!      IF(purpose==1) THEN !WRITE security checkpoint
-!!        chp_name='/s_checkpoint'
-!!        !g_output=.false.
-!!        b_output=.false.
-!!        v_output=.false.
-!!      ELSE IF(purpose==2) THEN !WRITE final checkpoint
-!!        chp_name='/checkpoint'
-!!          !g_output=.false.
-!!          b_output=.false.
-!!          v_output=.false.
-!!      ELSE IF(purpose==3) THEN !WRITE out distribution function-start new file
-!!          chp_name='/g_out.dat'
-!!          !g_output=.true.
-!!          b_output=.true.
-!!          v_output=.true.
-!!      ELSE IF(purpose==4) THEN !WRITE out distribution function to possibly existing g_out file
-!!          chp_name='/g_out.dat'
-!!          !g_output=.true.
-!!          b_output=.true.
-!!          v_output=.true.
-!!          INQUIRE(file=trim(diagdir)//trim(chp_name),exist=not_first)
-!!      ELSE IF(purpose==5) THEN !WRITE out nonlinearity-start new file
-!!          chp_name='/gnl_out.dat'
-!!          !g_output=.true.
-!!          b_output=.true.
-!!          v_output=.true.
-!!      ELSE IF(purpose==6) THEN !WRITE out nonlinearity to possibly existing g_out file
-!!          chp_name='/gnl_out.dat'
-!!          !g_output=.true.
-!!          b_output=.true.
-!!          v_output=.true.
-!!          INQUIRE(file=trim(diagdir)//trim(chp_name),exist=not_first)
-!!      END IF
-!!    
-!!      IF(g_output.and.not_first) THEN
-!!        chp_handle=g_out_handle
-!!      ELSE
-!!        CALL get_io_number
-!!        chp_handle=io_number
-!!        IF(g_output) g_out_handle=io_number
-!!      END IF
-!!    
-!!      IF(not_first) THEN
-!!        IF(mype==0) OPEN(unit=chp_handle,file=trim(diagdir)//trim(chp_name), &
-!!             form='unformatted', status='unknown',access='stream',position='append')
-!!      ELSE
-!!        IF(mype==0) OPEN(unit=chp_handle,file=trim(diagdir)//trim(chp_name),&
-!!                               form='unformatted', status='REPLACE',access='stream')
-!!      END IF
-!!    
-!!      IF(mype==0) THEN
-!!        IF(.not.g_output) THEN
-!!    	  !Output info necessary for restarts using the checkpoint
-!!    	  WRITE(chp_handle) itime 
-!!      	  WRITE(chp_handle) dt 
-!!    	  WRITE(chp_handle) nkx0 
-!!    	  WRITE(chp_handle) nky0 
-!!    	  WRITE(chp_handle) nkz0 
-!!      	  WRITE(chp_handle) nv0 
-!!        END IF
-!!        WRITE(chp_handle) time 
-!!      END IF
-!!    
-!!      IF(purpose==5.or.purpose==6) THEN
-!!      !   IF(verbose) WRITE(*,*) "gnlout:p,mype",p,mype
-!!      !   CALL get_phi(g_1) 
-!!      !   g_out=cmplx(0.0,0.0)
-!!      !   CALL get_rhs_nl(g_1,phi,g_out)
-!!      ELSE
-!!         !g_out = g_1(:,:,:,:,0,0)
-!!         b_out = b_1(:,:,:,:)
-!!         v_out = v_1(:,:,:,:)
-!!      ENDIF
-!!    
-!!      IF(mype==0) THEN
-!!        DO l=lv1,lv2
-!!    	  !WRITE(chp_handle) g_out(:,:,:,l)
-!!    	  WRITE(chp_handle) b_out(:,:,:,:)
-!!    	  WRITE(chp_handle) v_out(:,:,:,:)
-!!        END DO
-!!      END IF 
-!!    
-!!    !  DO p=1,np_herm-1
-!!    !    send_proc=p
-!!    !    recv_proc=0
-!!    !    IF(verbose) WRITE(*,*) "p,mype",p,mype
-!!    !
-!!    !    !IF(mype==send_proc) CALL MPI_Send(g_1(0,0,0,lv1,0,0), nkx0*nky0*nkz0*lv0, &
-!!    !    !IF(mype==send_proc) CALL MPI_Send(g_out(0,0,0,0), nkx0*nky0*nkz0*lv0, &
-!!    !	!  	   	      MPI_DOUBLE_COMPLEX, recv_proc, p, MPI_COMM_WORLD, ierr)  
-!!    !    IF(mype==send_proc) CALL MPI_Send(b_out(0,0,0,0), nkx0*nky0*nkz0*lv0, &
-!!    !	   	   	      MPI_DOUBLE_COMPLEX, recv_proc, p, MPI_COMM_WORLD, ierr)  
-!!    !    IF(mype==send_proc) CALL MPI_Send(v_out(0,0,0,0), nkx0*nky0*nkz0*lv0, &
-!!    !	   	   	      MPI_DOUBLE_COMPLEX, recv_proc, p, MPI_COMM_WORLD, ierr)  
-!!    !
-!!    !    !IF(mype==recv_proc) CALL MPI_Recv(g_out(0,0,0,0), nkx0*nky0*nkz0*lv0, &
-!!    !	!			  MPI_DOUBLE_COMPLEX, send_proc, p, MPI_COMM_WORLD, stat, ierr )  
-!!    !    IF(mype==recv_proc) CALL MPI_Recv(b_out(0,0,0,0), nkx0*nky0*nkz0*lv0, &
-!!    !				  MPI_DOUBLE_COMPLEX, send_proc, p, MPI_COMM_WORLD, stat, ierr )  
-!!    !    IF(mype==recv_proc) CALL MPI_Recv(v_out(0,0,0,0), nkx0*nky0*nkz0*lv0, &
-!!    !				  MPI_DOUBLE_COMPLEX, send_proc, p, MPI_COMM_WORLD, stat, ierr )  
-!!    !    IF(mype==0) THEN
-!!    !      DO l=0,lv0-1
-!!    !	    WRITE(chp_handle) g_out(:,:,:,l)
-!!    !      END DO
-!!    !    END IF
-!!    !  END DO
-!!    
-!!      IF(mype==0) CLOSE(chp_handle)
-!!      IF(verbose) WRITE(*,*) "checkpoint_out,mype",mype
-!!    
-!!      CALL mpi_barrier(mpi_comm_world,ierr)
-!!    
-!!    END SUBROUTINE checkpoint_out
+SUBROUTINE checkpoint_out(purpose)
+  USE par_mod
+  !USE mpi
+  !USE field_solver, only: get_phi
+  USE nonlinearity, only: get_rhs_nl
+  IMPLICIT NONE
+
+  INTEGER, INTENT(in) :: purpose
+  CHARACTER(len=100) :: chp_name
+  INTEGER :: chp_handle
+  INTEGER :: l,p
+  !COMPLEX :: g_out(0:nkx0-1,0:nky0-1,0:nkz0-1,0:lv0-1)
+  COMPLEX :: b_out(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2)
+  COMPLEX :: v_out(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2)
+  !INTEGER :: stat(MPI_STATUS_SIZE)
+  INTEGER :: send_proc,recv_proc,ierr
+  !LOGICAL :: g_output,not_first
+  LOGICAL :: not_first,b_output,v_output
+
+   IF(np_hank.gt.1) STOP "checkpoint_out not yet implemented for np_hank.gt.1"
+   IF(np_spec.gt.1) STOP "checkpoint_out not yet implemented for np_spec.gt.1"
+   IF(np_kz.gt.1) STOP "checkpoint_out not yet implemented for np_kz.gt.1"
+
+  not_first=.false.
+  IF(purpose==1) THEN !WRITE security checkpoint
+    chp_name='/s_checkpoint'
+    !g_output=.false.
+    b_output=.false.
+    v_output=.false.
+  ELSE IF(purpose==2) THEN !WRITE final checkpoint
+    chp_name='/checkpoint'
+      !g_output=.false.
+      b_output=.false.
+      v_output=.false.
+  ELSE IF(purpose==3) THEN !WRITE out distribution function-start new file
+      chp_name='/g_out.dat'
+      !g_output=.true.
+      b_output=.true.
+      v_output=.true.
+  ELSE IF(purpose==4) THEN !WRITE out distribution function to possibly existing g_out file
+      chp_name='/g_out.dat'
+      !g_output=.true.
+      b_output=.true.
+      v_output=.true.
+      INQUIRE(file=trim(diagdir)//trim(chp_name),exist=not_first)
+  !ELSE IF(purpose==5) THEN !WRITE out nonlinearity-start new file
+  !    chp_name='/gnl_out.dat'
+  !    !g_output=.true.
+  !    b_output=.true.
+  !    v_output=.true.
+  !ELSE IF(purpose==6) THEN !WRITE out nonlinearity to possibly existing g_out file
+  !    chp_name='/gnl_out.dat'
+  !    !g_output=.true.
+  !    b_output=.true.
+  !    v_output=.true.
+  !    INQUIRE(file=trim(diagdir)//trim(chp_name),exist=not_first)
+  END IF
+
+  IF(g_output.and.not_first) THEN
+    chp_handle=g_out_handle
+  ELSE
+    CALL get_io_number
+    chp_handle=io_number
+    IF(g_output) g_out_handle=io_number
+  END IF
+
+  IF(not_first) THEN
+    IF(mype==0) OPEN(unit=chp_handle,file=trim(diagdir)//trim(chp_name), &
+         form='unformatted', status='unknown',access='stream',position='append')
+  ELSE
+    IF(mype==0) OPEN(unit=chp_handle,file=trim(diagdir)//trim(chp_name),&
+                           form='unformatted', status='REPLACE',access='stream')
+  END IF
+
+  IF(mype==0) THEN
+    IF(.not.g_output) THEN
+	  !Output info necessary for restarts using the checkpoint
+	  WRITE(chp_handle) itime 
+  	  WRITE(chp_handle) dt 
+	  WRITE(chp_handle) nkx0 
+	  WRITE(chp_handle) nky0 
+	  WRITE(chp_handle) nkz0 
+  	  !WRITE(chp_handle) nv0 
+    END IF
+    WRITE(chp_handle) time 
+  END IF
+
+  IF(purpose==5.or.purpose==6) THEN
+  !   IF(verbose) WRITE(*,*) "gnlout:p,mype",p,mype
+  !   CALL get_phi(g_1) 
+  !   g_out=cmplx(0.0,0.0)
+  !   CALL get_rhs_nl(g_1,phi,g_out)
+  ELSE
+     !g_out = g_1(:,:,:,:,0,0)
+     b_out = b_1(:,:,:,:)
+     v_out = v_1(:,:,:,:)
+  ENDIF
+
+  IF(mype==0) THEN
+    DO l=lv1,lv2
+	  !WRITE(chp_handle) g_out(:,:,:,l)
+	  WRITE(chp_handle) b_out(:,:,:,:)
+	  WRITE(chp_handle) v_out(:,:,:,:)
+    END DO
+  END IF 
+
+!  DO p=1,np_herm-1
+!    send_proc=p
+!    recv_proc=0
+!    IF(verbose) WRITE(*,*) "p,mype",p,mype
+!
+!    !IF(mype==send_proc) CALL MPI_Send(g_1(0,0,0,lv1,0,0), nkx0*nky0*nkz0*lv0, &
+!    !IF(mype==send_proc) CALL MPI_Send(g_out(0,0,0,0), nkx0*nky0*nkz0*lv0, &
+!	!  	   	      MPI_DOUBLE_COMPLEX, recv_proc, p, MPI_COMM_WORLD, ierr)  
+!    IF(mype==send_proc) CALL MPI_Send(b_out(0,0,0,0), nkx0*nky0*nkz0*lv0, &
+!	   	   	      MPI_DOUBLE_COMPLEX, recv_proc, p, MPI_COMM_WORLD, ierr)  
+!    IF(mype==send_proc) CALL MPI_Send(v_out(0,0,0,0), nkx0*nky0*nkz0*lv0, &
+!	   	   	      MPI_DOUBLE_COMPLEX, recv_proc, p, MPI_COMM_WORLD, ierr)  
+!
+!    !IF(mype==recv_proc) CALL MPI_Recv(g_out(0,0,0,0), nkx0*nky0*nkz0*lv0, &
+!	!			  MPI_DOUBLE_COMPLEX, send_proc, p, MPI_COMM_WORLD, stat, ierr )  
+!    IF(mype==recv_proc) CALL MPI_Recv(b_out(0,0,0,0), nkx0*nky0*nkz0*lv0, &
+!				  MPI_DOUBLE_COMPLEX, send_proc, p, MPI_COMM_WORLD, stat, ierr )  
+!    IF(mype==recv_proc) CALL MPI_Recv(v_out(0,0,0,0), nkx0*nky0*nkz0*lv0, &
+!				  MPI_DOUBLE_COMPLEX, send_proc, p, MPI_COMM_WORLD, stat, ierr )  
+!    IF(mype==0) THEN
+!      DO l=0,lv0-1
+!	    WRITE(chp_handle) g_out(:,:,:,l)
+!      END DO
+!    END IF
+!  END DO
+
+  IF(mype==0) CLOSE(chp_handle)
+  IF(verbose) WRITE(*,*) "checkpoint_out,mype",mype
+
+  CALL mpi_barrier(mpi_comm_world,ierr)
+
+END SUBROUTINE checkpoint_out
 
 
 
