@@ -282,7 +282,7 @@ MODULE par_mod
   LOGICAL :: test_rk4=.false.
 
   ! for checkpoints in io
-  INTEGER :: g_out_handle
+  INTEGER :: b_out_handle, v_out_handle
   
 
   CONTAINS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 

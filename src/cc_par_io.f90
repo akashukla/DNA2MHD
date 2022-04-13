@@ -458,7 +458,7 @@ SUBROUTINE checkpoint_out(purpose)
       b_output=.true.
       v_output=.true.
   ELSE IF(purpose==4) THEN !WRITE out distribution function to possibly existing g_out file
-      chp_name='/g_out.dat'
+      chp_name='/b_out.dat'
       !g_output=.true.
       b_output=.true.
       v_output=.true.
@@ -476,12 +476,12 @@ SUBROUTINE checkpoint_out(purpose)
   !    INQUIRE(file=trim(diagdir)//trim(chp_name),exist=not_first)
   END IF
 
-  IF(g_output.and.not_first) THEN
-    chp_handle=g_out_handle
+  IF(b_output.and.not_first) THEN
+    chp_handle=b_out_handle
   ELSE
     CALL get_io_number
     chp_handle=io_number
-    IF(g_output) g_out_handle=io_number
+    IF(b_output) b_out_handle=io_number
   END IF
 
   IF(not_first) THEN
@@ -493,7 +493,7 @@ SUBROUTINE checkpoint_out(purpose)
   END IF
 
   IF(mype==0) THEN
-    IF(.not.g_output) THEN
+    IF(.not.b_output) THEN
 	  !Output info necessary for restarts using the checkpoint
 	  WRITE(chp_handle) itime 
   	  WRITE(chp_handle) dt 
@@ -553,7 +553,7 @@ SUBROUTINE checkpoint_out(purpose)
   IF(mype==0) CLOSE(chp_handle)
   IF(verbose) WRITE(*,*) "checkpoint_out,mype",mype
 
-  CALL mpi_barrier(mpi_comm_world,ierr)
+  !CALL mpi_barrier(mpi_comm_world,ierr)
 
 END SUBROUTINE checkpoint_out
 
