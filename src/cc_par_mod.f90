@@ -57,7 +57,7 @@ MODULE par_mod
   !left_ev: SLEPc uses transpose of linear operator==> finds left eigenvectors
   LOGICAL :: left_ev=.false.
   CHARACTER(len=2) :: comp_type='IV'
-  REAL :: dt_max=0.0    !initial maximum time step
+  REAL :: dt_max=0.026    !initial maximum time step
   REAL :: courant=0.3   !courant factor
   LOGICAL :: ev_slepc=.true.
   !test_nl:  compares nonlinearity for pseudo spectral vs. convolution

@@ -45,9 +45,9 @@ SUBROUTINE initial_condition(which_init0)
       CALL RANDOM_SEED(PUT=rseed)
       DEALLOCATE(rseed)
  
-      DO i=0,nkx0-1
-       DO j=0,nky0-1
-        DO k=0,nky0-1
+      DO i=0,1!nkx0-1
+       DO j=0,1!nky0-1
+        DO k=0,1!nky0-1
          DO l=0,2
           b_1(i,j,k,l)=5
           v_1(i,j,k,l)=5

@@ -31,12 +31,12 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 PROGRAM dna
   !USE calculate_time_step, ONLY:  finalize_adapt_dt!, calc_dt_lapack
-  !USE communications, ONLY: finalize_mpi, init_comm, comm
-  !USE diagnostics, ONLY: finalize_diagnostics, nl_test, start_wallclock
+  USE communications, ONLY: finalize_mpi, init_comm, comm
+  USE diagnostics, ONLY: finalize_diagnostics, start_wallclock!, nl_test 
   !USE eigen_iterative, ONLY: ev_iterative
   !USE flr_effects, ONLY: finalize_flr
   !USE hk_effects, ONLY: finalize_hk
-  !USE mpi
+  USE mpi
   USE nonlinearity, ONLY: initialize_fourier  
   USE par_mod
   !USE performance, ONLY: end_clock, performance_compute, start_clock
@@ -49,8 +49,8 @@ PROGRAM dna
   INTEGER :: run_type
   !! Starting the MPI communication enviromen and the wallclock
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!  
-  !CALL init_comm
-  !CALL start_wallclock
+  CALL init_comm
+  CALL start_wallclock
   
   !! Reading the input parameters 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -62,7 +62,7 @@ PROGRAM dna
   
   !if(calc_dt.and..not.dt_slepc) call calc_dt_lapack
 
-  !CALL comm
+  CALL comm
   
   !! Initiating the current run of the simulation
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -155,7 +155,7 @@ PROGRAM dna
   !! Finalizing the run
   !!!!!!!!!!!!!!!!!!!!!!!
   IF (verbose) WRITE(*,*) "Finalizing diagnostics.",mype
-  !CALL finalize_diagnostics
+  CALL finalize_diagnostics
   !CALL finalize_adapt_dt
   !CALL finalize_flr
   !CALL finalize_hk
@@ -163,6 +163,6 @@ PROGRAM dna
 
   !! Shuts down the MPI enviroment 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !CALL finalize_mpi
+  CALL finalize_mpi
 
 END PROGRAM dna

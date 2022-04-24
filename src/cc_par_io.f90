@@ -453,7 +453,7 @@ SUBROUTINE checkpoint_out(purpose)
       b_output=.false.
       v_output=.false.
   ELSE IF(purpose==3) THEN !WRITE out distribution function-start new file
-      chp_name='/g_out.dat'
+      chp_name='/b_out.dat'
       !g_output=.true.
       b_output=.true.
       v_output=.true.
@@ -516,13 +516,14 @@ SUBROUTINE checkpoint_out(purpose)
      v_out = v_1(:,:,:,:)
   ENDIF
 
-  IF(mype==0) THEN
-    DO l=lv1,lv2
+  !IF(mype==0) THEN
+    !DO l=lv1,lv2
+    DO l=0,2
 	  !WRITE(chp_handle) g_out(:,:,:,l)
-	  WRITE(chp_handle) b_out(:,:,:,:)
-	  WRITE(chp_handle) v_out(:,:,:,:)
+	  WRITE(chp_handle) b_out(:,:,:,l)
+	  !WRITE(chp_handle) v_out(:,:,:,l)
     END DO
-  END IF 
+  !END IF 
 
 !  DO p=1,np_herm-1
 !    send_proc=p
