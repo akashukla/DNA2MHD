@@ -135,9 +135,10 @@ def get_time_from_gout(swap_endian=False):
 
 
 
-def saveb():
+def saveb(lpath=None):
     #lpath='/scratch/04943/akshukla/hammet_dna_output/full/omt%g_nu%1.2f'%(omt,nu)
-    lpath='/scratch/04943/akshukla/dna2mhd_output'
+    if lpath==None:
+        lpath='/scratch/04943/akshukla/dna2mhd_output'
     read_parameters(lpath)
     time = get_time_from_gout()
     kx,ky,kz,herm=get_grids()
