@@ -220,13 +220,13 @@ def getv(lpath=None):
     print('finished loop')
     return time, g
 
-def plot_bv():
-    timeb,b=getb()
-    timev,v=getv()
+def plot_bv(ix,iy,iz,ind,lpath=None):
+    timeb,b=getb(lpath)
+    timev,v=getv(lpath)
     fig,ax=plt.subplots(2)
-    ax[0].plot(timeb,b[:,1,1,1,2].real)
+    ax[0].plot(timeb,np.abs(b[:,ix,iy,iz,ind]))
     ax[0].set_title('b')
-    ax[1].plot(timev,v[:,1,1,1,2].imag)
+    ax[1].plot(timev,np.abs(v[::,ix,iy,iz,ind]))
     ax[1].set_title('v')
     plt.show()
     return timeb,b,timev,v
