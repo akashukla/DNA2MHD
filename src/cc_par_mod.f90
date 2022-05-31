@@ -29,6 +29,9 @@ MODULE par_mod
   LOGICAL :: force_ky0eq0=.false.        !Deletes ky=0 modes at each time step
   LOGICAL :: force_kx0eq0=.false.        !Deletes kx=0 modes at each time step
   REAL :: kzmin=0.1,kymin=0.1,kxmin=0.1  !minimum k's  (i.e. sets box size)
+  REAL :: init_amp_b=0.01, init_amp_v=0.01
+  INTEGER :: kxinit_min=0,kyinit_min=0,kzinit_min=0  !minimum k's  (i.e. sets box size)
+  INTEGER :: kxinit_max=8,kyinit_max=16,kzinit_max=18  !maximum k's  (i.e. sets box size)
   LOGICAL :: kmin_eq_0=.false.           
   INTEGER :: hypx_order=16                
   INTEGER :: hypy_order=16
@@ -57,7 +60,7 @@ MODULE par_mod
   !left_ev: SLEPc uses transpose of linear operator==> finds left eigenvectors
   LOGICAL :: left_ev=.false.
   CHARACTER(len=2) :: comp_type='IV'
-  REAL :: dt_max=0.026    !initial maximum time step
+  REAL :: dt_max=0.00    !initial maximum time step
   REAL :: courant=0.3   !courant factor
   LOGICAL :: ev_slepc=.true.
   !test_nl:  compares nonlinearity for pseudo spectral vs. convolution

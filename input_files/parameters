@@ -9,7 +9,7 @@ Ti0Te =    1.000
 kxmin =   0.5E-01
 kymin =   0.5E-01
 kzmin =   0.1
-nkx0 =  8 
+nkx0 =  8
 nky0 =  16 
 nkz0 =  18 
 nv0 =   2
@@ -29,10 +29,18 @@ np_kz =    1
 np_hank =    1
 np_spec =    1
 courant =   0.5000    
+kxinit_min = 0  
+kyinit_min = 0 
+kzinit_min = 0
+kxinit_max = 8  
+kyinit_max = 16 
+kzinit_max = 18
+init_amp_b = 0.01
+init_amp_v = 0.01
 /
 
 &diagnostics
-diagdir = '/scratch/04943/akshukla/dna2mhd_output'
+diagdir = '/scratch/04943/akshukla/dna2mhd_output_0'
 istep_ffm =   20
 istep_energy3d =  500
 istep_energy =  100
@@ -65,9 +73,9 @@ nuno_closure = T
 /
 
 &initial_value
-max_itime =   10
+max_itime =   100
 max_walltime =   900000
-dt_max =   0.026
+dt_max =   0.0026
 max_time =   10000.0    
 /
 

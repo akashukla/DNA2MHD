@@ -79,49 +79,49 @@ END SUBROUTINE iv_solver
 !!!!!!!!!!!!!!!!!!!!!!!!
 !! save_b             !!
 !!!!!!!!!!!!!!!!!!!!!!!!
-SUBROUTINE save_b(b_out)
-COMPLEX, INTENT(in) :: b_out(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
-CHARACTER(len=100) :: chp_name
-INTEGER :: chp_handle
-LOGICAL :: not_first,b_output,v_output
-
-  b_output=.true.
-  chp_name='/b_out.dat'
-  INQUIRE(file=trim(diagdir)//trim(chp_name),exist=not_first)
-
-  IF(not_first) THEN
-    IF(mype==0) OPEN(unit=chp_handle,file=trim(diagdir)//trim(chp_name), &
-         form='unformatted', status='unknown',access='stream',position='append')
-  ELSE
-    IF(mype==0) OPEN(unit=chp_handle,file=trim(diagdir)//trim(chp_name),&
-                           form='unformatted', status='REPLACE',access='stream')
-  END IF
-
-  WRITE(chp_handle) b_out(1,1,1,0)
-
-END SUBROUTINE save_b
-
-SUBROUTINE save_time(itime)
-INTEGER, INTENT(in) :: itime
-CHARACTER(len=100) :: chp_name
-INTEGER :: chp_handle
-LOGICAL :: not_first,t_output
-
-  t_output=.true.
-  chp_name='/time_out.dat'
-  INQUIRE(file=trim(diagdir)//trim(chp_name),exist=not_first)
-
-  IF(not_first) THEN
-    IF(mype==0) OPEN(unit=chp_handle,file=trim(diagdir)//trim(chp_name), &
-         form='unformatted', status='unknown',access='stream',position='append')
-  ELSE
-    IF(mype==0) OPEN(unit=chp_handle,file=trim(diagdir)//trim(chp_name),&
-                           form='unformatted', status='REPLACE',access='stream')
-  END IF
-
-  WRITE(chp_handle) itime 
-
-END SUBROUTINE save_time
+!SUBROUTINE save_b(b_out)
+!COMPLEX, INTENT(in) :: b_out(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+!CHARACTER(len=100) :: chp_name
+!INTEGER :: chp_handle
+!LOGICAL :: not_first,b_output,v_output
+!
+!  b_output=.true.
+!  chp_name='/b_out.dat'
+!  INQUIRE(file=trim(diagdir)//trim(chp_name),exist=not_first)
+!
+!  IF(not_first) THEN
+!    IF(mype==0) OPEN(unit=chp_handle,file=trim(diagdir)//trim(chp_name), &
+!         form='unformatted', status='unknown',access='stream',position='append')
+!  ELSE
+!    IF(mype==0) OPEN(unit=chp_handle,file=trim(diagdir)//trim(chp_name),&
+!                           form='unformatted', status='REPLACE',access='stream')
+!  END IF
+!
+!  WRITE(chp_handle) b_out(1,1,1,0)
+!
+!END SUBROUTINE save_b
+!
+!SUBROUTINE save_time(itime)
+!INTEGER, INTENT(in) :: itime
+!CHARACTER(len=100) :: chp_name
+!INTEGER :: chp_handle
+!LOGICAL :: not_first,t_output
+!
+!  t_output=.true.
+!  chp_name='/time_out.dat'
+!  INQUIRE(file=trim(diagdir)//trim(chp_name),exist=not_first)
+!
+!  IF(not_first) THEN
+!    IF(mype==0) OPEN(unit=chp_handle,file=trim(diagdir)//trim(chp_name), &
+!         form='unformatted', status='unknown',access='stream',position='append')
+!  ELSE
+!    IF(mype==0) OPEN(unit=chp_handle,file=trim(diagdir)//trim(chp_name),&
+!                           form='unformatted', status='REPLACE',access='stream')
+!  END IF
+!
+!  WRITE(chp_handle) itime 
+!
+!END SUBROUTINE save_time
 
 
 

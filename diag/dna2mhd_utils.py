@@ -3,6 +3,7 @@
 
 #from start_nl import *
 import numpy as np
+import matplotlib.pyplot as plt
 #from dna_diags import read_parameters, get_time_from_gout,read_time_step_g,get_grids
 import os
 import re
@@ -10,11 +11,8 @@ import multiprocessing as mp
 import sys
 
 
-omts = [5,6,7,8,9,12,15]
-nus = [0.00,0.01,0.05,0.10,0.20,0.50]
 par={}
 namelists={}
-
 
 def read_parameters(lpath):
     """Reads parameters from parameters.dat \n
@@ -91,7 +89,7 @@ def get_grids():
     kzgrid[par['nkz0']//2]=par['nkz0']//2*par['kzmin']
     return kxgrid,kygrid,kzgrid,herm_grid
 
-def read_time_step_g(which_itime,swap_endian=False):
+def read_time_step_b(which_itime,swap_endian=False):
    """Reads a time step from g_out.dat.  Time step determined by \'which_itime\'"""
    file_name = par['diagdir'][1:-1]+'/b_out.dat'
    f = open(file_name,'rb')
@@ -106,7 +104,24 @@ def read_time_step_g(which_itime,swap_endian=False):
    f.close()
    return gt0
 
-def get_time_from_gout(swap_endian=False):
+def read_time_step_v(which_itime,swap_endian=False):
+   """Reads a time step from g_out.dat.  Time step determined by \'which_itime\'"""
+   file_name = par['diagdir'][1:-1]+'/v_out.dat'
+   f = open(file_name,'rb')
+   ntot=par['nkx0']*par['nky0']*par['nkz0']*3#par['nv0']
+   mem_tot=ntot*16
+   gt0=np.empty((3,par['nkz0'],par['nky0'],par['nkx0']))
+   f.seek(8+which_itime*(8+mem_tot))
+   gt0=np.fromfile(f,dtype='complex128',count=ntot)
+   if swap_endian:
+       gt0=gt0.newbyteorder()
+   #print sum(gt0)
+   f.close()
+   return gt0
+
+
+
+def get_time_from_bout(swap_endian=False):
    """Returns time array taken from g_out.dat"""
    file_name = par['diagdir'][1:-1]+ '/b_out.dat'
    f = open(file_name,'rb')
@@ -130,35 +145,94 @@ def get_time_from_gout(swap_endian=False):
    f.close()
    return time
 
+def get_time_from_vout(swap_endian=False):
+   """Returns time array taken from g_out.dat"""
+   file_name = par['diagdir'][1:-1]+ '/v_out.dat'
+   f = open(file_name,'rb')
+   ntot=par['nkx0']*par['nky0']*par['nkz0']*3#par['nv0']
+   mem_tot=ntot*16
+   time=np.empty(0)
+   continue_read=1
+   i=0
+   while (continue_read):
+     f.seek(i*(mem_tot+8))
+     i=i+1
+     input=np.fromfile(f,dtype='float64',count=1)
+     if swap_endian:
+         input=input.newbyteorder()
+     #print input
+     if input==0 or input:
+         time = np.append(time,input)
+     else:
+         continue_read=0
+
+   f.close()
+   return time
 
 
-
-
-
-def saveb(lpath=None):
+def getb(lpath=None):
     #lpath='/scratch/04943/akshukla/hammet_dna_output/full/omt%g_nu%1.2f'%(omt,nu)
     if lpath==None:
         lpath='/scratch/04943/akshukla/dna2mhd_output'
     read_parameters(lpath)
-    time = get_time_from_gout()
+    time = get_time_from_bout()
     kx,ky,kz,herm=get_grids()
     i_n=[0,1,2]
-    savepath = lpath+'/b_xyz.dat'
+    #savepath = lpath+'/b_xyz.dat'
     #g=np.zeros((len(time)-1,len(kx),len(ky,),len(kz),len(i_n)), dtype='complex64')
     print('allocating array')
     #g=np.memmap(savepath,dtype='complex64',mode='w+', shape=(len(time)-1,len(kx),len(ky,),len(kz),len(i_n)) )
-    g=np.zeros((len(time)-1,len(kx),len(ky,),len(kz),len(i_n)))
+    g=np.zeros((len(time),len(kx),len(ky,),len(kz),len(i_n)), dtype='complex64')
     print('starting loop')
     print(par)
     print('time length = ', len(time))
-    for t in range(len(time)-1):
+    for t in range(len(time)):
         print(str(t))
-        gt = read_time_step_g(t)
+        gt = read_time_step_b(t)
         gt = np.reshape(gt,(par['nkx0'],par['nky0'],par['nkz0'],3),order='F')
         g[t] = gt
     #np.save(lpath+'/g_allk_g04',g)
     print('finished loop')
-    return g
+    return time, g
+
+def getv(lpath=None):
+    #lpath='/scratch/04943/akshukla/hammet_dna_output/full/omt%g_nu%1.2f'%(omt,nu)
+    if lpath==None:
+        lpath='/scratch/04943/akshukla/dna2mhd_output'
+    read_parameters(lpath)
+    time = get_time_from_vout()
+    kx,ky,kz,herm=get_grids()
+    i_n=[0,1,2]
+    #savepath = lpath+'/b_xyz.dat'
+    #g=np.zeros((len(time)-1,len(kx),len(ky,),len(kz),len(i_n)), dtype='complex64')
+    print('allocating array')
+    #g=np.memmap(savepath,dtype='complex64',mode='w+', shape=(len(time)-1,len(kx),len(ky,),len(kz),len(i_n)) )
+    g=np.zeros((len(time),len(kx),len(ky,),len(kz),len(i_n)), dtype='complex64')
+    print('starting loop')
+    print(par)
+    print('time length = ', len(time))
+    for t in range(len(time)):
+        print(str(t))
+        gt = read_time_step_v(t)
+        gt = np.reshape(gt,(par['nkx0'],par['nky0'],par['nkz0'],3),order='F')
+        g[t] = gt
+    #np.save(lpath+'/g_allk_g04',g)
+    print('finished loop')
+    return time, g
+
+def plot_bv():
+    timeb,b=getb()
+    timev,v=getv()
+    fig,ax=plt.subplots(2)
+    ax[0].plot(timeb,b[:,1,1,1,2].real)
+    ax[0].set_title('b')
+    ax[1].plot(timev,v[:,1,1,1,2].imag)
+    ax[1].set_title('v')
+    plt.show()
+    return timeb,b,timev,v
+
+
+
 
 #if __name__ == '__main__':
 #    #count = mp.cpu_count()
