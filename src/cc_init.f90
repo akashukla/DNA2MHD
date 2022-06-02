@@ -56,9 +56,12 @@ SUBROUTINE init_run
   !! Initialised run
   !!!!!!!!!!!!!!!!!!!!
   CALL initial_condition(init_cond)   !checkpoint must be READ before others
+  IF (verbose) WRITE(*,*) "Called initial condition.",mype
   CALL initialize_diagnostics
+  IF (verbose) WRITE(*,*) "Called initial diagnostice.",mype
   !IF(nonlinear) CALL initialize_adapt_dt
   IF(nonlinear) CALL initialize_fourier
+  IF (verbose) WRITE(*,*) "Called initial fourier.",mype
   
 END SUBROUTINE init_run
 
@@ -145,9 +148,9 @@ SUBROUTINE arrays
 !  IF(.not.allocated(g_1))&
 !      ALLOCATE(g_1(0:nkx0-1,0:nky0-1,lkz1:lkz2,lv1:lv2,lh1:lh2,ls1:ls2)) 
   IF(.not.allocated(b_1))&
-      ALLOCATE(b_1(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:3)) 
+      ALLOCATE(b_1(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)) 
   IF(.not.allocated(v_1))&
-      ALLOCATE(v_1(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:3)) 
+      ALLOCATE(v_1(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)) 
   IF(.not.allocated(kxgrid)) ALLOCATE(kxgrid(0:nkx0-1))
   IF(.not.allocated(kygrid)) ALLOCATE(kygrid(0:nky0-1))
   IF(spatial2d) THEN

@@ -42,7 +42,7 @@ SUBROUTINE read_parameters
       nu,omt,omn,Ti0Te
 
   NAMELIST /flags/ &
-      nonlinear, test_nl, calc_dt, comp_type,adapt_dt_nl,&
+      nonlinear, actual_nonlinear, test_nl, calc_dt, comp_type,adapt_dt_nl,&
       linear_nlbox,verbose,checkpoint_read,checkpoint_write,&
       em_conserve,flr_on,force_kz0eq0,force_ky0eq0,force_kx0eq0,flr_version,&
       flr_extra,flr_nonlinear,etg_factor, &!, which_nonlinear,etg_factor
@@ -172,12 +172,12 @@ SUBROUTINE read_parameters
   ELSE
     kmin_eq_0=.false.
     evenyz=.false.
-    IF(nkx0.ne.1.or.nky0.ne.1.or.nkz0.ne.1) THEN
-      IF(mype==0) WRITE(*,*) "Linear run ==> setting nk's to 1"
-      nkx0=1
-      nky0=1
-      nkz0=1
-    END IF
+    !IF(nkx0.ne.1.or.nky0.ne.1.or.nkz0.ne.1) THEN
+    !  IF(mype==0) WRITE(*,*) "Linear run ==> setting nk's to 1"
+    !  nkx0=1
+    !  nky0=1
+    !  nkz0=1
+    !END IF
   END IF
 
   IF(nonlinear) THEN
@@ -234,15 +234,21 @@ END SUBROUTINE read_parameters
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 SUBROUTINE output_parameters
   USE par_mod
-
   INTEGER :: out_handle
+
+  IF (verbose) WRITE(*,*) "In Output Parameters"
+
 
   CALL get_io_number
   out_handle=io_number
+  IF (verbose) WRITE(*,*) "Got io number, outhandle is: ", out_handle
 
   IF(mype==0)  THEN
+    IF (verbose) WRITE(*,*) "Mype was 0"
   OPEN(unit=out_handle,file=trim(diagdir)//'/parameters.dat',status='unknown')
+    IF (verbose) WRITE(*,*) "Opened Parameters"
   
+    IF (verbose) WRITE(*,*) "Physical Parameters"
 
     !****** physical_parameters NAMELIST ********
     WRITE(out_handle,"(A)")    "&physical_parameters"
@@ -252,6 +258,8 @@ SUBROUTINE output_parameters
     WRITE(out_handle,"(A,G12.4)") "Ti0Te = ",Ti0Te
     WRITE(out_handle,"(A)")    "/"
     WRITE(out_handle,"(A)")    ""
+
+    IF (verbose) WRITE(*,*) "Numerical Parameters"
 
     !****** numerical_parameters NAMELIST ********
     WRITE(out_handle,"(A)")    "&numerical_parameters"
@@ -290,6 +298,7 @@ SUBROUTINE output_parameters
     WRITE(out_handle,"(A)")    "/"
     WRITE(out_handle,"(A)")    ""
 
+    IF (verbose) WRITE(*,*) "Namelist Parameters"
     !****** diagnostics NAMELIST ********
     WRITE(out_handle,"(A)")    "&diagnostics"
     WRITE(out_handle,"(3A)")   "diagdir = '", TRIM(diagdir),"'"
@@ -323,6 +332,8 @@ SUBROUTINE output_parameters
     WRITE(out_handle,"(A,I4)") "gk_kz_index = ",gk_kz_index    
     WRITE(out_handle,"(A)")    "/"
     WRITE(out_handle,"(A)")    ""
+
+    IF (verbose) WRITE(*,*) "Flags Parameters"
 
     !****** flags NAMELIST ********
     WRITE(out_handle,"(A)")    "&flags"
@@ -365,6 +376,9 @@ SUBROUTINE output_parameters
     WRITE(out_handle,"(A)")    "/"
     WRITE(out_handle,"(A)")    ""
 
+
+    IF (verbose) WRITE(*,*) "Eigensolve "
+
     !****** eigensolve NAMELIST ********
     WRITE(out_handle,"(A)")    "&eigensolve"
     WRITE(out_handle,"(A,I4)") "n_ev = ",n_ev    
@@ -379,6 +393,8 @@ SUBROUTINE output_parameters
     WRITE(out_handle,"(A)")    "/"
     WRITE(out_handle,"(A)")    ""
 
+    IF (verbose) WRITE(*,*) "Initial Value"
+
     !****** initial_value NAMELIST ********
     WRITE(out_handle,"(A)")    "&initial_value"
     WRITE(out_handle,"(A,I10)") "max_itime = ",max_itime    
@@ -391,7 +407,9 @@ SUBROUTINE output_parameters
     WRITE(out_handle,"(A)")    "/"
     WRITE(out_handle,"(A)")    ""
 
+
     IF(test_rk4) THEN
+        IF (verbose) WRITE(*,*) "In test rk4"
       !****** rk_test NAMELIST ********
       WRITE(out_handle,"(A)")    "&rk_test"
       WRITE(out_handle,"(A,L1)") "test_rk4  = ", test_rk4
@@ -406,6 +424,7 @@ SUBROUTINE output_parameters
     END IF
 
    CLOSE(out_handle)
+   IF (verbose) WRITE(*,*) "closed out handle"
 
    END IF !mype==0
 

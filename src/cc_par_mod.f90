@@ -230,6 +230,7 @@ MODULE par_mod
   INTEGER :: itime_start
   REAL :: max_walltime=83000.0
   LOGICAL :: nonlinear
+  LOGICAL :: actual_nonlinear
   !INTEGER :: which_nonlinear=1
   LOGICAL :: linear_nlbox !Grid, initialization, etc. is the same, but don't USE nonlinearity
 

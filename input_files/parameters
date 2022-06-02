@@ -9,9 +9,9 @@ Ti0Te =    1.000
 kxmin =   0.5E-01
 kymin =   0.5E-01
 kzmin =   0.1
-nkx0 =  8
-nky0 =  16 
-nkz0 =  18 
+nkx0 =  4
+nky0 =  8 
+nkz0 =  8 
 nv0 =   2
 nh0 =    1
 nspec =    1
@@ -32,15 +32,15 @@ courant =   0.5000
 kxinit_min = 0  
 kyinit_min = 0 
 kzinit_min = 0
-kxinit_max = 8  
-kyinit_max = 16 
-kzinit_max = 18
-init_amp_b = 0.01
-init_amp_v = 0.01
+kxinit_max = 4  
+kyinit_max = 8 
+kzinit_max = 8
+init_amp_b = 0.1
+init_amp_v = 0.1
 /
 
 &diagnostics
-diagdir = '/scratch/04943/akshukla/dna2mhd_output_0'
+diagdir = '/scratch/04943/akshukla/dna2mhd_output_testnlflag'
 istep_ffm =   20
 istep_energy3d =  500
 istep_energy =  100
@@ -58,8 +58,9 @@ output_nlt_n = F
 /
 
 &flags
-verbose  = T
+verbose  = F
 nonlinear  = T
+actual_nonlinear = F
 calc_dt  = F
 comp_type = 'IV'
 checkpoint_read = F
@@ -73,9 +74,9 @@ nuno_closure = T
 /
 
 &initial_value
-max_itime =   100
-max_walltime =   900000
-dt_max =   0.0026
-max_time =   10000.0    
+max_itime =   100000
+max_walltime =   9000000
+dt_max =   0.01
+max_time =   10000000.0    
 /
 

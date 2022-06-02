@@ -206,20 +206,20 @@ SUBROUTINE get_g_next(b_in, v_in)
  !v_in=v_2+(1.0/6.0)*dt*vk2
  !!v_in=v_2 
 
-
- IF(force_kz0eq0) b_in(:,:,0,:)=cmplx(0.0,0.0)
- IF(force_ky0eq0) b_in(:,0,:,:)=cmplx(0.0,0.0)
- IF(force_kx0eq0) b_in(0,:,:,:)=cmplx(0.0,0.0)
- IF(nkz0.ge.2) b_in(:,:,hkz_ind+1,:)=cmplx(0.0,0.0)
- b_in(:,hky_ind+1,:,:)=cmplx(0.0,0.0)
- b_in(0,0,:,:)=cmplx(0.0,0.0)
-
- IF(force_kz0eq0) v_in(:,:,0,:)=cmplx(0.0,0.0)
- IF(force_ky0eq0) v_in(:,0,:,:)=cmplx(0.0,0.0)
- IF(force_kx0eq0) v_in(0,:,:,:)=cmplx(0.0,0.0)
- IF(nkz0.ge.2) v_in(:,:,hkz_ind+1,:)=cmplx(0.0,0.0)
- v_in(:,hky_ind+1,:,:)=cmplx(0.0,0.0)
- v_in(0,0,:,:)=cmplx(0.0,0.0)
+ !Remove below blocks for now for linear run test
+!  IF(force_kz0eq0) b_in(:,:,0,:)=cmplx(0.0,0.0)
+!  IF(force_ky0eq0) b_in(:,0,:,:)=cmplx(0.0,0.0)
+!  IF(force_kx0eq0) b_in(0,:,:,:)=cmplx(0.0,0.0)
+!  IF(nkz0.ge.2) b_in(:,:,hkz_ind+1,:)=cmplx(0.0,0.0)
+!  b_in(:,hky_ind+1,:,:)=cmplx(0.0,0.0)
+!  b_in(0,0,:,:)=cmplx(0.0,0.0)
+! 
+!  IF(force_kz0eq0) v_in(:,:,0,:)=cmplx(0.0,0.0)
+!  IF(force_ky0eq0) v_in(:,0,:,:)=cmplx(0.0,0.0)
+!  IF(force_kx0eq0) v_in(0,:,:,:)=cmplx(0.0,0.0)
+!  IF(nkz0.ge.2) v_in(:,:,hkz_ind+1,:)=cmplx(0.0,0.0)
+!  v_in(:,hky_ind+1,:,:)=cmplx(0.0,0.0)
+!  v_in(0,0,:,:)=cmplx(0.0,0.0)
 
 
 
@@ -250,7 +250,8 @@ SUBROUTINE get_rhs(b_in,v_in, rhs_out_b,rhs_out_v)
 
   CALL get_rhs_lin(b_in,v_in,rhs_out_b, rhs_out_v,0)
 
-  IF(nonlinear.and..not.linear_nlbox) CALL get_rhs_nl(b_in, v_in,rhs_out_b,rhs_out_v)
+  !IF(nonlinear.and..not.linear_nlbox) CALL get_rhs_nl(b_in, v_in,rhs_out_b,rhs_out_v)
+  IF(actual_nonlinear) CALL get_rhs_nl(b_in, v_in,rhs_out_b,rhs_out_v)
 
 END SUBROUTINE get_rhs
 

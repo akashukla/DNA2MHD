@@ -1,11 +1,12 @@
 #!/bin/bash
-#SBATCH -J cbtest       # Job Name
-#SBATCH -o DNA.out%j    # Output and error file name (%j expands to jobID)
+#SBATCH -J Save # Job Name
+#SBATCH -o Save.out%j    # Output and error file name (%j expands to jobID)
 #SBATCH -n 1           # Total number of mpi tasks requested
-#SBATCH -p serial  # Queue (partition) name -- normal, development, etc.
-#SBATCH -t 02:00:00     # Run time (hh:mm:ss) - 1.5 hours
-#SBATCH -A GKIMP     # Project name
-###ibrun ../bin/dna           # Run the MPI executable 
-module load python
-python cb_test_script.py
+#SBATCH -N 1           # Total number of mpi tasks requested
+#SBATCH -p normal   # Queue (partition) name -- normal, development, etc.
+#SBATCH -t 24:00:00     # Run time (hh:mm:ss) - 1.5 hours
+#SBATCH -A GKIMP # Project name
+
+module load python3
+python3 /work2/04943/akshukla/stampede2/DNA2MHD/diag/dna2mhd_utils_exe.py
 

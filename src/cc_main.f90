@@ -68,9 +68,11 @@ PROGRAM dna
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   CALL init_run
   
+  IF (verbose) WRITE(*,*) "Finished Init_run."
   !! Test of rk4--i.e. calculates stability region
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   IF(test_rk4) CALL rk4_stability
+  IF (verbose) WRITE(*,*) "Finished rk stability."
   
   !! Runs various routines for performance tests
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -79,6 +81,7 @@ PROGRAM dna
   !! Initial output
   !!!!!!!!!!!!!!!!!!!
   CALL output_parameters
+  IF (verbose) WRITE(*,*) "Finished output parameters."
 
 
   !! Selects what to do this run 
