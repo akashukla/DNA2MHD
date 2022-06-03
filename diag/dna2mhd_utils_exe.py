@@ -9,9 +9,13 @@ import os
 import re
 import multiprocessing as mp
 import sys
+import scipy.fft
+import scipy.signal
+from scipy.signal import find_peaks
+from scipy.fft import fft,fftfreq,fftshift
 
 
-par={}
+par={}       #Global Variable to hold parameters once read_parameters is called
 namelists={}
 
 def read_parameters(lpath):
@@ -70,9 +74,9 @@ def read_parameters(lpath):
 
 
 def get_grids():
-    """Returns kx,ky,kz,Hermite grids in the same form as used in the code \n
+    """Returns kx,ky,kz grids in the same form as used in the code \n
     kxgrid = 0, kxmin, . . . kxmax \n
-    kygrid = 0, kymin, . . . kymax, kymax+kymin, -kymax, . . . -kymin"""
+    kygrid = 0, kymin, . . . kymax, kymax+kymin, -kymax, . . . -kymin """
     kxgrid=np.arange((par['nkx0']))
     kxgrid=kxgrid*par['kxmin']
     kygrid=np.empty(par['nky0'])
@@ -87,10 +91,10 @@ def get_grids():
         kzgrid[par['nkz0']-1-i]=-float(i+1)*par['kzmin']
         kzgrid[i]=float(i)*par['kzmin']
     kzgrid[par['nkz0']//2]=par['nkz0']//2*par['kzmin']
-    return kxgrid,kygrid,kzgrid,herm_grid
+    return kxgrid,kygrid,kzgrid
 
 def read_time_step_b(which_itime,swap_endian=False):
-   """Reads a time step from g_out.dat.  Time step determined by \'which_itime\'"""
+   """Reads a time step from b_out.dat.  Time step determined by \'which_itime\'"""
    file_name = par['diagdir'][1:-1]+'/b_out.dat'
    f = open(file_name,'rb')
    ntot=par['nkx0']*par['nky0']*par['nkz0']*3#par['nv0']
@@ -105,7 +109,7 @@ def read_time_step_b(which_itime,swap_endian=False):
    return gt0
 
 def read_time_step_v(which_itime,swap_endian=False):
-   """Reads a time step from g_out.dat.  Time step determined by \'which_itime\'"""
+   """Reads a time step from v_out.dat.  Time step determined by \'which_itime\'"""
    file_name = par['diagdir'][1:-1]+'/v_out.dat'
    f = open(file_name,'rb')
    ntot=par['nkx0']*par['nky0']*par['nkz0']*3#par['nv0']
@@ -122,7 +126,7 @@ def read_time_step_v(which_itime,swap_endian=False):
 
 
 def get_time_from_bout(swap_endian=False):
-   """Returns time array taken from g_out.dat"""
+   """Returns time array taken from b_out.dat"""
    file_name = par['diagdir'][1:-1]+ '/b_out.dat'
    f = open(file_name,'rb')
    ntot=par['nkx0']*par['nky0']*par['nkz0']*3#par['nv0']
@@ -146,7 +150,7 @@ def get_time_from_bout(swap_endian=False):
    return time
 
 def get_time_from_vout(swap_endian=False):
-   """Returns time array taken from g_out.dat"""
+   """Returns time array taken from v_out.dat"""
    file_name = par['diagdir'][1:-1]+ '/v_out.dat'
    f = open(file_name,'rb')
    ntot=par['nkx0']*par['nky0']*par['nkz0']*3#par['nv0']
@@ -171,18 +175,23 @@ def get_time_from_vout(swap_endian=False):
 
 
 def getb(lpath=None):
+    """Saves b_out.dat (located in the directory specified by lpath) into a python-readable format b_xyz.dat
+    which will also be located in the lpath directory.
+    """
     #lpath='/scratch/04943/akshukla/hammet_dna_output/full/omt%g_nu%1.2f'%(omt,nu)
-    if lpath==None:
-        lpath='/scratch/04943/akshukla/dna2mhd_output_0'
+    #if lpath==None:
+    #    lpath='/scratch/04943/akshukla/dna2mhd_output_0'
     read_parameters(lpath)
     time = get_time_from_bout()
     #time=time[:1000]
-    kx,ky,kz,herm=get_grids()
+    kx,ky,kz=get_grids()
     i_n=[0,1,2]
     savepath = lpath+'/b_xyz.dat'
     #g=np.zeros((len(time)-1,len(kx),len(ky,),len(kz),len(i_n)), dtype='complex64')
     #print('allocating array')
     g=np.memmap(savepath,dtype='complex64',mode='w+', shape=(len(time),len(kx),len(ky,),len(kz),len(i_n)) )
+    np.save(lpath+'/bshape.npy',g.shape)
+    np.save(lpath+'/timeb.npy',time)
     #g=np.zeros((len(time),len(kx),len(ky,),len(kz),len(i_n)), dtype='complex64')
     #print('starting loop')
     print(par)
@@ -198,18 +207,23 @@ def getb(lpath=None):
     return time, g
 
 def getv(lpath=None):
+    """Saves v_out.dat (located in the directory specified by lpath) into a python-readable format v_xyz.dat
+    which will also be located in the lpath directory.
+    """
     #lpath='/scratch/04943/akshukla/hammet_dna_output/full/omt%g_nu%1.2f'%(omt,nu)
-    if lpath==None:
-        lpath='/scratch/04943/akshukla/dna2mhd_output_0'
+    #if lpath==None:
+    #    lpath='/scratch/04943/akshukla/dna2mhd_output_0'
     read_parameters(lpath)
     time = get_time_from_vout()
     #time=time[:1000]
-    kx,ky,kz,herm=get_grids()
+    kx,ky,kz=get_grids()
     i_n=[0,1,2]
     savepath = lpath+'/v_xyz.dat'
     #g=np.zeros((len(time)-1,len(kx),len(ky,),len(kz),len(i_n)), dtype='complex64')
     #print('allocating array')
     g=np.memmap(savepath,dtype='complex64',mode='w+', shape=(len(time),len(kx),len(ky,),len(kz),len(i_n)) )
+    np.save(lpath+'/vshape.npy',g.shape)
+    np.save(lpath+'/timev.npy',time)
     #g=np.zeros((len(time),len(kx),len(ky,),len(kz),len(i_n)), dtype='complex64')
     #print('starting loop')
     print(par)
@@ -224,18 +238,11 @@ def getv(lpath=None):
     #print('finished loop')
     return time, g
 
-def plot_bv(ix,iy,iz,ind,lpath=None):
-    timeb,b=getb(lpath)
-    timev,v=getv(lpath)
-    fig,ax=plt.subplots(2)
-    ax[0].plot(timeb,np.abs(b[:,ix,iy,iz,ind]))
-    ax[0].set_title('b')
-    ax[1].plot(timev,np.abs(v[::,ix,iy,iz,ind]))
-    ax[1].set_title('v')
-    plt.show()
-    return timeb,b,timev,v
-
 def load_b(lpath):
+    """
+    This method can only be run after getb has been called at least once to save the b_xyz.dat file_name
+    This quickly loads the b array which will have indices [time,kx,ky,kz, x/y/z]
+    """
     if lpath==None:
         lpath='/scratch/04943/akshukla/dna2mhd_output_0'
     time = np.load(lpath+'/timeb.npy')
@@ -243,6 +250,10 @@ def load_b(lpath):
     return time, bload
 
 def load_v(lpath):
+    """
+    This method can only be run after getv has been called at least once to save the v_xyz.dat file_name
+    This quickly loads the v array which will have indices [time,kx,ky,kz, x/y/z]
+    """
     if lpath==None:
         lpath='/scratch/04943/akshukla/dna2mhd_output_0'
     time = np.load(lpath+'/timev.npy')
@@ -250,8 +261,75 @@ def load_v(lpath):
     return time, vload
 
 
+def plot_bv(ix,iy,iz,ind,lpath=None):
+    """
+    This is an example method that plots the timetraces of b and v at the specified wavevector (kx[ix],ky[iy],kz[iz]).
+    ind specifies whether you want the x(0),y(1), or z(2) component.
+    """
+    timeb,b=load_b(lpath)
+    timev,v=load_v(lpath)
+    fig,ax=plt.subplots(2)
+    ax[0].plot(timeb,np.abs(b[:,ix,iy,iz,ind]))
+    ax[0].set_title('b')
+    ax[1].plot(timev,np.abs(v[::,ix,iy,iz,ind]))
+    ax[1].set_title('v')
+    kx,ky,kz=get_grids()
+    fig.suptitle('kx,ky,kz = %1.2f,%1.2f,%1.2f'%(kx[ix],ky[iy],kz[iz]))
+    plt.show()
+    return timeb,b,timev,v
+
+
+def plot_vreal_spectrum(lpath,ix,iy,iz,ind):
+    """
+    ix,iy,iz specifies the wavevector
+    ind specifies x/y/z (0/1/2) component
+    This is an example method that performs the fft on the real part of v and plots the result.
+    It will return an array of the frequencies found.
+    *** Right now it seems like freqs need to multiplied by 2*pi to get the right dispersion relation.
+        I think this makes sense because w = 2*pi*f
+    """
+    time,v=load_v(lpath)
+    v_k = v[:,ix,iy,iz,ind]
+    #plt.plot(time,v_k)
+    #plt.show()
+    sp=fftshift(fft(v_k-np.mean(v_k.real)))
+    freq = fftshift(fftfreq(time.shape[-1],d=.01))
+    peaks,_ = find_peaks(np.abs(sp),threshold=10)
+    print(freq[peaks])
+    print(freq[peaks]*2*np.pi)
+    plt.plot(np.abs(sp))
+    plt.plot(peaks, sp[peaks], "x")
+    plt.show()
+    return 2*np.pi*freq[peaks]
+
+def plot_vspectrum(lpath,ix,iy,iz,ind):
+    """
+    ix,iy,iz specifies the wavevector
+    ind specifies x/y/z (0/1/2) component
+    This is an example method that performs the fft on the real part of v and plots the result.
+    It will return an array of the frequencies found.
+    *** Right now it seems like freqs need to multiplied by 2*pi to get the right dispersion relation.
+        I think this makes sense because w = 2*pi*f
+    """
+    time,v=load_v(lpath)
+    v_k = v[:,ix,iy,iz,ind]
+    #plt.plot(time,v_k)
+    #plt.show()
+    sp=fftshift(fft(v_k-np.mean(v_k)))
+    freq = fftshift(fftfreq(time.shape[-1],d=.01))
+    peaks,_ = find_peaks(np.abs(sp),threshold=10)
+    print(freq[peaks])
+    print(freq[peaks]*2*np.pi)
+    plt.plot(np.abs(sp))
+    plt.plot(peaks, sp[peaks], "x")
+    plt.show()
+    return 2*np.pi*freq[peaks]
+
 getb(lpath='/scratch/04943/akshukla/dna2mhd_output_1')
 getv(lpath='/scratch/04943/akshukla/dna2mhd_output_1')
+
+
+
 
 
 #if __name__ == '__main__':
@@ -280,4 +358,5 @@ getv(lpath='/scratch/04943/akshukla/dna2mhd_output_1')
 #    print(type(omt), type(nu))
 #    saveg(omt,nu,style)
 #
+
 

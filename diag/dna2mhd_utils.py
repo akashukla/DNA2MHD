@@ -243,6 +243,7 @@ def load_b(lpath):
     This method can only be run after getb has been called at least once to save the b_xyz.dat file_name
     This quickly loads the b array which will have indices [time,kx,ky,kz, x/y/z]
     """
+    read_parameters(lpath)
     if lpath==None:
         lpath='/scratch/04943/akshukla/dna2mhd_output_0'
     time = np.load(lpath+'/timeb.npy')
@@ -254,6 +255,7 @@ def load_v(lpath):
     This method can only be run after getv has been called at least once to save the v_xyz.dat file_name
     This quickly loads the v array which will have indices [time,kx,ky,kz, x/y/z]
     """
+    read_parameters(lpath)
     if lpath==None:
         lpath='/scratch/04943/akshukla/dna2mhd_output_0'
     time = np.load(lpath+'/timev.npy')
@@ -261,25 +263,33 @@ def load_v(lpath):
     return time, vload
 
 
-def plot_bv(ix,iy,iz,ind,lpath=None):
+def plot_bv(lpath,ix,iy,iz,ind):
     """
     This is an example method that plots the timetraces of b and v at the specified wavevector (kx[ix],ky[iy],kz[iz]).
     ind specifies whether you want the x(0),y(1), or z(2) component.
     """
+    ind_strings= ['x','y','z']
+    ind_string=ind_strings[ind]
+    read_parameters(lpath)
     timeb,b=load_b(lpath)
     timev,v=load_v(lpath)
     fig,ax=plt.subplots(2)
-    ax[0].plot(timeb,np.abs(b[:,ix,iy,iz,ind]))
-    ax[0].set_title('b')
-    ax[1].plot(timev,np.abs(v[::,ix,iy,iz,ind]))
-    ax[1].set_title('v')
+    ax[0].plot(timeb,b[:,ix,iy,iz,ind].real,label='Re')
+    ax[0].plot(timeb,b[:,ix,iy,iz,ind].imag,label='Im')
+    ax[0].set_title('b_%s'%ind_string)
+    ax[1].plot(timev,v[:,ix,iy,iz,ind].real,label='Re')
+    ax[1].plot(timev,v[:,ix,iy,iz,ind].imag,label='Im')
+    ax[1].set_title('v_%s'%ind_string)
+    ax[0].legend()
+    ax[1].legend()
     kx,ky,kz=get_grids()
     fig.suptitle('kx,ky,kz = %1.2f,%1.2f,%1.2f'%(kx[ix],ky[iy],kz[iz]))
+    plt.savefig('bv_%d_%d_%d'%(ix,iy,iz))
     plt.show()
     return timeb,b,timev,v
 
 
-def plot_vspectrum(lpath,ix,iy,iz,ind):
+def plot_vreal_spectrum(lpath,ix,iy,iz,ind):
     """
     ix,iy,iz specifies the wavevector
     ind specifies x/y/z (0/1/2) component
@@ -288,6 +298,9 @@ def plot_vspectrum(lpath,ix,iy,iz,ind):
     *** Right now it seems like freqs need to multiplied by 2*pi to get the right dispersion relation.
         I think this makes sense because w = 2*pi*f
     """
+    ind_strings= ['x','y','z']
+    ind_string=ind_strings[ind]
+    read_parameters(lpath)
     time,v=load_v(lpath)
     v_k = v[:,ix,iy,iz,ind]
     #plt.plot(time,v_k)
@@ -301,6 +314,37 @@ def plot_vspectrum(lpath,ix,iy,iz,ind):
     plt.plot(peaks, sp[peaks], "x")
     plt.show()
     return 2*np.pi*freq[peaks]
+
+def plot_vspectrum(lpath,ix,iy,iz,ind):
+    """
+    ix,iy,iz specifies the wavevector
+    ind specifies x/y/z (0/1/2) component
+    This is an example method that performs the fft on the real part of v and plots the result.
+    It will return an array of the frequencies found.
+    *** Right now it seems like freqs need to multiplied by 2*pi to get the right dispersion relation.
+        I think this makes sense because w = 2*pi*f
+    """
+    ind_strings= ['x','y','z']
+    ind_string=ind_strings[ind]
+    read_parameters(lpath)
+    kx,ky,kz=get_grids()
+    time,v=load_v(lpath)
+    v_k = v[:,ix,iy,iz,ind]
+    #plt.plot(time,v_k)
+    #plt.show()
+    sp=fftshift(fft(v_k-np.mean(v_k)))
+    freq = fftshift(fftfreq(time.shape[-1],d=.01))
+    peaks,_ = find_peaks(np.abs(sp),threshold=10)
+    print(freq[peaks])
+    print(freq[peaks]*2*np.pi)
+    plt.plot(np.abs(sp))
+    plt.plot(peaks, sp[peaks], "x")
+    plt.title('|FFT(v_%s)| kx,ky,kz = %1.2f,%1.2f,%1.2f'%(ind_string, kx[ix],ky[iy],kz[iz]))
+    plt.savefig('vspectrum_%d_%d_%d'%(ix,iy,iz))
+    plt.show()
+    return 2*np.pi*freq[peaks]
+
+
 
 
 
