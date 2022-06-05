@@ -325,8 +325,8 @@ def plot_vspectrum(lpath,ix,iy,iz,ind):
     plt.show()
     return 2*np.pi*freq[peaks]
 
-getb(lpath='/scratch/04943/akshukla/dna2mhd_output_1')
-getv(lpath='/scratch/04943/akshukla/dna2mhd_output_1')
+getb(lpath='/scratch/04943/akshukla/dna2mhd_output_vz0')
+getv(lpath='/scratch/04943/akshukla/dna2mhd_output_vz0')
 
 
 

@@ -51,6 +51,7 @@ SUBROUTINE initial_condition(which_init0)
          DO l=0,2
           b_1(i,j,k,l)=init_amp_b
           v_1(i,j,k,l)=init_amp_v
+          v_1(i,j,k,2)=0.0
          END DO
         END DO
        END DO

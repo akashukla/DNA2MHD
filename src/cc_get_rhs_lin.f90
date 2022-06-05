@@ -78,7 +78,7 @@ SUBROUTINE get_rhs_lin1_ae(b_in, v_in, rhs_out_b,rhs_out_v, which_term)
 
         rhs_out_b(i,j,k,0) = i_complex*kzgrid(k)*(v_in(i,j,k,0) - i_complex*kygrid(j)*b_in(i,j,k,2) +i_complex*kzgrid(k)*b_in(i,j,k,1))
         rhs_out_b(i,j,k,1) = i_complex*kzgrid(k)*(v_in(i,j,k,1) - i_complex*kzgrid(k)*b_in(i,j,k,0) +i_complex*kxgrid(i)*b_in(i,j,k,2))
-        rhs_out_b(i,j,k,2) = i_complex*kzgrid(k)*(v_in(i,j,k,2) - i_complex*kxgrid(i)*b_in(i,j,k,1) +i_complex*kygrid(y)*b_in(i,j,k,0))
+        rhs_out_b(i,j,k,2) = i_complex*kzgrid(k)*(v_in(i,j,k,2) - i_complex*kxgrid(i)*b_in(i,j,k,1) +i_complex*kygrid(j)*b_in(i,j,k,0))
 
       !Eqn 15
         rhs_out_v(i,j,k,0) = i_complex*kzgrid(k)*b_in(i,j,k,0)-i_complex*kxgrid(i)*b_in(i,j,k,2)

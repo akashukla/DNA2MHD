@@ -174,7 +174,7 @@ def get_time_from_vout(swap_endian=False):
    return time
 
 
-def getb(lpath=None):
+def getb(lpath):
     """Saves b_out.dat (located in the directory specified by lpath) into a python-readable format b_xyz.dat
     which will also be located in the lpath directory.
     """
@@ -206,7 +206,7 @@ def getb(lpath=None):
     #print('finished loop')
     return time, g
 
-def getv(lpath=None):
+def getv(lpath):
     """Saves v_out.dat (located in the directory specified by lpath) into a python-readable format v_xyz.dat
     which will also be located in the lpath directory.
     """
@@ -276,10 +276,12 @@ def plot_bv(lpath,ix,iy,iz,ind):
     fig,ax=plt.subplots(2)
     ax[0].plot(timeb,b[:,ix,iy,iz,ind].real,label='Re')
     ax[0].plot(timeb,b[:,ix,iy,iz,ind].imag,label='Im')
-    ax[0].set_title('b_%s'%ind_string)
+    ax[0].set_ylabel('b_%s'%ind_string)
+    ax[0].set_xlabel('time')
     ax[1].plot(timev,v[:,ix,iy,iz,ind].real,label='Re')
     ax[1].plot(timev,v[:,ix,iy,iz,ind].imag,label='Im')
-    ax[1].set_title('v_%s'%ind_string)
+    ax[1].set_ylabel('v_%s'%ind_string)
+    ax[0].set_xlabel('time')
     ax[0].legend()
     ax[1].legend()
     kx,ky,kz=get_grids()
@@ -334,15 +336,20 @@ def plot_vspectrum(lpath,ix,iy,iz,ind):
     #plt.show()
     sp=fftshift(fft(v_k-np.mean(v_k)))
     freq = fftshift(fftfreq(time.shape[-1],d=.01))
+    omega = 2*np.pi*freq
     peaks,_ = find_peaks(np.abs(sp),threshold=10)
     print(freq[peaks])
     print(freq[peaks]*2*np.pi)
-    plt.plot(np.abs(sp))
-    plt.plot(peaks, sp[peaks], "x")
-    plt.title('|FFT(v_%s)| kx,ky,kz = %1.2f,%1.2f,%1.2f'%(ind_string, kx[ix],ky[iy],kz[iz]))
+    omega_plot = omega[(omega>-2*np.pi)&(omega<2*np.pi)]
+    sp_plot= sp[(omega>-2*np.pi)&(omega<2*np.pi)]
+    plt.plot(omega_plot, np.abs(sp_plot))
+    #plt.plot(peaks, sp[peaks], "x")
+    plt.ylabel('|FFT(v_%s)|'%ind_string )
+    plt.xlabel('frequency')
+    plt.title('kx,ky,kz = %1.2f,%1.2f,%1.2f'%(kx[ix],ky[iy],kz[iz]))
     plt.savefig('vspectrum_%d_%d_%d'%(ix,iy,iz))
     plt.show()
-    return 2*np.pi*freq[peaks]
+    return omega[peaks]
 
 
 
@@ -376,4 +383,9 @@ def plot_vspectrum(lpath,ix,iy,iz,ind):
 #    saveg(omt,nu,style)
 #
 
-
+def analytical_omega(lpath,ix,iy,iz):
+    read_parameters(lpath)
+    kx,ky,kz = get_grids()
+    wp = kz[iz]*(np.sqrt(kx[ix]**2+ky[iy]**2+kz[iz]**2)/2 + np.sqrt(1+ (kx[ix]**2+ky[iy]**2+kz[iz]**2)/4))
+    wm = kz[iz]*(np.sqrt(kx[ix]**2+ky[iy]**2+kz[iz]**2)/2 - np.sqrt(1+ (kx[ix]**2+ky[iy]**2+kz[iz]**2)/4))
+    return wp,wm
