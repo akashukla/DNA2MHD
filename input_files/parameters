@@ -35,11 +35,11 @@ kzinit_min = 0
 kxinit_max = 4  
 kyinit_max = 8 
 kzinit_max = 8
-init_amp_bx = 2.1
-init_amp_by = 2.1
-init_amp_bz = 2.1
-init_amp_vx = 2.1
-init_amp_vy = 2.1
+init_amp_bx = 0.1
+init_amp_by = 0.1
+init_amp_bz = 0.1
+init_amp_vx = 0.1
+init_amp_vy = 0.1
 init_amp_vz = 0.0
 /
 
