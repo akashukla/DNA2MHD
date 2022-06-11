@@ -286,7 +286,7 @@ def plot_bv(lpath,ix,iy,iz,ind):
     ax[1].legend()
     kx,ky,kz=get_grids()
     fig.suptitle('kx,ky,kz = %1.2f,%1.2f,%1.2f'%(kx[ix],ky[iy],kz[iz]))
-    plt.savefig('bv_%d_%d_%d'%(ix,iy,iz))
+    plt.savefig('bv_%s_%d_%d_%d'%(ind_string,ix,iy,iz))
     plt.show()
     return timeb,b,timev,v
 
@@ -347,7 +347,7 @@ def plot_vspectrum(lpath,ix,iy,iz,ind):
     plt.ylabel('|FFT(v_%s)|'%ind_string )
     plt.xlabel('frequency')
     plt.title('kx,ky,kz = %1.2f,%1.2f,%1.2f'%(kx[ix],ky[iy],kz[iz]))
-    plt.savefig('vspectrum_%d_%d_%d'%(ix,iy,iz))
+    plt.savefig('vspectrum_%s_%d_%d_%d'%(ind_string,ix,iy,iz))
     plt.show()
     return omega[peaks]
 

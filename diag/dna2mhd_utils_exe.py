@@ -325,12 +325,13 @@ def plot_vspectrum(lpath,ix,iy,iz,ind):
     plt.show()
     return 2*np.pi*freq[peaks]
 
-getb(lpath='/scratch/04943/akshukla/dna2mhd_output_vz0')
-getv(lpath='/scratch/04943/akshukla/dna2mhd_output_vz0')
 
 
 
-
+if __name__ == '__main__':
+    lpath = str(sys.argv[1])
+    getb(lpath)
+    getv(lpath)
 
 #if __name__ == '__main__':
 #    #count = mp.cpu_count()

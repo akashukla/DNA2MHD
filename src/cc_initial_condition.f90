@@ -32,6 +32,9 @@ SUBROUTINE initial_condition(which_init0)
   CHARACTER(len=40) :: which_init
   INTEGER, DIMENSION(:), ALLOCATABLE :: rseed
   INTEGER :: rseed_size
+  REAL :: zerocmplx
+
+  zerocmplx=cmplx(0.0,0.0)
    
   !g_1(:,:,:,:,:,:)=cmplx(0.0,0.0)
   b_1(:,:,:,:)=cmplx(0.0,0.0)
@@ -48,11 +51,24 @@ SUBROUTINE initial_condition(which_init0)
       DO i=kxinit_min,kxinit_max-1
        DO j=kyinit_min,kyinit_max-1
         DO k=kzinit_min,kzinit_max-1
-         DO l=0,2
-          b_1(i,j,k,l)=init_amp_b
-          v_1(i,j,k,l)=init_amp_v
-          v_1(i,j,k,2)=0.0
-         END DO
+         !DO l=0,2
+         IF(kzgrid(k).eq.zerocmplx) THEN
+             b_1(i,j,k,0)=cmplx(0.0,0.0)
+             b_1(i,j,k,1)=cmplx(0.0,0.0)
+             b_1(i,j,k,2)=cmplx(0.0,0.0)
+             v_1(i,j,k,0)=cmplx(0.0,0.0)
+             v_1(i,j,k,1)=cmplx(0.0,0.0)
+             v_1(i,j,k,2)=cmplx(0.0,0.0)
+         ELSE
+             b_1(i,j,k,0)=init_amp_bx
+             b_1(i,j,k,1)=init_amp_by
+             b_1(i,j,k,2) = (-kxgrid(i)*b_1(i,j,k,0)-kygrid(j)*b_1(i,j,k,1))/kzgrid(k)
+             !b_1(i,j,k,2)=init_amp_bz
+             v_1(i,j,k,0)=init_amp_vx
+             v_1(i,j,k,1)=init_amp_vy
+             !v_1(i,j,k,2)=init_amp_vz
+             v_1(i,j,k,2) = (-kxgrid(i)*v_1(i,j,k,0)-kygrid(j)*v_1(i,j,k,1))/kzgrid(k)
+        END IF
         END DO
        END DO
       END DO

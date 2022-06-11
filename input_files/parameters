@@ -35,12 +35,16 @@ kzinit_min = 0
 kxinit_max = 4  
 kyinit_max = 8 
 kzinit_max = 8
-init_amp_b = 2.1
-init_amp_v = 2.1
+init_amp_bx = 2.1
+init_amp_by = 2.1
+init_amp_bz = 2.1
+init_amp_vx = 2.1
+init_amp_vy = 2.1
+init_amp_vz = 0.0
 /
 
 &diagnostics
-diagdir = '/scratch/04943/akshukla/dna2mhd_output_vz0'
+diagdir = '/scratch/04943/akshukla/dna2mhd_output_vz0_init'
 istep_ffm =   20
 istep_energy3d =  500
 istep_energy =  100

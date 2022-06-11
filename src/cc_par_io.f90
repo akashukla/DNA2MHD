@@ -34,7 +34,8 @@ SUBROUTINE read_parameters
       hyp_v,hyp_x,hyp_y,hyp_z,hypv_order,np_herm,&
       np_kz,np_spec,np_hank,&
       courant,hyp_conv,num_k_hyp_conv,hyp_conv_ky,hypx_order,hypy_order,hypz_order,&
-      kxinit_min, kxinit_max, kyinit_min, kyinit_max, kzinit_min, kzinit_max, init_amp_b, init_amp_v
+      kxinit_min, kxinit_max, kyinit_min, kyinit_max, kzinit_min, kzinit_max,&
+      init_amp_bx,init_amp_by,init_amp_bz, init_amp_vx, init_amp_vy, init_amp_vz
   !,&
       !mu_grid_type, vmax,hyp_nu,fracx, fracy
 
@@ -338,6 +339,7 @@ SUBROUTINE output_parameters
     !****** flags NAMELIST ********
     WRITE(out_handle,"(A)")    "&flags"
     WRITE(out_handle,"(A,L1)") "nonlinear  = ", nonlinear
+    WRITE(out_handle,"(A,L1)") "actual_nonlinear  = ", actual_nonlinear
     !WRITE(out_handle,"(A,I4)") "which_nonlinear = ",which_nonlinear
     IF(test_nl) WRITE(out_handle,"(A,L1)") "test_nl  = ", test_nl
     WRITE(out_handle,"(A,L1)") "calc_dt  = ", calc_dt

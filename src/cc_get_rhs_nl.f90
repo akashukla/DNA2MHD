@@ -156,7 +156,10 @@ SUBROUTINE get_rhs_nl(b_in, v_in, rhs_out_b, rhs_out_v)
   COMPLEX, INTENT(inout) :: rhs_out_b(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
   COMPLEX, INTENT(inout) :: rhs_out_v(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
 
+  !IF(mype==0) WRITE(*,*) "In get_rhs_nl"
+  !IF(mype==0) WRITE(*,*) "Version is: ",rhs_nl_version
   IF(rhs_nl_version==1) THEN
+    !IF(mype==0) WRITE(*,*) "version was 1"
     CALL get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v)
 !  ELSE IF(rhs_nl_version==2) THEN
 !    CALL get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v)
@@ -312,6 +315,7 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v)
   v_inx0 = v_in(:,:,:,0)
   v_iny0 = v_in(:,:,:,1)
   v_inz0 = v_in(:,:,:,2)
+  !IF(mype==0) WRITE(*,*) "Actually in nl1"
 
   DO i=0,nkx0-1
     DO j=0,nky0-1

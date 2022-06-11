@@ -221,6 +221,7 @@ SUBROUTINE get_g_next(b_in, v_in)
 !  v_in(:,hky_ind+1,:,:)=cmplx(0.0,0.0)
 !  v_in(0,0,:,:)=cmplx(0.0,0.0)
 
+ !CALL remove_div(b_in,v_in)
 
 
  DEALLOCATE(b_2)
@@ -232,6 +233,45 @@ SUBROUTINE get_g_next(b_in, v_in)
 
 END SUBROUTINE get_g_next
 
+SUBROUTINE remove_div(b_in,v_in)
+
+ COMPLEX, INTENT(inout) :: b_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+ COMPLEX, INTENT(inout) :: v_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+ INTEGER :: i,j,k,l,h,ierr
+ COMPLEX :: div_v, div_b
+ REAL :: k2, zero
+
+ div_v = 0.0 +i_complex*0.0
+ div_b = 0.0 +i_complex*0.0
+ k2=0.0
+ zero=0.0
+
+ DO i=0,nkx0-1
+   DO j=0,nky0-1
+     DO k=lkz1,lkz2
+        div_v = div_v + kxgrid(i)*v_in(i,j,k,0) + kygrid(j)*v_in(i,j,k,1) + kzgrid(k)*v_in(i,j,k,2)
+        div_b = div_b + kxgrid(i)*b_in(i,j,k,0) + kygrid(j)*b_in(i,j,k,1) + kzgrid(k)*b_in(i,j,k,2)
+     END DO
+   END DO
+ END DO 
+
+ DO i=0,nkx0-1
+   DO j=0,nky0-1
+     DO k=lkz1,lkz2
+        k2 = kxgrid(i)**2 + kygrid(j)**2 + kzgrid(k)**2
+        IF(k2.ne.zero) THEN 
+                v_in(i,j,k,0) = v_in(i,j,k,0) - div_v*kxgrid(i)/k2
+                v_in(i,j,k,1) = v_in(i,j,k,1) - div_v*kygrid(j)/k2
+                v_in(i,j,k,2) = v_in(i,j,k,2) - div_v*kzgrid(k)/k2
+
+                b_in(i,j,k,0) = b_in(i,j,k,0) - div_b*kxgrid(i)/k2
+                b_in(i,j,k,1) = b_in(i,j,k,1) - div_b*kygrid(j)/k2
+                b_in(i,j,k,2) = b_in(i,j,k,2) - div_b*kzgrid(k)/k2
+        END IF 
+     END DO
+   END DO
+ END DO 
+END SUBROUTINE remove_div
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!                                    get_rhs                                !!
