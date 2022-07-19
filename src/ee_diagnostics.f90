@@ -121,25 +121,26 @@ SUBROUTINE initialize_diagnostics
   !IF(istep_fmom3d.gt.0.and.mype==0) THEN
   !  CALL initialize_fmom3d
   !END IF
-  !IF(istep_energy.gt.0.and.mype==0) THEN
-  !  CALL get_io_number
-  !  en_handle=io_number
-  !  !OPEN(unit=en_handle,file=trim(diagdir)//'/energy.dat',status='unknown')
-  !  IF(checkpoint_read) THEN
-  !    INQUIRE(file=trim(diagdir)//'/energy.dat',exist=file_exists)
-  !    IF(file_exists) THEN
-  !      OPEN(unit=en_handle,file=trim(diagdir)//'/energy.dat',status='unknown',position='append')
-  !    ELSE
-  !      OPEN(unit=en_handle,file=trim(diagdir)//'/energy.dat',status='unknown')
-  !      WRITE(en_handle,*) "#time,entropy,phi^2 energy,dE/dt total,flux,coll,hcoll,hyps,N.L.,hyp_conv,dE/dt"
-  !    END IF
-  !  ELSE
-  !    OPEN(unit=en_handle,file=trim(diagdir)//'/energy.dat',status='unknown')
-  !    WRITE(en_handle,*) "#time,entropy,phi^2 energy,dE/dt total,flux,coll,hcoll,hyps,N.L.,hyp_conv,dE/dt"
-  !  END IF
-  !  energy_last=0.0
-  !  time_last=time
-  !END IF
+  IF(istep_energy.gt.0.and.mype==0) THEN
+    CALL get_io_number
+    en_handle=io_number
+    !OPEN(unit=en_handle,file=trim(diagdir)//'/energy.dat',status='unknown')
+    IF(checkpoint_read) THEN
+      INQUIRE(file=trim(diagdir)//'/energy.dat',exist=file_exists)
+      IF(file_exists) THEN
+        OPEN(unit=en_handle,file=trim(diagdir)//'/energy.dat',status='unknown',position='append')
+      ELSE
+        OPEN(unit=en_handle,file=trim(diagdir)//'/energy.dat',status='unknown')
+        WRITE(en_handle,*) "#time,entropy,phi^2 energy,dE/dt total,flux,coll,hcoll,hyps,N.L.,hyp_conv,dE/dt"
+      END IF
+    ELSE
+      OPEN(unit=en_handle,file=trim(diagdir)//'/energy.dat',status='unknown')
+      ! WRITE(en_handle,*) "#time,entropy,phi^2 energy,dE/dt total,flux,coll,hcoll,hyps,N.L.,hyp_conv,dE/dt"
+      WRITE(en_handle,*) "#time,HMHD Hamiltonian"
+    END IF
+    energy_last=0.0
+    time_last=time
+  END IF
   !IF(mype==0) WRITE(*,*) "Done initializing netcdf."
   ! IF(istep_hermite.gt.0.and.mype==0) THEN
   !   CALL get_io_number
@@ -220,9 +221,9 @@ SUBROUTINE finalize_diagnostics
   ! !IF(verbose) WRITE(*,*) "Writing checkpoint.",mype
   ! !WRITE(*,*) "Writing checkpoint.",mype
 
-  ! IF(istep_energy.gt.0.and.mype==0) THEN
-  !   CLOSE(en_handle)
-  ! END IF
+  IF(istep_energy.gt.0.and.mype==0) THEN
+    CLOSE(en_handle)
+  END IF
   ! IF(istep_hermite.gt.0.and.mype==0) CLOSE(herm_handle)
 
   ! IF(istep_gk.gt.0) THEN
@@ -363,10 +364,12 @@ SUBROUTINE diag
 !!     END IF
 !!   END IF
 !! 
-!!   IF(istep_energy.ne.0) THEN
-!!     IF(MOD(itime,istep_energy)==0) THEN
-!!       IF(verbose) WRITE(*,*) "Starting energy diag.",mype
-!! 
+     IF(istep_energy.ne.0) THEN
+       IF(MOD(itime,istep_energy)==0) THEN
+         IF(verbose) WRITE(*,*) "Starting energy diag.",mype
+         WRITE(en_handle,*) time
+         WRITE(en_handle,*) hmhdhmtn(v_1,b_1)
+ 
 !!       !!!!!!!!!!!Temporary!!!!!!!!!!!
 !!       !!!!!!!!!!!Temporary!!!!!!!!!!!
 !!       !!!!!!!!!!!Temporary!!!!!!!!!!!
@@ -387,9 +390,9 @@ SUBROUTINE diag
 !!       !!!!!!!!!!!Temporary!!!!!!!!!!!
 !!       CALL get_energy_terms
 !! 
-!!       IF(verbose) WRITE(*,*) "Done with energy diag.",mype
-!!     END IF
-!!   END IF
+         IF(verbose) WRITE(*,*) "Done with energy diag.",mype
+       END IF
+     END IF
 
   IF(istep_schpt.ne.0) THEN
     IF(MOD(itime,istep_schpt)==0) THEN
@@ -4116,6 +4119,21 @@ END SUBROUTINE diag
 !! 
 !!  END SUBROUTINE phi_shell_filter3
 
+
+
+function hmhdhmtn(v_in,b_in) result(ham)
+
+implicit none
+complex :: v_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+complex :: b_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+real :: ham
+
+!! Computes the Hall MHD Hamiltonian 8 pi^3 (sum(v_k^2 + b_k^2) + 2b_z0)/2 
+
+ham = sum(abs(v_in)**2 + abs(b_in)**2) + 2*real(b_in(0,0,0,2))
+ham = ham * (4*(3.14**3))
+
+end function hmhdhmtn
 
 
 
