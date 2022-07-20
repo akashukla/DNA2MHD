@@ -136,7 +136,8 @@ SUBROUTINE initialize_diagnostics
     ELSE
       OPEN(unit=en_handle,file=trim(diagdir)//'/energy.dat',status='unknown')
       ! WRITE(en_handle,*) "#time,entropy,phi^2 energy,dE/dt total,flux,coll,hcoll,hyps,N.L.,hyp_conv,dE/dt"
-      WRITE(en_handle,*) "#time,HMHD Hamiltonian"
+      WRITE(en_handle,*) &
+         "#time,Hamiltonian,restvty.,hyperrestvty.,viscsty.,hyperviscsty."
     END IF
     energy_last=0.0
     time_last=time
@@ -369,6 +370,10 @@ SUBROUTINE diag
          IF(verbose) WRITE(*,*) "Starting energy diag.",mype
          WRITE(en_handle,*) time
          WRITE(en_handle,*) hmhdhmtn(v_1,b_1)
+         WRITE(en_handle,*) resvischange(b_1,2)
+         WRITE(en_handle,*) resvischange(b_1,4)
+         WRITE(en_handle,*) resvischange(v_1,2)
+         WRITE(en_handle,*) resvischange(v_1,4)
  
 !!       !!!!!!!!!!!Temporary!!!!!!!!!!!
 !!       !!!!!!!!!!!Temporary!!!!!!!!!!!
@@ -4135,7 +4140,39 @@ ham = ham * (4*(3.14**3))
 
 end function hmhdhmtn
 
+function resvischange(arr,hyper) result(res)
 
+!! Returns the rate of change of the above Hamiltonian 
+!! From including a resistivity term in the induction equation
+!! with dimensionless resistivity eta/(B0/(e ne c)) = 1
+!! Can also be used to find change due to viscosity nu/(vA^2/omega_i) = 1
+!! with arr taken as v instead of b
+
+
+implicit none
+complex :: arr(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+integer :: hyper
+integer :: i,j,k,ind,sq
+real :: k2
+real :: res
+
+res = 0.
+sq = 1
+if (hyper /= 2) sq = 2
+do i = 0,nkx0-1
+    do j = 0,nky0-1
+        do k = lkz1,lkz2
+            k2 = kxgrid(i)**2 + kygrid(j)**2 + kzgrid(k)**2
+            do ind = 0,2
+                res = res + (k2**sq)*abs(arr(i,j,k,ind))**2
+            end do
+        end do 
+    end do 
+end do
+
+res = res*(8 * 3.14**3)
+
+end function resvischange
 
 END MODULE diagnostics
 
