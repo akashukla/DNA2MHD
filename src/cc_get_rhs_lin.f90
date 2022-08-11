@@ -39,7 +39,7 @@ SUBROUTINE get_rhs_lin(b_in, v_in, rhs_out_b, rhs_out_v, which_term)
  COMPLEX, INTENT(out) :: rhs_out_v(0:nkx0-1,0:nky0-1,lkz1:lkz2, 0:2)
  INTEGER, INTENT(in) :: which_term
 
- IF(rhs_lin_version==1) THEN
+ IF ((rhs_lin_version==1).or.(rhs_lin_version==12)) THEN
    !If works for mu integrated as well for hankel/vperp version
    CALL get_rhs_lin1_ae(b_in, v_in, rhs_out_b, rhs_out_v, which_term)
  ELSE IF(rhs_lin_version==2) THEN
@@ -57,12 +57,13 @@ SUBROUTINE get_rhs_lin1_ae(b_in, v_in, rhs_out_b,rhs_out_v, which_term)
  COMPLEX, INTENT(out) :: rhs_out_v(0:nkx0-1,0:nky0-1,lkz1:lkz2, 0:2)
  INTEGER, INTENT(in) :: which_term
 
- INTEGER :: i,j,k,l,h,ierr
+ INTEGER :: i,j,k,h,ierr
  !for transpose for left ev's
  INTEGER :: grad1_flag
  INTEGER :: grad2_flag
  COMPLEX :: phi_mod1,phi_mod2,g0_bcast
  COMPLEX :: g_closure
+ REAL :: L
 
  rhs_out_b=cmplx(0.0,0.0)
  rhs_out_v=cmplx(0.0,0.0)
@@ -71,23 +72,33 @@ SUBROUTINE get_rhs_lin1_ae(b_in, v_in, rhs_out_b,rhs_out_v, which_term)
  DO i=0,nkx0-1
    DO j=0,nky0-1
      DO k=lkz1,lkz2
+        L = kxgrid(i)*kxgrid(i) + kygrid(j)*kygrid(j) + kzgrid(k)*kzgrid(k)
      !eqn 14
         !rhs_out_b(i,j,k,0) = i_complex*kzgrid(k)*v_in(i,j,k,0) + i_complex*kygrid(j)*b_in(i,j,k,2) -i_complex*kzgrid(k)*b_in(i,j,k,1)
         !rhs_out_b(i,j,k,1) = i_complex*kzgrid(k)*v_in(i,j,k,1) + i_complex*kzgrid(k)*b_in(i,j,k,0) -i_complex*kxgrid(i)*b_in(i,j,k,2)
         !rhs_out_b(i,j,k,2) = i_complex*kzgrid(k)*v_in(i,j,k,2) + i_complex*kxgrid(i)*b_in(i,j,k,1) -i_complex*kygrid(y)*b_in(i,j,k,0)
 
-        rhs_out_b(i,j,k,0) = i_complex*kzgrid(k)*(v_in(i,j,k,0) - i_complex*kygrid(j)*b_in(i,j,k,2) +i_complex*kzgrid(k)*b_in(i,j,k,1))
-        rhs_out_b(i,j,k,1) = i_complex*kzgrid(k)*(v_in(i,j,k,1) - i_complex*kzgrid(k)*b_in(i,j,k,0) +i_complex*kxgrid(i)*b_in(i,j,k,2))
-        rhs_out_b(i,j,k,2) = i_complex*kzgrid(k)*(v_in(i,j,k,2) - i_complex*kxgrid(i)*b_in(i,j,k,1) +i_complex*kygrid(j)*b_in(i,j,k,0))
-
+        rhs_out_b(i,j,k,0) = i_complex*kzgrid(k)*(v_in(i,j,k,0) - i_complex*kygrid(j)*b_in(i,j,k,2) +i_complex*kzgrid(k)*b_in(i,j,k,1)) - eta*(L**hyp)*b_in(i,j,k,0)
+        rhs_out_b(i,j,k,1) = i_complex*kzgrid(k)*(v_in(i,j,k,1) - i_complex*kzgrid(k)*b_in(i,j,k,0) +i_complex*kxgrid(i)*b_in(i,j,k,2)) - eta*(L**hyp)*b_in(i,j,k,1)
+        rhs_out_b(i,j,k,2) = i_complex*kzgrid(k)*(v_in(i,j,k,2) - i_complex*kxgrid(i)*b_in(i,j,k,1) +i_complex*kygrid(j)*b_in(i,j,k,0)) - eta*(L**hyp)*b_in(i,j,k,2)
+        if (verbose) print *, 'b lin equation stored'
+        if (verbose) print *, 'L, eta',L,eta
       !Eqn 15
-        !rhs_out_v(i,j,k,0) = i_complex*kzgrid(k)*b_in(i,j,k,0)-i_complex*kxgrid(i)*b_in(i,j,k,2)
-        !rhs_out_v(i,j,k,1) = i_complex*kzgrid(k)*b_in(i,j,k,1)-i_complex*kygrid(j)*b_in(i,j,k,2)
-        !rhs_out_v(i,j,k,2) = 0
+if (rhs_lin_version==1) then
+        rhs_out_v(i,j,k,0) = i_complex*kzgrid(k)*b_in(i,j,k,0)-i_complex*kxgrid(i)*b_in(i,j,k,2) - vnu*(L**hyp)*v_in(i,j,k,0)
+        rhs_out_v(i,j,k,1) = i_complex*kzgrid(k)*b_in(i,j,k,1)-i_complex*kygrid(j)*b_in(i,j,k,2) - vnu*(L**hyp)*v_in(i,j,k,1)
+        rhs_out_v(i,j,k,2) = - vnu*(L**hyp)*v_in(i,j,k,2)
+        if (verbose) print *, 'v1 lin equation stored'
+        if (verbose) print *, 'L, vnu',L,vnu
+endif
     ! Eq 15 v2 from prerana
-        rhs_out_v(i,j,k,0) = i_complex*kzgrid(k)*b_in(i,j,k,0)
-        rhs_out_v(i,j,k,1) = i_complex*kzgrid(k)*b_in(i,j,k,1)
-        rhs_out_v(i,j,k,2) = i_complex*kzgrid(k)*b_in(i,j,k,2)
+if (rhs_lin_version==12) then
+        rhs_out_v(i,j,k,0) = i_complex*kzgrid(k)*b_in(i,j,k,0) - vnu*(L**hyp)*v_in(i,j,k,0)
+        rhs_out_v(i,j,k,1) = i_complex*kzgrid(k)*b_in(i,j,k,1) - vnu*(L**hyp)*v_in(i,j,k,1)
+        rhs_out_v(i,j,k,2) = i_complex*kzgrid(k)*b_in(i,j,k,2) - vnu*(L**hyp)*v_in(i,j,k,2)
+        if (verbose) print *, 'v12 lin equation stored'
+        if (verbose) print *, 'L, vnu',L,vnu
+endif
      END DO
    END DO
  END DO 

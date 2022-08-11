@@ -264,6 +264,9 @@ SUBROUTINE remove_div(b_in,v_in)
      END DO
    END DO
  END DO 
+
+if (verbose) print *,'Divergence Removed'
+
 END SUBROUTINE remove_div
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -285,6 +288,8 @@ SUBROUTINE get_rhs(b_in,v_in, rhs_out_b,rhs_out_v)
 
   !IF(nonlinear.and..not.linear_nlbox) CALL get_rhs_nl(b_in, v_in,rhs_out_b,rhs_out_v)
   IF(actual_nonlinear) CALL get_rhs_nl(b_in, v_in,rhs_out_b,rhs_out_v)
+
+if (verbose) print *,'RHS found'
 
 END SUBROUTINE get_rhs
 

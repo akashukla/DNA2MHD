@@ -111,9 +111,9 @@ MODULE par_mod
   LOGICAL :: perf_test_par=.false.
   INTEGER :: perf_monitor(2)
   !Note:rhs_lin_version=2 is broken with hyp_x/y (need to debug)!!!
-  INTEGER :: rhs_lin_version=1
+  INTEGER :: rhs_lin_version
   !INTEGER :: rhs_nl_version=2
-  INTEGER :: rhs_nl_version=1 !Akash changed nl_version to 1
+  INTEGER :: rhs_nl_version !Akash changed nl_version to 1
 
   LOGICAL :: calc_dt=.false.        !Automatic initial time step calculation
   LOGICAL :: dt_slepc=.false.        !Use slepc or lapack
@@ -288,6 +288,9 @@ MODULE par_mod
 
   ! for checkpoints in io
   INTEGER :: b_out_handle, v_out_handle
+  REAL :: vnu ! Viscosity in units ion skin depth * v_A
+  REAL :: eta ! Resistivity in units B_0 / (n0 * e * c)
+  INTEGER :: hyp
   
 
   CONTAINS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 

@@ -35,12 +35,12 @@ SUBROUTINE read_parameters
       np_kz,np_spec,np_hank,&
       courant,hyp_conv,num_k_hyp_conv,hyp_conv_ky,hypx_order,hypy_order,hypz_order,&
       kxinit_min, kxinit_max, kyinit_min, kyinit_max, kzinit_min, kzinit_max,&
-      init_amp_bx,init_amp_by,init_amp_bz, init_amp_vx, init_amp_vy, init_amp_vz
+      init_amp_bx,init_amp_by,init_amp_bz, init_amp_vx, init_amp_vy, init_amp_vz,hyp
   !,&
       !mu_grid_type, vmax,hyp_nu,fracx, fracy
 
   NAMELIST /physical_parameters/ &
-      nu,omt,omn,Ti0Te
+      nu,omt,omn,Ti0Te,eta,vnu
 
   NAMELIST /flags/ &
       nonlinear, actual_nonlinear, test_nl, calc_dt, comp_type,adapt_dt_nl,&
@@ -257,6 +257,8 @@ SUBROUTINE output_parameters
     WRITE(out_handle,"(A,G12.4)") "omt = ",omt
     WRITE(out_handle,"(A,G12.4)") "omn = ",omn
     WRITE(out_handle,"(A,G12.4)") "Ti0Te = ",Ti0Te
+    WRITE(out_handle,"(A,G12.4)") "vnu = ",vnu
+    WRITE(out_handle,"(A,G12.4)") "eta = ",eta
     WRITE(out_handle,"(A)")    "/"
     WRITE(out_handle,"(A)")    ""
 
@@ -296,6 +298,7 @@ SUBROUTINE output_parameters
     IF (.not.mu_integrated.and..not.hankel) WRITE(out_handle,"(A,G12.4)") "vmax = ",vmax
     IF (GyroLES.or.Gyroz.or.Corr) WRITE(out_handle,"(A,G12.4)") "fracx = ",fracx
     IF (GyroLES.or.Corr) WRITE(out_handle,"(A,G12.4)") "fracy = ",fracy
+    WRITE(out_handle,"(A,I4)") "hyp = ",hyp
     WRITE(out_handle,"(A)")    "/"
     WRITE(out_handle,"(A)")    ""
 
@@ -369,8 +372,8 @@ SUBROUTINE output_parameters
     IF(perf_test_rhs) WRITE(out_handle,"(A,L1)") "perf_test_rhs = ",perf_test_rhs
     WRITE(out_handle,"(A,I4)") "version_flag = ",version_flag
     !IF(istep_nlt.ne.0) WRITE(out_handle,"(A,I4)") "nlt_version = ",nlt_version
-    IF(rhs_lin_version.ne.1) WRITE(out_handle,"(A,I4)") "rhs_lin_version = ",rhs_lin_version
-    IF(rhs_nl_version.ne.2) WRITE(out_handle,"(A,I4)") "rhs_nl_version = ",rhs_nl_version
+    WRITE(out_handle,"(A,I4)") "rhs_lin_version = ",rhs_lin_version
+    WRITE(out_handle,"(A,I4)") "rhs_nl_version = ",rhs_nl_version
     WRITE(out_handle,"(A,L1)") "em_conserve = ",em_conserve
     IF(force_kz0eq0) WRITE(out_handle,"(A,L1)") "force_kz0eq0 = ",force_kz0eq0
     IF(force_ky0eq0) WRITE(out_handle,"(A,L1)") "force_ky0eq0 = ",force_ky0eq0

@@ -137,7 +137,7 @@ SUBROUTINE initialize_diagnostics
       OPEN(unit=en_handle,file=trim(diagdir)//'/energy.dat',status='unknown')
       ! WRITE(en_handle,*) "#time,entropy,phi^2 energy,dE/dt total,flux,coll,hcoll,hyps,N.L.,hyp_conv,dE/dt"
       WRITE(en_handle,*) &
-         "#time,Hamiltonian,restvty.,hyperrestvty.,viscsty.,hyperviscsty."
+         "#time,Hamiltonian,restvty.,viscsty."
     END IF
     energy_last=0.0
     time_last=time
@@ -370,10 +370,8 @@ SUBROUTINE diag
          IF(verbose) WRITE(*,*) "Starting energy diag.",mype
          WRITE(en_handle,*) time
          WRITE(en_handle,*) hmhdhmtn(v_1,b_1)
-         WRITE(en_handle,*) resvischange(b_1,2)
-         WRITE(en_handle,*) resvischange(b_1,4)
-         WRITE(en_handle,*) resvischange(v_1,2)
-         WRITE(en_handle,*) resvischange(v_1,4)
+         WRITE(en_handle,*) eta*resvischange(b_1)
+         WRITE(en_handle,*) vnu*resvischange(v_1)
  
 !!       !!!!!!!!!!!Temporary!!!!!!!!!!!
 !!       !!!!!!!!!!!Temporary!!!!!!!!!!!
@@ -4136,11 +4134,11 @@ real :: ham
 !! Computes the Hall MHD Hamiltonian 8 pi^3 (sum(v_k^2 + b_k^2) + 2b_z0)/2 
 
 ham = sum(abs(v_in)**2 + abs(b_in)**2) + 2*real(b_in(0,0,0,2))
-ham = ham * (4*(3.14**3))
+ham = ham * (4*(pi**3))
 
 end function hmhdhmtn
 
-function resvischange(arr,hyper) result(res)
+function resvischange(arr) result(res)
 
 !! Returns the rate of change of the above Hamiltonian 
 !! From including a resistivity term in the induction equation
@@ -4151,26 +4149,23 @@ function resvischange(arr,hyper) result(res)
 
 implicit none
 complex :: arr(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
-integer :: hyper
-integer :: i,j,k,ind,sq
+integer :: i,j,k,ind
 real :: k2
 real :: res
 
 res = 0.
-sq = 1
-if (hyper /= 2) sq = 2
 do i = 0,nkx0-1
     do j = 0,nky0-1
         do k = lkz1,lkz2
             k2 = kxgrid(i)**2 + kygrid(j)**2 + kzgrid(k)**2
             do ind = 0,2
-                res = res + (k2**sq)*abs(arr(i,j,k,ind))**2
+                res = res + (k2**hyp)*abs(arr(i,j,k,ind))**2
             end do
         end do 
     end do 
 end do
 
-res = res*(8 * 3.14**3)
+res = res*(8 * pi**3)
 
 end function resvischange
 

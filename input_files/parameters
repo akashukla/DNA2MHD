@@ -2,7 +2,9 @@
 nu = 0.00
 omt = 5.000
 omn =    1.000    
-Ti0Te =    1.000    
+Ti0Te =    1.000 
+eta = 0.5
+vnu = 0.5   
 /
 
 &numerical_parameters
@@ -41,6 +43,7 @@ init_amp_bz = 0.1
 init_amp_vx = 0.1
 init_amp_vy = 0.1
 init_amp_vz = 0.0
+hyp = 2
 /
 
 &diagnostics
@@ -72,6 +75,8 @@ checkpoint_write = T
 etg_factor  =    0.000    
 em_conserve = T
 nuno_closure = T
+rhs_nl_version = 12
+rhs_lin_version = 12
 /
 
 &eigensolve
