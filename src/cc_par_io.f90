@@ -49,7 +49,9 @@ SUBROUTINE read_parameters
       flr_extra,flr_nonlinear,etg_factor, &!, which_nonlinear,etg_factor
       perf_test_lin,perf_test_nl,perf_test_rhs,rhs_lin_version,rhs_nl_version,&
       perf_test_par, version_flag, hankel, dt_slepc, nuno_closure,mu_integrated,&
-      GyroLES, Gyroherm, Gyroz, Corr
+      GyroLES, Gyroherm, Gyroz, Corr, &
+      dbio,dvio,bdvio,vdbio,bdcbio,cbdbio,vdvio,bdbio,db2io,&
+      hall
  
   NAMELIST /eigensolve/ &
       left_vec,right_vec,ev_slepc, kxmax0, kymax0, kzmax0, kscan,n_ev,&
@@ -378,6 +380,16 @@ SUBROUTINE output_parameters
     IF(force_kz0eq0) WRITE(out_handle,"(A,L1)") "force_kz0eq0 = ",force_kz0eq0
     IF(force_ky0eq0) WRITE(out_handle,"(A,L1)") "force_ky0eq0 = ",force_ky0eq0
     IF(force_kx0eq0) WRITE(out_handle,"(A,L1)") "force_kx0eq0 = ",force_kx0eq0
+    WRITE(out_handle,"(A,I4)") "dbio = ",dbio
+    WRITE(out_handle,"(A,I4)") "dvio = ",dvio
+    WRITE(out_handle,"(A,I4)") "bdvio = ",bdvio
+    WRITE(out_handle,"(A,I4)") "vdbio = ",vdbio
+    WRITE(out_handle,"(A,I4)") "bdcbio = ",bdcbio
+    WRITE(out_handle,"(A,I4)") "cbdbio = ",cbdbio
+    WRITE(out_handle,"(A,I4)") "vdvio = ",vdvio
+    WRITE(out_handle,"(A,I4)") "bdbio = ",bdbio
+    WRITE(out_handle,"(A,I4)") "db2io = ",db2io
+    WRITE(out_handle,"(A,I4)") "hall = ",hall
     WRITE(out_handle,"(A)")    "/"
     WRITE(out_handle,"(A)")    ""
 

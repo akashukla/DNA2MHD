@@ -123,6 +123,21 @@ def read_time_step_v(which_itime,swap_endian=False):
    f.close()
    return gt0
 
+def read_time_step_opt(which_itime,opt,swap_endian=False):
+   """Reads a time step from opt_out.dat.  Time step determined by \'which_itime\'"""
+   file_name = par['diagdir'][1:-1]+'/'+opt+'_out.dat'
+   f = open(file_name,'rb')
+   ntot=par['nkx0']*par['nky0']*par['nkz0']*3#par['nv0']                                                                                                                                                  
+   mem_tot=ntot*16
+   gt0=np.empty((3,par['nkz0'],par['nky0'],par['nkx0']))
+   f.seek(8+which_itime*(8+mem_tot))
+   gt0=np.fromfile(f,dtype='complex128',count=ntot)
+   if swap_endian:
+       gt0=gt0.newbyteorder()
+   #print sum(gt0)                                                                                                                                                                                        
+   f.close()
+   return gt0
+
 
 
 def get_time_from_bout(swap_endian=False):
@@ -145,7 +160,6 @@ def get_time_from_bout(swap_endian=False):
          time = np.append(time,input)
      else:
          continue_read=0
-
    f.close()
    return time
 
@@ -169,10 +183,31 @@ def get_time_from_vout(swap_endian=False):
          time = np.append(time,input)
      else:
          continue_read=0
-
    f.close()
    return time
 
+def get_time_from_optout(swap_endian=False):
+   """Returns time array taken from v_out.dat"""
+   file_name = par['diagdir'][1:-1]+ '/'+opt+'_out.dat'
+   f = open(file_name,'rb')
+   ntot=par['nkx0']*par['nky0']*par['nkz0']*3#par['nv0']                                                                                                                                                  
+   mem_tot=ntot*16
+   time=np.empty(0)
+   continue_read=1
+   i=0
+   while (continue_read):
+     f.seek(i*(mem_tot+8))
+     i=i+1
+     input=np.fromfile(f,dtype='float64',count=1)
+     if swap_endian:
+         input=input.newbyteorder()
+     #print input                                                                                                                                                                                         
+     if input==0 or input:
+         time = np.append(time,input)
+     else:
+         continue_read=0
+   f.close()
+   return time
 
 def getb(lpath):
     """Saves b_out.dat (located in the directory specified by lpath) into a python-readable format b_xyz.dat
@@ -238,6 +273,39 @@ def getv(lpath):
     #print('finished loop')
     return time, g
 
+def getopt(lpath,opt):
+    """Saves opt_out.dat (located in the directory specified by lpath) into a python-readable format opt_xyz.dat                                                                                              
+    which will also be located in the lpath directory.                                                                                                                                                    
+    """
+    #lpath='/scratch/04943/akshukla/hammet_dna_output/full/omt%g_nu%1.2f'%(omt,nu)                                                                                                                        
+    #if lpath==None:                                                                                                                                                                                      
+    #    lpath='/scratch/04943/akshukla/dna2mhd_output_0'                                                                                                                                                 
+    read_parameters(lpath)
+    time = get_time_from_optout()
+    #time=time[:1000]                                                                                                                                                                                     
+    kx,ky,kz=get_grids()
+    i_n=[0,1,2]
+    savepath = lpath+'/'+opt+'_xyz.dat'
+    #g=np.zeros((len(time)-1,len(kx),len(ky,),len(kz),len(i_n)), dtype='complex64')                                                                                                                       
+    #print('allocating array')                                                                                                                                                                            
+    g=np.memmap(savepath,dtype='complex64',mode='w+', shape=(len(time),len(kx),len(ky,),len(kz),len(i_n)) )
+    np.save(lpath+'/'+opt+'shape.npy',g.shape)
+    np.save(lpath+'/time'+opt+'.npy',time)
+    #g=np.zeros((len(time),len(kx),len(ky,),len(kz),len(i_n)), dtype='complex64')                                                                                                                         
+    #print('starting loop')                                                                                                                                                                               
+    print(par)
+    print('time length = ', len(time))
+    for t in range(len(time)):
+        if(t%1000==0):
+            print(str(t))
+        gt = read_time_step_opt(t)
+        gt = np.reshape(gt,(par['nkx0'],par['nky0'],par['nkz0'],3),order='F')
+        g[t] = gt
+    #np.save(lpath+'/g_allk_g04',g)                                                                                                                                                                       
+    #print('finished loop')                                                                                                                                                                               
+    return time, g
+
+
 def load_b(lpath):
     """
     This method can only be run after getb has been called at least once to save the b_xyz.dat file_name
@@ -262,6 +330,17 @@ def load_v(lpath):
     vload=np.memmap(lpath+'/v_xyz.dat',dtype='complex64',mode='r',shape=tuple(np.load(lpath+'/vshape.npy')))
     return time, vload
 
+def load_opt(lpath):
+    """                                                                                                                                                                                                   
+    This method can only be run after getv has been called at least once to save the v_xyz.dat file_name                                                                                                  
+    This quickly loads the v array which will have indices [time,kx,ky,kz, x/y/z]                                                                                                                         
+    """
+    read_parameters(lpath)
+    if lpath==None:
+        lpath='/scratch/04943/akshukla/dna2mhd_output_0'
+    time = np.load(lpath+'/time'+opt+'.npy')
+    optload=np.memmap(lpath+'/'+opt+'_xyz.dat',dtype='complex64',mode='r',shape=tuple(np.load(lpath+'/'+opt+'shape.npy')))
+    return time, optload
 
 def plot_bv(lpath,ix,iy,iz,ind):
     """

@@ -64,6 +64,7 @@ SUBROUTINE get_rhs_lin1_ae(b_in, v_in, rhs_out_b,rhs_out_v, which_term)
  COMPLEX :: phi_mod1,phi_mod2,g0_bcast
  COMPLEX :: g_closure
  REAL :: L
+ REAL :: Larr(0:nkx0-1,0:nky0-1,lkz1:lkz2)
 
  rhs_out_b=cmplx(0.0,0.0)
  rhs_out_v=cmplx(0.0,0.0)
@@ -73,14 +74,15 @@ SUBROUTINE get_rhs_lin1_ae(b_in, v_in, rhs_out_b,rhs_out_v, which_term)
    DO j=0,nky0-1
      DO k=lkz1,lkz2
         L = kxgrid(i)*kxgrid(i) + kygrid(j)*kygrid(j) + kzgrid(k)*kzgrid(k)
+        Larr(i,j,k) = L
      !eqn 14
         !rhs_out_b(i,j,k,0) = i_complex*kzgrid(k)*v_in(i,j,k,0) + i_complex*kygrid(j)*b_in(i,j,k,2) -i_complex*kzgrid(k)*b_in(i,j,k,1)
         !rhs_out_b(i,j,k,1) = i_complex*kzgrid(k)*v_in(i,j,k,1) + i_complex*kzgrid(k)*b_in(i,j,k,0) -i_complex*kxgrid(i)*b_in(i,j,k,2)
         !rhs_out_b(i,j,k,2) = i_complex*kzgrid(k)*v_in(i,j,k,2) + i_complex*kxgrid(i)*b_in(i,j,k,1) -i_complex*kygrid(y)*b_in(i,j,k,0)
 
-        rhs_out_b(i,j,k,0) = i_complex*kzgrid(k)*(v_in(i,j,k,0) - i_complex*kygrid(j)*b_in(i,j,k,2) +i_complex*kzgrid(k)*b_in(i,j,k,1)) - eta*(L**hyp)*b_in(i,j,k,0)
-        rhs_out_b(i,j,k,1) = i_complex*kzgrid(k)*(v_in(i,j,k,1) - i_complex*kzgrid(k)*b_in(i,j,k,0) +i_complex*kxgrid(i)*b_in(i,j,k,2)) - eta*(L**hyp)*b_in(i,j,k,1)
-        rhs_out_b(i,j,k,2) = i_complex*kzgrid(k)*(v_in(i,j,k,2) - i_complex*kxgrid(i)*b_in(i,j,k,1) +i_complex*kygrid(j)*b_in(i,j,k,0)) - eta*(L**hyp)*b_in(i,j,k,2)
+        rhs_out_b(i,j,k,0) = i_complex*kzgrid(k)*(v_in(i,j,k,0) - hall*(i_complex*kygrid(j)*b_in(i,j,k,2) +i_complex*kzgrid(k)*b_in(i,j,k,1))) - eta*(L**hyp)*b_in(i,j,k,0)
+        rhs_out_b(i,j,k,1) = i_complex*kzgrid(k)*(v_in(i,j,k,1) - hall*(i_complex*kzgrid(k)*b_in(i,j,k,0) +i_complex*kxgrid(i)*b_in(i,j,k,2))) - eta*(L**hyp)*b_in(i,j,k,1)
+        rhs_out_b(i,j,k,2) = i_complex*kzgrid(k)*(v_in(i,j,k,2) - hall*(i_complex*kxgrid(i)*b_in(i,j,k,1) +i_complex*kygrid(j)*b_in(i,j,k,0))) - eta*(L**hyp)*b_in(i,j,k,2)
         if (verbose) print *, 'b lin equation stored'
         if (verbose) print *, 'L, eta',L,eta
       !Eqn 15
@@ -102,6 +104,15 @@ endif
      END DO
    END DO
  END DO 
+
+WRITE(dbio,*) eta*(Larr**hyp)*b_in(:,:,:,0)
+WRITE(dbio,*) eta*(Larr**hyp)*b_in(:,:,:,1)
+WRITE(dbio,*) eta*(Larr**hyp)*b_in(:,:,:,2)
+WRITE(dvio,*) vnu*(Larr**hyp)*v_in(:,:,:,0)
+WRITE(dvio,*) vnu*(Larr**hyp)*v_in(:,:,:,1)
+WRITE(dvio,*) vnu*(Larr**hyp)*v_in(:,:,:,2)
+
+if (verbose) print *, 'Dissipation written'
 
 END SUBROUTINE get_rhs_lin1_ae
 

@@ -124,17 +124,17 @@ SUBROUTINE initialize_diagnostics
   IF(istep_energy.gt.0.and.mype==0) THEN
     CALL get_io_number
     en_handle=io_number
-    !OPEN(unit=en_handle,file=trim(diagdir)//'/energy.dat',status='unknown')
+    !OPEN(unit=en_handle,file=trim(diagdir)//'/energy_out.dat',status='unknown')
     IF(checkpoint_read) THEN
-      INQUIRE(file=trim(diagdir)//'/energy.dat',exist=file_exists)
+      INQUIRE(file=trim(diagdir)//'/energy_out.dat',exist=file_exists)
       IF(file_exists) THEN
-        OPEN(unit=en_handle,file=trim(diagdir)//'/energy.dat',status='unknown',position='append')
+        OPEN(unit=en_handle,file=trim(diagdir)//'/energy_out.dat',status='unknown',position='append')
       ELSE
-        OPEN(unit=en_handle,file=trim(diagdir)//'/energy.dat',status='unknown')
-        WRITE(en_handle,*) "#time,entropy,phi^2 energy,dE/dt total,flux,coll,hcoll,hyps,N.L.,hyp_conv,dE/dt"
+        OPEN(unit=en_handle,file=trim(diagdir)//'/energy_out.dat',status='unknown')
+        ! WRITE(en_handle,*) "#time,entropy,phi^2 energy,dE/dt total,flux,coll,hcoll,hyps,N.L.,hyp_conv,dE/dt"
       END IF
     ELSE
-      OPEN(unit=en_handle,file=trim(diagdir)//'/energy.dat',status='unknown')
+      OPEN(unit=en_handle,file=trim(diagdir)//'/energy_out.dat',status='unknown')
       ! WRITE(en_handle,*) "#time,entropy,phi^2 energy,dE/dt total,flux,coll,hcoll,hyps,N.L.,hyp_conv,dE/dt"
       WRITE(en_handle,*) &
          "#time,Hamiltonian,restvty.,viscsty."
@@ -194,6 +194,8 @@ SUBROUTINE initialize_diagnostics
   !IF (GyroLES.or.Gyroz) call initialize_GyroLES
   !IF (Corr) call initialize_corr
 
+  CALL initialize_debug
+
 END SUBROUTINE initialize_diagnostics
 
 
@@ -246,6 +248,9 @@ SUBROUTINE finalize_diagnostics
   ! !GyroLES should be the last diagnostic to execute
   ! IF (GyroLES.or.Gyroz) call finalize_GyroLES
   ! IF (Corr) call finalize_corr
+ 
+  CALL finalize_debug
+
 END SUBROUTINE finalize_diagnostics
 
 
@@ -4168,6 +4173,48 @@ end do
 res = res*(8 * pi**3)
 
 end function resvischange
+
+subroutine initialize_debug
+
+INTEGER :: ionums(9)
+CHARACTER(len=15) :: fnames(9)
+INTEGER :: q
+
+ionums = [dbio,dvio,bdvio,vdbio,bdcbio,cbdbio,vdvio,bdbio,db2io]
+fnames = ['dissb_out.dat','dissv_out.dat',&
+   'bdv_out.dat','vdb_out.dat','bdcb_out.dat','cbdb_out.dat',&
+   'vdv_out.dat','bdb_out.dat','db2_out.dat']
+
+DO q = 1,9
+      IF(checkpoint_read) THEN
+      INQUIRE(file=trim(diagdir)//'/'//trim(fnames(q)),exist=file_exists)      
+      IF(file_exists) THEN
+        OPEN(unit=ionums(q),file=trim(diagdir)//'/'//trim(fnames(q)),status='unknown',position='append')
+      ELSE
+        OPEN(unit=ionums(q),file=trim(diagdir)//'/'//trim(fnames(q)),status='unknown')
+      END IF
+    ELSE
+      OPEN(unit=ionums(q),file=trim(diagdir)//'/'//trim(fnames(q)),status='unknown')
+    END IF
+ENDDO
+
+if (verbose) print *, 'Debug files opened'
+
+end subroutine initialize_debug
+
+subroutine finalize_debug
+
+INTEGER :: ionums(9)
+INTEGER :: q
+
+ionums = [dbio,dvio,bdvio,vdbio,bdcbio,cbdbio,vdvio,bdbio,db2io]
+
+DO q = 1,9
+CLOSE(ionums(q))
+ENDDO 
+
+if (verbose) print *, 'Debug files closed' 
+end subroutine finalize_debug
 
 END MODULE diagnostics
 

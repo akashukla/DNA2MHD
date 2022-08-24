@@ -61,7 +61,7 @@ MODULE par_mod
   LOGICAL :: left_ev=.false.
   CHARACTER(len=2) :: comp_type='IV'
   REAL :: dt_max=0.00    !initial maximum time step
-  REAL :: courant=0.3   !courant factor
+  REAL :: courant=0.3   !courant factor times 2 pi for dt calculation
   LOGICAL :: ev_slepc=.true.
   !test_nl:  compares nonlinearity for pseudo spectral vs. convolution
   LOGICAL :: test_nl=.false.
@@ -114,6 +114,17 @@ MODULE par_mod
   INTEGER :: rhs_lin_version
   !INTEGER :: rhs_nl_version=2
   INTEGER :: rhs_nl_version !Akash changed nl_version to 1
+  ! IO Numbers for Diss/NL term debugging
+  INTEGER :: dbio = 200 
+  INTEGER :: dvio = 201
+  INTEGER :: bdvio = 202
+  INTEGER :: vdbio = 203
+  INTEGER :: bdcbio = 204
+  INTEGER :: cbdbio = 205
+  INTEGER :: vdvio = 206
+  INTEGER :: bdbio = 207
+  INTEGER :: db2io = 208
+  INTEGER :: hall = 0
 
   LOGICAL :: calc_dt=.false.        !Automatic initial time step calculation
   LOGICAL :: dt_slepc=.false.        !Use slepc or lapack

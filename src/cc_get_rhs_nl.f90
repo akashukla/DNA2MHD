@@ -147,7 +147,7 @@ END SUBROUTINE initialize_fourier_ae_mu0
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!                                   get_rhs_nl                              !!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-SUBROUTINE get_rhs_nl(b_in, v_in, rhs_out_b, rhs_out_v)
+SUBROUTINE get_rhs_nl(b_in, v_in, rhs_out_b, rhs_out_v,ndt)
   USE par_mod
   include 'fftw3.f'
 
@@ -155,12 +155,13 @@ SUBROUTINE get_rhs_nl(b_in, v_in, rhs_out_b, rhs_out_v)
   COMPLEX, INTENT(in) :: v_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
   COMPLEX, INTENT(inout) :: rhs_out_b(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
   COMPLEX, INTENT(inout) :: rhs_out_v(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
-
+  REAL :: ndt
+  
   !IF(mype==0) WRITE(*,*) "In get_rhs_nl"
   !IF(mype==0) WRITE(*,*) "Version is: ",rhs_nl_version
   IF ((rhs_nl_version==1).or.(rhs_nl_version == 12)) THEN
     !IF(mype==0) WRITE(*,*) "version was 1"
-    CALL get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v)
+    CALL get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
 !  ELSE IF(rhs_nl_version==2) THEN
 !    CALL get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v)
 !  ELSE IF(rhs_nl_version==3) THEN
@@ -184,7 +185,7 @@ END SUBROUTINE get_rhs_nl
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!                                 get_rhs_nl1                               !!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v)
+SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
 
   USE par_mod
   include 'fftw3.f'
@@ -193,6 +194,8 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v)
   COMPLEX, INTENT(in) :: v_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
   COMPLEX, INTENT(inout) :: rhs_out_b(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
   COMPLEX, INTENT(inout) :: rhs_out_v(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+  REAL :: ndt
+
                                                                 !COMPLEX :: temp_small(0:nkx0-1,0:nky0-1,0:nkz0-1)
                                                                 !COMPLEX :: temp_big(0:nx0_big/2,0:ny0_big-1,0:nz0_big-1)
                                                                 !REAL :: dxphi(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1)
@@ -207,11 +210,10 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v)
   IF(np_kz.ne.1) STOP "get_rhs_nl1 only suitable for np_kz=1"
   ALLOCATE(temp_small(0:nkx0-1,0:nky0-1,0:nkz0-1))
   ALLOCATE(temp_big(0:nx0_big/2,0:ny0_big-1,0:nz0_big-1))
-
   ALLOCATE(temp_bigx(0:nx0_big/2,0:ny0_big-1,0:nz0_big-1))
   ALLOCATE(temp_bigy(0:nx0_big/2,0:ny0_big-1,0:nz0_big-1))
   ALLOCATE(temp_bigz(0:nx0_big/2,0:ny0_big-1,0:nz0_big-1))
-
+  
   ALLOCATE(store_x(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
   ALLOCATE(store_y(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
   ALLOCATE(store_z(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
@@ -222,9 +224,9 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v)
   ALLOCATE(bz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
 
   if (rhs_nl_version==1) then
+    ALLOCATE(bmag(0:nx0_big/2,0:ny0_big-1,0:nz0_big-1))  
     ALLOCATE(bmag_in(0:nkx0-1,0:nky0-1,0:nkz0-1))
     ALLOCATE(bmag_inbig(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-    ALLOCATE(bmag(0:nx0_big/2,0:ny0_big-1,0:nz0_big-1))
     ALLOCATE(dxbmag(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
     ALLOCATE(dybmag(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
     ALLOCATE(dzbmag(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
@@ -987,7 +989,7 @@ if (rhs_nl_version == 1) then
     bmag_inbig = bx*bx + by*by + bz*bz
     CALL dfftw_execute_dft_r2c(plan_r2c,bmag_inbig(0,0,0),bmag(0,0,0))
     do i = 0,nkx0-1
-            bmag_in(i,0:hky_ind,0:hkz_ind)=bmag(i,0:hky_ind,0:hkz_ind)*fft_norm           !kz positive, ky positive 
+            bmag_in(i,0:hky_ind,0:hkz_ind)=bmag(i,0:hky_ind,0:hkz_ind)*fft_norm   !kz positive, ky positive 
             bmag_in(i,0:hky_ind,lkz_ind:nkz0-1)=bmag(i,0:hky_ind,lkz_big:nz0_big-1)*fft_norm !kz negative, ky positive 
             bmag_in(i,lky_ind:nky0-1,lkz_ind:nkz0-1) = bmag(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)*fft_norm ! kz negative, ky negative
             bmag_in(i,lky_ind:nky0-1,0:hkz_ind)=bmag(i,lky_big:ny0_big-1,0:hkz_ind)*fft_norm !kz positive, ky negative
@@ -1031,10 +1033,10 @@ if (rhs_nl_version == 1) then
     !Add padding for dealiasing                                                                                                                                                 
     temp_big=cmplx(0.0,0.0)
     DO i=0,nkx0-1
-        temp_big(i,0:hky_ind,0:hkz_ind)=temp_small(i,0:hky_ind,0:hkz_ind)    !kz positive, ky positive                                                           
-        temp_big(i,0:hky_ind,lkz_big:nz0_big-1)=temp_small(i,0:hky_ind,lkz_ind:nkz0-1) !kz negative, ky positive                                                 
-        temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative                           
-        temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative                                                  
+        temp_big(i,0:hky_ind,0:hkz_ind)=temp_small(i,0:hky_ind,0:hkz_ind)    !kz positive, ky positive                                   
+        temp_big(i,0:hky_ind,lkz_big:nz0_big-1)=temp_small(i,0:hky_ind,lkz_ind:nkz0-1) !kz negative, ky positive                         
+        temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative            
+        temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative                                                 
     END DO!k loop                                                                                                                                                
     CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dzbmag(0,0,0))
 
@@ -1332,11 +1334,31 @@ endif
 !store_z = (bx*dxvz+by*dyvz+bz*dzvz)- (vx*dxbz+vy*dybz+vz*dzbz)- (bx*dxdxby+by*dydxby+bz*dzdxby-bx*dxdybx-by*dydybx-bz*dzdybx)+ (dybz*dxbz-dzby*dxbz-dxbz*dybz+dzbx*dybz+dxby*dzbz-dybx*dz*bz )
 !
 !Redo with correct order in terms
-store_x = (bx*dxvx+by*dyvx+bz*dzvx) - (vx*dxbx+vy*dybx+vz*dzbx) - (bx*dxdybz+by*dydybz+bz*dydzbz-bx*dxdzby-by*dydzby-bz*dzdzby) + (dybz*dxbx-dzby*dxbx-dxbz*dybx+dzbx*dybx+dxby*dzbx-dybx*dzbx)
+store_x = (bx*dxvx+by*dyvx+bz*dzvx) - (vx*dxbx+vy*dybx+vz*dzbx) - hall*((bx*dxdybz+by*dydybz+bz*dydzbz-bx*dxdzby-by*dydzby-bz*dzdzby) + (dybz*dxbx-dzby*dxbx-dxbz*dybx+dzbx*dybx+dxby*dzbx-dybx*dzbx))
 
-store_y = (bx*dxvy+by*dyvy+bz*dzvy) - (vx*dxby+vy*dyby+vz*dzby) - (bx*dxdzbx+by*dydzbx+bz*dzdzbx-bx*dxdxbz-by*dxdybz-bz*dxdzbz) + (dybz*dxby-dzby*dxby-dxbz*dyby+dzbx*dyby+dxby*dzby-dybx*dzby)
+store_y = (bx*dxvy+by*dyvy+bz*dzvy) - (vx*dxby+vy*dyby+vz*dzby) - hall*((bx*dxdzbx+by*dydzbx+bz*dzdzbx-bx*dxdxbz-by*dxdybz-bz*dxdzbz) + (dybz*dxby-dzby*dxby-dxbz*dyby+dzbx*dyby+dxby*dzby-dybx*dzby))
 
-store_z = (bx*dxvz+by*dyvz+bz*dzvz)- (vx*dxbz+vy*dybz+vz*dzbz)- (bx*dxdxby+by*dxdyby+bz*dxdzby-bx*dxdybx-by*dydybx-bz*dydzbx)+ (dybz*dxbz-dzby*dxbz-dxbz*dybz+dzbx*dybz+dxby*dzbz-dybx*dzbz )
+store_z = (bx*dxvz+by*dyvz+bz*dzvz)- (vx*dxbz+vy*dybz+vz*dzbz)- hall*((bx*dxdxby+by*dxdyby+bz*dxdzby-bx*dxdybx-by*dydybx-bz*dydzbx)+ (dybz*dxbz-dzby*dxbz-dxbz*dybz+dzbx*dybz+dxby*dzbz-dybx*dzbz ))
+
+! b.grad v 
+WRITE(bdvio,*) fft_spec(bx*dxvx+by*dyvx+bz*dzvx)
+WRITE(bdvio,*) fft_spec(bx*dxvy+by*dyvy+bz*dzvy)
+WRITE(bdvio,*) fft_spec(bx*dxvz+by*dyvz+bz*dzvz)
+
+! v.grad b
+WRITE(vdbio,*) fft_spec(vx*dxbx+vy*dybx+vz*dzbx)
+WRITE(vdbio,*) fft_spec(vx*dxby+vy*dyby+vz*dzby)
+WRITE(vdbio,*) fft_spec(vx*dxbz+vy*dybz+vz*dzbz)
+
+! b. grad curl b
+WRITE(bdcbio,*) fft_spec(bx*dxdybz+by*dydybz+bz*dydzbz-bx*dxdzby-by*dydzby-bz*dzdzby)
+WRITE(bdcbio,*) fft_spec(bx*dxdzbx+by*dydzbx+bz*dzdzbx-bx*dxdxbz-by*dxdybz-bz*dxdzbz)
+WRITE(bdcbio,*) fft_spec(bx*dxdxby+by*dxdyby+bz*dxdzby-bx*dxdybx-by*dydybx-bz*dydzbx)
+
+! curl b . grad b
+WRITE(cbdbio,*) fft_spec(dybz*dxbx-dzby*dxbx-dxbz*dybx+dzbx*dybx+dxby*dzbx-dybx*dzbx)
+WRITE(cbdbio,*) fft_spec(dybz*dxby-dzby*dxby-dxbz*dyby+dzbx*dyby+dxby*dzby-dybx*dzby)
+WRITE(cbdbio,*) fft_spec(dybz*dxbz-dzby*dxbz-dxbz*dybz+dzbx*dybz+dxby*dzbz-dybx*dzbz)
 
 !inverse FFT to get back to Fourier
 CALL dfftw_execute_dft_r2c(plan_r2c,store_x(0,0,0),temp_bigx(0,0,0))
@@ -1397,6 +1419,22 @@ if (rhs_nl_version == 1) then
 store_x = -(vx*dxvx+vy*dyvx+vz*dzvx) + (bx*dxbx+by*dybx+bz*dzbx) - 0.5*dxbmag
 store_y = -(vx*dxvy+vy*dyvy+vz*dzvy) + (bx*dxby+by*dyby+bz*dzby) - 0.5*dybmag
 store_z = -(vx*dxvz+vy*dyvz+vz*dzvz) + (bx*dxbz+by*dybz+bz*dzbz) - 0.5*dzbmag
+
+! v . grad v
+WRITE(vdvio,*) fft_spec(vx*dxvx+vy*dyvx+vz*dzvx) 
+WRITE(vdvio,*) fft_spec(vx*dxvy+vy*dyvy+vz*dzvy)
+WRITE(vdvio,*) fft_spec(vx*dxvz+vy*dyvz+vz*dzvz)
+
+! b . grad b
+WRITE(bdbio,*) fft_spec(bx*dxbx+by*dybx+bz*dzbx)
+WRITE(bdbio,*) fft_spec(bx*dxby+by*dyby+bz*dzby)
+WRITE(bdbio,*) fft_spec(bx*dxbz+by*dybz+bz*dzbz)
+
+! 0.5 grad b^2
+WRITE(db2io,*) fft_spec(0.5*dxbmag)
+WRITE(db2io,*) fft_spec(0.5*dybmag)
+WRITE(db2io,*) fft_spec(0.5*dzbmag)
+
 if (verbose) print *, 'v1 nl equation stored'
 endif
 
@@ -1404,6 +1442,22 @@ if (rhs_nl_version == 12) then
 store_x = -(vx*dxvx+vy*dyvx+vz*dzvx) + (by*dybx+bz*dzbx) - (by*dxby+bz*dxbz)
 store_y = -(vx*dxvy+vy*dyvy+vz*dzvy) + (bx*dxby+bz*dzby) - (bz*dybz+bx*dybx)
 store_z = -(vx*dxvz+vy*dyvz+vz*dzvz) + (bx*dxbz+by*dybz) - (by*dzby+bx*dzbx)
+
+! v . grad v
+WRITE(vdvio,*) fft_spec(vx*dxvx+vy*dyvx+vz*dzvx)
+WRITE(vdvio,*) fft_spec(vx*dxvy+vy*dyvy+vz*dzvy)
+WRITE(vdvio,*) fft_spec(vx*dxvz+vy*dyvz+vz*dzvz)
+
+! b . grad b
+WRITE(bdbio,*) fft_spec(bx*dxbx+by*dybx+bz*dzbx)
+WRITE(bdbio,*) fft_spec(bx*dxby+by*dyby+bz*dzby)
+WRITE(bdbio,*) fft_spec(bx*dxbz+by*dybz+bz*dzbz)
+
+! 0.5 grad b^2
+WRITE(db2io,*) fft_spec(bx*dxbx+by*dxby+bz*dxbz)
+WRITE(db2io,*) fft_spec(bx*dybx+by*dyby+bz*dybz)
+WRITE(db2io,*) fft_spec(bx*dzbx+by*dzby+bz*dzbz)
+
 if (verbose) print *, 'v12 nl equation stored'
 endif
 
@@ -1444,20 +1498,34 @@ CALL dfftw_execute_dft_r2c(plan_r2c,store_z(0,0,0),temp_bigz(0,0,0))
 
 if (verbose) print *, 'rhs out v nl found'
 
+if (calc_dt) CALL next_dt(ndt)
+if (.not.(calc_dt)) ndt = dt_max
+if (verbose) print *, 'next dt calculated ',ndt
+
 DEALLOCATE(temp_small)
+if (verbose) print *, 'ts deallocated'
 DEALLOCATE(temp_big)
+if (verbose) print *, 'tb deallocated'
 
 DEALLOCATE(temp_bigx)
+if (verbose) print *, 'tbx deallocated'
 DEALLOCATE(temp_bigy)
+if (verbose) print *, 'tby deallocated'
 DEALLOCATE(temp_bigz)
+if (verbose) print *, 'tbz deallocated'
 
 DEALLOCATE(store_x)
+if (verbose) print *, 'stx deallocated'
 DEALLOCATE(store_y)
+if (verbose) print *, 'sty deallocated'
 DEALLOCATE(store_z)
+if (verbose) print *, 'stz deallocated'
 
 ! All b arrays 
 DEALLOCATE(bx)
+if (verbose) print *, 'bx deallocated'
 DEALLOCATE(by)
+if (verbose) print *, 'by deallocated'
 DEALLOCATE(bz)
 if (verbose) print *, 'first third deallocated'
 
@@ -1749,6 +1817,48 @@ SUBROUTINE get_k_indices(kx_in,ky_in,kz_in,i,j,k,take_conjg)
   END IF
 
 END SUBROUTINE get_k_indices
+
+SUBROUTINE next_dt(dtn)
+
+ real, intent(out) :: dtn
+
+ real :: ndt1xr,ndt1yr,ndt1zr,ndt2xr,ndt2yr,ndt2zr,ndt3xr,ndt3yr,ndt3zr
+ real :: ndtr
+
+ ndt1xr = maxval(abs(kxgrid))*maxval(abs(bx))
+ ndt1yr = maxval(abs(kygrid))*maxval(abs(by))
+ ndt1zr = maxval(abs(kzgrid))*maxval(1+abs(bz))
+ ndt2xr = maxval(abs(kxgrid))*maxval(abs(vx))
+ ndt2yr = maxval(abs(kygrid))*maxval(abs(vy))
+ ndt2zr = maxval(abs(kzgrid))*maxval(abs(vz))
+ ndt3xr = maxval(abs(kxgrid))*maxval(abs(dybz)+abs(dzby))
+ ndt3yr = maxval(abs(kygrid))*maxval(abs(dzbx)+abs(dxbz))
+ ndt3zr = maxval(abs(kzgrid))*maxval(abs(dxby)+abs(dybx))
+ ndtr = ndt1xr + ndt1yr + ndt1zr &
+   + ndt2xr + ndt2yr + ndt2zr &
+   + ndt3xr + ndt3yr + ndt3zr
+ dtn = courant/ndtr
+
+END SUBROUTINE next_dt
+
+FUNCTION fft_spec(arr_real) result(arr_spec)
+
+implicit none
+real :: arr_real(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1)
+complex :: arr_spec(0:nkx0-1,0:nky0-1,lkz1:lkz2)
+complex :: temporary(0:nx0_big/2,0:ny0_big-1,0:nz0_big-1)
+integer :: s
+CALL dfftw_execute_dft_r2c(plan_r2c,arr_real(0,0,0),temporary(0,0,0))
+
+!Now fill in appropriate rhs elements                                                                                                                                                                                  
+  DO s=0,nkx0-1
+            arr_spec(s,0:hky_ind,0:hkz_ind)=temporary(s,0:hky_ind,0:hkz_ind)*fft_norm             !kz positive, ky positive 
+            arr_spec(s,0:hky_ind,lkz_ind:nkz0-1)=temporary(s,0:hky_ind,lkz_big:nz0_big-1)*fft_norm     !kz negative, ky positive
+            arr_spec(s,lky_ind:nky0-1,lkz_ind:nkz0-1)=temporary(s,lky_big:ny0_big-1,lkz_big:nz0_big-1)*fft_norm       !kz negative, ky negative  
+            arr_spec(s,lky_ind:nky0-1,0:hkz_ind)=temporary(s,lky_big:ny0_big-1,0:hkz_ind)*fft_norm     !kz positive, ky negative  
+  END DO
+
+END FUNCTION fft_spec
 
 END MODULE nonlinearity
 

@@ -30,9 +30,10 @@ MODULE time_advance
   PUBLIC :: iv_solver,rk4_stability
   
   PRIVATE
-
+  
 !  COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:,:,:) :: g_2,k1,k2
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:) :: b_2, bk1, bk2, v_2, vk1, vk2
+
 
   CONTAINS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
   
@@ -42,6 +43,7 @@ MODULE time_advance
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 SUBROUTINE iv_solver
 
+ REAL :: dt_next
  IF(.not.checkpoint_read) dt=dt_max
  !itime=0
  !time=0.0
@@ -58,7 +60,8 @@ SUBROUTINE iv_solver
    IF(verbose) WRITE(*,*) "iv_solver: before get_g_next dt=",dt
    !CALL save_b(b_1)
    !CALL save_time(itime)
-   CALL get_g_next(b_1, v_1)
+   CALL get_g_next(b_1, v_1,dt_next)
+   dt = minval([dt_next,dt_max])
    itime=itime+1 
    IF(mype==0.and.verbose) WRITE(*,*) "itime:",itime
    time=time+dt
@@ -128,12 +131,20 @@ END SUBROUTINE iv_solver
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!                                get_g_next                                 !!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-SUBROUTINE get_g_next(b_in, v_in)
+SUBROUTINE get_g_next(b_in, v_in,dt_new)
 
 ! COMPLEX, INTENT(inout) :: g_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,lv1:lv2,lh1:lh2,ls1:ls2)
  COMPLEX, INTENT(inout) :: b_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
  COMPLEX, INTENT(inout) :: v_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
- 
+ REAL :: dt_new
+ REAL :: dt_new1,dt_new2,dt_new3,dt_new4
+ INTEGER :: ionums(9)
+ INTEGER :: q
+
+ ionums = [dbio,dvio,bdvio,vdbio,bdcbio,cbdbio,vdvio,bdbio,db2io]
+ DO q = 1,9
+    WRITE(ionums(q),*) it
+ ENDDO 
  
  ALLOCATE(b_2(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
  ALLOCATE(bk1(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
@@ -142,6 +153,8 @@ SUBROUTINE get_g_next(b_in, v_in)
  ALLOCATE(v_2(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
  ALLOCATE(vk1(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
  ALLOCATE(vk2(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
+
+ WRITE(dbio,*) time 
 
 !  !4th order Runge-Kutta
 !  first_stage=.true.
@@ -165,7 +178,7 @@ SUBROUTINE get_g_next(b_in, v_in)
 
  !4th order Runge-Kutta
  first_stage=.true.
- CALL get_rhs(b_in, v_in, bk1, vk1)
+ CALL get_rhs(b_in, v_in, bk1, vk1,dt_new1)
  b_2=b_in+(1.0/6.0)*dt*bk1
  v_2=v_in+(1.0/6.0)*dt*vk1
  first_stage=.false.
@@ -173,19 +186,31 @@ SUBROUTINE get_g_next(b_in, v_in)
  bk1=b_in+0.5*dt*bk1
  vk1=v_in+0.5*dt*vk1
 
- CALL get_rhs(bk1,vk1,bk2,vk2)
+ DO q = 1,9
+    WRITE(ionums(q),*) it+1/4
+ ENDDO
+
+ CALL get_rhs(bk1,vk1,bk2,vk2,dt_new2)
  b_2=b_2+(1.0/3.0)*dt*bk2
  bk2=b_in+0.5*dt*bk2
  v_2=v_2+(1.0/3.0)*dt*vk2
  vk2=v_in+0.5*dt*vk2
 
- CALL get_rhs(bk2,vk2,bk1,vk1)
+ DO q = 1,9
+    WRITE(ionums(q),*) it+1/2
+ ENDDO
+
+ CALL get_rhs(bk2,vk2,bk1,vk1,dt_new3)
  b_2=b_2+(1.0/3.0)*dt*bk1
  bk1=b_in+dt*bk1
  v_2=v_2+(1.0/3.0)*dt*vk1
  vk1=v_in+dt*vk1
 
- CALL get_rhs(bk1,vk1,bk2,vk2)
+ DO q = 1,9
+    WRITE(ionums(q),*) it+3/4
+ ENDDO
+
+ CALL get_rhs(bk1,vk1,bk2,vk2,dt_new4)
  b_in=b_2+(1.0/6.0)*dt*bk2
  v_in=v_2+(1.0/6.0)*dt*vk2
 
@@ -221,6 +246,7 @@ SUBROUTINE get_g_next(b_in, v_in)
 !  v_in(:,hky_ind+1,:,:)=cmplx(0.0,0.0)
 !  v_in(0,0,:,:)=cmplx(0.0,0.0)
 
+ dt_new = minval([dt_new1,dt_new2,dt_new3,dt_new4])
  CALL remove_div(b_in,v_in)
 
 
@@ -272,13 +298,14 @@ END SUBROUTINE remove_div
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!                                    get_rhs                                !!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-SUBROUTINE get_rhs(b_in,v_in, rhs_out_b,rhs_out_v)
+SUBROUTINE get_rhs(b_in,v_in, rhs_out_b,rhs_out_v,ndt)
 
  COMPLEX, INTENT(in) :: b_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
  COMPLEX, INTENT(in) :: v_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
 
  COMPLEX, INTENT(out) :: rhs_out_b(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
  COMPLEX, INTENT(out) :: rhs_out_v(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+ REAL :: ndt
 
 !  COMPLEX, INTENT(in) :: g_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,lv1:lv2,lh1:lh2,ls1:ls2)
 !  COMPLEX, INTENT(out) :: rhs_out(0:nkx0-1,0:nky0-1,lkz1:lkz2,lv1:lv2,lh1:lh2,ls1:ls2)
@@ -287,7 +314,7 @@ SUBROUTINE get_rhs(b_in,v_in, rhs_out_b,rhs_out_v)
   CALL get_rhs_lin(b_in,v_in,rhs_out_b, rhs_out_v,0)
 
   !IF(nonlinear.and..not.linear_nlbox) CALL get_rhs_nl(b_in, v_in,rhs_out_b,rhs_out_v)
-  IF(actual_nonlinear) CALL get_rhs_nl(b_in, v_in,rhs_out_b,rhs_out_v)
+  IF(actual_nonlinear) CALL get_rhs_nl(b_in, v_in,rhs_out_b,rhs_out_v,ndt)
 
 if (verbose) print *,'RHS found'
 
