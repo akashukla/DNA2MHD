@@ -34,7 +34,7 @@ MODULE nonlinearity
 
   PRIVATE
 
-  COMPLEX, ALLOCATABLE, DIMENSION(:,:,:) :: b_inx0, b_iny0,  b_inz0, v_inx0, v_iny0,  v_inz0, bmag_in
+  COMPLEX, ALLOCATABLE, DIMENSION(:,:,:) :: b_inx0, b_iny0,  b_inz0, v_inx0, v_iny0,  v_inz0, bmag_in, bmagk
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:) :: temp_small,temp_big, temp_bigx, temp_bigy, temp_bigz, store_x, store_y, store_z
   REAL, ALLOCATABLE, DIMENSION(:,:,:) ::  bmag, dxbmag, dybmag, dzbmag,bmag_inbig
 
@@ -223,14 +223,23 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   ALLOCATE(by(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
   ALLOCATE(bz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
 
-  if (rhs_nl_version==1) then
-    ALLOCATE(bmag(0:nx0_big/2,0:ny0_big-1,0:nz0_big-1))  
-    ALLOCATE(bmag_in(0:nkx0-1,0:nky0-1,0:nkz0-1))
-    ALLOCATE(bmag_inbig(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-    ALLOCATE(dxbmag(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-    ALLOCATE(dybmag(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-    ALLOCATE(dzbmag(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  endif
+!  if (rhs_nl_version==1) then
+!    ALLOCATE(bmag(0:nx0_big/2,0:ny0_big-1,0:nz0_big-1))  
+!    ALLOCATE(bmag_in(0:nkx0-1,0:nky0-1,0:nkz0-1))
+!    ALLOCATE(bmag_inbig(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+!    ALLOCATE(dxbmag(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+!    ALLOCATE(dybmag(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+!    ALLOCATE(dzbmag(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+!  endif
+if (rhs_nl_version==1) then
+    !! real space term
+    ALLOCATE(bmag(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))  
+    !! k space term
+    ALLOCATE(bmagk(0:nkx0-1,0:nky0-1,lkz1:lkz2))  
+    ALLOCATE(dxbmag(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))  
+    ALLOCATE(dybmag(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))  
+    ALLOCATE(dzbmag(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))  
+endif
 
 ! All v arrays 
   ALLOCATE(vx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
@@ -940,6 +949,87 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
     END DO!k loop
     CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),bz(0,0,0))
 
+!!! bmag terms
+if (rhs_nl_version == 1) then
+!! Calculate b^2(x) in real space.
+  DO i=0,nkx0-1
+    DO j=0,nky0-1
+        DO k=0,nkz0-1
+            bmag(i,j,k) = bx(i,j,k)*bx(i,j,k)+ by(i,j,k)*by(i,j,k)+ bz(i,j,k)*bz(i,j,k)
+        END DO
+    END DO
+  END DO
+!!! Now forward transfrom to get b^2(k) stored in temp_big
+temp_big=cmplx(0.0,0.0)
+CALL dfftw_execute_dft_r2c(plan_r2c,bmag(0,0,0),temp_big(0,0,0))
+!!! Now cut down to dealias and store result in bmagk which is b^2(k)
+  DO i=0,nkx0-1
+  !First x component
+            bmagk(i,0:hky_ind,0:hkz_ind)= temp_big(i,0:hky_ind,0:hkz_ind)*fft_norm !kz positive, ky positive
+            bmagk(i,0:hky_ind,lkz_ind:nkz0-1)=temp_big(i,0:hky_ind,lkz_big:nz0_big-1)*fft_norm !kz negative, ky positive
+            bmagk(i,lky_ind:nky0-1,lkz_ind:nkz0-1)= temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)*fft_norm !kz negative, ky negative
+            bmagk(i,lky_ind:nky0-1,0:hkz_ind)= temp_big(i,lky_big:ny0_big-1,0:hkz_ind)*fft_norm !kz positive, ky negative
+  END DO!i loop
+!!! Now that we have bmagk, need to do IFFT(ikx b^2) IFFT(iky b^2) IFFT(ikz b^2) to get grad b^2/2 in real space
+
+    !bmag_inbig = bx*bx + by*by + bz*bz
+    !CALL dfftw_execute_dft_r2c(plan_r2c,bmag_inbig(0,0,0),bmag(0,0,0))
+    !do i = 0,nkx0-1
+    !        bmag_in(i,0:hky_ind,0:hkz_ind)=bmag(i,0:hky_ind,0:hkz_ind)*fft_norm   !kz positive, ky positive 
+    !        bmag_in(i,0:hky_ind,lkz_ind:nkz0-1)=bmag(i,0:hky_ind,lkz_big:nz0_big-1)*fft_norm !kz negative, ky positive 
+    !        bmag_in(i,lky_ind:nky0-1,lkz_ind:nkz0-1) = bmag(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)*fft_norm ! kz negative, ky negative
+    !        bmag_in(i,lky_ind:nky0-1,0:hkz_ind)=bmag(i,lky_big:ny0_big-1,0:hkz_ind)*fft_norm !kz positive, ky negative
+    !end do
+              
+    !dxbmag                                                                                                                                                       
+    DO i=0,nkx0-1
+        temp_small(i,:,:)=i_complex*kxgrid(i)*bmagk(i,:,:)
+    END DO
+    !Add padding for dealiasing                                                                                                                                                 
+    temp_big=cmplx(0.0,0.0)
+    DO i=0,nkx0-1
+        temp_big(i,0:hky_ind,0:hkz_ind)=temp_small(i,0:hky_ind,0:hkz_ind)    !kz positive, ky positive                                                          
+        temp_big(i,0:hky_ind,lkz_big:nz0_big-1)=temp_small(i,0:hky_ind,lkz_ind:nkz0-1) !kz negative, ky positive   
+        temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative                                   
+        temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative                         
+    END DO!k loop                                                                      
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxbmag(0,0,0))
+
+    !dybmag                                                                                                                                                                      
+    DO j=0,nky0-1
+        temp_small(:,j,:)=i_complex*kygrid(j)*bmagk(:,j,:)
+    END DO
+    !Add padding for dealiasing                                                                                                                                                  
+    temp_big=cmplx(0.0,0.0)
+    DO i=0,nkx0-1
+        temp_big(i,0:hky_ind,0:hkz_ind)=temp_small(i,0:hky_ind,0:hkz_ind)    !kz positive, ky positive                                                            
+        temp_big(i,0:hky_ind,lkz_big:nz0_big-1)=temp_small(i,0:hky_ind,lkz_ind:nkz0-1) !kz negative, ky positive                                                
+        temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative                                     
+        temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative                                                 
+    END DO!k loop                                       
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dybmag(0,0,0))
+
+    !dzbmag                                                                                                                                                                      
+    DO k=0,nkz0-1
+        temp_small(:,:,k)=i_complex*kzgrid(k)*bmagk(:,:,k)
+    END DO
+    !Add padding for dealiasing                                                                                                                                                 
+    temp_big=cmplx(0.0,0.0)
+    DO i=0,nkx0-1
+        temp_big(i,0:hky_ind,0:hkz_ind)=temp_small(i,0:hky_ind,0:hkz_ind)    !kz positive, ky positive                                   
+        temp_big(i,0:hky_ind,lkz_big:nz0_big-1)=temp_small(i,0:hky_ind,lkz_ind:nkz0-1) !kz negative, ky positive                         
+        temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative            
+        temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative                                                 
+    END DO!k loop                                                                                                                                                
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dzbmag(0,0,0))
+
+    if (verbose) print *, 'Bmag gradients dealiased'
+endif
+
+
+
+
+
 !!! TERMS  vx,vy,vz 
 !vx
     DO i=0,nkx0-1
@@ -984,64 +1074,6 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
     END DO!k loop
     CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),vz(0,0,0))
 
-if (rhs_nl_version == 1) then
-    
-    bmag_inbig = bx*bx + by*by + bz*bz
-    CALL dfftw_execute_dft_r2c(plan_r2c,bmag_inbig(0,0,0),bmag(0,0,0))
-    do i = 0,nkx0-1
-            bmag_in(i,0:hky_ind,0:hkz_ind)=bmag(i,0:hky_ind,0:hkz_ind)*fft_norm   !kz positive, ky positive 
-            bmag_in(i,0:hky_ind,lkz_ind:nkz0-1)=bmag(i,0:hky_ind,lkz_big:nz0_big-1)*fft_norm !kz negative, ky positive 
-            bmag_in(i,lky_ind:nky0-1,lkz_ind:nkz0-1) = bmag(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)*fft_norm ! kz negative, ky negative
-            bmag_in(i,lky_ind:nky0-1,0:hkz_ind)=bmag(i,lky_big:ny0_big-1,0:hkz_ind)*fft_norm !kz positive, ky negative
-    end do
-              
-    !dxbmag                                                                                                                                                       
-
-    DO i=0,nkx0-1
-        temp_small(i,:,:)=i_complex*kxgrid(i)*bmag_in(i,:,:)
-    END DO
-
-    !Add padding for dealiasing                                                                                                                                                 
-    temp_big=cmplx(0.0,0.0)
-    DO i=0,nkx0-1
-        temp_big(i,0:hky_ind,0:hkz_ind)=temp_small(i,0:hky_ind,0:hkz_ind)    !kz positive, ky positive                                                          
-        temp_big(i,0:hky_ind,lkz_big:nz0_big-1)=temp_small(i,0:hky_ind,lkz_ind:nkz0-1) !kz negative, ky positive   
-        temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative                                   
-        temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative                         
-    END DO!k loop                                                                      
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxbmag(0,0,0))
-
-    !dybmag                                                                                                                                                                      
-    DO j=0,nky0-1
-        temp_small(:,j,:)=i_complex*kygrid(j)*bmag_in(:,j,:)
-    END DO
-    !Add padding for dealiasing                                                                                                                                                  
-    temp_big=cmplx(0.0,0.0)
-    DO i=0,nkx0-1
-        temp_big(i,0:hky_ind,0:hkz_ind)=temp_small(i,0:hky_ind,0:hkz_ind)    !kz positive, ky positive                                                            
-        temp_big(i,0:hky_ind,lkz_big:nz0_big-1)=temp_small(i,0:hky_ind,lkz_ind:nkz0-1) !kz negative, ky positive                                                
-        temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative                                     
-        temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative                                                 
-    END DO!k loop                                       
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dybmag(0,0,0))
-
-    !dzbmag                                                                                                                                                                      
-    DO k=0,nkz0-1
-        temp_small(:,:,k)=i_complex*kzgrid(k)*bmag_in(:,:,k)
-    END DO
-
-    !Add padding for dealiasing                                                                                                                                                 
-    temp_big=cmplx(0.0,0.0)
-    DO i=0,nkx0-1
-        temp_big(i,0:hky_ind,0:hkz_ind)=temp_small(i,0:hky_ind,0:hkz_ind)    !kz positive, ky positive                                   
-        temp_big(i,0:hky_ind,lkz_big:nz0_big-1)=temp_small(i,0:hky_ind,lkz_ind:nkz0-1) !kz negative, ky positive                         
-        temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative            
-        temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative                                                 
-    END DO!k loop                                                                                                                                                
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dzbmag(0,0,0))
-
-    if (verbose) print *, 'Bmag gradients dealiased'
-endif
 
 !  FIRST ORDER VX TERMS DXVX , DYVX,  DZVX
 
@@ -1530,8 +1562,10 @@ DEALLOCATE(bz)
 if (verbose) print *, 'first third deallocated'
 
 if (rhs_nl_version==1) then
-DEALLOCATE(bmag_in) 
-if (verbose) print *,'bmagin de'
+!DEALLOCATE(bmag_in) 
+!if (verbose) print *,'bmagin de'
+DEALLOCATE(bmagk)
+if (verbose) print *,'bmagk de'
 DEALLOCATE(bmag)
 if (verbose) print *,'bmag de'
 DEALLOCATE(dxbmag)
@@ -1540,8 +1574,8 @@ DEALLOCATE(dybmag)
 if (verbose) print *,'ybmag de'
 DEALLOCATE(dzbmag)
 if (verbose) print *,'ybmag de'
-DEALLOCATE(bmag_inbig)
-if (verbose) print *, 'bmag terms deallocated'
+!DEALLOCATE(bmag_inbig)
+!if (verbose) print *, 'bmag terms deallocated'
 endif
 
 ! All v arrays 
