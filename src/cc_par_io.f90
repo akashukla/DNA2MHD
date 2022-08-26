@@ -248,7 +248,7 @@ SUBROUTINE output_parameters
 
   IF(mype==0)  THEN
     IF (verbose) WRITE(*,*) "Mype was 0"
-    OPEN(unit=out_handle,file=trim(diagdir)//'/parameters.dat',status='new')
+    OPEN(unit=out_handle,file=trim(diagdir)//'/parameters.dat',status='unknown')
     IF (verbose) WRITE(*,*) "Opened Parameters"
   
     IF (verbose) WRITE(*,*) "Physical Parameters"
@@ -519,11 +519,16 @@ SUBROUTINE checkpoint_out(purpose)
 
   IF(v_output.and.b_output.and.not_first) THEN
     chp_handle_b=b_out_handle
+    chp_handle_v=v_out_handle
   ELSE
     CALL get_io_number
-    chp_handle=io_number
     IF(b_output) b_out_handle=io_number
+    chp_handle_b=b_out_handle
+    CALL get_io_number
     IF(v_output) v_out_handle=io_number
+    chp_handle_v=v_out_handle
+    CALL get_io_number
+    chp_handle = io_number
   END IF
 
   IF(not_first) THEN
