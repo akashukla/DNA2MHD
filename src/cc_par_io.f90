@@ -135,7 +135,7 @@ SUBROUTINE read_parameters
   END IF
 
   IF (.not.GyroLES) Gyroherm = .false. 
-  IF (Gyroz==.true.) THEN
+  IF (Gyroz.eqv..true.) THEN
     Gyroherm = .false. 
     GyroLES = .false.
   ENDIF
@@ -330,7 +330,7 @@ SUBROUTINE output_parameters
     WRITE(out_handle,"(A,I4)") "istep_gamma = ",istep_gamma    
     IF(istep_nltest.gt.0) WRITE(out_handle,"(A,I4)") "istep_nltest = ",istep_nltest    
     WRITE(out_handle,"(A,I4)") "istep_schpt = ",istep_schpt    
-    IF (GyroLES==.true..or.Gyroz) WRITE(out_handle,"(A,I4)") "istep_GyroLES = ",istep_GyroLES    
+    IF (GyroLES.eqv..true..or.Gyroz) WRITE(out_handle,"(A,I4)") "istep_GyroLES = ",istep_GyroLES    
     IF(dt_output) WRITE(out_handle,"(A,L1)") "dt_output  = ", dt_output
     IF(output_nlt_n) WRITE(out_handle,"(A,L1)") "output_nlt_n  = ", output_nlt_n
     IF(istep_eshells.gt.0) WRITE(out_handle,"(A,G12.4)") "min_shell_width = ", min_shell_width
@@ -363,8 +363,8 @@ SUBROUTINE output_parameters
     WRITE(out_handle,"(A,L1)") "hankel = ",hankel
     WRITE(out_handle,"(A,L1)") "GyroLES = ",GyroLES
     IF (GyroLES) WRITE(out_handle,"(A,L1)") "Gyroherm = ",Gyroherm
-    IF (Gyroz==.true.) WRITE(out_handle,"(A,L1)") "Gyroz = ",Gyroz
-    IF (Corr==.true.) WRITE(out_handle,"(A,L1)") "Corr = ",Corr
+    IF (Gyroz.eqv..true.) WRITE(out_handle,"(A,L1)") "Gyroz = ",Gyroz
+    IF (Corr.eqv..true.) WRITE(out_handle,"(A,L1)") "Corr = ",Corr
     IF(flr_version.ne.1) WRITE(out_handle,"(A,I4)") "flr_version = ",flr_version
     IF(.not.flr_extra) WRITE(out_handle,"(A,L1)") "flr_extra = ",flr_extra
     !WRITE(out_handle,"(A,L1)") "flr_nonlinear = ",flr_nonlinear
