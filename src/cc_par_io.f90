@@ -248,7 +248,7 @@ SUBROUTINE output_parameters
 
   IF(mype==0)  THEN
     IF (verbose) WRITE(*,*) "Mype was 0"
-  OPEN(unit=out_handle,file=trim(diagdir)//'/parameters.dat',status='unknown')
+    OPEN(unit=out_handle,file=trim(diagdir)//'/parameters.dat',status='new')
     IF (verbose) WRITE(*,*) "Opened Parameters"
   
     IF (verbose) WRITE(*,*) "Physical Parameters"
@@ -529,20 +529,26 @@ SUBROUTINE checkpoint_out(purpose)
   IF(not_first) THEN
     IF(mype==0) THEN
       IF(b_output.and.v_output) THEN
-        OPEN(unit=chp_handle_b,file=trim(diagdir)//trim(chp_name_b), form='unformatted', status='unknown',access='stream',position='append')
-        OPEN(unit=chp_handle_v,file=trim(diagdir)//trim(chp_name_v), form='unformatted', status='unknown',access='stream',position='append')
+         OPEN(unit=chp_handle_b,file=trim(diagdir)//trim(chp_name_b),&
+              form='unformatted', status='unknown',access='stream',position='append')
+         OPEN(unit=chp_handle_v,file=trim(diagdir)//trim(chp_name_v),&
+              form='unformatted', status='unknown',access='stream',position='append')
       ELSE 
         WRITE(*,*) 'In this Section,chp_handle is: ', chp_handle, 'chp_name is: ', chp_name
-        OPEN(unit=chp_handle,file=trim(diagdir)//trim(chp_name), form='unformatted', status='REPLACE',access='stream')
+        OPEN(unit=chp_handle,file=trim(diagdir)//trim(chp_name),&
+             form='unformatted', status='REPLACE',access='stream')
       END IF
     END If
   ELSE
     IF(mype==0) THEN
       IF(b_output.and.v_output) THEN
-        OPEN(unit=chp_handle_b,file=trim(diagdir)//trim(chp_name_b), form='unformatted', status='REPLACE',access='stream')
-        OPEN(unit=chp_handle_v,file=trim(diagdir)//trim(chp_name_v), form='unformatted', status='REPLACE',access='stream')
+         OPEN(unit=chp_handle_b,file=trim(diagdir)//trim(chp_name_b),&
+              form='unformatted', status='REPLACE',access='stream')
+         OPEN(unit=chp_handle_v,file=trim(diagdir)//trim(chp_name_v),&
+              form='unformatted', status='REPLACE',access='stream')
       ELSE 
-        OPEN(unit=chp_handle,file=trim(diagdir)//trim(chp_name), form='unformatted', status='REPLACE',access='stream')
+         OPEN(unit=chp_handle,file=trim(diagdir)//trim(chp_name),&
+              form='unformatted', status='REPLACE',access='stream')
       END IF
     END IF
   END IF
