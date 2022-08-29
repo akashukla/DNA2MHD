@@ -35,8 +35,8 @@ MODULE nonlinearity
   PRIVATE
 
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:) :: b_inx0, b_iny0,  b_inz0, v_inx0, v_iny0,  v_inz0, bmag_in, bmagk
-  COMPLEX, ALLOCATABLE, DIMENSION(:,:,:) :: temp_small,temp_big, temp_bigx, temp_bigy, temp_bigz, store_x, store_y, store_z
-  REAL, ALLOCATABLE, DIMENSION(:,:,:) ::  bmag, dxbmag, dybmag, dzbmag,bmag_inbig
+  COMPLEX, ALLOCATABLE, DIMENSION(:,:,:) :: temp_small,temp_big, temp_bigx, temp_bigy, temp_bigz
+  REAL, ALLOCATABLE, DIMENSION(:,:,:) ::  bmag, dxbmag, dybmag, dzbmag,bmag_inbig,store_x,store_y,store_z
 
   REAL, ALLOCATABLE, DIMENSION(:,:,:) :: bx,by,bz, dxbx, dybx,dzbx, dxby,dyby,dzby, dxbz,dybz,dzbz
   REAL, ALLOCATABLE, DIMENSION(:,:,:) :: vx,vy,vz, dxvx, dyvx,dzvx, dxvy,dyvy,dzvy, dxvz,dyvz,dzvz
@@ -1372,6 +1372,7 @@ store_y = (bx*dxvy+by*dyvy+bz*dzvy) - (vx*dxby+vy*dyby+vz*dzby) - hall*((bx*dxdz
 
 store_z = (bx*dxvz+by*dyvz+bz*dzvz)- (vx*dxbz+vy*dybz+vz*dzbz)- hall*((bx*dxdxby+by*dxdyby+bz*dxdzby-bx*dxdybx-by*dydybx-bz*dydzbx)+ (dybz*dxbz-dzby*dxbz-dxbz*dybz+dzbx*dybz+dxby*dzbz-dybx*dzbz ))
 
+IF (plot_nls) THEN 
 ! b.grad v 
 WRITE(bdvio,*) fft_spec(bx*dxvx+by*dyvx+bz*dzvx)
 WRITE(bdvio,*) fft_spec(bx*dxvy+by*dyvy+bz*dzvy)
@@ -1391,6 +1392,7 @@ WRITE(bdcbio,*) fft_spec(bx*dxdxby+by*dxdyby+bz*dxdzby-bx*dxdybx-by*dydybx-bz*dy
 WRITE(cbdbio,*) fft_spec(dybz*dxbx-dzby*dxbx-dxbz*dybx+dzbx*dybx+dxby*dzbx-dybx*dzbx)
 WRITE(cbdbio,*) fft_spec(dybz*dxby-dzby*dxby-dxbz*dyby+dzbx*dyby+dxby*dzby-dybx*dzby)
 WRITE(cbdbio,*) fft_spec(dybz*dxbz-dzby*dxbz-dxbz*dybz+dzbx*dybz+dxby*dzbz-dybx*dzbz)
+ENDIF
 
 !inverse FFT to get back to Fourier
 CALL dfftw_execute_dft_r2c(plan_r2c,store_x(0,0,0),temp_bigx(0,0,0))
@@ -1452,6 +1454,7 @@ store_x = -(vx*dxvx+vy*dyvx+vz*dzvx) + (bx*dxbx+by*dybx+bz*dzbx) - 0.5*dxbmag
 store_y = -(vx*dxvy+vy*dyvy+vz*dzvy) + (bx*dxby+by*dyby+bz*dzby) - 0.5*dybmag
 store_z = -(vx*dxvz+vy*dyvz+vz*dzvz) + (bx*dxbz+by*dybz+bz*dzbz) - 0.5*dzbmag
 
+IF (plot_nls) THEN 
 ! v . grad v
 WRITE(vdvio,*) fft_spec(vx*dxvx+vy*dyvx+vz*dzvx) 
 WRITE(vdvio,*) fft_spec(vx*dxvy+vy*dyvy+vz*dzvy)
@@ -1469,12 +1472,14 @@ WRITE(db2io,*) fft_spec(0.5*dzbmag)
 
 if (verbose) print *, 'v1 nl equation stored'
 endif
+ENDIF
 
 if (rhs_nl_version == 12) then
 store_x = -(vx*dxvx+vy*dyvx+vz*dzvx) + (by*dybx+bz*dzbx) - (by*dxby+bz*dxbz)
 store_y = -(vx*dxvy+vy*dyvy+vz*dzvy) + (bx*dxby+bz*dzby) - (bz*dybz+bx*dybx)
 store_z = -(vx*dxvz+vy*dyvz+vz*dzvz) + (bx*dxbz+by*dybz) - (by*dzby+bx*dzbx)
 
+IF (plot_nls) THEN 
 ! v . grad v
 WRITE(vdvio,*) fft_spec(vx*dxvx+vy*dyvx+vz*dzvx)
 WRITE(vdvio,*) fft_spec(vx*dxvy+vy*dyvy+vz*dzvy)
@@ -1492,6 +1497,7 @@ WRITE(db2io,*) fft_spec(bx*dzbx+by*dzby+bz*dzbz)
 
 if (verbose) print *, 'v12 nl equation stored'
 endif
+ENDIF
 
 CALL dfftw_execute_dft_r2c(plan_r2c,store_x(0,0,0),temp_bigx(0,0,0))
 CALL dfftw_execute_dft_r2c(plan_r2c,store_y(0,0,0),temp_bigy(0,0,0))

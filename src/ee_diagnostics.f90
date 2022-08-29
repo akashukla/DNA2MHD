@@ -194,7 +194,7 @@ SUBROUTINE initialize_diagnostics
   !IF (GyroLES.or.Gyroz) call initialize_GyroLES
   !IF (Corr) call initialize_corr
 
-  CALL initialize_debug
+  if (plot_nls) CALL initialize_debug
 
 END SUBROUTINE initialize_diagnostics
 
@@ -249,7 +249,7 @@ SUBROUTINE finalize_diagnostics
   ! IF (GyroLES.or.Gyroz) call finalize_GyroLES
   ! IF (Corr) call finalize_corr
  
-  CALL finalize_debug
+  if (plot_nls) CALL finalize_debug
 
 END SUBROUTINE finalize_diagnostics
 

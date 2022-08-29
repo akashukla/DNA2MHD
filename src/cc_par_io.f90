@@ -50,7 +50,7 @@ SUBROUTINE read_parameters
       perf_test_lin,perf_test_nl,perf_test_rhs,rhs_lin_version,rhs_nl_version,&
       perf_test_par, version_flag, hankel, dt_slepc, nuno_closure,mu_integrated,&
       GyroLES, Gyroherm, Gyroz, Corr, &
-      dbio,dvio,bdvio,vdbio,bdcbio,cbdbio,vdvio,bdbio,db2io,&
+      plot_nls,dbio,dvio,bdvio,vdbio,bdcbio,cbdbio,vdvio,bdbio,db2io,&
       hall
  
   NAMELIST /eigensolve/ &
@@ -380,6 +380,8 @@ SUBROUTINE output_parameters
     IF(force_kz0eq0) WRITE(out_handle,"(A,L1)") "force_kz0eq0 = ",force_kz0eq0
     IF(force_ky0eq0) WRITE(out_handle,"(A,L1)") "force_ky0eq0 = ",force_ky0eq0
     IF(force_kx0eq0) WRITE(out_handle,"(A,L1)") "force_kx0eq0 = ",force_kx0eq0
+    WRITE(out_handle,"(A,L1)") "plot_nls = ",plot_nls
+    IF (plot_nls) THEN 
     WRITE(out_handle,"(A,I4)") "dbio = ",dbio
     WRITE(out_handle,"(A,I4)") "dvio = ",dvio
     WRITE(out_handle,"(A,I4)") "bdvio = ",bdvio
@@ -389,6 +391,7 @@ SUBROUTINE output_parameters
     WRITE(out_handle,"(A,I4)") "vdvio = ",vdvio
     WRITE(out_handle,"(A,I4)") "bdbio = ",bdbio
     WRITE(out_handle,"(A,I4)") "db2io = ",db2io
+    ENDIF
     WRITE(out_handle,"(A,I4)") "hall = ",hall
     WRITE(out_handle,"(A)")    "/"
     WRITE(out_handle,"(A)")    ""
