@@ -322,7 +322,7 @@ SUBROUTINE get_rhs(b_in,v_in, rhs_out_b,rhs_out_v,ndt)
 
   !IF(nonlinear.and..not.linear_nlbox) CALL get_rhs_nl(b_in, v_in,rhs_out_b,rhs_out_v)
   IF(actual_nonlinear) CALL get_rhs_nl(b_in, v_in,rhs_out_b,rhs_out_v,ndt)
-
+  IF (.not.(actual_nonlinear)) ndt = dt_max
 if (verbose) print *,'RHS found'
 rkstage = rkstage + 1
 
