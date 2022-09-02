@@ -13,7 +13,7 @@ import scipy.fft
 import scipy.signal
 from scipy.signal import find_peaks
 from scipy.fft import fft,fftfreq,fftshift
-
+import scipy.optimize as spo
 
 par={}       #Global Variable to hold parameters once read_parameters is called
 namelists={}
@@ -130,7 +130,7 @@ def read_time_step_opt(which_itime,opt,swap_endian=False):
    ntot=par['nkx0']*par['nky0']*par['nkz0']*3#par['nv0']                                                                                                                                                  
    mem_tot=ntot*16
    gt0=np.empty((3,par['nkz0'],par['nky0'],par['nkx0']))
-   f.seek(8+which_itime*(8+mem_tot))
+   f.seek(4+which_itime*(4+mem_tot))
    gt0=np.fromfile(f,dtype='complex128',count=ntot)
    if swap_endian:
        gt0=gt0.newbyteorder()
@@ -138,7 +138,21 @@ def read_time_step_opt(which_itime,opt,swap_endian=False):
    f.close()
    return gt0
 
-
+def read_time_step_energy(which_itime,ntp,swap_endian=False):
+   """Reads a time step from opt_out.dat.  Time step determined by \'which_itime\'"""
+   file_name = par['diagdir'][1:-1]+'/energy_out.dat'
+   f = open(file_name,'rb')
+   gt0=np.empty((1))
+   ntot = 1 + ntp
+   mem_tot = (ntot+2)*8
+   gt0 = np.empty((ntp,1))
+   f.seek(8+which_itime*(8+mem_tot))
+   gt0=np.fromfile(f,dtype='float64',count=ntot)
+   if swap_endian:
+       gt0=gt0.newbyteorder()
+   #print sum(gt0)                                                                                      \
+   f.close()
+   return gt0
 
 def get_time_from_bout(swap_endian=False):
    """Returns time array taken from b_out.dat"""
@@ -152,12 +166,12 @@ def get_time_from_bout(swap_endian=False):
    while (continue_read):
      f.seek(i*(mem_tot+8))
      i=i+1
-     input=np.fromfile(f,dtype='float64',count=1)
+     inp=np.fromfile(f,dtype='float64',count=1)
      if swap_endian:
-         input=input.newbyteorder()
-     #print input
-     if input==0 or input:
-         time = np.append(time,input)
+         inp=inp.newbyteorder()
+     #print inp
+     if inp==0 or inp:
+         time = np.append(time,inp)
      else:
          continue_read=0
    f.close()
@@ -175,18 +189,22 @@ def get_time_from_vout(swap_endian=False):
    while (continue_read):
      f.seek(i*(mem_tot+8))
      i=i+1
-     input=np.fromfile(f,dtype='float64',count=1)
+     inp=np.fromfile(f,dtype='float64',count=1)
      if swap_endian:
-         input=input.newbyteorder()
-     #print input
-     if input==0 or input:
-         time = np.append(time,input)
+         inp=inp.newbyteorder()
+     #print inp
+     if inp==0 or inp:
+         time = np.append(time,inp)
      else:
          continue_read=0
    f.close()
+   # print(time)
+   # work = input('Proceed? Y/N ')
+   # if work == 'N':
+   #    quit('Wrong itimes')
    return time
 
-def get_time_from_optout(swap_endian=False):
+def get_time_from_optout(opt,swap_endian=False):
    """Returns time array taken from v_out.dat"""
    file_name = par['diagdir'][1:-1]+ '/'+opt+'_out.dat'
    f = open(file_name,'rb')
@@ -196,18 +214,50 @@ def get_time_from_optout(swap_endian=False):
    continue_read=1
    i=0
    while (continue_read):
-     f.seek(i*(mem_tot+8))
+     f.seek(i*(mem_tot+4))
      i=i+1
-     input=np.fromfile(f,dtype='float64',count=1)
+     inp=np.fromfile(f,dtype='int32',count=1)
      if swap_endian:
-         input=input.newbyteorder()
-     #print input                                                                                                                                                                                         
-     if input==0 or input:
-         time = np.append(time,input)
+         inp=inp.newbyteorder()
+     #print inp                                                                                                                                                                                         
+     if inp==0 or inp:
+         time = np.append(time,inp)
      else:
          continue_read=0
    f.close()
+   print(time)
+   work = input('Proceed? Y/N ')
+   if work == 'N':
+       quit('Wrong itimes')
    return time
+
+def get_time_from_energyout(ntp,swap_endian=False):
+   """Returns time array taken from v_out.dat"""
+   file_name = par['diagdir'][1:-1]+ '/energy_out.dat'
+   f = open(file_name,'rb')
+   ntot=1+ntp
+   mem_tot=(ntot+2)*8
+   time=np.empty(0)
+   continue_read=1
+   i=0
+   while (continue_read):
+     f.seek(i*(mem_tot+8))
+     i=i+1
+     inp=np.fromfile(f,dtype='float64',count=1)
+     if swap_endian:
+         inp=inp.newbyteorder()
+     #print inp                                                                                  
+     if inp==0 or inp:
+         time = np.append(time,inp)
+     else:
+         continue_read=0
+   print(time)
+   work = input('Proceed? Y/N ')
+   if work == 'N':
+       quit('Wrong times')
+   f.close()
+   return time
+
 
 def getb(lpath):
     """Saves b_out.dat (located in the directory specified by lpath) into a python-readable format b_xyz.dat
@@ -281,7 +331,7 @@ def getopt(lpath,opt):
     #if lpath==None:                                                                                                                                                                                      
     #    lpath='/scratch/04943/akshukla/dna2mhd_output_0'                                                                                                                                                 
     read_parameters(lpath)
-    time = get_time_from_optout()
+    time = get_time_from_optout(opt)
     #time=time[:1000]                                                                                                                                                                                     
     kx,ky,kz=get_grids()
     i_n=[0,1,2]
@@ -298,12 +348,52 @@ def getopt(lpath,opt):
     for t in range(len(time)):
         if(t%1000==0):
             print(str(t))
-        gt = read_time_step_opt(t)
+        gt = read_time_step_opt(t,opt)
         gt = np.reshape(gt,(par['nkx0'],par['nky0'],par['nkz0'],3),order='F')
         g[t] = gt
     #np.save(lpath+'/g_allk_g04',g)                                                                                                                                                                       
-    #print('finished loop')                                                                                                                                                                               
+    #print('finished loop')
+    f = open(lpath+'/dum'+opt+'.txt','w')
+    f.write('Finished loop')
+    f.close()
+     
     return time, g
+
+def getenergy(lpath,ntp):
+    """Saves opt_out.dat (located in the directory specified by lpath) into a python-readable format opt_xyz.dat                                                                  which will also be located in the lpath directory."""
+    #lpath='/scratch/04943/akshukla/hammet_dna_output/full/omt%g_nu%1.2f'%(omt,nu)                                                                                                #if lpath==None:                                                                                                                                                              #    lpath='/scratch/04943/akshukla/dna2mhd_output_0'                                                                                                                         read_parameters(lpath)
+    
+    time = get_time_from_energyout(ntp)
+    #time=time[:1000] 
+
+    kx,ky,kz=get_grids()
+    i_n=[0,1,2]
+    savepath = lpath+'/energy_xyz.dat'
+    #g=np.zeros((len(time)-1,len(kx),len(ky,),len(kz),len(i_n)), dtype='complex64') 
+   #print('allocating array') 
+    g=np.memmap(savepath,dtype='float64',mode='w+', shape=(len(time),ntp+1))
+    np.save(lpath+'/energyshape.npy',g.shape)
+    np.save(lpath+'/timeenergy.npy',time)
+    #g=np.zeros((len(time),len(kx),len(ky,),len(kz),len(i_n)), dtype='complex64')
+    #print('starting loop') 
+
+    print(par)
+    print('time length = ', len(time))
+    for t in range(len(time)):
+        if(t%20==0):
+            print(str(t))
+        gt = read_time_step_energy(t,ntp)
+        gt = np.reshape(gt,(1+ntp),order='F')
+        g[t] = gt
+    #np.save(lpath+'/g_allk_g04',g)               
+
+    #print('finished loop')
+
+    f = open(lpath+'/dumen.txt','w')
+    f.write('Finished loop')
+    f.close()
+
+    return time,g
 
 
 def load_b(lpath):
@@ -330,7 +420,7 @@ def load_v(lpath):
     vload=np.memmap(lpath+'/v_xyz.dat',dtype='complex64',mode='r',shape=tuple(np.load(lpath+'/vshape.npy')))
     return time, vload
 
-def load_opt(lpath):
+def load_opt(lpath,opt):
     """                                                                                                                                                                                                   
     This method can only be run after getv has been called at least once to save the v_xyz.dat file_name                                                                                                  
     This quickly loads the v array which will have indices [time,kx,ky,kz, x/y/z]                                                                                                                         
@@ -342,7 +432,17 @@ def load_opt(lpath):
     optload=np.memmap(lpath+'/'+opt+'_xyz.dat',dtype='complex64',mode='r',shape=tuple(np.load(lpath+'/'+opt+'shape.npy')))
     return time, optload
 
-def plot_bv(lpath,ix,iy,iz,ind):
+def load_energy(lpath):
+    """  This method can only be run after getv has been called at least once to save the v_xyz.dat file_name    
+    This quickly loads the v array which will have indices [time,kx,ky,kz, x/y/z]"""
+    read_parameters(lpath)
+    if lpath==None:
+        lpath='/scratch/04943/akshukla/dna2mhd_output_0'
+    time = np.load(lpath+'/timeenergy.npy')
+    enload=np.memmap(lpath+'/energy_xyz.dat',dtype='float64',mode='r',shape=tuple(np.load(lpath+'/energyshape.npy')))
+    return time, enload
+
+def plot_bv(lpath,ix,iy,iz,ind,show=True):
     """
     This is an example method that plots the timetraces of b and v at the specified wavevector (kx[ix],ky[iy],kz[iz]).
     ind specifies whether you want the x(0),y(1), or z(2) component.
@@ -365,8 +465,14 @@ def plot_bv(lpath,ix,iy,iz,ind):
     ax[1].legend()
     kx,ky,kz=get_grids()
     fig.suptitle('kx,ky,kz = %1.2f,%1.2f,%1.2f'%(kx[ix],ky[iy],kz[iz]))
-    plt.savefig('bv_%s_%d_%d_%d'%(ind_string,ix,iy,iz))
-    plt.show()
+    if lpath[-1] != '/':
+        lpath = lpath + '/'
+    if not os.path.exists(lpath + 'bvs/'):
+        os.mkdir(lpath + 'bvs/')
+    plt.savefig(lpath+'bvs/bv_%s_%d_%d_%d'%(ind_string,ix,iy,iz))
+    if show == True:
+        plt.show()
+    plt.close()
     return timeb,b,timev,v
 
 
@@ -426,13 +532,115 @@ def plot_vspectrum(lpath,ix,iy,iz,ind):
     plt.ylabel('|FFT(v_%s)|'%ind_string )
     plt.xlabel('frequency')
     plt.title('kx,ky,kz = %1.2f,%1.2f,%1.2f'%(kx[ix],ky[iy],kz[iz]))
-    plt.savefig('vspectrum_%s_%d_%d_%d'%(ind_string,ix,iy,iz))
-    plt.show()
+    if lpath[-1] != '/':
+        lpath =lpath +'/'
+    if not os.path.exists(lpath + 'vspectra/'):
+        os.mkdir(lpath + 'vspectra/')
+    plt.savefig(lpath+'vspectra/vspectrum_%s_%d_%d_%d'%(ind_string,ix,iy,iz))
+    if show == True:
+        plt.show()
+    plt.close()
     return omega[peaks]
 
+def plot_nls(lpath,ix,iy,iz,ind,show=True):
+    """                                                                                                                                                                        
+    This is an example method that plots the timetraces of b and v at the specified wavevector (kx[ix],ky[iy],kz[iz]).                                                             ind specifies whether you want the x(0),y(1), or z(2) component.                                                                                                           
+    """
+    ind_strings= ['x','y','z']
+    ind_string=ind_strings[ind]
+    read_parameters(lpath)
+    opts = ['bdv','vdb','bdcb','cbdb','vdv','bdb','db2']
+    fmts = {'bdv':'-m','vdb':'^m','bdcb':'--k','cbdb':'2k','vdv':'Hr',
+        'bdb':':b','db2':'sb'}
+    cs = {'bdv':'m','vdb':'m','bdcb':'k','cbdb':'k','vdv':'r',
+        'bdb':'b','db2':'b'}
+    hatchs = {'bdv':'+','vdb':'0','bdcb':'\\','cbdb':'/','vdv':'*','bdb':'x','db2':'.'}
+    
+    fig,ax = plt.subplots(2)
+        
+    i = 0
+    bottom = np.zeros(80000)
+    upbottom = np.zeros(80000)
+    lowbottom = np.zeros(80000)
+    x = np.linspace(1,80000,num=80000)
+    for opt in opts:
+        y = np.zeros(80000)
+        if os.path.isfile(lpath+'/dum'+opt+'.txt'):
+            t,opty = load_opt(lpath,opt)
+        else:
+            t,opty = getopt(lpath,opt)
+        for j in range(np.size(t)):
+            y[int(t[j])] = opty[j,ix,iy,iz,ind]
+            if (j%10000) == 0:
+                print(j)
+        for j in range(80000):
+            if (j%10000) == 0:
+                print(j)
+            if y[j] >= 0:
+                bottom[j] = upbottom[j]
+            if y[j] < 0:
+                bottom[j] = lowbottom[j]
+        ax[0].bar(x,y.real,color=cs[opt],hatch=hatchs[opt],label=opt,bottom=bottom)
+        ax[1].bar(x,y.imag,color=cs[opt],hatch=hatchs[opt],label=opt,bottom=bottom)
+        for j in range(80000):
+            if (j%10000) == 0:
+                print(j)
+            if y[j] >= 0:
+                upbottom[j] += y[j]
+            if y[j] < 0:
+                lowbottom[j] += y[j]
+        i = i + 1
+    ax[0].set_ylabel('real nonlinearity %s'%ind_string)
+    ax[0].set_xlabel('time')
+    ax[1].set_ylabel('imag nonlinearity %s'%ind_string)
+    ax[0].set_xlabel('time')
+    ax[0].legend()
+    ax[1].legend()
+    kx,ky,kz=get_grids()
+    fig.suptitle('kx,ky,kz = %1.2f,%1.2f,%1.2f'%(kx[ix],ky[iy],kz[iz]))
+    
+    if lpath[-1] != '/':
+        lpath = lpath + '/'
+    if not os.path.exists(lpath + 'nls/'):
+        os.mkdir(lpath + 'nls/')
+    plt.savefig(lpath+'nls/'+opt+'_%s_%d_%d_%d'%(ind_string,ix,iy,iz))
+    if show == True:
+        plt.show()
+    plt.close()
 
+    return 'Yours truly'
 
+def plot_energy(lpath,ntp,show=True):
+    """ Plots Scalars Written in energy_out.dat """
 
+    read_parameters(lpath)
+    if os.path.isfile(lpath+'/dumen.txt'):
+        timeen,enval = load_energy(lpath)
+    else:
+        timeen,enval = getenergy(lpath,ntp)
+
+    shapes = {1:(1,1),2:(2,1),3:(2,2),4:(2,2),5:(2,3),6:(2,3),7:(3,3),8:(3,3),9:(3,3)}
+    s = shapes[ntp+1]
+    labels = {0:'Energy',1:'Magnetic Helicity',2:'Cross Helicity',3:'Entropy',4:'Next Param',5:'Next Param',6:'Next Param',7:'Next Param',8:'Next Param'}
+    fnames = {0:'energy',1:'maghcty',2:'crosshcty',3:'entropy',4:'par4',5:'par5',6:'par6',7:'par7',8:'par8'}
+    
+    if not os.path.exists(lpath + '/eplots/'):
+        os.mkdir(lpath + '/eplots/')
+       
+    for i in range(ntp+1):
+        fig,ax = plt.subplots(1)
+        ax.plot(timeen,enval[:,i])
+        ax.set_xlabel('time')
+        ax.set_ylabel(labels[i])
+        fig.suptitle(labels[i])
+        plt.savefig(lpath+'/eplots/'+fnames[i])
+        if np.amax(enval) > 10 ** 5:
+            ax.set_ylim(0,10**5)
+        if show == True:
+            plt.show()
+        plt.close()
+    
+    return timeen,enval
 
 
 #if __name__ == '__main__':
@@ -468,3 +676,20 @@ def analytical_omega(lpath,ix,iy,iz):
     wp = kz[iz]*(np.sqrt(kx[ix]**2+ky[iy]**2+kz[iz]**2)/2 + np.sqrt(1+ (kx[ix]**2+ky[iy]**2+kz[iz]**2)/4))
     wm = kz[iz]*(np.sqrt(kx[ix]**2+ky[iy]**2+kz[iz]**2)/2 - np.sqrt(1+ (kx[ix]**2+ky[iy]**2+kz[iz]**2)/4))
     return wp,wm
+
+def fit_cexpr(t,A,r,w):
+    return A * np.exp(r*t) * np.cos(w*t)
+
+def fit_cexpi(t,A,r,w):
+    return A * np.exp(r*t) * np.sin(w*t)
+
+def growth_rate(t,y):
+    t = np.array(t)
+    y = np.reshape(y,np.size(y))
+    [poptr,pcov,inf,ier,mesg] = spo.curve_fit(fit_cexpr,t,y.real,full_output=True)
+    print(ier)
+    print(mesg)
+    [popti,pcov,inf,ier,mesg]= spo.curve_fit(fit_cexpi,t,y.imag,full_output=True)
+    print(ier)
+    print(mesg)
+    return (poptr[1],poptr[2], popti[1],popti[2])

@@ -33,7 +33,7 @@ MODULE time_advance
   
 !  COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:,:,:) :: g_2,k1,k2
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:) :: b_2, bk1, bk2, v_2, vk1, vk2
-  INTEGER :: rkstage
+  INTEGER(kind=4) :: rkstage
 
 
   CONTAINS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
@@ -70,11 +70,16 @@ SUBROUTINE iv_solver
    !IF(mype==0.and.dt_output) WRITE(*,*) "Before adapt: dt_max,dt",dt_max,dt
    !IF(adapt_dt_nl) CALL adapt_dt 
    !IF(mype==0.and.dt_output) WRITE(*,*) "After adapt: dt_max,dt",dt_max,dt
-   !CALL check_wallclock
-   !IF(current_wallclock.gt.REAL(max_walltime)) THEN
+   CALL check_wallclock
+   IF(current_wallclock.gt.REAL(max_walltime)) THEN
    !  IF(mype==0) WRITE(*,*) "Maximum wall time exceeded.", current_wallclock, max_walltime
-   !  continue_run=.false. 
-   !END IF
+     continue_run=.false. 
+   ENDIF
+   IF (dt < .00001) then 
+     IF(verbose) WRITE(*,*) "dt too small to proceed" 
+     continue_run=.false.
+   ENDIF
+  !END IF
 
  END DO
  IF(verbose) WRITE(*,*) "time,itime,mype",time,itime,mype
@@ -146,7 +151,7 @@ SUBROUTINE get_g_next(b_in, v_in,dt_new)
  IF (plot_nls) THEN
  ionums = [dbio,dvio,bdvio,vdbio,bdcbio,cbdbio,vdvio,bdbio,db2io]
  DO q = 1,9
-    WRITE(ionums(q),*) rkstage
+    WRITE(ionums(q)) rkstage
  ENDDO 
  ENDIF
 
@@ -190,7 +195,7 @@ SUBROUTINE get_g_next(b_in, v_in,dt_new)
  
  IF (plot_nls) THEN
  DO q = 1,9
-    WRITE(ionums(q),*) rkstage
+    WRITE(ionums(q)) rkstage
  ENDDO
  ENDIF
  
@@ -202,7 +207,7 @@ SUBROUTINE get_g_next(b_in, v_in,dt_new)
 
  IF (plot_nls) THEN 
  DO q = 1,9
-    WRITE(ionums(q),*) rkstage
+    WRITE(ionums(q)) rkstage
  ENDDO
  ENDIF
  
@@ -214,7 +219,7 @@ SUBROUTINE get_g_next(b_in, v_in,dt_new)
 
  IF (plot_nls) THEN
  DO q = 1,9
-    WRITE(ionums(q),*) rkstage
+    WRITE(ionums(q)) rkstage
  ENDDO
  ENDIF
 

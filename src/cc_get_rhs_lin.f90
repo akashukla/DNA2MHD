@@ -106,12 +106,12 @@ endif
  END DO 
 
 if (plot_nls) then
-WRITE(dbio,*) eta*(Larr**hyp)*b_in(:,:,:,0)
-WRITE(dbio,*) eta*(Larr**hyp)*b_in(:,:,:,1)
-WRITE(dbio,*) eta*(Larr**hyp)*b_in(:,:,:,2)
-WRITE(dvio,*) vnu*(Larr**hyp)*v_in(:,:,:,0)
-WRITE(dvio,*) vnu*(Larr**hyp)*v_in(:,:,:,1)
-WRITE(dvio,*) vnu*(Larr**hyp)*v_in(:,:,:,2)
+WRITE(dbio) eta*(Larr**hyp)*b_in(:,:,:,0)
+WRITE(dbio) eta*(Larr**hyp)*b_in(:,:,:,1)
+WRITE(dbio) eta*(Larr**hyp)*b_in(:,:,:,2)
+WRITE(dvio) vnu*(Larr**hyp)*v_in(:,:,:,0)
+WRITE(dvio) vnu*(Larr**hyp)*v_in(:,:,:,1)
+WRITE(dvio) vnu*(Larr**hyp)*v_in(:,:,:,2)
 
 if (verbose) print *, 'Dissipation written'
 endif
