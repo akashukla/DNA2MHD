@@ -33,6 +33,7 @@ MODULE time_advance
   
 !  COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:,:,:) :: g_2,k1,k2
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:) :: b_2, bk1, bk2, v_2, vk1, vk2
+  INTEGER(kind=4) :: rkstage
 
 
   CONTAINS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
@@ -50,6 +51,7 @@ SUBROUTINE iv_solver
 
  IF(mype==0) WRITE(*,*) "max_itime=",max_itime
  IF(mype==0) WRITE(*,*) "max_time=",max_time
+ rkstage = 1
  DO WHILE(time.lt.max_time.and.itime.lt.max_itime.and.continue_run)
  
    !IF(verbose) WRITE(*,*) "Calling diagnostics",time,itime,mype
@@ -68,11 +70,16 @@ SUBROUTINE iv_solver
    !IF(mype==0.and.dt_output) WRITE(*,*) "Before adapt: dt_max,dt",dt_max,dt
    !IF(adapt_dt_nl) CALL adapt_dt 
    !IF(mype==0.and.dt_output) WRITE(*,*) "After adapt: dt_max,dt",dt_max,dt
-   !CALL check_wallclock
-   !IF(current_wallclock.gt.REAL(max_walltime)) THEN
+   CALL check_wallclock
+   IF(current_wallclock.gt.REAL(max_walltime)) THEN
    !  IF(mype==0) WRITE(*,*) "Maximum wall time exceeded.", current_wallclock, max_walltime
-   !  continue_run=.false. 
-   !END IF
+     continue_run=.false. 
+   ENDIF
+   IF (dt < .00001) then 
+     IF(verbose) WRITE(*,*) "dt too small to proceed" 
+     continue_run=.false.
+   ENDIF
+  !END IF
 
  END DO
  IF(verbose) WRITE(*,*) "time,itime,mype",time,itime,mype
@@ -141,11 +148,13 @@ SUBROUTINE get_g_next(b_in, v_in,dt_new)
  INTEGER :: ionums(9)
  INTEGER :: q
 
+ IF (plot_nls) THEN
  ionums = [dbio,dvio,bdvio,vdbio,bdcbio,cbdbio,vdvio,bdbio,db2io]
  DO q = 1,9
-    WRITE(ionums(q),*) it
+    WRITE(ionums(q)) rkstage
  ENDDO 
- 
+ ENDIF
+
  ALLOCATE(b_2(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
  ALLOCATE(bk1(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
  ALLOCATE(bk2(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
@@ -153,8 +162,6 @@ SUBROUTINE get_g_next(b_in, v_in,dt_new)
  ALLOCATE(v_2(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
  ALLOCATE(vk1(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
  ALLOCATE(vk2(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
-
- WRITE(dbio,*) time 
 
 !  !4th order Runge-Kutta
 !  first_stage=.true.
@@ -185,30 +192,36 @@ SUBROUTINE get_g_next(b_in, v_in,dt_new)
  !CALL get_rhs(b_in+0.5*dt*bk1,bk2)
  bk1=b_in+0.5*dt*bk1
  vk1=v_in+0.5*dt*vk1
-
+ 
+ IF (plot_nls) THEN
  DO q = 1,9
-    WRITE(ionums(q),*) it+1/4
+    WRITE(ionums(q)) rkstage
  ENDDO
-
+ ENDIF
+ 
  CALL get_rhs(bk1,vk1,bk2,vk2,dt_new2)
  b_2=b_2+(1.0/3.0)*dt*bk2
  bk2=b_in+0.5*dt*bk2
  v_2=v_2+(1.0/3.0)*dt*vk2
  vk2=v_in+0.5*dt*vk2
 
+ IF (plot_nls) THEN 
  DO q = 1,9
-    WRITE(ionums(q),*) it+1/2
+    WRITE(ionums(q)) rkstage
  ENDDO
-
+ ENDIF
+ 
  CALL get_rhs(bk2,vk2,bk1,vk1,dt_new3)
  b_2=b_2+(1.0/3.0)*dt*bk1
  bk1=b_in+dt*bk1
  v_2=v_2+(1.0/3.0)*dt*vk1
  vk1=v_in+dt*vk1
 
+ IF (plot_nls) THEN
  DO q = 1,9
-    WRITE(ionums(q),*) it+3/4
+    WRITE(ionums(q)) rkstage
  ENDDO
+ ENDIF
 
  CALL get_rhs(bk1,vk1,bk2,vk2,dt_new4)
  b_in=b_2+(1.0/6.0)*dt*bk2
@@ -248,7 +261,6 @@ SUBROUTINE get_g_next(b_in, v_in,dt_new)
 
  dt_new = minval([dt_new1,dt_new2,dt_new3,dt_new4])
  CALL remove_div(b_in,v_in)
-
 
  DEALLOCATE(b_2)
  DEALLOCATE(bk1)
@@ -315,8 +327,9 @@ SUBROUTINE get_rhs(b_in,v_in, rhs_out_b,rhs_out_v,ndt)
 
   !IF(nonlinear.and..not.linear_nlbox) CALL get_rhs_nl(b_in, v_in,rhs_out_b,rhs_out_v)
   IF(actual_nonlinear) CALL get_rhs_nl(b_in, v_in,rhs_out_b,rhs_out_v,ndt)
-
+  IF (.not.(actual_nonlinear)) ndt = dt_max
 if (verbose) print *,'RHS found'
+rkstage = rkstage + 1
 
 END SUBROUTINE get_rhs
 

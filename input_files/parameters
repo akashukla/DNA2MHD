@@ -3,8 +3,8 @@ nu = 0.00
 omt = 5.000
 omn =    1.000    
 Ti0Te =    1.000 
-eta = 10.0
-vnu = 10.0 
+eta = 0.0
+vnu = 0.0 
 /
 
 &numerical_parameters
@@ -30,7 +30,7 @@ np_herm =  1
 np_kz =    1
 np_hank =    1
 np_spec =    1
-courant =   0.07    
+courant =   0.5
 kxinit_min = 0  
 kyinit_min = 0 
 kzinit_min = 0
@@ -47,7 +47,7 @@ hyp = 2
 /
 
 &diagnostics
-diagdir = '/scratch/08929/echansen/dna2mhdrun23'
+diagdir = '/scratch/08929/echansen/dna2mhdrun30'
 istep_ffm =   20
 istep_energy3d =  500
 istep_energy =  100
@@ -76,7 +76,8 @@ etg_factor  =    0.000
 em_conserve = T
 nuno_closure = T
 rhs_nl_version = 12
-rhs_lin_version = 1
+rhs_lin_version = 12
+plot_nls = F
 dbio = 200
 dvio = 201
 bdvio = 202
@@ -86,7 +87,7 @@ cbdbio = 205
 vdvio = 206
 bdbio = 207
 db2io = 208
-hall = 0
+hall = 1
 /
 
 &eigensolve

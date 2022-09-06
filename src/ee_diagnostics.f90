@@ -128,16 +128,16 @@ SUBROUTINE initialize_diagnostics
     IF(checkpoint_read) THEN
       INQUIRE(file=trim(diagdir)//'/energy_out.dat',exist=file_exists)
       IF(file_exists) THEN
-        OPEN(unit=en_handle,file=trim(diagdir)//'/energy_out.dat',status='unknown',position='append')
+        OPEN(unit=en_handle,file=trim(diagdir)//'/energy_out.dat',form='unformatted', status='REPLACE',access='stream')
       ELSE
-        OPEN(unit=en_handle,file=trim(diagdir)//'/energy_out.dat',status='unknown')
+        OPEN(unit=en_handle,file=trim(diagdir)//'/energy_out.dat',form='unformatted', status='REPLACE',access='stream')
         ! WRITE(en_handle,*) "#time,entropy,phi^2 energy,dE/dt total,flux,coll,hcoll,hyps,N.L.,hyp_conv,dE/dt"
       END IF
     ELSE
-      OPEN(unit=en_handle,file=trim(diagdir)//'/energy_out.dat',status='unknown')
+      OPEN(unit=en_handle,file=trim(diagdir)//'/energy_out.dat',form='unformatted', status='REPLACE',access='stream')
       ! WRITE(en_handle,*) "#time,entropy,phi^2 energy,dE/dt total,flux,coll,hcoll,hyps,N.L.,hyp_conv,dE/dt"
-      WRITE(en_handle,*) &
-         "#time,Hamiltonian,restvty.,viscsty."
+     ! WRITE(en_handle,*) &
+      !   "#time,Hamiltonian,restvty.,viscsty."
     END IF
     energy_last=0.0
     time_last=time
@@ -194,7 +194,7 @@ SUBROUTINE initialize_diagnostics
   !IF (GyroLES.or.Gyroz) call initialize_GyroLES
   !IF (Corr) call initialize_corr
 
-  CALL initialize_debug
+  if (plot_nls) CALL initialize_debug
 
 END SUBROUTINE initialize_diagnostics
 
@@ -249,7 +249,7 @@ SUBROUTINE finalize_diagnostics
   ! IF (GyroLES.or.Gyroz) call finalize_GyroLES
   ! IF (Corr) call finalize_corr
  
-  CALL finalize_debug
+  if (plot_nls) CALL finalize_debug
 
 END SUBROUTINE finalize_diagnostics
 
@@ -373,10 +373,10 @@ SUBROUTINE diag
      IF(istep_energy.ne.0) THEN
        IF(MOD(itime,istep_energy)==0) THEN
          IF(verbose) WRITE(*,*) "Starting energy diag.",mype
-         WRITE(en_handle,*) time
-         WRITE(en_handle,*) hmhdhmtn(v_1,b_1)
-         WRITE(en_handle,*) eta*resvischange(b_1)
-         WRITE(en_handle,*) vnu*resvischange(v_1)
+         WRITE(en_handle) time
+         WRITE(en_handle) hmhdhmtn(v_1,b_1)
+         WRITE(en_handle) eta*resvischange(b_1)
+         WRITE(en_handle) vnu*resvischange(v_1)
  
 !!       !!!!!!!!!!!Temporary!!!!!!!!!!!
 !!       !!!!!!!!!!!Temporary!!!!!!!!!!!
@@ -4191,6 +4191,7 @@ DO q = 1,9
    IF(checkpoint_read) THEN
       INQUIRE(file=trim(diagdir)//'/'//trim(fnames(q)),exist=file_exists)      
       IF(file_exists) THEN
+
          OPEN(unit=ionums(q),file=trim(diagdir)//'/'//trim(fnames(q)),status='unknown',position='append')
       ELSE
          OPEN(unit=ionums(q),file=trim(diagdir)//'/'//trim(fnames(q)),status='unknown')
@@ -4198,6 +4199,7 @@ DO q = 1,9
    ELSE
       OPEN(unit=ionums(q),file=trim(diagdir)//'/'//trim(fnames(q)),status='unknown')
    END IF
+
 ENDDO
 
 if (verbose) print *, 'Debug files opened'

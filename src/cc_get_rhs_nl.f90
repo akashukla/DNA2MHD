@@ -36,8 +36,10 @@ MODULE nonlinearity
 
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:) :: b_inx0, b_iny0,  b_inz0, v_inx0, v_iny0,  v_inz0, bmag_in, bmagk
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:) :: temp_small,temp_big, temp_bigx, temp_bigy, temp_bigz
+
   REAL, ALLOCATABLE, DIMENSION(:,:,:) ::  store_x, store_y, store_z
   REAL, ALLOCATABLE, DIMENSION(:,:,:) ::  bmag, dxbmag, dybmag, dzbmag,bmag_inbig
+
 
   REAL, ALLOCATABLE, DIMENSION(:,:,:) :: bx,by,bz, dxbx, dybx,dzbx, dxby,dyby,dzby, dxbz,dybz,dzbz
   REAL, ALLOCATABLE, DIMENSION(:,:,:) :: vx,vy,vz, dxvx, dyvx,dzvx, dxvy,dyvy,dzvy, dxvz,dyvz,dzvz
@@ -1379,25 +1381,27 @@ endif
          - hall*((bx*dxdxby+by*dxdyby+bz*dxdzby-bx*dxdybx-by*dydybx-bz*dydzbx)&
          + (dybz*dxbz-dzby*dxbz-dxbz*dybz+dzbx*dybz+dxby*dzbz-dybx*dzbz ))
 
+IF (plot_nls) THEN 
 ! b.grad v 
-WRITE(bdvio,*) fft_spec(bx*dxvx+by*dyvx+bz*dzvx)
-WRITE(bdvio,*) fft_spec(bx*dxvy+by*dyvy+bz*dzvy)
-WRITE(bdvio,*) fft_spec(bx*dxvz+by*dyvz+bz*dzvz)
+WRITE(bdvio) fft_spec(bx*dxvx+by*dyvx+bz*dzvx)
+WRITE(bdvio) fft_spec(bx*dxvy+by*dyvy+bz*dzvy)
+WRITE(bdvio) fft_spec(bx*dxvz+by*dyvz+bz*dzvz)
 
 ! v.grad b
-WRITE(vdbio,*) fft_spec(vx*dxbx+vy*dybx+vz*dzbx)
-WRITE(vdbio,*) fft_spec(vx*dxby+vy*dyby+vz*dzby)
-WRITE(vdbio,*) fft_spec(vx*dxbz+vy*dybz+vz*dzbz)
+WRITE(vdbio) fft_spec(vx*dxbx+vy*dybx+vz*dzbx)
+WRITE(vdbio) fft_spec(vx*dxby+vy*dyby+vz*dzby)
+WRITE(vdbio) fft_spec(vx*dxbz+vy*dybz+vz*dzbz)
 
 ! b. grad curl b
-WRITE(bdcbio,*) fft_spec(bx*dxdybz+by*dydybz+bz*dydzbz-bx*dxdzby-by*dydzby-bz*dzdzby)
-WRITE(bdcbio,*) fft_spec(bx*dxdzbx+by*dydzbx+bz*dzdzbx-bx*dxdxbz-by*dxdybz-bz*dxdzbz)
-WRITE(bdcbio,*) fft_spec(bx*dxdxby+by*dxdyby+bz*dxdzby-bx*dxdybx-by*dydybx-bz*dydzbx)
+WRITE(bdcbio) fft_spec(bx*dxdybz+by*dydybz+bz*dydzbz-bx*dxdzby-by*dydzby-bz*dzdzby)
+WRITE(bdcbio) fft_spec(bx*dxdzbx+by*dydzbx+bz*dzdzbx-bx*dxdxbz-by*dxdybz-bz*dxdzbz)
+WRITE(bdcbio) fft_spec(bx*dxdxby+by*dxdyby+bz*dxdzby-bx*dxdybx-by*dydybx-bz*dydzbx)
 
 ! curl b . grad b
-WRITE(cbdbio,*) fft_spec(dybz*dxbx-dzby*dxbx-dxbz*dybx+dzbx*dybx+dxby*dzbx-dybx*dzbx)
-WRITE(cbdbio,*) fft_spec(dybz*dxby-dzby*dxby-dxbz*dyby+dzbx*dyby+dxby*dzby-dybx*dzby)
-WRITE(cbdbio,*) fft_spec(dybz*dxbz-dzby*dxbz-dxbz*dybz+dzbx*dybz+dxby*dzbz-dybx*dzbz)
+WRITE(cbdbio) fft_spec(dybz*dxbx-dzby*dxbx-dxbz*dybx+dzbx*dybx+dxby*dzbx-dybx*dzbx)
+WRITE(cbdbio) fft_spec(dybz*dxby-dzby*dxby-dxbz*dyby+dzbx*dyby+dxby*dzby-dybx*dzby)
+WRITE(cbdbio) fft_spec(dybz*dxbz-dzby*dxbz-dxbz*dybz+dzbx*dybz+dxby*dzbz-dybx*dzbz)
+ENDIF
 
 !inverse FFT to get back to Fourier
 CALL dfftw_execute_dft_r2c(plan_r2c,store_x(0,0,0),temp_bigx(0,0,0))
@@ -1459,46 +1463,50 @@ store_x = -(vx*dxvx+vy*dyvx+vz*dzvx) + (bx*dxbx+by*dybx+bz*dzbx) - 0.5*dxbmag
 store_y = -(vx*dxvy+vy*dyvy+vz*dzvy) + (bx*dxby+by*dyby+bz*dzby) - 0.5*dybmag
 store_z = -(vx*dxvz+vy*dyvz+vz*dzvz) + (bx*dxbz+by*dybz+bz*dzbz) - 0.5*dzbmag
 
+IF (plot_nls) THEN 
 ! v . grad v
-WRITE(vdvio,*) fft_spec(vx*dxvx+vy*dyvx+vz*dzvx) 
-WRITE(vdvio,*) fft_spec(vx*dxvy+vy*dyvy+vz*dzvy)
-WRITE(vdvio,*) fft_spec(vx*dxvz+vy*dyvz+vz*dzvz)
+WRITE(vdvio) fft_spec(vx*dxvx+vy*dyvx+vz*dzvx) 
+WRITE(vdvio) fft_spec(vx*dxvy+vy*dyvy+vz*dzvy)
+WRITE(vdvio) fft_spec(vx*dxvz+vy*dyvz+vz*dzvz)
 
 ! b . grad b
-WRITE(bdbio,*) fft_spec(bx*dxbx+by*dybx+bz*dzbx)
-WRITE(bdbio,*) fft_spec(bx*dxby+by*dyby+bz*dzby)
-WRITE(bdbio,*) fft_spec(bx*dxbz+by*dybz+bz*dzbz)
+WRITE(bdbio) fft_spec(bx*dxbx+by*dybx+bz*dzbx)
+WRITE(bdbio) fft_spec(bx*dxby+by*dyby+bz*dzby)
+WRITE(bdbio) fft_spec(bx*dxbz+by*dybz+bz*dzbz)
 
 ! 0.5 grad b^2
-WRITE(db2io,*) fft_spec(0.5*dxbmag)
-WRITE(db2io,*) fft_spec(0.5*dybmag)
-WRITE(db2io,*) fft_spec(0.5*dzbmag)
+WRITE(db2io) fft_spec(0.5*dxbmag)
+WRITE(db2io) fft_spec(0.5*dybmag)
+WRITE(db2io) fft_spec(0.5*dzbmag)
 
 if (verbose) print *, 'v1 nl equation stored'
 endif
+ENDIF
 
 if (rhs_nl_version == 12) then
 store_x = -(vx*dxvx+vy*dyvx+vz*dzvx) + (by*dybx+bz*dzbx) - (by*dxby+bz*dxbz)
 store_y = -(vx*dxvy+vy*dyvy+vz*dzvy) + (bx*dxby+bz*dzby) - (bz*dybz+bx*dybx)
 store_z = -(vx*dxvz+vy*dyvz+vz*dzvz) + (bx*dxbz+by*dybz) - (by*dzby+bx*dzbx)
 
+IF (plot_nls) THEN 
 ! v . grad v
-WRITE(vdvio,*) fft_spec(vx*dxvx+vy*dyvx+vz*dzvx)
-WRITE(vdvio,*) fft_spec(vx*dxvy+vy*dyvy+vz*dzvy)
-WRITE(vdvio,*) fft_spec(vx*dxvz+vy*dyvz+vz*dzvz)
+WRITE(vdvio) fft_spec(vx*dxvx+vy*dyvx+vz*dzvx)
+WRITE(vdvio) fft_spec(vx*dxvy+vy*dyvy+vz*dzvy)
+WRITE(vdvio) fft_spec(vx*dxvz+vy*dyvz+vz*dzvz)
 
 ! b . grad b
-WRITE(bdbio,*) fft_spec(bx*dxbx+by*dybx+bz*dzbx)
-WRITE(bdbio,*) fft_spec(bx*dxby+by*dyby+bz*dzby)
-WRITE(bdbio,*) fft_spec(bx*dxbz+by*dybz+bz*dzbz)
+WRITE(bdbio) fft_spec(bx*dxbx+by*dybx+bz*dzbx)
+WRITE(bdbio) fft_spec(bx*dxby+by*dyby+bz*dzby)
+WRITE(bdbio) fft_spec(bx*dxbz+by*dybz+bz*dzbz)
 
 ! 0.5 grad b^2
-WRITE(db2io,*) fft_spec(bx*dxbx+by*dxby+bz*dxbz)
-WRITE(db2io,*) fft_spec(bx*dybx+by*dyby+bz*dybz)
-WRITE(db2io,*) fft_spec(bx*dzbx+by*dzby+bz*dzbz)
+WRITE(db2io) fft_spec(bx*dxbx+by*dxby+bz*dxbz)
+WRITE(db2io) fft_spec(bx*dybx+by*dyby+bz*dybz)
+WRITE(db2io) fft_spec(bx*dzbx+by*dzby+bz*dzbz)
 
 if (verbose) print *, 'v12 nl equation stored'
 endif
+ENDIF
 
 CALL dfftw_execute_dft_r2c(plan_r2c,store_x(0,0,0),temp_bigx(0,0,0))
 CALL dfftw_execute_dft_r2c(plan_r2c,store_y(0,0,0),temp_bigy(0,0,0))
