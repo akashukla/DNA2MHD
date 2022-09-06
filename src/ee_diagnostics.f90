@@ -4177,25 +4177,29 @@ end function resvischange
 subroutine initialize_debug
 
 INTEGER :: ionums(9)
-CHARACTER(len=15) :: fnames(9)
+! CHARACTER(len=15), DIMENSION(9) :: fnames
+CHARACTER(len=15), DIMENSION(9) :: fnames = [CHARACTER(LEN=15) :: &
+     'dissb_out.dat','dissv_out.dat', 'bdv_out.dat',&
+     'vdb_out.dat','bdcb_out.dat','cbdb_out.dat',&
+     'vdv_out.dat','bdb_out.dat','db2_out.dat']
+
 INTEGER :: q
 
 ionums = [dbio,dvio,bdvio,vdbio,bdcbio,cbdbio,vdvio,bdbio,db2io]
-fnames = ['dissb_out.dat','dissv_out.dat',&
-   'bdv_out.dat','vdb_out.dat','bdcb_out.dat','cbdb_out.dat',&
-   'vdv_out.dat','bdb_out.dat','db2_out.dat']
 
 DO q = 1,9
-      IF(checkpoint_read) THEN
+   IF(checkpoint_read) THEN
       INQUIRE(file=trim(diagdir)//'/'//trim(fnames(q)),exist=file_exists)      
       IF(file_exists) THEN
-        OPEN(unit=ionums(q),file=trim(diagdir)//'/'//trim(fnames(q)),form='unformatted', status='REPLACE',access='stream')
+
+         OPEN(unit=ionums(q),file=trim(diagdir)//'/'//trim(fnames(q)),status='unknown',position='append')
       ELSE
-        OPEN(unit=ionums(q),file=trim(diagdir)//'/'//trim(fnames(q)),form='unformatted', status='REPLACE',access='stream')
+         OPEN(unit=ionums(q),file=trim(diagdir)//'/'//trim(fnames(q)),status='unknown')
       END IF
-    ELSE
-      OPEN(unit=ionums(q),file=trim(diagdir)//'/'//trim(fnames(q)),form='unformatted', status='REPLACE',access='stream')
-    END IF
+   ELSE
+      OPEN(unit=ionums(q),file=trim(diagdir)//'/'//trim(fnames(q)),status='unknown')
+   END IF
+
 ENDDO
 
 if (verbose) print *, 'Debug files opened'
