@@ -472,6 +472,31 @@ def plot_bv(lpath,ix,iy,iz,ind,show=True):
     plt.savefig(lpath+'bvs/bv_%s_%d_%d_%d'%(ind_string,ix,iy,iz))
     if show == True:
         plt.show()
+    dum = input('Log Zoom? Y/N ')
+    if dum == 'Y':
+        xl = int(input('Xmin? Integer '))
+        xh = int(input('Xmax? Integer '))
+        fig,ax=plt.subplots(2)
+        ax[0].plot(timeb,b[:,ix,iy,iz,ind].real,label='Re')
+        ax[0].plot(timeb,b[:,ix,iy,iz,ind].imag,label='Im')
+        ax[0].set_ylabel('b_%s'%ind_string)
+        ax[0].set_xlabel('time')
+        ax[1].plot(timev,v[:,ix,iy,iz,ind].real,label='Re')
+        ax[1].plot(timev,v[:,ix,iy,iz,ind].imag,label='Im')
+        ax[1].set_ylabel('v_%s'%ind_string)
+        ax[0].set_xlabel('time')
+        ax[0].legend()
+        ax[1].legend()       
+        fig.suptitle('kx,ky,kz = %1.2f,%1.2f,%1.2f'%(kx[ix],ky[iy],kz[iz]))
+        ax[0].set_xlim(xl,xh)
+        ax[1].set_xlim(xl,xh)
+        ax[0].set_ylim(0.01,10**8)
+        ax[0].set_yscale('log')
+        ax[1].set_ylim(0.01,10**8)
+        ax[1].set_yscale('log')
+        plt.yscale('log')
+        plt.savefig(lpath+'bvs/zoomed_bv_%s_%d_%d_%d'%(ind_string,ix,iy,iz))
+        plt.show()
     plt.close()
     return timeb,b,timev,v
 
@@ -543,72 +568,158 @@ def plot_vspectrum(lpath,ix,iy,iz,ind):
     return omega[peaks]
 
 def plot_nls(lpath,ix,iy,iz,ind,show=True):
-    """                                                                                                                                                                        
-    This is an example method that plots the timetraces of b and v at the specified wavevector (kx[ix],ky[iy],kz[iz]).                                                             ind specifies whether you want the x(0),y(1), or z(2) component.                                                                                                           
-    """
+    """This an example method that plots the timetraces of b and v at the specified wavevector (kx[ix],ky[iy],kz[iz]).
+ind specifies whether you want the x(0),y(1), or z(2) component."""
     ind_strings= ['x','y','z']
     ind_string=ind_strings[ind]
     read_parameters(lpath)
     opts = ['bdv','vdb','bdcb','cbdb','vdv','bdb','db2']
     fmts = {'bdv':'-m','vdb':'^m','bdcb':'--k','cbdb':'2k','vdv':'Hr',
         'bdb':':b','db2':'sb'}
-    cs = {'bdv':'m','vdb':'m','bdcb':'k','cbdb':'k','vdv':'r',
-        'bdb':'b','db2':'b'}
-    hatchs = {'bdv':'+','vdb':'0','bdcb':'\\','cbdb':'/','vdv':'*','bdb':'x','db2':'.'}
-    
+ 
     fig,ax = plt.subplots(2)
-        
     i = 0
-    bottom = np.zeros(80000)
-    upbottom = np.zeros(80000)
-    lowbottom = np.zeros(80000)
-    x = np.linspace(1,80000,num=80000)
+
+    optlist = []
     for opt in opts:
-        y = np.zeros(80000)
         if os.path.isfile(lpath+'/dum'+opt+'.txt'):
-            t,opty = load_opt(lpath,opt)
+            optlist.append(load_opt(lpath,opt))
         else:
-            t,opty = getopt(lpath,opt)
-        for j in range(np.size(t)):
-            y[int(t[j])] = opty[j,ix,iy,iz,ind]
-            if (j%10000) == 0:
-                print(j)
-        for j in range(80000):
-            if (j%10000) == 0:
-                print(j)
-            if y[j] >= 0:
-                bottom[j] = upbottom[j]
-            if y[j] < 0:
-                bottom[j] = lowbottom[j]
-        ax[0].bar(x,y.real,color=cs[opt],hatch=hatchs[opt],label=opt,bottom=bottom)
-        ax[1].bar(x,y.imag,color=cs[opt],hatch=hatchs[opt],label=opt,bottom=bottom)
-        for j in range(80000):
-            if (j%10000) == 0:
-                print(j)
-            if y[j] >= 0:
-                upbottom[j] += y[j]
-            if y[j] < 0:
-                lowbottom[j] += y[j]
+            optlist.append(getopt(lpath,opt))
+        t = optlist[i][0]
+        opty = np.array(optlist[i][1][:,ix,iy,iz,ind])
+        ax[0].plot(t,opty.real,fmts[opt],markersize=1,label=opt)
+        ax[1].plot(t,opty.imag,fmts[opt],markersize=1,label=opt)
         i = i + 1
+
     ax[0].set_ylabel('real nonlinearity %s'%ind_string)
     ax[0].set_xlabel('time')
     ax[1].set_ylabel('imag nonlinearity %s'%ind_string)
     ax[0].set_xlabel('time')
     ax[0].legend()
     ax[1].legend()
+    ax[0].set_ylabel('real nonlinearity %s'%ind_string)
+    ax[0].set_xlabel('time')
+    ax[1].set_ylabel('imag nonlinearity %s'%ind_string)
+    ax[1].set_xlabel('time')
+    ax[0].legend()
+    ax[1].legend()
+
     kx,ky,kz=get_grids()
     fig.suptitle('kx,ky,kz = %1.2f,%1.2f,%1.2f'%(kx[ix],ky[iy],kz[iz]))
-    
+
     if lpath[-1] != '/':
         lpath = lpath + '/'
     if not os.path.exists(lpath + 'nls/'):
         os.mkdir(lpath + 'nls/')
-    plt.savefig(lpath+'nls/'+opt+'_%s_%d_%d_%d'%(ind_string,ix,iy,iz))
+    plt.savefig(lpath+'nls/nls_%s_%d_%d_%d'%(ind_string,ix,iy,iz))
     if show == True:
         plt.show()
     plt.close()
 
-    return 'Yours truly'
+    duml = input('Log Zoom? Y/N ')
+    if duml == 'Y':
+        xl = int(input('Xmin? Integer '))
+        xh = int(input('Xmax? Integer '))
+        fig,ax = plt.subplots(2)
+        i = 0
+        for opt in opts:
+            t = optlist[i][0]
+            opty = np.array(optlist[i][1][(t>xl)*(t<xh),ix,iy,iz,ind])
+            t = np.array(t[(t>xl)*(t<xh)])
+            ax[0].plot(t,opty.real,fmts[opt],markersize=1,label=opt)
+            ax[1].plot(t,opty.imag,fmts[opt],markersize=1,label=opt)
+            i = i + 1
+        ax[0].set_ylabel('real nonlinearity %s'%ind_string)
+        ax[0].set_xlabel('time')
+        ax[1].set_ylabel('imag nonlinearity %s'%ind_string)
+        ax[0].set_xlabel('time')
+        ax[0].legend()
+        ax[1].legend()
+        ax[0].set_ylabel('real nonlinearity %s'%ind_string)
+        ax[0].set_xlabel('time')
+        ax[1].set_ylabel('imag nonlinearity %s'%ind_string)
+        ax[1].set_xlabel('time')
+        ax[0].legend()
+        ax[1].legend()
+        ax[0].set_ylim(.01,10**8)
+        ax[1].set_ylim(.01,10**8)
+        ax[0].set_yscale('log')
+        ax[1].set_yscale('log')
+        fig.suptitle('kx,ky,kz = %1.2f,%1.2f,%1.2f'%(kx[ix],ky[iy],kz[iz]))
+        plt.savefig(lpath+'nls/nllogs_%s_%d_%d_%d'%(ind_string,ix,iy,iz))
+        if show == True:
+            plt.show()
+        plt.close()
+
+    dum = input('Bar Zoom? Y/N ')
+    if dum == 'Y':
+        Nb = 4
+        N = 4*par['max_itime']
+        bottom = np.zeros(Nb)
+        upbottom = np.ones(Nb)
+        lowbottom = -1*np.ones(Nb)
+        cs = {'bdv':'m','vdb':'m','bdcb':'k','cbdb':'k','vdv':'r',
+            'bdb':'b','db2':'b'}
+        hatchs = {'bdv':'+','vdb':'0','bdcb':'\\','cbdb':'/','vdv':'*','bdb':'x','db2':'.'}
+
+        xl = int(input('Xmin? Integer '))
+        xh = int(input('Xmax? Integer '))
+        x =  np.linspace(xl+(xh-xl)/(2*Nb),xh-(xh-xl)/(2*Nb),num=Nb)
+        fig,ax=plt.subplots(2)
+        i = 0 
+
+        for opt in opts:
+            y = np.zeros(Nb)
+            t = optlist[i][0]
+            opty = np.array(optlist[i][1][(t>xl)*(t<xh),ix,iy,iz,ind])
+            t = np.array(t[(t>xl)*(t<xh)]) 
+            N = np.size(t)
+            for j in range(0,np.size(t),4):
+                opty[j] = opty[j] * .01/6
+                opty[j+1] = opty[j] * 2*.01/6
+                opty[j+2] = opty[j] * 2*.01/6
+                opty[j+3] = opty[j] * .01/6
+            w = 2/3*(xh-xl)/(Nb)
+            for j in range(Nb):
+                y[j] = np.sum(opty[j*(N//Nb):(j+1)*(N//Nb)],dtype='complex64')
+                if y[j] >= 0:
+                    bottom[j] = upbottom[j]
+                if y[j] < 0:
+                    bottom[j] = lowbottom[j]
+            y0 = y.real.astype('int')
+            y1 = y.imag.astype('int')
+            ax[0].bar(x,y0,width=w,color=cs[opt],hatch=hatchs[opt],label=opt,bottom=bottom,align='center')        
+            ax[1].bar(x,y1,width=w,color=cs[opt],hatch=hatchs[opt],label=opt,bottom=bottom,align='center')
+            
+            print(y0,y1)
+            for j in range(Nb):
+                if (j%10000) == 0:
+                    print(j)
+                if y[j] >= 0:
+                    upbottom[j] += y[j]
+                if y[j] < 0:
+                    lowbottom[j] += y[j]
+            i = i + 1
+
+        ax[0].set_ylabel('real + nonlinearity')
+        ax[0].set_xlabel('itime')
+        ax[1].set_ylabel('real - nonlinearity')
+        ax[0].set_xlabel('itime')
+        ax[0].legend()
+        ax[1].legend()
+        fig.suptitle('kx,ky,kz = %1.2f,%1.2f,%1.2f'%(kx[ix],ky[iy],kz[iz]))
+        ax[0].set_xlim(xl,xh)
+        ax[1].set_xlim(xl,xh)
+        #ax[0].set_ylim(0.01,10**8)
+        #ax[0].set_yscale('log')
+        #ax[1].set_ylim(-10**8,-0.01)
+        #ax[1].set_yscale('log')
+        plt.savefig(lpath+'nls/logbar_nls_%s_%d_%d_%d'%(ind_string,ix,iy,iz))
+        plt.show()
+        plt.close()
+
+    return 0
 
 def plot_energy(lpath,ntp,show=True):
     """ Plots Scalars Written in energy_out.dat """
@@ -686,10 +797,6 @@ def fit_cexpi(t,A,r,w):
 def growth_rate(t,y):
     t = np.array(t)
     y = np.reshape(y,np.size(y))
-    [poptr,pcov,inf,ier,mesg] = spo.curve_fit(fit_cexpr,t,y.real,full_output=True)
-    print(ier)
-    print(mesg)
-    [popti,pcov,inf,ier,mesg]= spo.curve_fit(fit_cexpi,t,y.imag,full_output=True)
-    print(ier)
-    print(mesg)
+    poptr,pcov = spo.curve_fit(fit_cexpr,t,y.real,p0=[10**3,.01,.6])
+    popti,pcov = spo.curve_fit(fit_cexpi,t,y.imag,p0=[10**3,.01,.6])
     return (poptr[1],poptr[2], popti[1],popti[2])
