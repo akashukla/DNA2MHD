@@ -4192,12 +4192,12 @@ DO q = 1,9
       INQUIRE(file=trim(diagdir)//'/'//trim(fnames(q)),exist=file_exists)      
       IF(file_exists) THEN
 
-         OPEN(unit=ionums(q),file=trim(diagdir)//'/'//trim(fnames(q)),status='unknown',position='append')
+         OPEN(unit=ionums(q),file=trim(diagdir)//'/'//trim(fnames(q)),form='unformatted', status='REPLACE',access='stream')
       ELSE
-         OPEN(unit=ionums(q),file=trim(diagdir)//'/'//trim(fnames(q)),status='unknown')
+         OPEN(unit=ionums(q),file=trim(diagdir)//'/'//trim(fnames(q)),form='unformatted', status='REPLACE',access='stream')
       END IF
    ELSE
-      OPEN(unit=ionums(q),file=trim(diagdir)//'/'//trim(fnames(q)),status='unknown')
+      OPEN(unit=ionums(q),file=trim(diagdir)//'/'//trim(fnames(q)),form='unformatted', status='REPLACE',access='stream')
    END IF
 
 ENDDO

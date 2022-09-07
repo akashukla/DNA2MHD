@@ -442,7 +442,7 @@ def load_energy(lpath):
     enload=np.memmap(lpath+'/energy_xyz.dat',dtype='float64',mode='r',shape=tuple(np.load(lpath+'/energyshape.npy')))
     return time, enload
 
-def plot_bv(lpath,ix,iy,iz,ind,show=True):
+def plot_bv(lpath,ix,iy,iz,ind,show=True,ask=True):
     """
     This is an example method that plots the timetraces of b and v at the specified wavevector (kx[ix],ky[iy],kz[iz]).
     ind specifies whether you want the x(0),y(1), or z(2) component.
@@ -472,7 +472,10 @@ def plot_bv(lpath,ix,iy,iz,ind,show=True):
     plt.savefig(lpath+'bvs/bv_%s_%d_%d_%d'%(ind_string,ix,iy,iz))
     if show == True:
         plt.show()
-    dum = input('Log Zoom? Y/N ')
+    if ask:
+        dum = input('Log Zoom? Y/N ')
+    else:
+        dum = 'N'
     if dum == 'Y':
         xl = int(input('Xmin? Integer '))
         xh = int(input('Xmax? Integer '))
@@ -567,15 +570,15 @@ def plot_vspectrum(lpath,ix,iy,iz,ind):
     plt.close()
     return omega[peaks]
 
-def plot_nls(lpath,ix,iy,iz,ind,show=True):
+def plot_nls(lpath,ix,iy,iz,ind,show=True,ask=True):
     """This an example method that plots the timetraces of b and v at the specified wavevector (kx[ix],ky[iy],kz[iz]).
 ind specifies whether you want the x(0),y(1), or z(2) component."""
     ind_strings= ['x','y','z']
     ind_string=ind_strings[ind]
     read_parameters(lpath)
     opts = ['bdv','vdb','bdcb','cbdb','vdv','bdb','db2']
-    fmts = {'bdv':'-m','vdb':'^m','bdcb':'--k','cbdb':'2k','vdv':'Hr',
-        'bdb':':b','db2':'sb'}
+    fmts = {'bdv':'vm','vdb':'om','bdcb':'<g','cbdb':'sg','vdv':'Hr',
+        'bdb':'xb','db2':'8b'}
  
     fig,ax = plt.subplots(2)
     i = 0
@@ -617,7 +620,11 @@ ind specifies whether you want the x(0),y(1), or z(2) component."""
         plt.show()
     plt.close()
 
-    duml = input('Log Zoom? Y/N ')
+    if ask:
+        duml = input('Log Zoom? Y/N ')
+    else:
+        duml = 'N'
+    
     if duml == 'Y':
         xl = int(input('Xmin? Integer '))
         xh = int(input('Xmax? Integer '))
@@ -652,16 +659,20 @@ ind specifies whether you want the x(0),y(1), or z(2) component."""
             plt.show()
         plt.close()
 
-    dum = input('Bar Zoom? Y/N ')
+    if ask:
+        dum = input('Bar Zoom? Y/N ')
+    else:
+        dum = 'N'
+    
     if dum == 'Y':
         Nb = 4
         N = 4*par['max_itime']
         bottom = np.zeros(Nb)
         upbottom = np.ones(Nb)
         lowbottom = -1*np.ones(Nb)
-        cs = {'bdv':'m','vdb':'m','bdcb':'k','cbdb':'k','vdv':'r',
+        cs = {'bdv':'m','vdb':'m','bdcb':'g','cbdb':'g','vdv':'r',
             'bdb':'b','db2':'b'}
-        hatchs = {'bdv':'+','vdb':'0','bdcb':'\\','cbdb':'/','vdv':'*','bdb':'x','db2':'.'}
+        hatchs = {'bdv':'++','vdb':'00','bdcb':'\\\\','cbdb':'////','vdv':'**','bdb':'xx','db2':'..'}
 
         xl = int(input('Xmin? Integer '))
         xh = int(input('Xmax? Integer '))
@@ -675,11 +686,12 @@ ind specifies whether you want the x(0),y(1), or z(2) component."""
             opty = np.array(optlist[i][1][(t>xl)*(t<xh),ix,iy,iz,ind])
             t = np.array(t[(t>xl)*(t<xh)]) 
             N = np.size(t)
+            dt = par['dt_max']
             for j in range(0,np.size(t),4):
-                opty[j] = opty[j] * .01/6
-                opty[j+1] = opty[j] * 2*.01/6
-                opty[j+2] = opty[j] * 2*.01/6
-                opty[j+3] = opty[j] * .01/6
+                opty[j] = opty[j] * dt/6
+                opty[j+1] = opty[j] * 2*dt/6
+                opty[j+2] = opty[j] * 2*dt/6
+                opty[j+3] = opty[j] * dt/6
             w = 2/3*(xh-xl)/(Nb)
             for j in range(Nb):
                 y[j] = np.sum(opty[j*(N//Nb):(j+1)*(N//Nb)],dtype='complex64')
@@ -706,11 +718,13 @@ ind specifies whether you want the x(0),y(1), or z(2) component."""
         ax[0].set_xlabel('itime')
         ax[1].set_ylabel('real - nonlinearity')
         ax[0].set_xlabel('itime')
-        ax[0].legend()
-        ax[1].legend()
+        ax[0].legend(loc='upper left')
+        ax[1].legend(loc='upper left')
         fig.suptitle('kx,ky,kz = %1.2f,%1.2f,%1.2f'%(kx[ix],ky[iy],kz[iz]))
         ax[0].set_xlim(xl,xh)
         ax[1].set_xlim(xl,xh)
+        ax[0].grid(visible=True,which='major',axis='both')
+        ax[1].grid(visible=True,which='major',axis='both')
         #ax[0].set_ylim(0.01,10**8)
         #ax[0].set_yscale('log')
         #ax[1].set_ylim(-10**8,-0.01)
