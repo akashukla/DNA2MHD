@@ -35,7 +35,8 @@ SUBROUTINE read_parameters
       np_kz,np_spec,np_hank,&
       courant,hyp_conv,num_k_hyp_conv,hyp_conv_ky,hypx_order,hypy_order,hypz_order,&
       kxinit_min, kxinit_max, kyinit_min, kyinit_max, kzinit_min, kzinit_max,&
-      init_amp_bx,init_amp_by,init_amp_bz, init_amp_vx, init_amp_vy, init_amp_vz,hyp
+      init_amp_bx,init_amp_by,init_amp_bz, init_amp_vx, init_amp_vy, init_amp_vz,hyp, &
+      nkxforce,nkyforce,nkzforce, force_amp
   !,&
       !mu_grid_type, vmax,hyp_nu,fracx, fracy
 
@@ -563,23 +564,23 @@ SUBROUTINE checkpoint_out(purpose)
 
   IF(mype==0) THEN
     IF(.not.b_output) THEN
-        WRITE(*,*) 'Trying to write to chp_handle'
+        !WRITE(*,*) 'Trying to write to chp_handle'
 	  !Output info necessary for restarts using the checkpoint
 	  WRITE(chp_handle) itime 
   	  WRITE(chp_handle) dt 
 	  WRITE(chp_handle) nkx0 
 	  WRITE(chp_handle) nky0 
 	  WRITE(chp_handle) nkz0 
-      WRITE(*,*) 'Wrote partially'
+      !WRITE(*,*) 'Wrote partially'
   	  !WRITE(chp_handle) nv0 
       WRITE(chp_handle) time 
-      WRITE(*,*) 'Wrote fully'
+      !WRITE(*,*) 'Wrote fully'
     END IF
     IF(b_output.and.v_output) THEN
-      WRITE(*,*) 'Trying to write to chp_handle_b and v'
+      !WRITE(*,*) 'Trying to write to chp_handle_b and v'
       WRITE(chp_handle_b) time 
       WRITE(chp_handle_v) time 
-      WRITE(*,*) 'Wrote to chp_handle_b and v'
+      !WRITE(*,*) 'Wrote to chp_handle_b and v'
     END IF
   END IF
 
@@ -597,7 +598,7 @@ SUBROUTINE checkpoint_out(purpose)
   IF(mype==0) THEN
     !DO l=lv1,lv2
     DO l=0,2
-      WRITE(*,*) 'l=0,2 loop'
+      !WRITE(*,*) 'l=0,2 loop'
 	  !WRITE(chp_handle) g_out(:,:,:,l)
       IF(b_output.and.v_output) THEN
 	    WRITE(chp_handle_b) b_out(:,:,:,l)
@@ -606,7 +607,7 @@ SUBROUTINE checkpoint_out(purpose)
 	  !  WRITE(chp_handle) b_out(:,:,:,l)
       END IF
 	  !WRITE(chp_handle) v_out(:,:,:,l)
-      WRITE(*,*) 'Done with l=0,2'
+      !WRITE(*,*) 'Done with l=0,2'
     END DO
   END IF 
 

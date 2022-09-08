@@ -19,6 +19,7 @@
 MODULE linear_rhs
   USE par_mod
   USE mpi
+  USE random
   !USE flr_effects
   !USE hk_effects
 
@@ -120,5 +121,42 @@ if (verbose) print *, 'Dissipation written'
 endif
 
 END SUBROUTINE get_rhs_lin1_ae
+
+
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!                                get_rhs_force                                !!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+SUBROUTINE get_rhs_force(rhs_out_b, rhs_out_v, dt)
+    IMPLICIT NONE
+    INTEGER :: i,j,k,h,ierr
+    !REAL :: r
+    REAL :: resample
+    REAL, INTENT(in) :: dt
+    COMPLEX, INTENT(out) :: rhs_out_b(0:nkx0-1,0:nky0-1,lkz1:lkz2, 0:2)
+    COMPLEX, INTENT(out) :: rhs_out_v(0:nkx0-1,0:nky0-1,lkz1:lkz2, 0:2)
+
+    call random_number(resample)
+
+    IF(resample.lt.dt) THEN
+        DO i=1,nkxforce
+          DO j=1,nkyforce
+            DO k=1,nkzforce
+                rhs_out_b(i,j,k,0) = force_amp*random_normal() + i_complex*force_amp*random_normal()
+                rhs_out_b(i,j,k,1) = force_amp*random_normal() + i_complex*force_amp*random_normal()
+
+                rhs_out_b(i,nky0-j,lkz2-k,0) = force_amp*random_normal() + i_complex*force_amp*random_normal()
+                rhs_out_b(i,nky0-j,lkz2-k,1) = force_amp*random_normal() + i_complex*force_amp*random_normal()
+        
+                rhs_out_v(i,nky0-j,k,0) = force_amp*random_normal() + i_complex*force_amp*random_normal()
+                rhs_out_v(i,nky0-j,k,1) = force_amp*random_normal() + i_complex*force_amp*random_normal()
+
+                rhs_out_v(i,nky0-j,lkz2-k,0) = force_amp*random_normal() + i_complex*force_amp*random_normal()
+                rhs_out_v(i,nky0-j,lkz2-k,1) = force_amp*random_normal() + i_complex*force_amp*random_normal()
+            END DO
+          END DO
+        END DO
+    ENDIF
+END SUBROUTINE get_rhs_force
 
 END MODULE linear_rhs
