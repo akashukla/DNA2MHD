@@ -4,7 +4,7 @@
 #SBATCH -n 1           # Total number of mpi tasks requested
 #SBATCH -N 1           # Total number of mpi tasks requested
 #SBATCH -p normal   # Queue (partition) name -- normal, development, etc.
-#SBATCH -t 2:00:00     # Run time (hh:mm:ss) - 1.5 hours
+#SBATCH -t 0:30:00     # Run time (hh:mm:ss) - 1.5 hours
 #SBATCH -A GKIMP # Project name
-ibrun /work2/04943/akshukla/stampede2/DNA2MHD/bin/dna
+ibrun /work2/08929/echansen/stampede2/DNA2MHD/bin/dna
 

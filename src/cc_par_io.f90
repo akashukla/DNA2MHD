@@ -24,7 +24,7 @@ SUBROUTINE read_parameters
 
   NAMELIST /diagnostics/ &
       diagdir, istep_ffm, istep_energy3d,istep_fmom3d, istep_gamma,istep_nltest,&
-      istep_schpt,dt_output,istep_energy,istep_hermite,istep_gout,istep_real,&
+      istep_schpt,dt_output,istep_energy,istep_energyspec,istep_hermite,istep_gout,istep_real,&
       istep_nlt,min_shell_width,istep_eshells,output_nlt_n,&
       istep_gk,istep_gknl,gk_ky_index,gk_kz_index,gk_kx_index,istep_GyroLES, &
       istep_nlt_triple, nlt_symmetrize, gout_nl, gout_2xt
@@ -310,7 +310,8 @@ SUBROUTINE output_parameters
     WRITE(out_handle,"(3A)")   "diagdir = '", TRIM(diagdir),"'"
     WRITE(out_handle,"(A,I4)") "istep_ffm = ",istep_ffm    
     WRITE(out_handle,"(A,I4)") "istep_energy3d = ",istep_energy3d    
-    WRITE(out_handle,"(A,I4)") "istep_energy = ",istep_energy    
+    WRITE(out_handle,"(A,I4)") "istep_energy = ",istep_energy  
+    WRITE(out_handle,"(A,I4)") "istep_energyspec = ",istep_energyspec    
     WRITE(out_handle,"(A,I4)") "istep_hermite = ",istep_hermite    
     WRITE(out_handle,"(A,I4)") "istep_gout = ",istep_gout    
     if(gout_nl) then

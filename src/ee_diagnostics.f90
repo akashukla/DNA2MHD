@@ -36,7 +36,7 @@ MODULE diagnostics
 
   PRIVATE
 
-  INTEGER :: ffm_handle,omega_handle,glast_handle,ev_handle,en_handle,&
+  INTEGER :: ffm_handle,omega_handle,glast_handle,ev_handle,en_handle,enspec_handle,&
     herm_handle,eshells_handle,fmom3d_handle,energy3d_handle, gk_nkyout,&
     gknl_nkyout
   INTEGER, ALLOCATABLE, DIMENSION(:) :: gk_indices
@@ -142,6 +142,23 @@ SUBROUTINE initialize_diagnostics
     energy_last=0.0
     time_last=time
   END IF
+  IF(istep_energyspec.gt.0.and.mype==0) THEN
+    CALL get_io_number
+    enspec_handle=io_number
+    !OPEN(unit=en_handle,file=trim(diagdir)//'/energy_out.dat',status='unknown')                                                                    
+    IF(checkpoint_read) THEN
+      INQUIRE(file=trim(diagdir)//'/energyspec_out.dat',exist=file_exists)
+      IF(file_exists) THEN
+        OPEN(unit=enspec_handle,file=trim(diagdir)//'/energyspec_out.dat',form='unformatted', status='REPLACE',access='stream')
+      ELSE
+        OPEN(unit=enspec_handle,file=trim(diagdir)//'/energyspec_out.dat',form='unformatted', status='REPLACE',access='stream')
+      END IF
+    ELSE
+      OPEN(unit=enspec_handle,file=trim(diagdir)//'/energyspec_out.dat',form='unformatted', status='REPLACE',access='stream')
+    END IF
+  END IF
+
+
   !IF(mype==0) WRITE(*,*) "Done initializing netcdf."
   ! IF(istep_hermite.gt.0.and.mype==0) THEN
   !   CALL get_io_number
@@ -226,6 +243,9 @@ SUBROUTINE finalize_diagnostics
 
   IF(istep_energy.gt.0.and.mype==0) THEN
     CLOSE(en_handle)
+  END IF
+  IF(istep_energyspec.gt.0.and.mype==0) THEN
+    CLOSE(enspec_handle)
   END IF
   ! IF(istep_hermite.gt.0.and.mype==0) CLOSE(herm_handle)
 
@@ -375,6 +395,8 @@ SUBROUTINE diag
          IF(verbose) WRITE(*,*) "Starting energy diag.",mype
          WRITE(en_handle) time
          WRITE(en_handle) hmhdhmtn(v_1,b_1)
+         WRITE(en_handle) mag_helicity(b_1)
+         WRITE(en_handle) cross_helicity(v_1,b_1)
          WRITE(en_handle) eta*resvischange(b_1)
          WRITE(en_handle) vnu*resvischange(v_1)
  
@@ -4219,6 +4241,120 @@ ENDDO
 
 if (verbose) print *, 'Debug files closed' 
 end subroutine finalize_debug
+
+function vec_potential(b) result(A)
+
+implicit none
+complex :: b(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+complex :: A(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+complex :: bg(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+integer :: i,j,k,ind
+
+
+bg = b
+! include the guide field
+bg(0,0,0,2) = bg(0,0,0,2) + (2*pi)**3
+
+! A = - (curl B)/k^2
+A = cmplx(0.0,0.0)
+
+do ind = 0,2
+  do i = 0,nkx0-1
+    do j = 0,nky0-1
+      do k = 0,nkz0-1
+        if ((i**2+j**2+k**2).ne.0) then 
+          if (ind.eq.0) A(i,j,k,ind) = kygrid(j) * bg(i,j,k,2) - kzgrid(k) * bg(i,j,k,1) 
+          if (ind.eq.1) A(i,j,k,ind) = kzgrid(k) * bg(i,j,k,0) - kxgrid(i) * bg(i,j,k,2)
+          if (ind.eq.2) A(i,j,k,ind) = kxgrid(i) * bg(i,j,k,1) - kygrid(j) * bg(i,j,k,0)
+          A(i,j,k,ind) = cmplx(0.0,-1.0) * A(i,j,k,ind) / (kxgrid(i)**2 + kygrid(j)**2 + kzgrid(k)**2)
+        endif
+      enddo
+    enddo
+   enddo
+enddo
+
+end function vec_potential
+
+function mag_helicity(b0) result(maghel)
+
+implicit none
+complex :: b0(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+real :: maghel
+complex :: A0(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+integer :: i,j,k,ind
+
+maghel = 0
+A0 = vec_potential(b0)
+
+do ind = 0,2
+  do i = 0,nkx0-1
+    do j = 0,nky0-1
+      do k = 0,nkz0-1
+        maghel = maghel + conjg(A0(i,j,k,ind))*b0(i,j,k,ind)
+      enddo
+    enddo
+  enddo
+enddo
+
+maghel = maghel + A0(0,0,0,2)
+maghel = real((2*pi)**3 * maghel)
+
+end function mag_helicity
+
+function vorticity(v) result(w)
+
+implicit none
+complex :: v(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+complex :: w(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+integer :: ind,i,j,k
+
+w = cmplx(0.0,0.0)
+
+do ind = 0,2
+  do i = 0,nkx0-1
+    do j = 0,nky0-1
+      do k = 0,nkz0-1
+          if (ind.eq.0) w(i,j,k,ind) = kygrid(j) * v(i,j,k,2) - kzgrid(k) * v(i,j,k,1)
+          if (ind.eq.1) w(i,j,k,ind) = kzgrid(k) * v(i,j,k,0) - kxgrid(i) * v(i,j,k,2)
+          if (ind.eq.2) w(i,j,k,ind) = kxgrid(i) * v(i,j,k,1) - kygrid(j) * v(i,j,k,0)
+      enddo
+    enddo
+   enddo
+enddo
+
+end function vorticity
+
+function cross_helicity(v0,b0) result(crosshel)
+
+implicit none
+complex :: b0(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+complex :: v0(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+real :: crosshel
+complex :: A0(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+complex :: w0(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+integer :: i,j,k,ind
+
+crosshel = 0
+A0 = vec_potential(b0)
+w0 = vorticity(v0)
+
+do ind = 0,2
+  do i = 0,nkx0-1
+    do j = 0,nky0-1
+      do k = 0,nkz0-1
+        crosshel = crosshel + conjg(A0(i,j,k,ind)) * b0(i,j,k,ind)
+        crosshel = crosshel + 2 * conjg(v0(i,j,k,ind)) * b0(i,j,k,ind)
+        crosshel = crosshel + conjg(v0(i,j,k,ind)) * w0(i,j,k,ind)
+      enddo
+    enddo
+  enddo
+enddo
+
+crosshel = crosshel + A0(0,0,0,2)
+crosshel = crosshel + v0(0,0,0,2)
+crosshel = real((2*pi)**3 * crosshel)
+
+end function cross_helicity
 
 END MODULE diagnostics
 

@@ -171,6 +171,7 @@ MODULE par_mod
   INTEGER :: istep_real=20
   INTEGER :: istep_hermite=0
   INTEGER :: istep_energy=0
+  INTEGER :: istep_energyspec=0
   INTEGER :: istep_ffm=0       !istep for fields, fluxes, and moments
   INTEGER :: istep_energy3d=0  !for REAL quantities, i.e. flux, energy, etc.
   INTEGER :: istep_eshells=0

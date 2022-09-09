@@ -8,12 +8,12 @@ vnu = 0.0
 /
 
 &numerical_parameters
-kxmin =   0.5E-01
-kymin =   0.5E-01
+kxmin =   0.05
+kymin =   0.05
 kzmin =   0.1
 nkx0 =  4
 nky0 =  8 
-nkz0 =  8 
+nkz0 =  8
 nv0 =   2
 nh0 =    1
 nspec =    1
@@ -47,10 +47,11 @@ hyp = 2
 /
 
 &diagnostics
-diagdir = '/scratch/08929/echansen/dna2mhdrun30'
+diagdir = '/scratch/08929/echansen/dna2mhdrun72'
 istep_ffm =   20
 istep_energy3d =  500
 istep_energy =  100
+istep_energyspec = 2000
 istep_hermite =  1000
 istep_gout =  1
 istep_gk =    0
@@ -75,9 +76,9 @@ checkpoint_write = T
 etg_factor  =    0.000    
 em_conserve = T
 nuno_closure = T
-rhs_nl_version = 12
-rhs_lin_version = 12
-plot_nls = F
+rhs_nl_version = 1
+rhs_lin_version = 1
+plot_nls = T
 dbio = 200
 dvio = 201
 bdvio = 202
@@ -95,7 +96,7 @@ hall = 1
 
 &initial_value
 max_itime =   20000
-max_walltime =   9000000
+max_walltime =   10000
 dt_max =   0.01
 max_time =   10000000.0    
 /
