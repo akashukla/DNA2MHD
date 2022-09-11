@@ -138,14 +138,14 @@ def read_time_step_opt(which_itime,opt,swap_endian=False):
    f.close()
    return gt0
 
-def read_time_step_energy(which_itime,ntp,swap_endian=False):
+def read_time_step_energy(which_itime,swap_endian=False):
    """Reads a time step from opt_out.dat.  Time step determined by \'which_itime\'"""
    file_name = par['diagdir'][1:-1]+'/energy_out.dat'
    f = open(file_name,'rb')
    gt0=np.empty((1))
-   ntot = 1 + ntp
-   mem_tot = (ntot+2)*8
-   gt0 = np.empty((ntp,1))
+   ntot = 5
+   mem_tot = (ntot)*8
+   gt0 = np.empty(5)
    f.seek(8+which_itime*(8+mem_tot))
    gt0=np.fromfile(f,dtype='float64',count=ntot)
    if swap_endian:
@@ -226,17 +226,17 @@ def get_time_from_optout(opt,swap_endian=False):
          continue_read=0
    f.close()
    print(time)
-   work = input('Proceed? Y/N ')
-   if work == 'N':
-       quit('Wrong itimes')
+   #  work = input('Proceed? Y/N ')
+   # if work == 'N':
+   #    quit('Wrong itimes')
    return time
 
-def get_time_from_energyout(ntp,swap_endian=False):
+def get_time_from_energyout(swap_endian=False):
    """Returns time array taken from v_out.dat"""
    file_name = par['diagdir'][1:-1]+ '/energy_out.dat'
    f = open(file_name,'rb')
-   ntot=1+ntp
-   mem_tot=(ntot+2)*8
+   ntot=5
+   mem_tot=ntot*8
    time=np.empty(0)
    continue_read=1
    i=0
@@ -252,9 +252,9 @@ def get_time_from_energyout(ntp,swap_endian=False):
      else:
          continue_read=0
    print(time)
-   work = input('Proceed? Y/N ')
-   if work == 'N':
-       quit('Wrong times')
+   # work = input('Proceed? Y/N ')
+   # if work == 'N':
+   #    quit('Wrong times')
    f.close()
    return time
 
@@ -359,11 +359,11 @@ def getopt(lpath,opt):
      
     return time, g
 
-def getenergy(lpath,ntp):
+def getenergy(lpath):
     """Saves opt_out.dat (located in the directory specified by lpath) into a python-readable format opt_xyz.dat                                                                  which will also be located in the lpath directory."""
     #lpath='/scratch/04943/akshukla/hammet_dna_output/full/omt%g_nu%1.2f'%(omt,nu)                                                                                                #if lpath==None:                                                                                                                                                              #    lpath='/scratch/04943/akshukla/dna2mhd_output_0'                                                                                                                         read_parameters(lpath)
     
-    time = get_time_from_energyout(ntp)
+    time = get_time_from_energyout()
     #time=time[:1000] 
 
     kx,ky,kz=get_grids()
@@ -371,7 +371,7 @@ def getenergy(lpath,ntp):
     savepath = lpath+'/energy_xyz.dat'
     #g=np.zeros((len(time)-1,len(kx),len(ky,),len(kz),len(i_n)), dtype='complex64') 
    #print('allocating array') 
-    g=np.memmap(savepath,dtype='float64',mode='w+', shape=(len(time),ntp+1))
+    g=np.memmap(savepath,dtype='float64',mode='w+', shape=(len(time),5))
     np.save(lpath+'/energyshape.npy',g.shape)
     np.save(lpath+'/timeenergy.npy',time)
     #g=np.zeros((len(time),len(kx),len(ky,),len(kz),len(i_n)), dtype='complex64')
@@ -382,8 +382,8 @@ def getenergy(lpath,ntp):
     for t in range(len(time)):
         if(t%20==0):
             print(str(t))
-        gt = read_time_step_energy(t,ntp)
-        gt = np.reshape(gt,(1+ntp),order='F')
+        gt = read_time_step_energy(t)
+        gt = np.reshape(gt,5,order='F')
         g[t] = gt
     #np.save(lpath+'/g_allk_g04',g)               
 
@@ -742,7 +742,7 @@ def plot_energy(lpath,ntp,show=True):
     if os.path.isfile(lpath+'/dumen.txt'):
         timeen,enval = load_energy(lpath)
     else:
-        timeen,enval = getenergy(lpath,ntp)
+        timeen,enval = getenergy(lpath)
 
     shapes = {1:(1,1),2:(2,1),3:(2,2),4:(2,2),5:(2,3),6:(2,3),7:(3,3),8:(3,3),9:(3,3)}
     s = shapes[ntp+1]
@@ -758,9 +758,9 @@ def plot_energy(lpath,ntp,show=True):
         ax.set_xlabel('time')
         ax.set_ylabel(labels[i])
         fig.suptitle(labels[i])
-        plt.savefig(lpath+'/eplots/'+fnames[i])
         if np.amax(enval) > 10 ** 5:
-            ax.set_ylim(0,10**5)
+            ax.set_yscale('log')
+        plt.savefig(lpath+'/eplots/'+fnames[i])
         if show == True:
             plt.show()
         plt.close()
