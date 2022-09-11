@@ -78,7 +78,8 @@ F90SRC = cc_comm.f90 \
 		 cc_main.f90 \
 		 cc_par_mod.f90 \
 		 cc_time_advance.f90 \
-		 ee_diagnostics.f90 
+		 ee_diagnostics.f90 \
+		 cc_random.f90
 #		 cc_calc_dt.f90 \
 #		 ee_diagnostics.f90 \
 		 ee_eigen_direct.f90 \
@@ -114,7 +115,7 @@ cc_comm.o:	cc_par_mod.o
 #cc_field_solver.o:	cc_par_mod.o cc_flr.o cc_aux_func.o cc_hk.o
 #cc_flr.o:	cc_par_mod.o cc_aux_func.o
 #cc_hk.o:	cc_par_mod.o cc_aux_func.o cc_comm.o
-cc_get_rhs_lin.o:	cc_par_mod.o #cc_flr.o cc_hk.o
+cc_get_rhs_lin.o:	cc_par_mod.o cc_random.o #cc_flr.o cc_hk.o
 cc_get_rhs_nl.o:	cc_par_mod.o #cc_field_solver.o
 cc_init.o:	cc_par_mod.o ee_diagnostics.o #cc_calc_dt.o #ee_diagnostics.o \
                     #cc_hk.o cc_gaussquadrature.o #cc_field_solver.o cc_flr.o 
