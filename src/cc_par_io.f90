@@ -44,7 +44,7 @@ SUBROUTINE read_parameters
       nu,omt,omn,Ti0Te,eta,vnu
 
   NAMELIST /flags/ &
-      nonlinear, actual_nonlinear, test_nl, calc_dt, comp_type,adapt_dt_nl,&
+      nonlinear, actual_nonlinear, force_turbulence, test_nl, calc_dt, comp_type,adapt_dt_nl,&
       linear_nlbox,verbose,checkpoint_read,checkpoint_write,&
       em_conserve,flr_on,force_kz0eq0,force_ky0eq0,force_kx0eq0,flr_version,&
       flr_extra,flr_nonlinear,etg_factor, &!, which_nonlinear,etg_factor
@@ -346,6 +346,7 @@ SUBROUTINE output_parameters
     WRITE(out_handle,"(A)")    "&flags"
     WRITE(out_handle,"(A,L1)") "nonlinear  = ", nonlinear
     WRITE(out_handle,"(A,L1)") "actual_nonlinear  = ", actual_nonlinear
+    WRITE(out_handle,"(A,L1)") "force_turbulence= ", force_turbulence
     !WRITE(out_handle,"(A,I4)") "which_nonlinear = ",which_nonlinear
     IF(test_nl) WRITE(out_handle,"(A,L1)") "test_nl  = ", test_nl
     WRITE(out_handle,"(A,L1)") "calc_dt  = ", calc_dt

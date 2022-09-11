@@ -246,6 +246,7 @@ MODULE par_mod
   REAL :: max_walltime=83000.0
   LOGICAL :: nonlinear
   LOGICAL :: actual_nonlinear
+  LOGICAL :: force_turbulence
   !INTEGER :: which_nonlinear=1
   LOGICAL :: linear_nlbox !Grid, initialization, etc. is the same, but don't USE nonlinearity
 
