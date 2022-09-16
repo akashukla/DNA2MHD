@@ -530,7 +530,7 @@ def plot_vreal_spectrum(lpath,ix,iy,iz,ind):
     plt.show()
     return 2*np.pi*freq[peaks]
 
-def plot_vspectrum(lpath,ix,iy,iz,ind):
+def plot_vspectrum(lpath,ix,iy,iz,ind,show=True):
     """
     ix,iy,iz specifies the wavevector
     ind specifies x/y/z (0/1/2) component
@@ -729,7 +729,7 @@ ind specifies whether you want the x(0),y(1), or z(2) component."""
         #ax[0].set_yscale('log')
         #ax[1].set_ylim(-10**8,-0.01)
         #ax[1].set_yscale('log')
-        plt.savefig(lpath+'nls/logbar_nls_%s_%d_%d_%d'%(ind_string,ix,iy,iz))
+        plt.savefig(lpath+'nls/bar_nls_%s_%d_%d_%d'%(ind_string,ix,iy,iz))
         plt.show()
         plt.close()
 

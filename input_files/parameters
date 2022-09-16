@@ -10,7 +10,7 @@ vnu = 0.0
 &numerical_parameters
 kxmin =   0.05
 kymin =   0.05
-kzmin =   0.1
+kzmin =   0.10
 nkx0 =  4
 nky0 =  8 
 nkz0 =  8
@@ -34,7 +34,7 @@ courant =   0.5
 kxinit_min = 0  
 kyinit_min = 0 
 kzinit_min = 0
-kxinit_max = 4  
+kxinit_max = 4
 kyinit_max = 8 
 kzinit_max = 8
 init_amp_bx = 0.1
@@ -43,11 +43,12 @@ init_amp_bz = 0.1
 init_amp_vx = 0.1
 init_amp_vy = 0.1
 init_amp_vz = 0.0
+force_amp = 0.5
 hyp = 2
 /
 
 &diagnostics
-diagdir = '/scratch/08929/echansen/dna2mhdrun72'
+diagdir = '/scratch/08929/echansen/dna2mhdrun80'
 istep_ffm =   20
 istep_energy3d =  500
 istep_energy =  100
@@ -66,7 +67,7 @@ output_nlt_n = F
 /
 
 &flags
-verbose  = F
+verbose  = T
 nonlinear  = T
 actual_nonlinear = T
 calc_dt  = T
@@ -77,7 +78,8 @@ etg_factor  =    0.000
 em_conserve = T
 nuno_closure = T
 rhs_nl_version = 1
-rhs_lin_version = 1
+rhs_lin_version = 12
+force_turbulence = F
 plot_nls = T
 dbio = 200
 dvio = 201
@@ -96,7 +98,7 @@ hall = 1
 
 &initial_value
 max_itime =   20000
-max_walltime =   10000
+max_walltime =   7000
 dt_max =   0.01
 max_time =   10000000.0    
 /

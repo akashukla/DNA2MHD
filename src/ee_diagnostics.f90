@@ -424,6 +424,15 @@ SUBROUTINE diag
        END IF
      END IF
 
+     IF(istep_energyspec.ne.0) THEN
+       IF(MOD(itime,istep_energyspec)==0) THEN
+         IF(verbose) WRITE(*,*) "Starting energyspec diag.",mype
+         WRITE(enspec_handle) time
+         WRITE(enspec_handle) en_spec(v_1,b_1)
+         IF(verbose) WRITE(*,*) "Done with energyspec diag.",mype
+       END IF
+     END IF
+
   IF(istep_schpt.ne.0) THEN
     IF(MOD(itime,istep_schpt)==0) THEN
       IF(verbose) WRITE(*,*) "Writing s_checkpoint.",mype
@@ -4252,8 +4261,6 @@ integer :: i,j,k,ind
 
 
 bg = b
-! include the guide field
-bg(0,0,0,2) = bg(0,0,0,2) + (2*pi)**3
 
 ! A = - (curl B)/k^2
 A = cmplx(0.0,0.0)
@@ -4261,7 +4268,7 @@ A = cmplx(0.0,0.0)
 do ind = 0,2
   do i = 0,nkx0-1
     do j = 0,nky0-1
-      do k = 0,nkz0-1
+      do k = lkz1,lkz2
         if ((i**2+j**2+k**2).ne.0) then 
           if (ind.eq.0) A(i,j,k,ind) = kygrid(j) * bg(i,j,k,2) - kzgrid(k) * bg(i,j,k,1) 
           if (ind.eq.1) A(i,j,k,ind) = kzgrid(k) * bg(i,j,k,0) - kxgrid(i) * bg(i,j,k,2)
@@ -4282,6 +4289,7 @@ complex :: b0(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
 real :: maghel
 complex :: A0(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
 integer :: i,j,k,ind
+real :: intx
 
 maghel = 0
 A0 = vec_potential(b0)
@@ -4289,10 +4297,16 @@ A0 = vec_potential(b0)
 do ind = 0,2
   do i = 0,nkx0-1
     do j = 0,nky0-1
-      do k = 0,nkz0-1
+      do k = lkz1,lkz2
         maghel = maghel + conjg(A0(i,j,k,ind))*b0(i,j,k,ind)
       enddo
     enddo
+    if (i.ne.0) then
+      intx = (2 * sin(kxgrid(i)*pi) - 2 * kxgrid(i) * pi * cos(kxgrid(i)*pi)) &
+        / (kxgrid(i)**2)
+      maghel = maghel - aimag(b0(i,0,0,1)) * intx / (2*pi)
+      if (verbose) print *, 'Guide\n Field\n Contribution',intx,aimag(b0(i,0,0,1)),- aimag(b0(i,0,0,1)) * intx / (2*pi)
+    endif
   enddo
 enddo
 
@@ -4313,7 +4327,7 @@ w = cmplx(0.0,0.0)
 do ind = 0,2
   do i = 0,nkx0-1
     do j = 0,nky0-1
-      do k = 0,nkz0-1
+      do k = lkz1,lkz2
           if (ind.eq.0) w(i,j,k,ind) = kygrid(j) * v(i,j,k,2) - kzgrid(k) * v(i,j,k,1)
           if (ind.eq.1) w(i,j,k,ind) = kzgrid(k) * v(i,j,k,0) - kxgrid(i) * v(i,j,k,2)
           if (ind.eq.2) w(i,j,k,ind) = kxgrid(i) * v(i,j,k,1) - kygrid(j) * v(i,j,k,0)
@@ -4334,15 +4348,13 @@ complex :: A0(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
 complex :: w0(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
 integer :: i,j,k,ind
 
-crosshel = 0
-A0 = vec_potential(b0)
+crosshel = mag_helicity(b0) / (8 * pi**3)
 w0 = vorticity(v0)
 
 do ind = 0,2
   do i = 0,nkx0-1
     do j = 0,nky0-1
-      do k = 0,nkz0-1
-        crosshel = crosshel + conjg(A0(i,j,k,ind)) * b0(i,j,k,ind)
+      do k = lkz1,lkz2
         crosshel = crosshel + 2 * conjg(v0(i,j,k,ind)) * b0(i,j,k,ind)
         crosshel = crosshel + conjg(v0(i,j,k,ind)) * w0(i,j,k,ind)
       enddo
@@ -4350,11 +4362,34 @@ do ind = 0,2
   enddo
 enddo
 
-crosshel = crosshel + A0(0,0,0,2)
-crosshel = crosshel + v0(0,0,0,2)
+crosshel = crosshel + 3*v0(0,0,0,2)
 crosshel = real((2*pi)**3 * crosshel)
 
 end function cross_helicity
+
+function en_spec(v_in,b_in) result(esubk)
+
+implicit none
+complex :: v_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+complex :: b_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+real :: esubk(0:nkx0-1,0:nky0-1,lkz1:lkz2)
+integer :: i,j,k,ind
+
+esubk = 0.0
+do ind = 0,2
+  do i = 0,nkx0-1
+    do j = 0,nky0-1
+      do k = lkz1,lkz2
+        esubk(i,j,k) = esubk(i,j,k) + abs(v_in(i,j,k,ind))**2 + abs(b_in(i,j,k,ind))**2
+      enddo
+    enddo
+  enddo
+enddo
+
+esubk(0,0,0) = esubk(0,0,0) + 2*real(b_in(0,0,0,2))
+esubk = (4 * pi**3) * esubk
+
+end function en_spec
 
 END MODULE diagnostics
 
