@@ -150,7 +150,9 @@ SUBROUTINE finalize_mpi
   INTEGER :: ierr
 
   CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  IF (verbose) print *,'MPI Barrier called'
   CALL MPI_FINALIZE(ierr)
+  IF (verbose) print *,'MPI Finalize called'
 
 END SUBROUTINE finalize_mpi
 

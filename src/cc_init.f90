@@ -499,6 +499,7 @@ SUBROUTINE finalize_arrays
 !  IF(allocated(hyp_x_herm1)) DEALLOCATE(hyp_x_herm1)
 !  IF(allocated(hyp_y_herm1)) DEALLOCATE(hyp_y_herm1)
   !IF(allocated(f_in)) DEALLOCATE(f_in)
+  IF(verbose) print *, 'Deallocated kgrids'
 
 END SUBROUTINE finalize_arrays
 

@@ -247,6 +247,7 @@ SUBROUTINE finalize_diagnostics
   IF(istep_energyspec.gt.0.and.mype==0) THEN
     CLOSE(enspec_handle)
   END IF
+  IF(verbose) print *, 'Closed energy handles'
   ! IF(istep_hermite.gt.0.and.mype==0) CLOSE(herm_handle)
 
   ! IF(istep_gk.gt.0) THEN
@@ -270,6 +271,7 @@ SUBROUTINE finalize_diagnostics
   ! IF (Corr) call finalize_corr
  
   if (plot_nls) CALL finalize_debug
+  IF(verbose.and.plot_nls) print *, 'Closed nl handles'
 
 END SUBROUTINE finalize_diagnostics
 

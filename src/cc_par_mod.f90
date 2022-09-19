@@ -116,6 +116,7 @@ MODULE par_mod
   INTEGER :: rhs_lin_version
   !INTEGER :: rhs_nl_version=2
   INTEGER :: rhs_nl_version !Akash changed nl_version to 1
+  INTEGER :: dealias_type = 3
   ! IO Numbers for Diss/NL term debugging
   LOGICAL :: plot_nls = .false.
   INTEGER :: dbio = 200 

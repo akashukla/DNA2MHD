@@ -75,7 +75,7 @@ SUBROUTINE iv_solver
    !  IF(mype==0) WRITE(*,*) "Maximum wall time exceeded.", current_wallclock, max_walltime
      continue_run=.false. 
    ENDIF
-   IF (dt < 1.0E-10) then 
+   IF (dt < 1.0E-5) then 
      IF(verbose) WRITE(*,*) "dt too small to proceed" 
      continue_run=.false.
    ENDIF
