@@ -165,12 +165,15 @@ SUBROUTINE get_rhs_nl(b_in, v_in, rhs_out_b, rhs_out_v,ndt)
   !IF(mype==0) WRITE(*,*) "Version is: ",rhs_nl_version
   IF ((rhs_nl_version==1).or.(rhs_nl_version == 12)) THEN
     !IF(mype==0) WRITE(*,*) "version was 1"
-    IF (dealias_type.ge.2) CALL get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
+    IF (dealias_type.gt.2) CALL get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
     IF (dealias_type.eq.1) THEN
+      rhs_out_b = 8.0 * rhs_out_b
+      rhs_out_v = 8.0 * rhs_out_v
       DO delta_x = 0,1
         DO delta_y = 0,1
           DO delta_z = 0,1
-            CALL get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v,ndt,delta_x,delta_y,delta_z)
+            CALL get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v,ndt,&
+              delta_x*pi/nkx0,delta_y*pi/nky0,delta_z*pi/nkz0)
           ENDDO
         ENDDO
       ENDDO
@@ -210,15 +213,15 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v,ndt,dx,dy,dz)
   COMPLEX, INTENT(inout) :: rhs_out_b(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
   COMPLEX, INTENT(inout) :: rhs_out_v(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
   REAL :: ndt
-  INTEGER, OPTIONAL :: dx,dy,dz
+  REAL, OPTIONAL :: dx,dy,dz
   INTEGER :: i,j,l,k,h,ierr
 
   IF (PRESENT(dz)) THEN
-    ALLOCATE(ekd(0:nx0_big/2,0:ny0_big-1,0:nz0_big-1))
+    ALLOCATE(ekd(0:nkx0-1,0:nky0-1,0:nkz0-1))
     DO i = 0,nx0_big/2
       DO j = 0,ny0_big-1
         DO k = 0,nz0_big-1
-          ekd(i,j,k) = exp(i_complex * dx * i * 2 * pi / nx0_big) * exp(i_complex * dy * j * pi / ny0_big) * exp(i_complex * dz * k * pi / nz0_big)
+          ekd(i,j,k) = exp(i_complex * dx * i) * exp(i_complex * dy * j) * exp(i_complex * dz * k)
         ENDDO
       ENDDO
     ENDDO
@@ -1328,7 +1331,6 @@ complex, allocatable, dimension(:,:,:) :: arr_spec
 complex, allocatable, dimension(:,:,:) :: temporary
 integer :: s
 
-
 CALL dfftw_execute_dft_r2c(plan_r2c,arr_real(0,0,0),temporary(0,0,0))
 CALL unpack(temporary,arr_spec)
 WRITE(unit) arr_spec
@@ -1340,17 +1342,23 @@ SUBROUTINE zeropad(tempsmall,tempbig)
 
 complex, allocatable, dimension(:,:,:) :: tempsmall
 complex, allocatable, dimension(:,:,:) :: tempbig
-integer :: i
+integer :: i,j,k
 
 tempbig = cmplx(0.0,0.0)
 DO i = 0,nkx0-1
-  IF(zpad.eq.4) tempbig(i,0:nky0-1,lkz1:lkz2) = tempsmall(i,:,:)
-  IF(zpad.eq.2) tempbig(i,0:nky0-1,lkz1:lkz2) = tempsmall(i,:,:)*ekd(i,:,:)
+  IF ((zpad.eq.4).or.(zpad.eq.2)) THEN
+    DO j = 0,nky0-1
+      DO k = 0,nkz0-1
+        IF (zpad.eq.4) tempbig(i,j,k) = tempsmall(i,j,k)
+        IF (zpad.eq.2) tempbig(i,j,k) = tempsmall(i,j,k)*ekd(i,j,k)
+      ENDDO
+    ENDDO
+  ENDIF
   IF(zpad.eq.3) THEN
-      tempbig(i,0:hky_ind,0:hkz_ind)=tempsmall(i,0:hky_ind,0:hkz_ind)    !kz positive, ky positive
-      tempbig(i,0:hky_ind,lkz_big:nz0_big-1)=tempsmall(i,0:hky_ind,lkz_ind:nkz0-1) !kz negative, ky positive
-      tempbig(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=tempsmall(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative 
-      tempbig(i,lky_big:ny0_big-1,0:hkz_ind)=tempsmall(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative  
+      tempbig(i,0:hky_ind,0:hkz_ind)= tempsmall(i,0:hky_ind,0:hkz_ind)    !kz positive, ky positive
+      tempbig(i,0:hky_ind,lkz_big:nz0_big-1)= tempsmall(i,0:hky_ind,lkz_ind:nkz0-1) !kz negative, ky positive
+      tempbig(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)= tempsmall(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative 
+      tempbig(i,lky_big:ny0_big-1,0:hkz_ind)= tempsmall(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative  
   ENDIF
 ENDDO
 tempsmall = cmplx(0.0,0.0)
@@ -1362,17 +1370,23 @@ SUBROUTINE unpack(tempbig,tempsmall)
 
 complex, allocatable, dimension(:,:,:) :: tempbig
 complex, allocatable, dimension(:,:,:) :: tempsmall
-integer :: i
+integer :: i,j,k
 
 tempsmall = cmplx(0.0,0.0)
 DO i = 0,nkx0-1
-  IF(zpad.eq.4) tempsmall(i,:,:) = tempbig(i,0:nky0-1,lkz1:lkz2) * fft_norm
-  IF(zpad.eq.2) tempsmall(i,:,:) = tempbig(i,0:nky0-1,lkz1:lkz2) * fft_norm / ekd(i,:,:)
+  IF((zpad.eq.4).or.(zpad.eq.2)) THEN 
+    DO j = 0,nky0-1
+      DO k = 0,nkz0-1
+        IF (zpad.eq.4) tempsmall(i,j,k) = fft_norm * tempbig(i,j,k)
+        IF (zpad.eq.2) tempsmall(i,j,k) = fft_norm * tempbig(i,j,k) / ekd(i,j,k)
+      ENDDO
+    ENDDO
+  ENDIF
   IF(zpad.eq.3) THEN 
-      tempsmall(i,0:hky_ind,0:hkz_ind)=tempbig(i,0:hky_ind,0:hkz_ind)    !kz positive, ky positive
-      tempsmall(i,0:hky_ind,lkz_ind:nkz0-1)=tempbig(i,0:hky_ind,lkz_ind:nkz0-1) !kz negative, ky positive
-      tempsmall(i,lky_ind:nky0-1,lkz_ind:nz0_big-1)=tempbig(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
-      tempsmall(i,lky_ind:nky0-1,0:hkz_ind)=tempbig(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative  
+      tempsmall(i,0:hky_ind,0:hkz_ind)= fft_norm * tempbig(i,0:hky_ind,0:hkz_ind)    !kz positive, ky positive
+      tempsmall(i,0:hky_ind,lkz_ind:nkz0-1)= fft_norm * tempbig(i,0:hky_ind,lkz_ind:nkz0-1) !kz negative, ky positive
+      tempsmall(i,lky_ind:nky0-1,lkz_ind:nz0_big-1)= fft_norm * tempbig(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
+      tempsmall(i,lky_ind:nky0-1,0:hkz_ind)= fft_norm * tempbig(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative  
   ENDIF
 ENDDO
 tempbig = cmplx(0.0,0.0)
