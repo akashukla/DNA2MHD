@@ -34,7 +34,7 @@ MODULE nonlinearity
 
   PRIVATE
 
-  COMPLEX, ALLOCATABLE, DIMENSION(:,:,:) :: b_inx0, b_iny0,  b_inz0, v_inx0, v_iny0,  v_inz0, bmag_in, bmagk
+  COMPLEX, ALLOCATABLE, DIMENSION(:,:,:) :: b_inx0, b_iny0,  b_inz0, v_inx0, v_iny0,  v_inz0, bmag_in, bmagk, nlwriter
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:) :: temp_small,temp_big, temp_bigx, temp_bigy, temp_bigz
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:) :: ekd
 
@@ -245,6 +245,8 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v,ndt,dx,dy,dz)
   ALLOCATE(bx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
   ALLOCATE(by(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
   ALLOCATE(bz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+
+  ALLOCATE(nlwriter(0:nkx0-1,0:nky0-1,lkz1:lkz2))
 
 if (rhs_nl_version==1) then
     !! real space term
@@ -810,24 +812,24 @@ if (verbose) print *, 'B nls calculated'
 
 IF (plot_nls) THEN 
 ! b.grad v 
-CALL fft_write(bx*dxvx+by*dyvx+bz*dzvx,bdvio)
-CALL fft_write(bx*dxvy+by*dyvy+bz*dzvy,bdvio)
-CALL fft_write(bx*dxvz+by*dyvz+bz*dzvz,bdvio)
+CALL fft_write(bx*dxvx+by*dyvx+bz*dzvx,temp_bigx,nlwriter,bdvio)
+CALL fft_write(bx*dxvy+by*dyvy+bz*dzvy,temp_bigx,nlwriter,bdvio)
+CALL fft_write(bx*dxvz+by*dyvz+bz*dzvz,temp_bigx,nlwriter,bdvio)
 
 ! v.grad b
-CALL fft_write(vx*dxbx+vy*dybx+vz*dzbx,vdbio)
-CALL fft_write(vx*dxby+vy*dyby+vz*dzby,vdbio)
-CALL fft_write(vx*dxbz+vy*dybz+vz*dzbz,vdbio)
+CALL fft_write(vx*dxbx+vy*dybx+vz*dzbx,temp_bigx,nlwriter,vdbio)
+CALL fft_write(vx*dxby+vy*dyby+vz*dzby,temp_bigx,nlwriter,vdbio)
+CALL fft_write(vx*dxbz+vy*dybz+vz*dzbz,temp_bigx,nlwriter,vdbio)
 
 ! b. grad curl b
-CALL fft_write(bx*dxdybz+by*dydybz+bz*dydzbz-bx*dxdzby-by*dydzby-bz*dzdzby,bdcbio)
-CALL fft_write(bx*dxdzbx+by*dydzbx+bz*dzdzbx-bx*dxdxbz-by*dxdybz-bz*dxdzbz,bdcbio)
-CALL fft_write(bx*dxdxby+by*dxdyby+bz*dxdzby-bx*dxdybx-by*dydybx-bz*dydzbx,bdcbio)
+CALL fft_write(bx*dxdybz+by*dydybz+bz*dydzbz-bx*dxdzby-by*dydzby-bz*dzdzby,temp_bigx,nlwriter,bdcbio)
+CALL fft_write(bx*dxdzbx+by*dydzbx+bz*dzdzbx-bx*dxdxbz-by*dxdybz-bz*dxdzbz,temp_bigx,nlwriter,bdcbio)
+CALL fft_write(bx*dxdxby+by*dxdyby+bz*dxdzby-bx*dxdybx-by*dydybx-bz*dydzbx,temp_bigx,nlwriter,bdcbio)
 
 ! curl b . grad b
-CALL fft_write(dybz*dxbx-dzby*dxbx-dxbz*dybx+dzbx*dybx+dxby*dzbx-dybx*dzbx,cbdbio)
-CALL fft_write(dybz*dxby-dzby*dxby-dxbz*dyby+dzbx*dyby+dxby*dzby-dybx*dzby,cbdbio)
-CALL fft_write(dybz*dxbz-dzby*dxbz-dxbz*dybz+dzbx*dybz+dxby*dzbz-dybx*dzbz,cbdbio)
+CALL fft_write(dybz*dxbx-dzby*dxbx-dxbz*dybx+dzbx*dybx+dxby*dzbx-dybx*dzbx,temp_bigx,nlwriter,cbdbio)
+CALL fft_write(dybz*dxby-dzby*dxby-dxbz*dyby+dzbx*dyby+dxby*dzby-dybx*dzby,temp_bigx,nlwriter,cbdbio)
+CALL fft_write(dybz*dxbz-dzby*dxbz-dxbz*dybz+dzbx*dybz+dxby*dzbz-dybx*dzbz,temp_bigx,nlwriter,cbdbio)
 
 if (verbose) print *, 'B nl plot info written'
 
@@ -905,19 +907,19 @@ store_z = -(vx*dxvz+vy*dyvz+vz*dzvz) + (bx*dxbz+by*dybz+bz*dzbz) - 0.5*dzbmag
 
 IF (plot_nls) THEN 
 ! v . grad v
-CALL fft_write(vx*dxvx+vy*dyvx+vz*dzvx,vdvio) 
-CALL fft_write(vx*dxvy+vy*dyvy+vz*dzvy,vdvio)
-CALL fft_write(vx*dxvz+vy*dyvz+vz*dzvz,vdvio)
+CALL fft_write(vx*dxvx+vy*dyvx+vz*dzvx,temp_bigx,nlwriter,vdvio) 
+CALL fft_write(vx*dxvy+vy*dyvy+vz*dzvy,temp_bigx,nlwriter,vdvio)
+CALL fft_write(vx*dxvz+vy*dyvz+vz*dzvz,temp_bigx,nlwriter,vdvio)
 
 ! b . grad b
-CALL fft_write(bx*dxbx+by*dybx+bz*dzbx,bdbio)
-CALL fft_write(bx*dxby+by*dyby+bz*dzby,bdbio)
-CALL fft_write(bx*dxbz+by*dybz+bz*dzbz,bdbio)
+CALL fft_write(bx*dxbx+by*dybx+bz*dzbx,temp_bigx,nlwriter,bdbio)
+CALL fft_write(bx*dxby+by*dyby+bz*dzby,temp_bigx,nlwriter,bdbio)
+CALL fft_write(bx*dxbz+by*dybz+bz*dzbz,temp_bigx,nlwriter,bdbio)
 
 ! 0.5 grad b^2
-CALL  fft_write(0.5*dxbmag,db2io)
-CALL  fft_write(0.5*dybmag,db2io)
-CALL  fft_write(0.5*dzbmag,db2io)
+CALL  fft_write(0.5*dxbmag,temp_bigx,nlwriter,db2io)
+CALL  fft_write(0.5*dybmag,temp_bigx,nlwriter,db2io)
+CALL  fft_write(0.5*dzbmag,temp_bigx,nlwriter,db2io)
 
 if (verbose) print *, 'v1 nl equation stored'
 endif
@@ -930,19 +932,19 @@ store_z = -(vx*dxvz+vy*dyvz+vz*dzvz) + (bx*dxbz+by*dybz) - (by*dzby+bx*dzbx)
 
 IF (plot_nls) THEN 
 ! v . grad v
-CALL fft_write(vx*dxvx+vy*dyvx+vz*dzvx,vdvio)
-CALL fft_write(vx*dxvy+vy*dyvy+vz*dzvy,vdvio)
-CALL fft_write(vx*dxvz+vy*dyvz+vz*dzvz,vdvio)
+CALL fft_write(vx*dxvx+vy*dyvx+vz*dzvx,temp_bigx,nlwriter,vdvio)
+CALL fft_write(vx*dxvy+vy*dyvy+vz*dzvy,temp_bigx,nlwriter,vdvio)
+CALL fft_write(vx*dxvz+vy*dyvz+vz*dzvz,temp_bigx,nlwriter,vdvio)
 
 ! b . grad b
-CALL fft_write(bx*dxbx+by*dybx+bz*dzbx,bdbio)
-CALL fft_write(bx*dxby+by*dyby+bz*dzby,bdbio)
-CALL fft_write(bx*dxbz+by*dybz+bz*dzbz,bdbio)
+CALL fft_write(bx*dxbx+by*dybx+bz*dzbx,temp_bigx,nlwriter,bdbio)
+CALL fft_write(bx*dxby+by*dyby+bz*dzby,temp_bigx,nlwriter,bdbio)
+CALL fft_write(bx*dxbz+by*dybz+bz*dzbz,temp_bigx,nlwriter,bdbio)
 
 ! 0.5 grad b^2
-CALL fft_write(bx*dxbx+by*dxby+bz*dxbz,db2io)
-CALL fft_write(bx*dybx+by*dyby+bz*dybz,db2io)
-CALL fft_write(bx*dzbx+by*dzby+bz*dzbz,db2io)
+CALL fft_write(bx*dxbx+by*dxby+bz*dxbz,temp_bigx,nlwriter,db2io)
+CALL fft_write(bx*dybx+by*dyby+bz*dybz,temp_bigx,nlwriter,db2io)
+CALL fft_write(bx*dzbx+by*dzby+bz*dzbz,temp_bigx,nlwriter,db2io)
 
 if (verbose) print *, 'v12 nl equation stored'
 endif
@@ -998,6 +1000,7 @@ if (.not.(calc_dt)) ndt = dt_max
 if (verbose) print *, 'next dt calculated ',ndt
 
 IF (PRESENT(dz)) DEALLOCATE(ekd)
+DEALLOCATE(nlwriter)
 
 DEALLOCATE(temp_small)
 if (verbose) print *, 'ts deallocated'
@@ -1322,8 +1325,7 @@ SUBROUTINE next_dt(dtn)
 
 END SUBROUTINE next_dt
 
-SUBROUTINE fft_write(arr_real,unit)
-
+SUBROUTINE fft_write(arr_real,temporary,arr_spec,unit)
 
 real :: arr_real(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1)
 integer :: unit
@@ -1331,14 +1333,17 @@ complex, allocatable, dimension(:,:,:) :: arr_spec
 complex, allocatable, dimension(:,:,:) :: temporary
 integer :: s
 
+temporary = cmplx(0.0,0.0)
+arr_spec = cmplx(0.0,0.0)
 CALL dfftw_execute_dft_r2c(plan_r2c,arr_real(0,0,0),temporary(0,0,0))
 CALL unpack(temporary,arr_spec)
 WRITE(unit) arr_spec
+temporary = cmplx(0.0,0.0)
+arr_spec = cmplx(0.0,0.0)
 
 END SUBROUTINE fft_write
 
 SUBROUTINE zeropad(tempsmall,tempbig)
-
 
 complex, allocatable, dimension(:,:,:) :: tempsmall
 complex, allocatable, dimension(:,:,:) :: tempbig
