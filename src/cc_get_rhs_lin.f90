@@ -87,23 +87,23 @@ SUBROUTINE get_rhs_lin1_ae(b_in, v_in, rhs_out_b,rhs_out_v, which_term)
              - hall*(i_complex*kzgrid(k)*b_in(i,j,k,0) - i_complex*kxgrid(i)*b_in(i,j,k,2))) - eta*(L**hyp)*b_in(i,j,k,1)
         rhs_out_b(i,j,k,2) = i_complex*kzgrid(k)*(v_in(i,j,k,2) &
              - hall*(i_complex*kxgrid(i)*b_in(i,j,k,1) - i_complex*kygrid(j)*b_in(i,j,k,0))) - eta*(L**hyp)*b_in(i,j,k,2)
-        if (verbose) print *, 'b lin equation stored'
-        if (verbose) print *, 'L, eta',L,eta
+        ! if (verbose) print *, 'b lin equation stored'
+        ! if (verbose) print *, 'L, eta',L,eta
       !Eqn 15
 if (rhs_lin_version==1) then
         rhs_out_v(i,j,k,0) = i_complex*kzgrid(k)*b_in(i,j,k,0)-i_complex*kxgrid(i)*b_in(i,j,k,2) - vnu*(L**hyp)*v_in(i,j,k,0)
         rhs_out_v(i,j,k,1) = i_complex*kzgrid(k)*b_in(i,j,k,1)-i_complex*kygrid(j)*b_in(i,j,k,2) - vnu*(L**hyp)*v_in(i,j,k,1)
         rhs_out_v(i,j,k,2) = - vnu*(L**hyp)*v_in(i,j,k,2)
-        if (verbose) print *, 'v1 lin equation stored'
-        if (verbose) print *, 'L, vnu',L,vnu
+        ! if (verbose) print *, 'v1 lin equation stored'
+        ! if (verbose) print *, 'L, vnu',L,vnu
 endif
     ! Eq 15 v2 from prerana
 if (rhs_lin_version==12) then
         rhs_out_v(i,j,k,0) = i_complex*kzgrid(k)*b_in(i,j,k,0) - vnu*(L**hyp)*v_in(i,j,k,0)
         rhs_out_v(i,j,k,1) = i_complex*kzgrid(k)*b_in(i,j,k,1) - vnu*(L**hyp)*v_in(i,j,k,1)
         rhs_out_v(i,j,k,2) = i_complex*kzgrid(k)*b_in(i,j,k,2) - vnu*(L**hyp)*v_in(i,j,k,2)
-        if (verbose) print *, 'v12 lin equation stored'
-        if (verbose) print *, 'L, vnu',L,vnu
+        ! if (verbose) print *, 'v12 lin equation stored'
+        ! if (verbose) print *, 'L, vnu',L,vnu
 endif
      END DO
    END DO

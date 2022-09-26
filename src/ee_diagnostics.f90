@@ -4307,7 +4307,7 @@ do ind = 0,2
       intx = (2 * sin(kxgrid(i)*pi) - 2 * kxgrid(i) * pi * cos(kxgrid(i)*pi)) &
         / (kxgrid(i)**2)
       maghel = maghel - aimag(b0(i,0,0,1)) * intx / (2*pi)
-      if (verbose) print *, 'Guide\n Field\n Contribution',intx,aimag(b0(i,0,0,1)),- aimag(b0(i,0,0,1)) * intx / (2*pi)
+      ! if (verbose) print *, 'Guide\n Field\n Contribution',intx,aimag(b0(i,0,0,1)),- aimag(b0(i,0,0,1)) * intx / (2*pi)
     endif
   enddo
 enddo
