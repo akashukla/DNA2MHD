@@ -57,9 +57,6 @@ MODULE nonlinearity
   REAL, ALLOCATABLE, DIMENSION(:,:):: g_rbig_2d
   INTEGER :: nx0_big,ny0_big,nz0_big
   INTEGER(kind=8) :: plan_r2c,plan_c2r
-  INTEGER(kind=8) :: plan_kz2z,plan_z2kz
-  INTEGER(kind=8) :: plan_ky2y,plan_y2ky
-  INTEGER(kind=8) :: plan_kx2x,plan_x2kx
   INTEGER :: zpad
   REAL :: fft_norm  !normalization factor for inverse fft
  

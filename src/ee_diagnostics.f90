@@ -4275,12 +4275,14 @@ do ind = 0,2
           if (ind.eq.0) A(i,j,k,ind) = kygrid(j) * bg(i,j,k,2) - kzgrid(k) * bg(i,j,k,1) 
           if (ind.eq.1) A(i,j,k,ind) = kzgrid(k) * bg(i,j,k,0) - kxgrid(i) * bg(i,j,k,2)
           if (ind.eq.2) A(i,j,k,ind) = kxgrid(i) * bg(i,j,k,1) - kygrid(j) * bg(i,j,k,0)
-          A(i,j,k,ind) = cmplx(0.0,-1.0) * A(i,j,k,ind) / (kxgrid(i)**2 + kygrid(j)**2 + kzgrid(k)**2)
+          A(i,j,k,ind) = cmplx(-1.0,0.0) * A(i,j,k,ind) / (kxgrid(i)**2 + kygrid(j)**2 + kzgrid(k)**2)
         endif
       enddo
     enddo
    enddo
 enddo
+
+if ((verbose).and.(itime.lt.200)) write(*,*) 'A',A
 
 end function vec_potential
 
@@ -4293,26 +4295,26 @@ complex :: A0(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
 integer :: i,j,k,ind
 real :: intx
 
-maghel = 0
+maghel = 0.0
 A0 = vec_potential(b0)
 
 do ind = 0,2
   do i = 0,nkx0-1
     do j = 0,nky0-1
       do k = lkz1,lkz2
-        maghel = maghel + conjg(A0(i,j,k,ind))*b0(i,j,k,ind)
+        maghel = maghel + real(conjg(A0(i,j,k,ind))*b0(i,j,k,ind))
       enddo
     enddo
-    if (i.ne.0) then
-      intx = (2 * sin(kxgrid(i)*pi) - 2 * kxgrid(i) * pi * cos(kxgrid(i)*pi)) &
-        / (kxgrid(i)**2)
-      maghel = maghel - aimag(b0(i,0,0,1)) * intx / (2*pi)
+!    if (i.ne.0) then
+!      intx = (2 * sin(kxgrid(i)*pi) - 2 * kxgrid(i) * pi * cos(kxgrid(i)*pi)) &
+!        / (kxgrid(i)**2)
+!      maghel = maghel - aimag(b0(i,0,0,1)) * intx / (2*pi)
       ! if (verbose) print *, 'Guide\n Field\n Contribution',intx,aimag(b0(i,0,0,1)),- aimag(b0(i,0,0,1)) * intx / (2*pi)
-    endif
+    ! endif
   enddo
 enddo
 
-maghel = maghel + A0(0,0,0,2)
+maghel = maghel + real(A0(0,0,0,2))
 maghel = real((2*pi)**3 * maghel)
 
 end function mag_helicity
@@ -4337,6 +4339,9 @@ do ind = 0,2
     enddo
    enddo
 enddo
+w = cmplx(0.0,1.0) * w
+
+if ((verbose).and.(itime.lt.200)) write(*,*) 'w',w
 
 end function vorticity
 
@@ -4357,7 +4362,7 @@ do ind = 0,2
   do i = 0,nkx0-1
     do j = 0,nky0-1
       do k = lkz1,lkz2
-        crosshel = crosshel + 2 * conjg(v0(i,j,k,ind)) * b0(i,j,k,ind)
+        crosshel = crosshel + conjg(b0(i,j,k,ind)) * v0(i,j,k,ind) !+ conjg(v0(i,j,k,ind)) * b0(i,j,k,ind)
         crosshel = crosshel + conjg(v0(i,j,k,ind)) * w0(i,j,k,ind)
       enddo
     enddo

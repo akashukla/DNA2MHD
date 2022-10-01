@@ -24,9 +24,11 @@ MODULE nonlinearity
   USE par_mod
   !USE hk_effects
   !USE flr_effects
+  
+  use, intrinsic :: iso_c_binding
   IMPLICIT NONE
 
-  PUBLIC :: initialize_fourier,get_rhs_nl,&
+  PUBLIC :: initialize_fourier,finalize_fourier,get_rhs_nl,&
             get_k_indices,get_rhs_nl1,&
             initialize_fourier_ae_mu0 !,initialize_fourier2, get_rhs_nl2, get_rhs_nl_convolution
   
@@ -35,33 +37,33 @@ MODULE nonlinearity
   PRIVATE
 
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:) :: b_inx0, b_iny0,  b_inz0, v_inx0, v_iny0,  v_inz0, bmag_in, bmagk, ekd
-  COMPLEX, ALLOCATABLE, DIMENSION(:,:,:) :: temp_small,temp_big, temp_bigx, temp_bigy, temp_bigz
+  COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:) :: temp_small,temp_big, temp_bigx, temp_bigy, temp_bigz
 
-  REAL, ALLOCATABLE, DIMENSION(:,:,:) ::  store_x, store_y, store_z
-  REAL, ALLOCATABLE, DIMENSION(:,:,:) ::  bmag, dxbmag, dybmag, dzbmag,bmag_inbig
+  REAL(C_DOUBLE), ALLOCATABLE, DIMENSION(:,:,:) ::  store_x, store_y, store_z,store
+  REAL(C_DOUBLE), ALLOCATABLE, DIMENSION(:,:,:) ::  bmag, dxbmag, dybmag, dzbmag,bmag_inbig
 
 
-  REAL, ALLOCATABLE, DIMENSION(:,:,:) :: bx,by,bz, dxbx, dybx,dzbx, dxby,dyby,dzby, dxbz,dybz,dzbz
-  REAL, ALLOCATABLE, DIMENSION(:,:,:) :: vx,vy,vz, dxvx, dyvx,dzvx, dxvy,dyvy,dzvy, dxvz,dyvz,dzvz
+  REAL(C_DOUBLE), ALLOCATABLE, DIMENSION(:,:,:) :: bx,by,bz, dxbx, dybx,dzbx, dxby,dyby,dzby, dxbz,dybz,dzbz
+  REAL(C_DOUBLE), ALLOCATABLE, DIMENSION(:,:,:) :: vx,vy,vz, dxvx, dyvx,dzvx, dxvy,dyvy,dzvy, dxvz,dyvz,dzvz
 
-  REAL, ALLOCATABLE, DIMENSION(:,:,:) :: dxdxbx, dxdybx, dxdzbx, dydybx, dydzbx, dzdzbx
-  REAL, ALLOCATABLE, DIMENSION(:,:,:) :: dxdxby, dxdyby, dxdzby, dydyby, dydzby, dzdzby
-  REAL, ALLOCATABLE, DIMENSION(:,:,:) :: dxdxbz, dxdybz, dxdzbz, dydybz, dydzbz, dzdzbz
+  REAL(C_DOUBLE), ALLOCATABLE, DIMENSION(:,:,:) :: dxdxbx, dxdybx, dxdzbx, dydybx, dydzbx, dzdzbx
+  REAL(C_DOUBLE), ALLOCATABLE, DIMENSION(:,:,:) :: dxdxby, dxdyby, dxdzby, dydyby, dydzby, dzdzby
+  REAL(C_DOUBLE), ALLOCATABLE, DIMENSION(:,:,:) :: dxdxbz, dxdybz, dxdzbz, dydybz, dydzbz, dzdzbz
     
-  REAL, ALLOCATABLE, DIMENSION(:,:,:) :: dxdxvx, dxdyvx, dxdzvx, dydyvx, dydzvx, dzdzvx
-  REAL, ALLOCATABLE, DIMENSION(:,:,:) :: dxdxvy, dxdyvy, dxdzvy, dydyvy, dydzvy, dzdzvy
-  REAL, ALLOCATABLE, DIMENSION(:,:,:) :: dxdxvz, dxdyvz, dxdzvz, dydyvz, dydzvz, dzdzvz
+  REAL(C_DOUBLE), ALLOCATABLE, DIMENSION(:,:,:) :: dxdxvx, dxdyvx, dxdzvx, dydyvx, dydzvx, dzdzvx
+  REAL(C_DOUBLE), ALLOCATABLE, DIMENSION(:,:,:) :: dxdxvy, dxdyvy, dxdzvy, dydyvy, dydzvy, dzdzvy
+  REAL(C_DOUBLE), ALLOCATABLE, DIMENSION(:,:,:) :: dxdxvz, dxdyvz, dxdzvz, dydyvz, dydzvz, dzdzvz
 
 
 
   !For fft's
 
-  COMPLEX, ALLOCATABLE, DIMENSION(:,:,:):: g_kbig
-  REAL, ALLOCATABLE, DIMENSION(:,:,:):: g_rbig
-  COMPLEX, ALLOCATABLE, DIMENSION(:,:):: g_kbig_2d
-  REAL, ALLOCATABLE, DIMENSION(:,:):: g_rbig_2d
+  COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:):: g_kbig
+  REAL(C_DOUBLE), ALLOCATABLE, DIMENSION(:,:,:):: g_rbig
+  COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:):: g_kbig_2d
+  REAL(C_DOUBLE), ALLOCATABLE, DIMENSION(:,:):: g_rbig_2d
   INTEGER :: nx0_big,ny0_big,nz0_big
-  INTEGER(kind=8) :: plan_r2c,plan_c2r
+  INTEGER(kind=8), allocatable :: plan_r2c,plan_c2r
   INTEGER(kind=8) :: plan_kz2z,plan_z2kz
   INTEGER(kind=8) :: plan_ky2y,plan_y2ky
   INTEGER(kind=8) :: plan_kx2x,plan_x2kx
@@ -97,19 +99,18 @@ SUBROUTINE initialize_fourier_ae_mu0
   ny0_big=zpad*nky0/2
   nz0_big=zpad*nkz0/2
   fft_norm=1.0/(REAL(nx0_big*ny0_big*nz0_big))
+  ALLOCATE(plan_r2c)
+  ALLOCATE(plan_c2r)
 
-  ALLOCATE(g_rbig(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(g_kbig(0:nx0_big/2,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(store(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(temp_big(0:nx0_big/2,0:ny0_big-1,0:nz0_big-1))
 
   !WRITE(*,*) "making plans"
   CALL dfftw_plan_dft_c2r_3d(plan_c2r,nx0_big,ny0_big,nz0_big,&
-                             g_kbig,g_rbig,FFTW_ESTIMATE,FFTW_UNALIGNED,FFTW_BACKWARD)
+                             temp_big,store,FFTW_ESTIMATE,FFTW_BACKWARD)
   CALL dfftw_plan_dft_r2c_3d(plan_r2c,nx0_big,ny0_big,nz0_big,&
-                             g_rbig,g_kbig,FFTW_ESTIMATE,FFTW_UNALIGNED,FFTW_FORWARD)
+                             store,temp_big,FFTW_ESTIMATE,FFTW_FORWARD)
   
-  DEALLOCATE(g_rbig)
-  DEALLOCATE(g_kbig)
-
   lky_big=ny0_big-hky_ind !Index of minimum (most negative) FILLED ky value for big arrays
   lkz_big=nz0_big-hkz_ind !Index of minimum (most negative) FILLED kz value for big arrays 
 
@@ -121,8 +122,8 @@ SUBROUTINE initialize_fourier_ae_mu0
   IF(mype==0) WRITE(*,*) "hkz_ind,lkz_ind",hkz_ind,lkz_ind
   IF(mype==0) WRITE(*,*) "lkz_big",lkz_big
 
-  !CALL dfftw_execute_dft_c2r(plan_c2r,tcomp(0,0,0),treal(0,0,0))
-  !CALL dfftw_execute_dft_r2c(plan_r2c,treal(0,0,0),tcomp(0,0,0))
+  !CALL dfftw_execute_dft_c2r(plan_c2r,tcomp,treal)
+  !CALL dfftw_execute_dft_r2c(plan_r2c,treal,tcomp)
   !tcomp=tcomp/REAL(n1*n2*n3)
 
 END SUBROUTINE initialize_fourier_ae_mu0
@@ -237,7 +238,6 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
 
   IF(np_kz.ne.1) STOP "get_rhs_nl1 only suitable for np_kz=1"
   ALLOCATE(temp_small(0:nkx0-1,0:nky0-1,0:nkz0-1))
-  ALLOCATE(temp_big(0:nx0_big/2,0:ny0_big-1,0:nz0_big-1))
   ALLOCATE(temp_bigx(0:nx0_big/2,0:ny0_big-1,0:nz0_big-1))
   ALLOCATE(temp_bigy(0:nx0_big/2,0:ny0_big-1,0:nz0_big-1))
   ALLOCATE(temp_bigz(0:nx0_big/2,0:ny0_big-1,0:nz0_big-1))
@@ -385,7 +385,8 @@ endif
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
     END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxdxvx(0,0,0))
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    dxdxvx = store
    
    !dxdyvx
   DO i=0,nkx0-1
@@ -401,8 +402,9 @@ endif
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
     END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxdyvx(0,0,0))
-    
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    dxdyvx = store    
+
   !dxdzvx
   DO i=0,nkx0-1
     DO k=0,nkz0-1
@@ -417,7 +419,8 @@ endif
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
     END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxdzvx(0,0,0))
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    dxdzvx = store
 
   ! DYDYVX
   DO j=0,nky0-1
@@ -431,8 +434,9 @@ endif
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
     END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dydyvx(0,0,0))
-    
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    dydyvx = store    
+
      ! DYDzVX
   DO j=0,nky0-1
     DO k=0,nkz0-1
@@ -447,8 +451,9 @@ endif
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
     END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dydzvx(0,0,0))
-    
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    dydzvx = store  
+  
      ! DzDzVX
   DO k=0,nkz0-1
         temp_small(:,:,k)=i_complex*kygrid(k)*i_complex*kzgrid(k)*v_inx0(:,:,k)  !two kz grid
@@ -461,7 +466,8 @@ endif
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
     END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dzdzvx(0,0,0))
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    dzdzvx = store
    
    ! finished SECOND ORDER  VX TERMS
    
@@ -479,7 +485,8 @@ endif
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
     END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxdxvy(0,0,0))
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    dxdxvy = store
    
    !dxdyvy
   DO i=0,nkx0-1
@@ -495,7 +502,8 @@ endif
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
     END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxdyvy(0,0,0))
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    dxdyvy = store
     
      !dxdzvy
   DO i=0,nkx0-1
@@ -511,7 +519,9 @@ endif
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
     END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxdzvy(0,0,0))
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    dxdzvy = store
+
    ! DYDYVy
   DO j=0,nky0-1
         temp_small(:,j,:)=i_complex*kygrid(j)*i_complex*kygrid(j)*v_iny0(:,j,:)  ! towo y grid
@@ -524,7 +534,8 @@ endif
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
     END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dydyvy(0,0,0))
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    dydyvy = store
     
      ! DYDzVY
   DO j=0,nky0-1
@@ -540,7 +551,8 @@ endif
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
     END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dydzvy(0,0,0))
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    dydzvy = store
     
      ! DzDzVY
   DO k=0,nkz0-1
@@ -554,7 +566,8 @@ endif
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
     END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dzdzvy(0,0,0))
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    dzdzvy = store
     
 ! finished SECOND ORDER VY TERMS
 
@@ -571,7 +584,8 @@ endif
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
     END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxdxvz(0,0,0))
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    dxdxvz = store
    
    !dxdyvz
   DO i=0,nkx0-1
@@ -587,7 +601,8 @@ endif
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
     END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxdyvz(0,0,0))
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    dxdyvz = store
     
      !dxdzvz
   DO i=0,nkx0-1
@@ -603,7 +618,8 @@ endif
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
     END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxdzvz(0,0,0))
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    dxdzvz = store
 
    ! DYDYVz
   DO j=0,nky0-1
@@ -617,7 +633,8 @@ endif
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
     END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dydyvz(0,0,0))
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    dydyvz = store
     
      ! DYDzVz
   DO j=0,nky0-1
@@ -633,7 +650,8 @@ endif
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
     END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dydzvz(0,0,0))
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    dydzvz = store
     
      ! DzDzVz
   DO k=0,nkz0-1
@@ -647,7 +665,8 @@ endif
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
     END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dzdzvz(0,0,0))
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    dzdzvz = store
     
 ! finished SECOND ORDER VZ TERMS
 
@@ -666,7 +685,8 @@ endif
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
     END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxdxbx(0,0,0))
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    dxdxbz = store
    
    !dxdybx
   DO i=0,nkx0-1
@@ -682,7 +702,8 @@ endif
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
     END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxdybx(0,0,0))
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    dxdybx = store
     
      !dxdzbx
   DO i=0,nkx0-1
@@ -698,7 +719,8 @@ endif
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
     END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxdzbx(0,0,0))
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    dxdzbx = store
     
    ! DYDYbX
   DO j=0,nky0-1
@@ -712,7 +734,8 @@ endif
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
     END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dydybx(0,0,0))
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    dydybx = store
     
      ! DYDzbX
   DO j=0,nky0-1
@@ -728,7 +751,8 @@ endif
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
     END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dydzbx(0,0,0))
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    dydzbx = store
 
      ! DzDzbX
   DO k=0,nkz0-1
@@ -742,7 +766,8 @@ endif
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
     END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dzdzbx(0,0,0))
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    dzdzbx = store
    
    ! FINISHED SECOND ORDER  BX TERMS 
    
@@ -760,7 +785,8 @@ endif
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
     END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxdxby(0,0,0))
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    dxdxby = store
    
    !dxdyvy
   DO i=0,nkx0-1
@@ -776,7 +802,8 @@ endif
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
     END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxdyby(0,0,0))
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    dxdyby = store
     
      !dxdzby
   DO i=0,nkx0-1
@@ -792,7 +819,9 @@ endif
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
     END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxdzby(0,0,0))
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    dxdzby = store
+
    ! DYDYby
   DO j=0,nky0-1
         temp_small(:,j,:)=i_complex*kygrid(j)*i_complex*kygrid(j)*b_iny0(:,j,:)  ! towo y grid
@@ -805,7 +834,8 @@ endif
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
     END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dydyby(0,0,0))
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    dydyby = store
     
      ! DYDzbY
   DO j=0,nky0-1
@@ -821,7 +851,8 @@ endif
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
     END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dydzby(0,0,0))
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    dydzby = store
     
      ! DzDzbY
   DO k=0,nkz0-1
@@ -835,7 +866,8 @@ endif
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
     END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dzdzby(0,0,0))
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    dzdzby = store
     
 ! FINISHED SECOND ORDER bY TERMS
 
@@ -852,7 +884,8 @@ endif
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
     END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxdxbz(0,0,0))
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    dxdxbz = store
    
    !dxdyvz
   DO i=0,nkx0-1
@@ -868,7 +901,8 @@ endif
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
     END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxdybz(0,0,0))
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    dxdybz = store
     
      !dxdzbz
   DO i=0,nkx0-1
@@ -884,7 +918,9 @@ endif
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
     END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxdzbz(0,0,0))
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    dxdzbz = store
+
    ! DYDYbz
   DO j=0,nky0-1
         temp_small(:,j,:)=i_complex*kygrid(j)*i_complex*kygrid(j)*b_inz0(:,j,:)  ! towo y grid
@@ -897,7 +933,8 @@ endif
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
     END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dydybz(0,0,0))
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    dydybz = store
     
      ! DYDzbz
   DO j=0,nky0-1
@@ -913,7 +950,8 @@ endif
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
     END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dydzbz(0,0,0))
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    dydzbz = store
     
      ! DzDzbz
   DO k=0,nkz0-1
@@ -927,7 +965,8 @@ endif
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
     END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dzdzbz(0,0,0))
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    dzdzbz = store
     
 !finished END SECOND ORDER BZ TERMS
 
@@ -947,7 +986,8 @@ endif
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
     END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),bx(0,0,0))
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    bx = store
 
     !by
     DO j=0,nky0-1
@@ -961,7 +1001,8 @@ endif
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
     END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),by(0,0,0))
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    by = store
 
     !bz
     DO k=0,nkz0-1
@@ -975,7 +1016,8 @@ endif
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
     END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),bz(0,0,0))
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    bz = store
 
 !!! bmag terms
 if (rhs_nl_version == 1) then
@@ -989,7 +1031,8 @@ if (rhs_nl_version == 1) then
   END DO
 !!! Now forward transfrom to get b^2(k) stored in temp_big
 temp_big=cmplx(0.0,0.0)
-CALL dfftw_execute_dft_r2c(plan_r2c,bmag(0,0,0),temp_big(0,0,0))
+store = bmag
+CALL dfftw_execute_dft_r2c(plan_r2c,store,temp_big)
 !!! Now cut down to dealias and store result in bmagk which is b^2(k)
   DO i=0,nkx0-1
   !First x component
@@ -1001,7 +1044,7 @@ CALL dfftw_execute_dft_r2c(plan_r2c,bmag(0,0,0),temp_big(0,0,0))
 !!! Now that we have bmagk, need to do IFFT(ikx b^2) IFFT(iky b^2) IFFT(ikz b^2) to get grad b^2/2 in real space
 
     !bmag_inbig = bx*bx + by*by + bz*bz
-    !CALL dfftw_execute_dft_r2c(plan_r2c,bmag_inbig(0,0,0),bmag(0,0,0))
+    !CALL dfftw_execute_dft_r2c(plan_r2c,bmag_inbig,bmag)
     !do i = 0,nkx0-1
     !        bmag_in(i,0:hky_ind,0:hkz_ind)=bmag(i,0:hky_ind,0:hkz_ind)*fft_norm   !kz positive, ky positive 
     !        bmag_in(i,0:hky_ind,lkz_ind:nkz0-1)=bmag(i,0:hky_ind,lkz_big:nz0_big-1)*fft_norm !kz negative, ky positive 
@@ -1021,7 +1064,8 @@ CALL dfftw_execute_dft_r2c(plan_r2c,bmag(0,0,0),temp_big(0,0,0))
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative                                   
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative                         
     END DO!k loop                                                                      
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxbmag(0,0,0))
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    dxbmag = store
 
     !dybmag                                                                                                                                                                      
     DO j=0,nky0-1
@@ -1035,7 +1079,8 @@ CALL dfftw_execute_dft_r2c(plan_r2c,bmag(0,0,0),temp_big(0,0,0))
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative                                     
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative                                                 
     END DO!k loop                                       
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dybmag(0,0,0))
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    dybmag = store
 
     !dzbmag                                                                                                                                                                      
     DO k=0,nkz0-1
@@ -1049,7 +1094,8 @@ CALL dfftw_execute_dft_r2c(plan_r2c,bmag(0,0,0),temp_big(0,0,0))
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative            
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative                                                 
     END DO!k loop                                                                                                                                                
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dzbmag(0,0,0))
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    dzbmag = store
 
     if (verbose) print *, 'Bmag gradients dealiased'
 endif
@@ -1071,7 +1117,8 @@ endif
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
     END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),vx(0,0,0))
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    vx = store
 
     !vy
     DO j=0,nky0-1
@@ -1086,7 +1133,8 @@ endif
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
     END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),vy(0,0,0))
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    vy = store
 
     !vz
     DO k=0,nkz0-1
@@ -1100,8 +1148,8 @@ endif
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
     END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),vz(0,0,0))
-
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    vz = store
 
 !  FIRST ORDER VX TERMS DXVX , DYVX,  DZVX
 
@@ -1117,7 +1165,8 @@ endif
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
     END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxvx(0,0,0))
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    dxvx = store
 
     ! dyvx
     DO j=0,nky0-1
@@ -1131,7 +1180,8 @@ endif
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
     END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dyvx(0,0,0))
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    dyvx = store
 
     ! dzvx
     DO k=0,nkz0-1
@@ -1145,7 +1195,8 @@ endif
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
     END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dzvx(0,0,0))
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    dzvx = store
     
    !  FIRST ORDER VY TERMS  dxvy dyvy dzvz, 
 
@@ -1161,7 +1212,8 @@ endif
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
     END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxvy(0,0,0))
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    dxvy = store
  
     ! dyvy
     DO j=0,nky0-1
@@ -1175,7 +1227,8 @@ endif
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
     END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dyvy(0,0,0))
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    dyvy = store
 
     ! dzvy
     DO k=0,nkz0-1
@@ -1189,7 +1242,8 @@ endif
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
     END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dzvy(0,0,0))
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    dzvy = store
     
     !  FIRST ORDER VZ TERMS  dxvz dyvz dzvz
     ! dxvz
@@ -1204,7 +1258,8 @@ endif
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
     END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxvz(0,0,0))
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    dxvz = store
  
     ! dyvz
     DO j=0,nky0-1
@@ -1218,7 +1273,8 @@ endif
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
     END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dyvz(0,0,0))
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    dyvz = store
 
     ! dzvz
     DO k=0,nkz0-1
@@ -1232,7 +1288,8 @@ endif
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
     END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dzvz(0,0,0))
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    dzvz = store
     
     ! DONE ALL FIRST ORDER VX,VY AND VZ TERMS i.e.  dxvx dyvx dzvx,dxvy dyvy,dzvy, dxvz,dyvz,dzvz
     
@@ -1249,7 +1306,8 @@ endif
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
     END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxbx(0,0,0))
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    dxbx = store
 
     ! dybx
     DO j=0,nky0-1
@@ -1263,7 +1321,8 @@ endif
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
     END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dybx(0,0,0))
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    dybx = store
 
     ! dzbx
     DO k=0,nkz0-1
@@ -1277,7 +1336,8 @@ endif
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
     END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dzbx(0,0,0))
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    dzbx = store
         
     !  FIRST ORDER BY TERMS ie. dxby dyby dzby
      ! dxby
@@ -1292,7 +1352,8 @@ endif
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
     END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxby(0,0,0))
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    dxby = store
  
     ! dyby
     DO j=0,nky0-1
@@ -1306,7 +1367,8 @@ endif
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
     END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dyby(0,0,0))
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    dyby = store
 
     ! dzby
     DO k=0,nkz0-1
@@ -1320,7 +1382,8 @@ endif
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
     END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dzby(0,0,0))
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    dzby = store
     
         !! FIRST ORDER BZ TERMS ie. dxbz dybz dzbz
 ! dxbz
@@ -1335,7 +1398,8 @@ endif
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
     END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxbz(0,0,0))
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    dxbz = store
  
     ! dybz
     DO j=0,nky0-1
@@ -1349,7 +1413,8 @@ endif
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
     END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dybz(0,0,0))
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    dybz = store
 
     ! dzbz
     DO k=0,nkz0-1
@@ -1363,7 +1428,8 @@ endif
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
     END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dzbz(0,0,0))
+    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    dzbz = store
 
 ! DONE ALL FIRST ORDER BX,BY BZ TERMS ie. dxbx dybx dzbx,  dxby, dyby,dzby,  dxbz,dybz,dzbz
 
@@ -1429,9 +1495,17 @@ WRITE(cbdbio) fft_spec(dybz*dxbz-dzby*dxbz-dxbz*dybz+dzbx*dybz+dxby*dzbz-dybx*dz
 ENDIF
 
 !inverse FFT to get back to Fourier
-CALL dfftw_execute_dft_r2c(plan_r2c,store_x(0,0,0),temp_bigx(0,0,0))
-CALL dfftw_execute_dft_r2c(plan_r2c,store_y(0,0,0),temp_bigy(0,0,0))
-CALL dfftw_execute_dft_r2c(plan_r2c,store_z(0,0,0),temp_bigz(0,0,0))
+store = store_x
+CALL dfftw_execute_dft_r2c(plan_r2c,store,temp_big)
+temp_bigx = temp_big
+
+store = store_y
+CALL dfftw_execute_dft_r2c(plan_r2c,store,temp_big)
+temp_bigy = temp_big
+
+store = store_z
+CALL dfftw_execute_dft_r2c(plan_r2c,store,temp_big)
+temp_bigz = temp_big
 
 !Now fill in appropriate rhs elements
   DO i=0,nkx0-1
@@ -1533,9 +1607,17 @@ if (verbose) print *, 'v12 nl equation stored'
 endif
 ENDIF
 
-CALL dfftw_execute_dft_r2c(plan_r2c,store_x(0,0,0),temp_bigx(0,0,0))
-CALL dfftw_execute_dft_r2c(plan_r2c,store_y(0,0,0),temp_bigy(0,0,0))
-CALL dfftw_execute_dft_r2c(plan_r2c,store_z(0,0,0),temp_bigz(0,0,0))
+store = store_x
+CALL dfftw_execute_dft_r2c(plan_r2c,store,temp_big)
+temp_bigx = temp_big
+
+store = store_y
+CALL dfftw_execute_dft_r2c(plan_r2c,store,temp_big)
+temp_bigy = temp_big
+
+store = store_z
+CALL dfftw_execute_dft_r2c(plan_r2c,store,temp_big)
+temp_bigz = temp_big
 
 !Now fill in appropriate rhs elements
   DO i=0,nkx0-1
@@ -1576,8 +1658,6 @@ if (verbose) print *, 'next dt calculated ',ndt
 
 DEALLOCATE(temp_small)
 if (verbose) print *, 'ts deallocated'
-DEALLOCATE(temp_big)
-if (verbose) print *, 'tb deallocated'
 
 DEALLOCATE(temp_bigx)
 if (verbose) print *, 'tbx deallocated'
@@ -1725,7 +1805,6 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
 
   IF(np_kz.ne.1) STOP "get_rhs_nl1 only suitable for np_kz=1"
   ALLOCATE(temp_small(0:nkx0-1,0:nky0-1,0:nkz0-1))
-  ALLOCATE(temp_big(0:nx0_big/2,0:ny0_big-1,0:nz0_big-1))
   ALLOCATE(temp_bigx(0:nx0_big/2,0:ny0_big-1,0:nz0_big-1))
   ALLOCATE(temp_bigy(0:nx0_big/2,0:ny0_big-1,0:nz0_big-1))
   ALLOCATE(temp_bigz(0:nx0_big/2,0:ny0_big-1,0:nz0_big-1))
@@ -1873,7 +1952,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxdxvx(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dxdxvx = store
 
   !dxdyvx
   DO i=0,nkx0-1
@@ -1889,7 +1969,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxdyvx(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dxdyvx = store
 
   !dxdzvx
   DO i=0,nkx0-1
@@ -1905,7 +1986,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxdzvx(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dxdzvx = store
 
   ! DYDYVX
   DO j=0,nky0-1
@@ -1919,7 +2001,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dydyvx(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dydyvx = store
 
   ! DYDzVX
   DO j=0,nky0-1
@@ -1935,7 +2018,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dydzvx(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dydzvx = store
 
   ! DzDzVX
   DO k=0,nkz0-1
@@ -1949,9 +2033,10 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dzdzvx(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dzdzvx = store
 
-  ! finished SECOND ORDER  VX TERMS
+    ! finished SECOND ORDER  VX TERMS
 
   ! SECOND ORDER  VY TERMS DXDXVY,DXDYVY,DXDZVY, DYDYVY,DYDZVY, DZDZVY
 
@@ -1967,7 +2052,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxdxvy(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dxdxvy = store
 
   !dxdyvy
   DO i=0,nkx0-1
@@ -1983,7 +2069,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxdyvy(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dxdyvy = store
 
   !dxdzvy
   DO i=0,nkx0-1
@@ -1999,7 +2086,9 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxdzvy(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dxdzvy = store
+
   ! DYDYVy
   DO j=0,nky0-1
      temp_small(:,j,:)=i_complex*kygrid(j)*i_complex*kygrid(j)*v_iny0(:,j,:)  ! towo y grid
@@ -2012,7 +2101,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dydyvy(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dydyvy = store
 
   ! DYDzVY
   DO j=0,nky0-1
@@ -2028,7 +2118,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dydzvy(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dydzvy = store
 
   ! DzDzVY
   DO k=0,nkz0-1
@@ -2042,7 +2133,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dzdzvy(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dzdzvy = store
 
   ! finished SECOND ORDER VY TERMS
 
@@ -2059,7 +2151,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxdxvz(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dxdxvz = store
 
   !dxdyvz
   DO i=0,nkx0-1
@@ -2075,7 +2168,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxdyvz(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dxdyvz = store
 
   !dxdzvz
   DO i=0,nkx0-1
@@ -2091,7 +2185,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxdzvz(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dxdzvz = store
 
   ! DYDYVz
   DO j=0,nky0-1
@@ -2105,7 +2200,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dydyvz(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dydyvz = store
 
   ! DYDzVz
   DO j=0,nky0-1
@@ -2121,7 +2217,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dydzvz(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dydzvz = store
 
   ! DzDzVz
   DO k=0,nkz0-1
@@ -2135,7 +2232,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dzdzvz(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dzdzvz = store
 
   ! finished SECOND ORDER VZ TERMS
 
@@ -2154,7 +2252,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxdxbx(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dxdxbx = store
 
   !dxdybx
   DO i=0,nkx0-1
@@ -2170,7 +2269,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxdybx(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dxdybx = store
 
   !dxdzbx
   DO i=0,nkx0-1
@@ -2186,7 +2286,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxdzbx(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dxdzbx = store
 
   ! DYDYbX
   DO j=0,nky0-1
@@ -2200,7 +2301,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dydybx(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dydybx = store
 
   ! DYDzbX
   DO j=0,nky0-1
@@ -2216,7 +2318,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dydzbx(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dydzbx = store
 
   ! DzDzbX
   DO k=0,nkz0-1
@@ -2230,7 +2333,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dzdzbx(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dzdzbx = store
 
   ! FINISHED SECOND ORDER  BX TERMS
 
@@ -2248,9 +2352,10 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxdxby(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dxdxby = store
 
-  !dxdyvy
+  !dxdyby
   DO i=0,nkx0-1
      DO j=0,nky0-1
         temp_small(i,j,:)=i_complex*kxgrid(i)*i_complex*kygrid(j)*b_iny0(i,j,:)
@@ -2264,7 +2369,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxdyby(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dxdyby = store
 
   !dxdzby
   DO i=0,nkx0-1
@@ -2280,7 +2386,9 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxdzby(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dxdzby = store
+
   ! DYDYby
   DO j=0,nky0-1
      temp_small(:,j,:)=i_complex*kygrid(j)*i_complex*kygrid(j)*b_iny0(:,j,:)  ! towo y grid
@@ -2293,7 +2401,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dydyby(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dydyby = store
 
   ! DYDzbY
   DO j=0,nky0-1
@@ -2309,8 +2418,9 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dydzby(0,0,0))
-
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dydzby = store
+  
   ! DzDzbY
   DO k=0,nkz0-1
      temp_small(:,:,k)=i_complex*kzgrid(k)*i_complex*kzgrid(k)*b_iny0(:,:,k)  !two kz grid
@@ -2323,7 +2433,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dzdzby(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dzdzby = store
 
   ! FINISHED SECOND ORDER bY TERMS
 
@@ -2340,9 +2451,10 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxdxbz(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dxdxbz = store
 
-  !dxdyvz
+  !dxdybz
   DO i=0,nkx0-1
      DO j=0,nky0-1
         temp_small(i,j,:)=i_complex*kxgrid(i)*i_complex*kygrid(j)*b_inz0(i,j,:)
@@ -2356,7 +2468,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxdybz(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dxdybz = store
 
   !dxdzbz
   DO i=0,nkx0-1
@@ -2372,7 +2485,9 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxdzbz(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dxdzbz = store
+
   ! DYDYbz
   DO j=0,nky0-1
      temp_small(:,j,:)=i_complex*kygrid(j)*i_complex*kygrid(j)*b_inz0(:,j,:)  ! towo y grid
@@ -2385,7 +2500,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dydybz(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dydybz = store
 
   ! DYDzbz
   DO j=0,nky0-1
@@ -2401,7 +2517,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dydzbz(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dydzbz = store
 
   ! DzDzbz
   DO k=0,nkz0-1
@@ -2415,7 +2532,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dzdzbz(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dzdzbz = store
 
   !finished END SECOND ORDER BZ TERMS
 
@@ -2435,7 +2553,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),bx(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  bx = store
 
   !by
   DO j=0,nky0-1
@@ -2449,7 +2568,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),by(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  by = store
 
   !bz
   DO k=0,nkz0-1
@@ -2463,7 +2583,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),bz(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  bz = store
 
 !!! bmag terms
   if (rhs_nl_version == 1) then
@@ -2477,7 +2598,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
      END DO
 !!! Now forward transfrom to get b^2(k) stored in temp_big
      temp_big=cmplx(0.0,0.0)
-     CALL dfftw_execute_dft_r2c(plan_r2c,bmag(0,0,0),temp_big(0,0,0))
+     store = bmag
+     CALL dfftw_execute_dft_r2c(plan_r2c,store,temp_big)
 !!! Now cut down to dealias and store result in bmagk which is b^2(k)
      
      DO i=0,nkx0-1
@@ -2487,7 +2609,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
 !!! Now that we have bmagk, need to do IFFT(ikx b^2) IFFT(iky b^2) IFFT(ikz b^2) to get grad b^2/2 in real space
 
      !bmag_inbig = bx*bx + by*by + bz*bz
-     !CALL dfftw_execute_dft_r2c(plan_r2c,bmag_inbig(0,0,0),bmag(0,0,0))
+     !CALL dfftw_execute_dft_r2c(plan_r2c,bmag_inbig,bmag)
      !do i = 0,nkx0-1
      !        bmag_in(i,0:hky_ind,0:hkz_ind)=bmag(i,0:hky_ind,0:hkz_ind)*fft_norm   !kz positive, ky positive
      !        bmag_in(i,0:hky_ind,lkz_ind:nkz0-1)=bmag(i,0:hky_ind,lkz_big:nz0_big-1)*fft_norm !kz negative, ky positive
@@ -2507,7 +2629,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
          !kz negative, ky negative
          !kz positive, ky negative
      END DO!k loop
-     CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxbmag(0,0,0))
+     CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+     dxbmag = store
 
      !dybmag
      DO j=0,nky0-1
@@ -2521,7 +2644,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
          !kz negative, ky negative
          !kz positive, ky negative
      END DO!k loop
-     CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dybmag(0,0,0))
+     CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+     dybmag = store
 
      !dzbmag
      DO k=0,nkz0-1
@@ -2535,7 +2659,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
          !kz negative, ky negative
          !kz positive, ky negative
      END DO!k loop
-     CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dzbmag(0,0,0))
+     CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+     dzbmag = store
 
      if (verbose) print *, 'Bmag gradients dealiased'
   endif
@@ -2553,7 +2678,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),vx(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  vx = store
 
   !vy
   DO j=0,nky0-1
@@ -2568,7 +2694,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),vy(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  vy = store
 
   !vz
   DO k=0,nkz0-1
@@ -2582,8 +2709,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),vz(0,0,0))
-
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  vz = store
 
   !  FIRST ORDER VX TERMS DXVX , DYVX,  DZVX
 
@@ -2599,7 +2726,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxvx(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dxvx = store
 
   ! dyvx
   DO j=0,nky0-1
@@ -2613,7 +2741,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dyvx(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dyvx = store
 
   ! dzvx
   DO k=0,nkz0-1
@@ -2627,7 +2756,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dzvx(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dzvx = store
 
   !  FIRST ORDER VY TERMS  dxvy dyvy dzvz,
 
@@ -2643,7 +2773,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxvy(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dxvy = store
 
   ! dyvy
   DO j=0,nky0-1
@@ -2657,7 +2788,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dyvy(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dyvy = store
 
   ! dzvy
   DO k=0,nkz0-1
@@ -2671,7 +2803,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dzvy(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dzvy = store
 
   !  FIRST ORDER VZ TERMS  dxvz dyvz dzvz
   ! dxvz
@@ -2686,7 +2819,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxvz(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dxvz = store
 
   ! dyvz
   DO j=0,nky0-1
@@ -2700,7 +2834,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dyvz(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dyvz = store
 
   ! dzvz
   DO k=0,nkz0-1
@@ -2714,7 +2849,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dzvz(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dzvz = store
 
   ! DONE ALL FIRST ORDER VX,VY AND VZ TERMS i.e.  dxvx dyvx dzvx,dxvy dyvy,dzvy, dxvz,dyvz,dzvz
 
@@ -2731,7 +2867,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxbx(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dxbx = store
 
   ! dybx
   DO j=0,nky0-1
@@ -2745,7 +2882,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dybx(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dybx = store
 
   ! dzbx
   DO k=0,nkz0-1
@@ -2759,7 +2897,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dzbx(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dzbx = store
 
   !  FIRST ORDER BY TERMS ie. dxby dyby dzby
   ! dxby
@@ -2774,7 +2913,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxby(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dxby = store
 
   ! dyby
   DO j=0,nky0-1
@@ -2788,7 +2928,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dyby(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dyby = store
 
   ! dzby
   DO k=0,nkz0-1
@@ -2802,7 +2943,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dzby(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dzby = store
 
   !! FIRST ORDER BZ TERMS ie. dxbz dybz dzbz
   ! dxbz
@@ -2817,7 +2959,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxbz(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dxbz = store
 
   ! dybz
   DO j=0,nky0-1
@@ -2831,7 +2974,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dybz(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dybz = store
 
   ! dzbz
   DO k=0,nkz0-1
@@ -2845,7 +2989,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dzbz(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dzbz = store
 
   ! DONE ALL FIRST ORDER BX,BY BZ TERMS ie. dxbx dybx dzbx,  dxby, dyby,dzby,  dxbz,dybz,dzbz
 
@@ -2911,9 +3056,19 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   ENDIF
 
   !inverse FFT to get back to Fourier
-  CALL dfftw_execute_dft_r2c(plan_r2c,store_x(0,0,0),temp_bigx(0,0,0))
-  CALL dfftw_execute_dft_r2c(plan_r2c,store_y(0,0,0),temp_bigy(0,0,0))
-  CALL dfftw_execute_dft_r2c(plan_r2c,store_z(0,0,0),temp_bigz(0,0,0))
+
+  store = store_x
+  CALL dfftw_execute_dft_r2c(plan_r2c,store,temp_big)
+  temp_bigx = temp_big
+
+  store = store_y
+  CALL dfftw_execute_dft_r2c(plan_r2c,store,temp_big)
+  temp_bigy = temp_big
+
+  store = store_z
+  CALL dfftw_execute_dft_r2c(plan_r2c,store,temp_big)
+  temp_bigz = temp_big
+
 
   !Now fill in appropriate rhs elements                                                                                                                                                                
   DO i=0,nkx0-1
@@ -2991,9 +3146,17 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
      endif
   ENDIF
 
-  CALL dfftw_execute_dft_r2c(plan_r2c,store_x(0,0,0),temp_bigx(0,0,0))
-  CALL dfftw_execute_dft_r2c(plan_r2c,store_y(0,0,0),temp_bigy(0,0,0))
-  CALL dfftw_execute_dft_r2c(plan_r2c,store_z(0,0,0),temp_bigz(0,0,0))
+  store = store_x
+  CALL dfftw_execute_dft_r2c(plan_r2c,store,temp_big)
+  temp_bigx = temp_big
+
+  store = store_y
+  CALL dfftw_execute_dft_r2c(plan_r2c,store,temp_big)
+  temp_bigy = temp_big
+
+  store = store_z
+  CALL dfftw_execute_dft_r2c(plan_r2c,store,temp_big)
+  temp_bigz = temp_big
 
   !Now fill in appropriate rhs elements
   DO i=0,nkx0-1
@@ -3010,9 +3173,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
 
   DEALLOCATE(temp_small)
   if (verbose) print *, 'ts deallocated'
-  DEALLOCATE(temp_big)
-  if (verbose) print *, 'tb deallocated'
-
+ 
   DEALLOCATE(temp_bigx)
   if (verbose) print *, 'tbx deallocated'
   DEALLOCATE(temp_bigy)
@@ -3068,8 +3229,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   !vz
   DEALLOCATE(dxvz)
   DEALLOCATE(dyvz)
-  DEALLOCATE(dzvz)
-  ! all first order b arrays
+  DEALLOCATE(dzvz) ! all first order b arrays
   !bx
   DEALLOCATE(dxbx)
   DEALLOCATE(dybx)
@@ -3170,7 +3330,6 @@ USE par_mod
 
   IF(np_kz.ne.1) STOP "get_rhs_nl1 only suitable for np_kz=1"
   ALLOCATE(temp_small(0:nkx0-1,0:nky0-1,0:nkz0-1))
-  ALLOCATE(temp_big(0:nx0_big/2,0:ny0_big-1,0:nz0_big-1))
   ALLOCATE(temp_bigx(0:nx0_big/2,0:ny0_big-1,0:nz0_big-1))
   ALLOCATE(temp_bigy(0:nx0_big/2,0:ny0_big-1,0:nz0_big-1))
   ALLOCATE(temp_bigz(0:nx0_big/2,0:ny0_big-1,0:nz0_big-1))
@@ -3294,7 +3453,6 @@ USE par_mod
   v_inz0 = v_in(:,:,:,2)
   !IF(mype==0) WRITE(*,*) "Actually in nl1"
 
-
   ! bmag should be calculated in real space
   !  DO i=0,nkx0-1
   !    DO j=0,nky0-1
@@ -3303,7 +3461,6 @@ USE par_mod
   !        END DO
   !    END DO
   !  END DO
-
 
   !   SECOND ORDER  VX TERMS DXDXVX,   DXDYVX,   DXDZVX,  DYDYVX,   DYDZVX, DZDZVX
   !dxdxvx
@@ -3318,7 +3475,8 @@ USE par_mod
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxdxvx(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dxdxvx = store
 
   !dxdyvx
   DO i=0,nkx0-1
@@ -3334,7 +3492,8 @@ USE par_mod
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxdyvx(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dxdyvx = store
 
   !dxdzvx
   DO i=0,nkx0-1
@@ -3350,7 +3509,8 @@ USE par_mod
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxdzvx(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dxdzvx = store
 
   ! DYDYVX
   DO j=0,nky0-1
@@ -3364,7 +3524,8 @@ USE par_mod
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dydyvx(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dydyvx = store
 
   ! DYDzVX
   DO j=0,nky0-1
@@ -3380,7 +3541,8 @@ USE par_mod
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dydzvx(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dydzvx = store
 
   ! DzDzVX
   DO k=0,nkz0-1
@@ -3394,7 +3556,8 @@ USE par_mod
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dzdzvx(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dzdzvx = store
 
   ! finished SECOND ORDER  VX TERMS
 
@@ -3412,7 +3575,8 @@ USE par_mod
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxdxvy(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dxdxvy = store
 
   !dxdyvy
   DO i=0,nkx0-1
@@ -3428,7 +3592,8 @@ USE par_mod
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxdyvy(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dxdyvy = store
 
   !dxdzvy
   DO i=0,nkx0-1
@@ -3444,7 +3609,9 @@ USE par_mod
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxdzvy(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dxdzvy = store
+
   ! DYDYVy
   DO j=0,nky0-1
      temp_small(:,j,:)=i_complex*kygrid(j)*i_complex*kygrid(j)*v_iny0(:,j,:)  ! towo y grid
@@ -3457,7 +3624,8 @@ USE par_mod
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dydyvy(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dydyvy = store
 
   ! DYDzVY
   DO j=0,nky0-1
@@ -3473,7 +3641,8 @@ USE par_mod
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dydzvy(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dydzvy = store
 
   ! DzDzVY
   DO k=0,nkz0-1
@@ -3487,7 +3656,8 @@ USE par_mod
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dzdzvy(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dzdzvy = store
 
   ! finished SECOND ORDER VY TERMS
 
@@ -3504,7 +3674,8 @@ USE par_mod
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxdxvz(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dxdxvz = store
 
   !dxdyvz
   DO i=0,nkx0-1
@@ -3520,7 +3691,8 @@ USE par_mod
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxdyvz(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dxdyvz = store
 
   !dxdzvz
   DO i=0,nkx0-1
@@ -3536,7 +3708,8 @@ USE par_mod
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxdzvz(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dxdzvz = store
 
   ! DYDYVz
   DO j=0,nky0-1
@@ -3550,7 +3723,8 @@ USE par_mod
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dydyvz(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dydyvz = store
 
   ! DYDzVz
   DO j=0,nky0-1
@@ -3566,7 +3740,8 @@ USE par_mod
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dydzvz(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dydzvz = store
 
   ! DzDzVz
   DO k=0,nkz0-1
@@ -3580,7 +3755,8 @@ USE par_mod
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dzdzvz(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dzdzbz = store
 
   ! finished SECOND ORDER VZ TERMS
 
@@ -3599,7 +3775,8 @@ USE par_mod
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxdxbx(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dxdzbz = store
 
   !dxdybx
   DO i=0,nkx0-1
@@ -3615,7 +3792,8 @@ USE par_mod
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxdybx(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dxdybx = store
 
   !dxdzbx
   DO i=0,nkx0-1
@@ -3631,7 +3809,8 @@ USE par_mod
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxdzbx(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dxdzbx = store
 
   ! DYDYbX
   DO j=0,nky0-1
@@ -3645,7 +3824,8 @@ USE par_mod
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dydybx(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dydybx = store
 
   ! DYDzbX
   DO j=0,nky0-1
@@ -3661,7 +3841,8 @@ USE par_mod
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dydzbx(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dydzbx = store
 
   ! DzDzbX
   DO k=0,nkz0-1
@@ -3675,7 +3856,8 @@ USE par_mod
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dzdzbx(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dzdzbx = store
 
   ! FINISHED SECOND ORDER  BX TERMS
 
@@ -3693,7 +3875,8 @@ USE par_mod
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxdxby(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dxdxby = store
 
   !dxdyvy
   DO i=0,nkx0-1
@@ -3709,7 +3892,8 @@ USE par_mod
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxdyby(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dxdyby = store
 
   !dxdzby
   DO i=0,nkx0-1
@@ -3725,7 +3909,9 @@ USE par_mod
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxdzby(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dxdzby = store
+
   ! DYDYby
   DO j=0,nky0-1
      temp_small(:,j,:)=i_complex*kygrid(j)*i_complex*kygrid(j)*b_iny0(:,j,:)  ! towo y grid
@@ -3738,7 +3924,8 @@ USE par_mod
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dydyby(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dydyby = store
 
   ! DYDzbY
   DO j=0,nky0-1
@@ -3754,7 +3941,8 @@ USE par_mod
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dydzby(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dydzby = store
 
   ! DzDzbY
   DO k=0,nkz0-1
@@ -3768,7 +3956,8 @@ USE par_mod
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dzdzby(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dzdzby = store
 
   ! FINISHED SECOND ORDER bY TERMS
 
@@ -3785,9 +3974,10 @@ USE par_mod
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxdxbz(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dxdxbz = store
 
-  !dxdyvz
+  !dxdybz
   DO i=0,nkx0-1
      DO j=0,nky0-1
         temp_small(i,j,:)=i_complex*kxgrid(i)*i_complex*kygrid(j)*b_inz0(i,j,:)
@@ -3801,7 +3991,8 @@ USE par_mod
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxdybz(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dxdybz = store
 
   !dxdzbz
   DO i=0,nkx0-1
@@ -3817,7 +4008,9 @@ USE par_mod
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxdzbz(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dxdzbz = store
+
   ! DYDYbz
   DO j=0,nky0-1
      temp_small(:,j,:)=i_complex*kygrid(j)*i_complex*kygrid(j)*b_inz0(:,j,:)  ! towo y grid
@@ -3830,7 +4023,8 @@ USE par_mod
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dydybz(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dydybz = store
 
   ! DYDzbz
   DO j=0,nky0-1
@@ -3846,7 +4040,8 @@ USE par_mod
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dydzbz(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dydzbz = store
 
   ! DzDzbz
   DO k=0,nkz0-1
@@ -3860,7 +4055,8 @@ USE par_mod
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dzdzbz(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dzdzbz = store
 
   !finished END SECOND ORDER BZ TERMS
 
@@ -3880,7 +4076,8 @@ USE par_mod
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),bx(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  bx = store
 
   !by
   DO j=0,nky0-1
@@ -3894,7 +4091,8 @@ USE par_mod
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),by(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  by = store
 
   !bz
   DO k=0,nkz0-1
@@ -3908,7 +4106,8 @@ USE par_mod
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),bz(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  bz = store
 
 !!! bmag terms
   if (rhs_nl_version == 1) then
@@ -3922,7 +4121,8 @@ USE par_mod
      END DO
 !!! Now forward transfrom to get b^2(k) stored in temp_big
      temp_big=cmplx(0.0,0.0)
-     CALL dfftw_execute_dft_r2c(plan_r2c,bmag(0,0,0),temp_big(0,0,0))
+     store = bmag
+     CALL dfftw_execute_dft_r2c(plan_r2c,store,temp_big)
 !!! Now cut down to dealias and store result in bmagk which is b^2(k)
      
      DO i=0,nkx0-1
@@ -3932,7 +4132,7 @@ USE par_mod
 !!! Now that we have bmagk, need to do IFFT(ikx b^2) IFFT(iky b^2) IFFT(ikz b^2) to get grad b^2/2 in real space
 
      !bmag_inbig = bx*bx + by*by + bz*bz
-     !CALL dfftw_execute_dft_r2c(plan_r2c,bmag_inbig(0,0,0),bmag(0,0,0))
+     !CALL dfftw_execute_dft_r2c(plan_r2c,bmag_inbig,bmag)
      !do i = 0,nkx0-1
      !        bmag_in(i,0:hky_ind,0:hkz_ind)=bmag(i,0:hky_ind,0:hkz_ind)*fft_norm   !kz positive, ky positive
      !        bmag_in(i,0:hky_ind,lkz_ind:nkz0-1)=bmag(i,0:hky_ind,lkz_big:nz0_big-1)*fft_norm !kz negative, ky positive
@@ -3952,7 +4152,8 @@ USE par_mod
          !kz negative, ky negative
          !kz positive, ky negative
      END DO!k loop
-     CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxbmag(0,0,0))
+     CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+     dxbmag = store
 
      !dybmag
      DO j=0,nky0-1
@@ -3966,7 +4167,8 @@ USE par_mod
          !kz negative, ky negative
          !kz positive, ky negative
      END DO!k loop
-     CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dybmag(0,0,0))
+     CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+     dybmag = store
 
      !dzbmag
      DO k=0,nkz0-1
@@ -3980,8 +4182,8 @@ USE par_mod
          !kz negative, ky negative
          !kz positive, ky negative
      END DO!k loop
-     CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dzbmag(0,0,0))
-
+     CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+     dzbmag = store
      if (verbose) print *, 'Bmag gradients dealiased'
   endif
 
@@ -3998,7 +4200,8 @@ USE par_mod
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),vx(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  vx = store
 
   !vy
   DO j=0,nky0-1
@@ -4013,7 +4216,8 @@ USE par_mod
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),vy(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  vy = store
 
   !vz
   DO k=0,nkz0-1
@@ -4027,8 +4231,8 @@ USE par_mod
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),vz(0,0,0))
-
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  vz = store
 
   !  FIRST ORDER VX TERMS DXVX , DYVX,  DZVX
 
@@ -4044,7 +4248,8 @@ USE par_mod
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxvx(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dxvx = store
 
   ! dyvx
   DO j=0,nky0-1
@@ -4058,7 +4263,8 @@ USE par_mod
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dyvx(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dyvx = store
 
   ! dzvx
   DO k=0,nkz0-1
@@ -4072,7 +4278,8 @@ USE par_mod
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dzvx(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dzvx = store
 
   !  FIRST ORDER VY TERMS  dxvy dyvy dzvz,
 
@@ -4088,7 +4295,8 @@ USE par_mod
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxvy(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dxvy = store
 
   ! dyvy
   DO j=0,nky0-1
@@ -4102,7 +4310,8 @@ USE par_mod
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dyvy(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dyvy = store 
 
   ! dzvy
   DO k=0,nkz0-1
@@ -4116,7 +4325,8 @@ USE par_mod
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dzvy(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dzvy = store
 
   !  FIRST ORDER VZ TERMS  dxvz dyvz dzvz
   ! dxvz
@@ -4131,7 +4341,8 @@ USE par_mod
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxvz(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dxvz = store
 
   ! dyvz
   DO j=0,nky0-1
@@ -4145,7 +4356,8 @@ USE par_mod
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dyvz(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dyvz = store
 
   ! dzvz
   DO k=0,nkz0-1
@@ -4159,7 +4371,8 @@ USE par_mod
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dzvz(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dzvz = store
 
   ! DONE ALL FIRST ORDER VX,VY AND VZ TERMS i.e.  dxvx dyvx dzvx,dxvy dyvy,dzvy, dxvz,dyvz,dzvz
 
@@ -4176,7 +4389,8 @@ USE par_mod
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxbx(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dxbx = store
 
   ! dybx
   DO j=0,nky0-1
@@ -4190,7 +4404,8 @@ USE par_mod
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dybx(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dybx = store
 
   ! dzbx
   DO k=0,nkz0-1
@@ -4204,7 +4419,8 @@ USE par_mod
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dzbx(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dzbx = store
 
   !  FIRST ORDER BY TERMS ie. dxby dyby dzby
   ! dxby
@@ -4219,7 +4435,8 @@ USE par_mod
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxby(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dxby = store
 
   ! dyby
   DO j=0,nky0-1
@@ -4233,7 +4450,8 @@ USE par_mod
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dyby(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dyby = store
 
   ! dzby
   DO k=0,nkz0-1
@@ -4247,7 +4465,8 @@ USE par_mod
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dzby(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dzby = store
 
   !! FIRST ORDER BZ TERMS ie. dxbz dybz dzbz
   ! dxbz
@@ -4262,7 +4481,8 @@ USE par_mod
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dxbz(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dxbz = store
 
   ! dybz
   DO j=0,nky0-1
@@ -4276,7 +4496,8 @@ USE par_mod
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dybz(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dybz = store
 
   ! dzbz
   DO k=0,nkz0-1
@@ -4290,7 +4511,8 @@ USE par_mod
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big(0,0,0),dzbz(0,0,0))
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dzbz = store
 
   ! DONE ALL FIRST ORDER BX,BY BZ TERMS ie. dxbx dybx dzbx,  dxby, dyby,dzby,  dxbz,dybz,dzbz
 
@@ -4356,9 +4578,18 @@ USE par_mod
   ENDIF
 
   !inverse FFT to get back to Fourier
-  CALL dfftw_execute_dft_r2c(plan_r2c,store_x(0,0,0),temp_bigx(0,0,0))
-  CALL dfftw_execute_dft_r2c(plan_r2c,store_y(0,0,0),temp_bigy(0,0,0))
-  CALL dfftw_execute_dft_r2c(plan_r2c,store_z(0,0,0),temp_bigz(0,0,0))
+
+  store = store_x
+  CALL dfftw_execute_dft_r2c(plan_r2c,store,temp_big)
+  temp_bigx = temp_big
+
+  store = store_y
+  CALL dfftw_execute_dft_r2c(plan_r2c,store,temp_big)
+  temp_bigy = temp_big
+
+  store = store_z
+  CALL dfftw_execute_dft_r2c(plan_r2c,store,temp_big)
+  temp_bigz = temp_big
 
   !Now fill in appropriate rhs elements                                                                                                                                                                
   DO i=0,nkx0-1
@@ -4436,9 +4667,17 @@ USE par_mod
      endif
   ENDIF
 
-  CALL dfftw_execute_dft_r2c(plan_r2c,store_x(0,0,0),temp_bigx(0,0,0))
-  CALL dfftw_execute_dft_r2c(plan_r2c,store_y(0,0,0),temp_bigy(0,0,0))
-  CALL dfftw_execute_dft_r2c(plan_r2c,store_z(0,0,0),temp_bigz(0,0,0))
+  store = store_x
+  CALL dfftw_execute_dft_r2c(plan_r2c,store,temp_big)
+  temp_bigx = temp_big
+
+  store = store_y
+  CALL dfftw_execute_dft_r2c(plan_r2c,store,temp_big)
+  temp_bigy = temp_big
+
+  store = store_z
+  CALL dfftw_execute_dft_r2c(plan_r2c,store,temp_big)
+  temp_bigz = temp_big
 
   !Now fill in appropriate rhs elements
   DO i=0,nkx0-1
@@ -4457,9 +4696,7 @@ USE par_mod
   if (verbose) print *, 'ekd deallocated'
   DEALLOCATE(temp_small)
   if (verbose) print *, 'ts deallocated'
-  DEALLOCATE(temp_big)
-  if (verbose) print *, 'tb deallocated'
-
+ 
   DEALLOCATE(temp_bigx)
   if (verbose) print *, 'tbx deallocated'
   DEALLOCATE(temp_bigy)
@@ -4784,7 +5021,10 @@ real :: arr_real(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1)
 complex :: arr_spec(0:nkx0-1,0:nky0-1,lkz1:lkz2)
 complex :: temporary(0:nx0_big/2,0:ny0_big-1,0:nz0_big-1)
 integer :: s
-CALL dfftw_execute_dft_r2c(plan_r2c,arr_real(0,0,0),temporary(0,0,0))
+
+store = arr_real
+CALL dfftw_execute_dft_r2c(plan_r2c,store,temp_big)
+temporary = temp_big
 
 !Now fill in appropriate rhs elements                                          
 
@@ -4805,8 +5045,9 @@ complex :: arr_spec(0:nkx0-1,0:nky0-1,lkz1:lkz2)
 complex :: temporary(0:nx0_big/2,0:ny0_big-1,0:nz0_big-1)
 integer :: s
 
-  CALL dfftw_execute_dft_r2c(plan_r2c,arr_real(0,0,0),temporary(0,0,0))
-
+  store = arr_real
+  CALL dfftw_execute_dft_r2c(plan_r2c,store,temp_big)
+  temporary = temp_big
 !Now fill in appropriate rhs elements 
 
   DO s=0,nkx0-1
@@ -4822,7 +5063,10 @@ real :: arr_real(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1)
 complex :: arr_spec(0:nkx0-1,0:nky0-1,lkz1:lkz2)
 complex :: temporary(0:nx0_big/2,0:ny0_big-1,0:nz0_big-1)
 integer :: s
-CALL dfftw_execute_dft_r2c(plan_r2c,arr_real(0,0,0),temporary(0,0,0))
+
+store = arr_real
+CALL dfftw_execute_dft_r2c(plan_r2c,store,temp_big)
+temporary = temp_big
 
 !Now fill in appropriate rhs elements 
 
@@ -4831,6 +5075,22 @@ CALL dfftw_execute_dft_r2c(plan_r2c,arr_real(0,0,0),temporary(0,0,0))
   END DO!i loop  
 
 END FUNCTION fft_spec3
+
+SUBROUTINE finalize_fourier
+
+implicit none
+
+call dfftw_destroy_plan(plan_r2c)
+call dfftw_destroy_plan(plan_c2r)
+call dfftw_cleanup()
+
+DEALLOCATE(store)
+DEALLOCATE(temp_big)
+
+DEALLOCATE(plan_r2c)
+DEALLOCATE(plan_c2r)
+
+END SUBROUTINE finalize_fourier
 
 END MODULE nonlinearity
 

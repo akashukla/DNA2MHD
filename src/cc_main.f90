@@ -37,7 +37,7 @@ PROGRAM dna
   !USE flr_effects, ONLY: finalize_flr
   !USE hk_effects, ONLY: finalize_hk
   USE mpi
-  USE nonlinearity, ONLY: initialize_fourier  
+  USE nonlinearity, ONLY: initialize_fourier, finalize_fourier
   USE par_mod
   !USE performance, ONLY: end_clock, performance_compute, start_clock
   USE time_advance, ONLY: iv_solver, rk4_stability
@@ -159,6 +159,7 @@ PROGRAM dna
   !!!!!!!!!!!!!!!!!!!!!!!
   IF (verbose) WRITE(*,*) "Finalizing diagnostics.",mype
   CALL finalize_diagnostics
+  IF (nonlinear) CALL finalize_fourier
   !CALL finalize_adapt_dt
   !CALL finalize_flr
   !CALL finalize_hk
