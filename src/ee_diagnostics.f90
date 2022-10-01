@@ -4362,7 +4362,7 @@ do ind = 0,2
   do i = 0,nkx0-1
     do j = 0,nky0-1
       do k = lkz1,lkz2
-        crosshel = crosshel + conjg(b0(i,j,k,ind)) * v0(i,j,k,ind) !+ conjg(v0(i,j,k,ind)) * b0(i,j,k,ind)
+        crosshel = crosshel + conjg(b0(i,j,k,ind)) * v0(i,j,k,ind) + conjg(v0(i,j,k,ind)) * b0(i,j,k,ind)
         crosshel = crosshel + conjg(v0(i,j,k,ind)) * w0(i,j,k,ind)
       enddo
     enddo

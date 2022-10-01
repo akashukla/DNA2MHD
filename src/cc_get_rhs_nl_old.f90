@@ -3756,7 +3756,7 @@ USE par_mod
       !kz positive, ky negative
   END DO!k loop
   CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
-  dzdzbz = store
+  dzdzvz = store
 
   ! finished SECOND ORDER VZ TERMS
 
@@ -3776,7 +3776,7 @@ USE par_mod
       !kz positive, ky negative
   END DO!k loop
   CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
-  dxdzbz = store
+  dxdxbx = store
 
   !dxdybx
   DO i=0,nkx0-1
