@@ -37,31 +37,31 @@ MODULE nonlinearity
   PRIVATE
 
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:) :: b_inx0, b_iny0,  b_inz0, v_inx0, v_iny0,  v_inz0, bmag_in, bmagk, ekd
-  COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:) :: temp_small,temp_big, temp_bigx, temp_bigy, temp_bigz
+  COMPLEX, ALLOCATABLE, DIMENSION(:,:,:) :: temp_small,temp_big, temp_bigx, temp_bigy, temp_bigz
 
-  COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:) ::  store_x, store_y, store_z,store
-  COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:) ::  bmag, dxbmag, dybmag, dzbmag,bmag_inbig
+  COMPLEX, ALLOCATABLE, DIMENSION(:,:,:) ::  store_x, store_y, store_z,store
+  COMPLEX, ALLOCATABLE, DIMENSION(:,:,:) ::  bmag, dxbmag, dybmag, dzbmag,bmag_inbig
 
 
-  COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:) :: bx,by,bz, dxbx, dybx,dzbx, dxby,dyby,dzby, dxbz,dybz,dzbz
-  COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:) :: vx,vy,vz, dxvx, dyvx,dzvx, dxvy,dyvy,dzvy, dxvz,dyvz,dzvz
+  COMPLEX, ALLOCATABLE, DIMENSION(:,:,:) :: bx,by,bz, dxbx, dybx,dzbx, dxby,dyby,dzby, dxbz,dybz,dzbz
+  COMPLEX, ALLOCATABLE, DIMENSION(:,:,:) :: vx,vy,vz, dxvx, dyvx,dzvx, dxvy,dyvy,dzvy, dxvz,dyvz,dzvz
 
-  COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:) :: dxdxbx, dxdybx, dxdzbx, dydybx, dydzbx, dzdzbx
-  COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:) :: dxdxby, dxdyby, dxdzby, dydyby, dydzby, dzdzby
-  COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:) :: dxdxbz, dxdybz, dxdzbz, dydybz, dydzbz, dzdzbz
+  COMPLEX, ALLOCATABLE, DIMENSION(:,:,:) :: dxdxbx, dxdybx, dxdzbx, dydybx, dydzbx, dzdzbx
+  COMPLEX, ALLOCATABLE, DIMENSION(:,:,:) :: dxdxby, dxdyby, dxdzby, dydyby, dydzby, dzdzby
+  COMPLEX, ALLOCATABLE, DIMENSION(:,:,:) :: dxdxbz, dxdybz, dxdzbz, dydybz, dydzbz, dzdzbz
     
-  COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:) :: dxdxvx, dxdyvx, dxdzvx, dydyvx, dydzvx, dzdzvx
-  COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:) :: dxdxvy, dxdyvy, dxdzvy, dydyvy, dydzvy, dzdzvy
-  COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:) :: dxdxvz, dxdyvz, dxdzvz, dydyvz, dydzvz, dzdzvz
+  COMPLEX, ALLOCATABLE, DIMENSION(:,:,:) :: dxdxvx, dxdyvx, dxdzvx, dydyvx, dydzvx, dzdzvx
+  COMPLEX, ALLOCATABLE, DIMENSION(:,:,:) :: dxdxvy, dxdyvy, dxdzvy, dydyvy, dydzvy, dzdzvy
+  COMPLEX, ALLOCATABLE, DIMENSION(:,:,:) :: dxdxvz, dxdyvz, dxdzvz, dydyvz, dydzvz, dzdzvz
 
 
 
   !For fft's
 
-  COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:):: g_kbig
-  COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:):: g_rbig
-  COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:):: g_kbig_2d
-  COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:):: g_rbig_2d
+  COMPLEX, ALLOCATABLE, DIMENSION(:,:,:):: g_kbig
+  COMPLEX, ALLOCATABLE, DIMENSION(:,:,:):: g_rbig
+  COMPLEX, ALLOCATABLE, DIMENSION(:,:):: g_kbig_2d
+  COMPLEX, ALLOCATABLE, DIMENSION(:,:):: g_rbig_2d
   INTEGER :: nx0_big,ny0_big,nz0_big
   INTEGER(kind=8), allocatable :: plan_r2c,plan_c2r
   INTEGER(kind=8) :: plan_kz2z,plan_z2kz
@@ -94,7 +94,7 @@ SUBROUTINE initialize_fourier_ae_mu0
   !for dealiasing
   if (dealias_type.eq.1) zpad = 2
   if ((dealias_type.eq.3).or.(dealias_type.eq.4)) zpad = dealias_type
-  nx0_big=zpad*nkx0/2
+  nx0_big=zpad*nkx0
   ny0_big=zpad*nky0/2
   nz0_big=zpad*nkz0/2
   fft_norm=1.0/(REAL(nx0_big*ny0_big*nz0_big))
@@ -3059,6 +3059,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   store = store_x
   CALL dfftw_execute_dft(plan_r2c,store,temp_big)
   temp_bigx = temp_big
+  if ((verbose).and.(mod(itime,100).eq.1)) CALL wherenezero(temp_bigx)
 
   store = store_y
   CALL dfftw_execute_dft(plan_r2c,store,temp_big)
@@ -4581,6 +4582,7 @@ USE par_mod
   store = store_x
   CALL dfftw_execute_dft(plan_r2c,store,temp_big)
   temp_bigx = temp_big
+  if ((verbose).and.(mod(itime,100).eq.1)) CALL wherenezero(temp_bigx)
 
   store = store_y
   CALL dfftw_execute_dft(plan_r2c,store,temp_big)
@@ -5016,9 +5018,9 @@ END SUBROUTINE next_dt
 FUNCTION fft_spec(arr_real) result(arr_spec)
 
 implicit none
-complex(C_DOUBLE_COMPLEX) :: arr_real(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1)
-complex(C_DOUBLE_COMPLEX) :: arr_spec(0:nkx0-1,0:nky0-1,lkz1:lkz2)
-complex(C_DOUBLE_COMPLEX) :: temporary(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1)
+complex :: arr_real(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1)
+complex :: arr_spec(0:nkx0-1,0:nky0-1,lkz1:lkz2)
+complex :: temporary(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1)
 integer :: s
 
 store = arr_real
@@ -5039,9 +5041,9 @@ END FUNCTION fft_spec
 FUNCTION fft_spec2(arr_real) result(arr_spec)
 
 implicit none
-complex(C_DOUBLE_COMPLEX) :: arr_real(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1)
-complex(C_DOUBLE_COMPLEX) :: arr_spec(0:nkx0-1,0:nky0-1,lkz1:lkz2)
-complex(C_DOUBLE_COMPLEX) :: temporary(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1)
+complex :: arr_real(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1)
+complex :: arr_spec(0:nkx0-1,0:nky0-1,lkz1:lkz2)
+complex :: temporary(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1)
 integer :: s
 
   store = arr_real
@@ -5058,9 +5060,9 @@ END FUNCTION fft_spec2
 FUNCTION fft_spec3(arr_real) result(arr_spec)
 
 implicit none
-complex(C_DOUBLE_COMPLEX) :: arr_real(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1)
-complex(C_DOUBLE_COMPLEX) :: arr_spec(0:nkx0-1,0:nky0-1,lkz1:lkz2)
-complex(C_DOUBLE_COMPLEX) :: temporary(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1)
+complex :: arr_real(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1)
+complex :: arr_spec(0:nkx0-1,0:nky0-1,lkz1:lkz2)
+complex :: temporary(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1)
 integer :: s
 
 store = arr_real
@@ -5090,5 +5092,21 @@ DEALLOCATE(plan_r2c)
 DEALLOCATE(plan_c2r)
 
 END SUBROUTINE finalize_fourier
+
+SUBROUTINE wherenezero(fftop)
+
+implicit none
+complex :: fftop(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1)
+integer :: ix,iy,iz
+
+DO ix = 0,nx0_big-1
+  DO iy = 0,ny0_big-1
+    DO iz = 0,nz0_big-1
+      IF (abs(fftop(ix,iy,iz)).gt.10**(-10)) print *, ix,iy,iz,fftop(ix,iy,iz)*fft_norm
+    ENDDO
+  ENDDO
+ENDDO
+
+END SUBROUTINE wherenezero
 
 END MODULE nonlinearity
