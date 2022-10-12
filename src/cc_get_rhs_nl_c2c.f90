@@ -5102,11 +5102,55 @@ integer :: ix,iy,iz
 DO ix = 0,nx0_big-1
   DO iy = 0,ny0_big-1
     DO iz = 0,nz0_big-1
-      IF (abs(fftop(ix,iy,iz)).gt.10**(-10)) print *, ix,iy,iz,fftop(ix,iy,iz)*fft_norm
+      IF (abs(fftop(ix,iy,iz)).gt.10.0**(-10.0)) print *, ix,iy,iz,fftop(ix,iy,iz)*fft_norm
     ENDDO
   ENDDO
 ENDDO
 
 END SUBROUTINE wherenezero
+
+!SUBROUTINE convcomp(x,y)
+!
+!implicit none
+!
+!complex :: x(0:nkx0-1,0:nky0-1,0:nkz0-1)
+!complex :: y(0:nkx0-1,0:nky0-1,0:nkz0-1)
+!complex :: convo(0:nkx0-1,0:nky0-1,0:nkz0-1)
+!integer :: i,j,k
+!integer :: l,m,n
+
+! compute convolution
+
+!DO i = 0,nkx0-1
+!  DO j = 0,nky0-1
+!    DO k = 0,nkz0-1
+!      DO l = 0,i+1
+!        DO m = 0,j+1
+!          DO n = 0,k+1
+!            if ((i.ge.l).and.(j.ge.m).and.(k.ge.n)) convo(i,j,k) = convo(i,j,k) + x(l,m,n) * y(i-l,j-m,k-n)
+!          ENDDO
+!        ENDDO
+!      ENDDO
+!    ENDDO
+!  ENDDO
+!ENDDO
+
+! compute fft convolution
+
+!SELECT CASE (dealias_type)
+
+!CASE(1)
+
+!temp_big = cmplx(0.0,0.0)
+!temp_big(0:nkx0-1,0:nky0-1,0:nkz0-1) = x * ekd
+!temp_big(0:nkx0-1,0:nky0-1,0:nkz0-1) 
+
+!CASE(3)
+
+!CASE(4)
+
+!END SELECT
+
+!END SUBROUTINE convcomp
 
 END MODULE nonlinearity
