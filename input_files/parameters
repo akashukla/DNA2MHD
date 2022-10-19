@@ -10,7 +10,7 @@ vnu = 0.0
 &numerical_parameters
 kxmin =   0.05
 kymin =   0.05
-kzmin =   0.02
+kzmin =   0.10
 nkx0 =  4
 nky0 =  8 
 nkz0 =  8
@@ -48,7 +48,7 @@ hyp = 2
 /
 
 &diagnostics
-diagdir = '/scratch/08929/echansen/dna2mhdrunpstest10'
+diagdir = '/scratch/08929/echansen/dna2mhdrunextrakxpad'
 istep_ffm =   20
 istep_energy3d =  500
 istep_energy =  100
@@ -98,7 +98,7 @@ hall = 1
 /
 
 &initial_value
-max_itime =   5000
+max_itime =   2000
 max_walltime =   7000
 dt_max =   0.01
 max_time =   10000000.0    

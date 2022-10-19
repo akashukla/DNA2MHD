@@ -207,6 +207,7 @@ SUBROUTINE get_rhs_nlps(b_in, v_in, rhs_out_b, rhs_out_v,ndt)
   ENDDO
   rhs_out_b = rhs_out_b / 8.0
   rhs_out_v = rhs_out_v / 8.0
+  if ((verbose).and.(mod(itime,100).eq.1)) CALL wherenezero(rhs_out_b(0:nkx0-1,0:nky0-1,0:nkz0-1,0)-b_in(0:nkx0-1,0:nky0-1,0:nkz0-1,0))
 
 END SUBROUTINE get_rhs_nlps
 
@@ -4582,7 +4583,6 @@ USE par_mod
   store = store_x
   CALL dfftw_execute_dft(plan_r2c,store,temp_big)
   temp_bigx = temp_big
-  if ((verbose).and.(mod(itime,100).eq.1)) CALL wherenezero(temp_bigx)
 
   store = store_y
   CALL dfftw_execute_dft(plan_r2c,store,temp_big)
