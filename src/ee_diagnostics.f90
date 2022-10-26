@@ -397,7 +397,7 @@ SUBROUTINE diag
          IF(verbose) WRITE(*,*) "Starting energy diag.",mype
          WRITE(en_handle) time
          WRITE(en_handle) hmhdhmtn(v_1,b_1)
-         WRITE(en_handle) mag_helicity(b_1)
+         WRITE(en_handle) mag_helicity(v_1,b_1)
          WRITE(en_handle) cross_helicity(v_1,b_1)
          WRITE(en_handle) eta*resvischange(b_1)
          WRITE(en_handle) vnu*resvischange(v_1)
@@ -4160,8 +4160,6 @@ END SUBROUTINE diag
 !! 
 !!  END SUBROUTINE phi_shell_filter3
 
-
-
 function hmhdhmtn(v_in,b_in) result(ham)
 
 implicit none
@@ -4253,14 +4251,14 @@ ENDDO
 if (verbose) print *, 'Debug files closed' 
 end subroutine finalize_debug
 
-function vec_potential(b) result(A)
+function vec_potential(v,b) result(A)
 
 implicit none
+complex :: v(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
 complex :: b(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
 complex :: A(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
 complex :: bg(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
 integer :: i,j,k,ind
-
 
 bg = b
 
@@ -4271,24 +4269,26 @@ do ind = 0,2
   do i = 0,nkx0-1
     do j = 0,nky0-1
       do k = lkz1,lkz2
-        if ((i**2+j**2+k**2).ne.0) then 
-          if (ind.eq.0) A(i,j,k,ind) = kygrid(j) * bg(i,j,k,2) - kzgrid(k) * bg(i,j,k,1) 
-          if (ind.eq.1) A(i,j,k,ind) = kzgrid(k) * bg(i,j,k,0) - kxgrid(i) * bg(i,j,k,2)
-          if (ind.eq.2) A(i,j,k,ind) = kxgrid(i) * bg(i,j,k,1) - kygrid(j) * bg(i,j,k,0)
-          A(i,j,k,ind) = cmplx(-1.0,0.0) * A(i,j,k,ind) / (kxgrid(i)**2 + kygrid(j)**2 + kzgrid(k)**2)
+        if ((kzgrid(k)).ne.0) then 
+          if (ind.eq.0) A(i,j,k,ind) = cmplx(0.0,1.0) * (kygrid(j)*bg(i,j,k,2)-kzgrid(k)*bg(i,j,k,1))
+          if (ind.eq.1) A(i,j,k,ind) = cmplx(0.0,1.0) * (kzgrid(k)*bg(i,j,k,0)-kxgrid(i)*bg(i,j,k,2))
+          if (ind.eq.2) A(i,j,k,ind) = cmplx(0.0,1.0) * (kxgrid(i)*bg(i,j,k,1)-kygrid(j)*bg(i,j,k,0))
+          A(i,j,k,ind) = A(i,j,k,ind) / (kxgrid(i)**2 + kygrid(j)**2 + kzgrid(k)**2)
         endif
       enddo
     enddo
    enddo
 enddo
+A(0,0,0,2) = 0.5 * sum(aimag(b)**2+aimag(v)**2)
 
-if ((verbose).and.(itime.lt.200)) write(*,*) 'A',A
+if ((verbose).and.(itime.eq.200)) write(*,*) 'A',A
 
 end function vec_potential
 
-function mag_helicity(b0) result(maghel)
+function mag_helicity(v0,b0) result(maghel)
 
 implicit none
+complex :: v0(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
 complex :: b0(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
 real :: maghel
 complex :: A0(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
@@ -4296,7 +4296,7 @@ integer :: i,j,k,ind
 real :: intx
 
 maghel = 0.0
-A0 = vec_potential(b0)
+A0 = vec_potential(v0,b0)
 
 do ind = 0,2
   do i = 0,nkx0-1
@@ -4305,12 +4305,6 @@ do ind = 0,2
         maghel = maghel + real(conjg(A0(i,j,k,ind))*b0(i,j,k,ind))
       enddo
     enddo
-!    if (i.ne.0) then
-!      intx = (2 * sin(kxgrid(i)*pi) - 2 * kxgrid(i) * pi * cos(kxgrid(i)*pi)) &
-!        / (kxgrid(i)**2)
-!      maghel = maghel - aimag(b0(i,0,0,1)) * intx / (2*pi)
-      ! if (verbose) print *, 'Guide\n Field\n Contribution',intx,aimag(b0(i,0,0,1)),- aimag(b0(i,0,0,1)) * intx / (2*pi)
-    ! endif
   enddo
 enddo
 
@@ -4339,6 +4333,7 @@ do ind = 0,2
     enddo
    enddo
 enddo
+
 w = cmplx(0.0,1.0) * w
 
 if ((verbose).and.(itime.lt.200)) write(*,*) 'w',w
@@ -4355,22 +4350,22 @@ complex :: A0(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
 complex :: w0(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
 integer :: i,j,k,ind
 
-crosshel = mag_helicity(b0) / (8 * pi**3)
+crosshel = mag_helicity(v0,b0) / (8 * pi**3)
 w0 = vorticity(v0)
 
 do ind = 0,2
   do i = 0,nkx0-1
     do j = 0,nky0-1
       do k = lkz1,lkz2
-        crosshel = crosshel + conjg(b0(i,j,k,ind)) * v0(i,j,k,ind) + conjg(v0(i,j,k,ind)) * b0(i,j,k,ind)
-        crosshel = crosshel + conjg(v0(i,j,k,ind)) * w0(i,j,k,ind)
+        crosshel = crosshel + 2*real(conjg(b0(i,j,k,ind)) * v0(i,j,k,ind))
+        crosshel = crosshel + real(conjg(v0(i,j,k,ind)) * w0(i,j,k,ind))
       enddo
     enddo
   enddo
 enddo
 
-crosshel = crosshel + 3*v0(0,0,0,2)
-crosshel = real((2*pi)**3 * crosshel)
+crosshel = crosshel + 3*real(v0(0,0,0,2))
+crosshel = (2*pi)**3 * crosshel
 
 end function cross_helicity
 
