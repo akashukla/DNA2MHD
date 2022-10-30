@@ -94,7 +94,7 @@ SUBROUTINE initialize_fourier_ae_mu0
   !for dealiasing
   if (dealias_type.eq.1) zpad = 2
   if ((dealias_type.eq.3).or.(dealias_type.eq.4)) zpad = dealias_type
-  nx0_big=zpad*nkx0
+  nx0_big=zpad*nkx0/2
   ny0_big=zpad*nky0/2
   nz0_big=zpad*nkz0/2
   fft_norm=1.0/(REAL(nx0_big*ny0_big*nz0_big))
@@ -170,12 +170,18 @@ SUBROUTINE get_rhs_nl(b_in, v_in, rhs_out_b, rhs_out_v,ndt)
     IF (dealias_type.eq.3) CALL get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
     IF (dealias_type.eq.4) CALL get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
     IF (dealias_type.eq.1) CALL get_rhs_nlps(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
+    if ((verbose).and.(mod(itime,100).eq.1)) CALL wherenezero(rhs_out_b(0:nkx0-1,0:nky0-1,0:nkz0-1,0)-b_in(0:nkx0-1,0:nky0-1,0:nkz0-1,0))
+    if (verbose) print *, 'Checked nonzero convolution terms'
+    if ((verbose).and.(mod(itime,100).eq.1)) CALL wherebvnotreal(rhs_out_b,rhs_out_v)
+    if (verbose) print *, 'Checked b,v reality condition'
+
 !  ELSE IF(rhs_nl_version==2) THEN
 !    CALL get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v)
 !  ELSE IF(rhs_nl_version==3) THEN
 !    CALL get_rhs_nl3(b_in,v_in,rhs_out_b,rhs_out_v)
 !  ELSE IF(rhs_nl_version==4) THEN
 !    CALL get_rhs_nl4(b_in,v_in,rhs_out_b,rhs_out_v)
+
   END IF
  
 END SUBROUTINE get_rhs_nl
@@ -207,7 +213,6 @@ SUBROUTINE get_rhs_nlps(b_in, v_in, rhs_out_b, rhs_out_v,ndt)
   ENDDO
   rhs_out_b = rhs_out_b / 8.0
   rhs_out_v = rhs_out_v / 8.0
-  if ((verbose).and.(mod(itime,100).eq.1)) CALL wherenezero(rhs_out_b(0:nkx0-1,0:nky0-1,0:nkz0-1,0)-b_in(0:nkx0-1,0:nky0-1,0:nkz0-1,0))
 
 END SUBROUTINE get_rhs_nlps
 
@@ -3060,7 +3065,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   store = store_x
   CALL dfftw_execute_dft(plan_r2c,store,temp_big)
   temp_bigx = temp_big
-  if ((verbose).and.(mod(itime,100).eq.1)) CALL wherenezero(temp_bigx)
+!  if ((verbose).and.(mod(itime,100).eq.1)) CALL wherenezero(temp_bigx)
 
   store = store_y
   CALL dfftw_execute_dft(plan_r2c,store,temp_big)
@@ -5096,18 +5101,39 @@ END SUBROUTINE finalize_fourier
 SUBROUTINE wherenezero(fftop)
 
 implicit none
-complex :: fftop(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1)
+complex :: fftop(0:nkx0-1,0:nky0-1,0:nkz0-1)
 integer :: ix,iy,iz
 
-DO ix = 0,nx0_big-1
-  DO iy = 0,ny0_big-1
-    DO iz = 0,nz0_big-1
-      IF (abs(fftop(ix,iy,iz)).gt.10.0**(-10.0)) print *, ix,iy,iz,fftop(ix,iy,iz)*fft_norm
+DO ix = 0,nkx0-1
+  DO iy = 0,nky0-1
+    DO iz = 0,nkz0-1
+      IF (abs(fftop(ix,iy,iz)).gt.10.0**(-10.0)) print *, ix,iy,iz,fftop(ix,iy,iz)
     ENDDO
   ENDDO
 ENDDO
 
 END SUBROUTINE wherenezero
+
+SUBROUTINE wherebvnotreal(fftop1,fftop2)
+
+implicit none
+complex :: fftop1(0:nkx0-1,0:nky0-1,0:nkz0-1)
+complex :: fftop2(0:nkx0-1,0:nky0-1,0:nkz0-1)
+integer :: ix,iy,iz
+
+DO ix = 0,nkx0/2
+  DO iy = 0,nky0/2
+    DO iz = 0,nkz0/2
+      IF (abs(fftop1(ix,iy,iz)-conjg(fftop1(mod(nkx0-ix,nkx0),mod(nky0-iy,nky0),mod(nkz0-iz,nkz0)))).gt.10.0**(-10.0)) &
+        print *, 'B',ix,iy,iz,mod(nkx0-ix,nkx0),mod(nky0-iy,nky0),mod(nkz0-iz,nkz0),fftop1(ix,iy,iz),fftop1(mod(nkx0-ix,nkx0),mod(nky0-iy,nky0),mod(nkz0-iz,nkz0))
+      IF (abs(fftop1(ix,iy,iz)-conjg(fftop1(mod(nkx0-ix,nkx0),mod(nky0-iy,nky0),mod(nkz0-iz,nkz0)))).gt.10.0**(-10.0)) &
+        print *, 'V',ix,iy,iz,mod(nkx0-ix,nkx0),mod(nky0-iy,nky0),mod(nkz0-iz,nkz0),fftop2(ix,iy,iz),fftop2(mod(nkx0-ix,nkx0),mod(nky0-iy,nky0),mod(nkz0-iz,nkz0))
+    ENDDO
+  ENDDO
+ENDDO
+
+END SUBROUTINE wherebvnotreal
+
 
 !SUBROUTINE convcomp(x,y)
 !
