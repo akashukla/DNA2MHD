@@ -93,7 +93,7 @@ SUBROUTINE initialize_fourier_ae_mu0
   
   !for dealiasing
   if (dealias_type.eq.1) zpad = 2
-  if ((dealias_type.eq.3).or.(dealias_type.eq.4)) zpad = dealias_type
+  if ((dealias_type.eq.3).or.(dealias_type.eq.4).or.(dealias_type.eq.20)) zpad = dealias_type
   nx0_big=zpad*nkx0/2
   ny0_big=zpad*nky0/2
   nz0_big=zpad*nkz0/2
@@ -161,6 +161,8 @@ SUBROUTINE get_rhs_nl(b_in, v_in, rhs_out_b, rhs_out_v,ndt)
   COMPLEX, INTENT(in) :: v_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
   COMPLEX, INTENT(inout) :: rhs_out_b(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
   COMPLEX, INTENT(inout) :: rhs_out_v(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+  COMPLEX :: rhs_out_b2(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+  COMPLEX :: rhs_out_v2(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
   REAL :: ndt
   
   !IF(mype==0) WRITE(*,*) "In get_rhs_nl"
@@ -174,7 +176,27 @@ SUBROUTINE get_rhs_nl(b_in, v_in, rhs_out_b, rhs_out_v,ndt)
     if (verbose) print *, 'Checked nonzero convolution terms'
     if ((verbose).and.(mod(itime,100).eq.1)) CALL wherebvnotreal(rhs_out_b,rhs_out_v)
     if (verbose) print *, 'Checked b,v reality condition'
-
+    if (dealias_type.eq.20) THEN
+      CALL finalize_fourier
+      dealias_type = 4
+      CALL initialize_fourier_ae_mu0
+      rhs_out_b2 = rhs_out_b
+      rhs_out_v2 = rhs_out_v
+      CALL get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
+      rhs_out_b = -1.0 * rhs_out_b
+      rhs_out_v = -1.0 * rhs_out_v
+      CALL finalize_fourier
+      dealias_type = 1
+      CALL initialize_fourier_ae_mu0
+      CALL get_rhs_nlps(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
+      print *, 'B Phase Shift - Padding Comparison'
+      CALL wherenezero(rhs_out_b-rhs_out_b2)
+      print *, 'V Phase Shift - Padding Comparison'
+      CALL wherenezero(rhs_out_v-rhs_out_v2)
+      rhs_out_v = rhs_out_v2
+      rhs_out_b = rhs_out_b2
+      dealias_type = 20
+    endif
 !  ELSE IF(rhs_nl_version==2) THEN
 !    CALL get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v)
 !  ELSE IF(rhs_nl_version==3) THEN
@@ -892,7 +914,7 @@ endif
     CALL dfftw_execute_dft(plan_c2r,temp_big,store)
     dxdxbz = store
    
-   !dxdyvz
+   !dxdybz
   DO i=0,nkx0-1
     DO j=0,nky0-1
         temp_small(i,j,:)=i_complex*kxgrid(i)*i_complex*kygrid(j)*b_inz0(i,j,:)
@@ -2028,7 +2050,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
 
   ! DzDzVX
   DO k=0,nkz0-1
-     temp_small(:,:,k)=i_complex*kygrid(k)*i_complex*kzgrid(k)*v_inx0(:,:,k)  !two kz grid
+     temp_small(:,:,k)=i_complex*kzgrid(k)*i_complex*kzgrid(k)*v_inx0(:,:,k)  !two kz grid
   END DO
   !Add padding for dealiasing
   temp_big=cmplx(0.0,0.0)
@@ -2128,7 +2150,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
 
   ! DzDzVY
   DO k=0,nkz0-1
-     temp_small(:,:,k)=i_complex*kygrid(k)*i_complex*kzgrid(k)*v_iny0(:,:,k)  !two kz grid
+     temp_small(:,:,k)=i_complex*kzgrid(k)*i_complex*kzgrid(k)*v_iny0(:,:,k)  !two kz grid
   END DO
   !Add padding for dealiasing
   temp_big=cmplx(0.0,0.0)
@@ -2597,7 +2619,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
      DO i=0,nx0_big-1
         DO j=0,ny0_big-1
            DO k=0,nz0_big-1
-              bmag(i,j,k) = bx(i,j,k)*bx(i,j,k)+ by(i,j,k)*by(i,j,k)+ bz(i,j,k)*bz(i,j,k)
+              bmag(i,j,k) = bx(i,j,k)*conjg(bx(i,j,k))+ by(i,j,k)*conjg(by(i,j,k))+ bz(i,j,k)*conjg(bz(i,j,k))
            END DO
         END DO
      END DO
@@ -2969,7 +2991,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
 
   ! dybz
   DO j=0,nky0-1
-     temp_small(:,j,:)=i_complex*kygrid(j)*v_inz0(:,j,:)
+     temp_small(:,j,:)=i_complex*kygrid(j)*b_inz0(:,j,:)
   END DO
   !Add padding for dealiasing
   temp_big=cmplx(0.0,0.0)
@@ -3552,7 +3574,7 @@ USE par_mod
 
   ! DzDzVX
   DO k=0,nkz0-1
-     temp_small(:,:,k)=i_complex*kygrid(k)*i_complex*kzgrid(k)*v_inx0(:,:,k)  !two kz grid
+     temp_small(:,:,k)=i_complex*kzgrid(k)*i_complex*kzgrid(k)*v_inx0(:,:,k)  !two kz grid
   END DO
   !Add padding for dealiasing
   temp_big=cmplx(0.0,0.0)
@@ -3652,7 +3674,7 @@ USE par_mod
 
   ! DzDzVY
   DO k=0,nkz0-1
-     temp_small(:,:,k)=i_complex*kygrid(k)*i_complex*kzgrid(k)*v_iny0(:,:,k)  !two kz grid
+     temp_small(:,:,k)=i_complex*kzgrid(k)*i_complex*kzgrid(k)*v_iny0(:,:,k)  !two kz grid
   END DO
   !Add padding for dealiasing
   temp_big=cmplx(0.0,0.0)
@@ -4121,7 +4143,7 @@ USE par_mod
      DO i=0,nx0_big-1
         DO j=0,ny0_big-1
            DO k=0,nz0_big-1
-              bmag(i,j,k) = bx(i,j,k)*bx(i,j,k)+ by(i,j,k)*by(i,j,k)+ bz(i,j,k)*bz(i,j,k)
+              bmag(i,j,k) = bx(i,j,k)*conjg(bx(i,j,k))+ by(i,j,k)*conjg(by(i,j,k))+ bz(i,j,k)*conjg(bz(i,j,k))
            END DO
         END DO
      END DO
@@ -4492,7 +4514,7 @@ USE par_mod
 
   ! dybz
   DO j=0,nky0-1
-     temp_small(:,j,:)=i_complex*kygrid(j)*v_inz0(:,j,:)
+     temp_small(:,j,:)=i_complex*kygrid(j)*b_inz0(:,j,:)
   END DO
   !Add padding for dealiasing
   temp_big=cmplx(0.0,0.0)
@@ -4561,7 +4583,7 @@ USE par_mod
        - hall*((bx*dxdxby+by*dxdyby+bz*dxdzby-bx*dxdybx-by*dydybx-bz*dydzbx)&
        + (dybz*dxbz-dzby*dxbz-dxbz*dybz+dzbx*dybz+dxby*dzbz-dybx*dzbz ))
 
-  IF (plot_nls) THEN
+  IF (plot_nls.and.(max(dx,dy,dz).le.10.0**(-10.0))) THEN
      ! b.grad v 
      WRITE(bdvio) fft_spec3(bx*dxvx+by*dyvx+bz*dzvx)
      WRITE(bdvio) fft_spec3(bx*dxvy+by*dyvy+bz*dzvy)
@@ -4628,7 +4650,7 @@ USE par_mod
      store_y = -(vx*dxvy+vy*dyvy+vz*dzvy) + (bx*dxby+by*dyby+bz*dzby) - 0.5*dybmag
      store_z = -(vx*dxvz+vy*dyvz+vz*dzvz) + (bx*dxbz+by*dybz+bz*dzbz) - 0.5*dzbmag
 
-     IF (plot_nls) THEN
+     IF (plot_nls.and.(max(dx,dy,dz).le.10.0**(-10.0))) THEN
         ! v . grad v
         WRITE(vdvio) fft_spec3(vx*dxvx+vy*dyvx+vz*dzvx)
         WRITE(vdvio) fft_spec3(vx*dxvy+vy*dyvy+vz*dzvy)
@@ -4653,7 +4675,7 @@ USE par_mod
      store_y = -(vx*dxvy+vy*dyvy+vz*dzvy) + (bx*dxby+bz*dzby) - (bz*dybz+bx*dybx)
      store_z = -(vx*dxvz+vy*dyvz+vz*dzvz) + (bx*dxbz+by*dybz) - (by*dzby+bx*dzbx)
 
-     IF (plot_nls) THEN
+     IF (plot_nls.and.(max(dx,dy,dz).le.10.0**(-10.0))) THEN
         ! v . grad v
         WRITE(vdvio) fft_spec3(vx*dxvx+vy*dyvx+vz*dzvx)
         WRITE(vdvio) fft_spec3(vx*dxvy+vy*dyvy+vz*dzvy)

@@ -76,12 +76,12 @@ SUBROUTINE iv_solver
      continue_run=.false. 
    ENDIF
    IF (dt < 1.0E-5) then 
-     IF(verbose) WRITE(*,*) "dt too small to proceed" 
+     WRITE(*,*) "dt too small to proceed" 
      continue_run=.false.
    ENDIF
   !END IF
-
  END DO
+ write(*,*) 'Simulation Time: ',current_wallclock
  IF(verbose) WRITE(*,*) "time,itime,mype",time,itime,mype
 
 END SUBROUTINE iv_solver

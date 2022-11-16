@@ -60,19 +60,18 @@ SUBROUTINE initial_condition(which_init0)
              v_1(i,j,k,1)=cmplx(0.0,0.0)
              v_1(i,j,k,2)=cmplx(0.0,0.0)
          ELSE
-             b_1(i,j,k,0)=init_amp_bx
-             b_1(i,j,k,1)=init_amp_by
+             b_1(i,j,k,0)=init_amp_bx*1.0/real(nkx0*nky0*(nkz0-1))
+             b_1(i,j,k,1)=init_amp_by*1.0/real(nkx0*nky0*(nkz0-1))
              b_1(i,j,k,2) = (-kxgrid(i)*b_1(i,j,k,0)-kygrid(j)*b_1(i,j,k,1))/kzgrid(k)
              !b_1(i,j,k,2)=init_amp_bz
-             v_1(i,j,k,0)=init_amp_vx
-             v_1(i,j,k,1)=init_amp_vy
+             v_1(i,j,k,0)=init_amp_vx*1.0/(nkx0*nky0*(nkz0-1))
+             v_1(i,j,k,1)=init_amp_vy*1.0/(nkx0*nky0*(nkz0-1))
              !v_1(i,j,k,2)=init_amp_vz
              v_1(i,j,k,2) = (-kxgrid(i)*v_1(i,j,k,0)-kygrid(j)*v_1(i,j,k,1))/kzgrid(k)
         END IF
         END DO
        END DO
       END DO
-
 
 ! Only use default for now
 !  which_init=which_init0 

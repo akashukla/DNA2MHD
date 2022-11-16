@@ -11,9 +11,9 @@ vnu = 0.0
 kxmin =   0.05
 kymin =   0.05
 kzmin =   0.10
-nkx0 =  4
-nky0 =  8 
-nkz0 =  8
+nkx0 =  16
+nky0 =  32
+nkz0 =  32
 nv0 =   2
 nh0 =    1
 nspec =    1
@@ -34,24 +34,24 @@ courant =   0.5
 kxinit_min = 0  
 kyinit_min = 0 
 kzinit_min = 0
-kxinit_max = 4
-kyinit_max = 8 
-kzinit_max = 8
+kxinit_max = 16
+kyinit_max = 32
+kzinit_max = 32
 init_amp_bx = 0.1
 init_amp_by = 0.1
 init_amp_bz = 0.1
 init_amp_vx = 0.1
 init_amp_vy = 0.1
 init_amp_vz = 0.0
-force_amp = 0.5
+force_amp = 0.0
 hyp = 2
 /
 
 &diagnostics
-diagdir = '/scratch/08929/echansen/dna2mhdrunextrakxpad'
+diagdir = '/scratch/08929/echansen/dna2mhdrun195'
 istep_ffm =   20
 istep_energy3d =  500
-istep_energy =  100
+istep_energy =  10
 istep_energyspec = 2000
 istep_hermite =  1000
 istep_gout =  1
@@ -77,11 +77,11 @@ checkpoint_write = T
 etg_factor  =    0.000    
 em_conserve = T
 nuno_closure = T
-rhs_nl_version = 1
-rhs_lin_version = 12
+rhs_nl_version = 12
+rhs_lin_version = 1
 dealias_type = 1
 force_turbulence = F
-plot_nls = F
+plot_nls = T
 dbio = 200
 dvio = 201
 bdvio = 202
@@ -98,9 +98,9 @@ hall = 1
 /
 
 &initial_value
-max_itime =   2000
-max_walltime =   7000
-dt_max =   0.01
+max_itime =   1000
+max_walltime =   14000
+dt_max =   0.1
 max_time =   10000000.0    
 /
 

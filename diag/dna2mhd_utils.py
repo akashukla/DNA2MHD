@@ -577,7 +577,7 @@ ind specifies whether you want the x(0),y(1), or z(2) component."""
     ind_string=ind_strings[ind]
     read_parameters(lpath)
     opts = ['bdv','vdb','bdcb','cbdb','vdv','bdb','db2']
-    fmts = {'bdv':'vm','vdb':'om','bdcb':'<g','cbdb':'sg','vdv':'Hr',
+    fmts = {'bdv':'om','vdb':'om','bdcb':'<g','cbdb':'sg','vdv':'Hr',
         'bdb':'xb','db2':'8b'}
  
     fig,ax = plt.subplots(2)
@@ -590,6 +590,7 @@ ind specifies whether you want the x(0),y(1), or z(2) component."""
         else:
             optlist.append(getopt(lpath,opt))
         t = optlist[i][0]
+        print(wherenezero(optlist[i][1]))
         opty = np.array(optlist[i][1][:,ix,iy,iz,ind])
         ax[0].plot(t,opty.real,fmts[opt],markersize=1,label=opt)
         ax[1].plot(t,opty.imag,fmts[opt],markersize=1,label=opt)
@@ -814,3 +815,14 @@ def growth_rate(t,y):
     poptr,pcov = spo.curve_fit(fit_cexpr,t,y.real,p0=[10**3,.01,.6])
     popti,pcov = spo.curve_fit(fit_cexpi,t,y.imag,p0=[10**3,.01,.6])
     return (poptr[1],poptr[2], popti[1],popti[2])
+
+def wherenezero(arr):
+    zs = []
+    sz = np.shape(arr)
+    for i in range(sz[1]):
+        for j in range(sz[2]):
+            for k in range(sz[3]):
+                for l in range(sz[4]):
+                    if np.amax(np.abs(arr)) < 10**(-20):
+                        zs.append([i,j,k,l])
+    return(zs)
