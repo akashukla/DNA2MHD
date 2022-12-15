@@ -52,7 +52,7 @@ SUBROUTINE read_parameters
       perf_test_par, version_flag, hankel, dt_slepc, nuno_closure,mu_integrated,&
       GyroLES, Gyroherm, Gyroz, Corr, &
       plot_nls,dbio,dvio,bdvio,vdbio,bdcbio,cbdbio,vdvio,bdbio,db2io,&
-      hall
+      hall,enone,nv
  
   NAMELIST /eigensolve/ &
       left_vec,right_vec,ev_slepc, kxmax0, kymax0, kzmax0, kscan,n_ev,&
@@ -397,6 +397,7 @@ SUBROUTINE output_parameters
     WRITE(out_handle,"(A,I4)") "db2io = ",db2io
     ENDIF
     WRITE(out_handle,"(A,I4)") "hall = ",hall
+    WRITE(out_handle,"(A,I4)") "nv = ",nv
     WRITE(out_handle,"(A)")    "/"
     WRITE(out_handle,"(A)")    ""
 

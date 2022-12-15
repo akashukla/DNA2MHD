@@ -148,7 +148,7 @@ SUBROUTINE get_g_next(b_in, v_in,dt_new)
  INTEGER :: ionums(9)
  INTEGER :: q
 
- IF (plot_nls) THEN
+ IF (plot_nls.and.(mod(itime,istep_energy).eq.0)) THEN
  ionums = [dbio,dvio,bdvio,vdbio,bdcbio,cbdbio,vdvio,bdbio,db2io]
  DO q = 1,9
     WRITE(ionums(q)) rkstage
@@ -193,11 +193,11 @@ SUBROUTINE get_g_next(b_in, v_in,dt_new)
  bk1=b_in+0.5*dt*bk1
  vk1=v_in+0.5*dt*vk1
  
- IF (plot_nls) THEN
- DO q = 1,9
-    WRITE(ionums(q)) rkstage
- ENDDO
- ENDIF
+! IF (plot_nls.and.(mod(itime,istep_energy).eq.0)) THEN
+! DO q = 1,9
+!    WRITE(ionums(q)) rkstage
+! ENDDO
+! ENDIF
  
  CALL get_rhs(bk1,vk1,bk2,vk2,dt_new2)
  b_2=b_2+(1.0/3.0)*dt*bk2
@@ -205,11 +205,11 @@ SUBROUTINE get_g_next(b_in, v_in,dt_new)
  v_2=v_2+(1.0/3.0)*dt*vk2
  vk2=v_in+0.5*dt*vk2
 
- IF (plot_nls) THEN 
- DO q = 1,9
-    WRITE(ionums(q)) rkstage
- ENDDO
- ENDIF
+ !IF (plot_nls.and.(mod(itime,istep_energy).eq.0)) THEN 
+ !DO q = 1,9
+ !   WRITE(ionums(q)) rkstage
+ !ENDDO
+ !ENDIF
  
  CALL get_rhs(bk2,vk2,bk1,vk1,dt_new3)
  b_2=b_2+(1.0/3.0)*dt*bk1
@@ -217,11 +217,11 @@ SUBROUTINE get_g_next(b_in, v_in,dt_new)
  v_2=v_2+(1.0/3.0)*dt*vk1
  vk1=v_in+dt*vk1
 
- IF (plot_nls) THEN
- DO q = 1,9
-    WRITE(ionums(q)) rkstage
- ENDDO
- ENDIF
+ !IF (plot_nls.and.(mod(itime,istep_energy).eq.0)) THEN
+ !DO q = 1,9
+ !   WRITE(ionums(q)) rkstage
+ !ENDDO
+ !ENDIF
 
  CALL get_rhs(bk1,vk1,bk2,vk2,dt_new4)
  b_in=b_2+(1.0/6.0)*dt*bk2

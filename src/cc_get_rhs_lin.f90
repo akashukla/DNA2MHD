@@ -109,7 +109,9 @@ endif
    END DO
  END DO 
 
-if (plot_nls) then
+if (nv) rhs_out_b = cmplx(0.0,0.0)
+
+if (plot_nls.and.(mod(itime,istep_energy).eq.0)) then
 WRITE(dbio) eta*(Larr**hyp)*b_in(:,:,:,0)
 WRITE(dbio) eta*(Larr**hyp)*b_in(:,:,:,1)
 WRITE(dbio) eta*(Larr**hyp)*b_in(:,:,:,2)

@@ -119,6 +119,8 @@ MODULE par_mod
   INTEGER :: dealias_type = 3
   ! IO Numbers for Diss/NL term debugging
   LOGICAL :: plot_nls = .false.
+  LOGICAL :: enone = .true.
+  LOGICAL :: nv = .false.
   INTEGER :: dbio = 200 
   INTEGER :: dvio = 201
   INTEGER :: bdvio = 202

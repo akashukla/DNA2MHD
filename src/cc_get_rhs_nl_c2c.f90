@@ -68,7 +68,7 @@ MODULE nonlinearity
   INTEGER(kind=8) :: plan_ky2y,plan_y2ky
   INTEGER(kind=8) :: plan_kx2x,plan_x2kx
   REAL :: fft_norm  !normalization factor for inverse fft
-  INTEGER :: zpad
+  INTEGER :: zpad,counter
  
   CONTAINS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
   
@@ -98,6 +98,7 @@ SUBROUTINE initialize_fourier_ae_mu0
   ny0_big=zpad*nky0/2
   nz0_big=zpad*nkz0/2
   fft_norm=1.0/(REAL(nx0_big*ny0_big*nz0_big))
+  counter = 0
   ALLOCATE(plan_r2c)
   ALLOCATE(plan_c2r)
 
@@ -197,6 +198,7 @@ SUBROUTINE get_rhs_nl(b_in, v_in, rhs_out_b, rhs_out_v,ndt)
       rhs_out_b = rhs_out_b2
       dealias_type = 20
     endif
+    counter = counter + 1
 !  ELSE IF(rhs_nl_version==2) THEN
 !    CALL get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v)
 !  ELSE IF(rhs_nl_version==3) THEN
@@ -1499,7 +1501,7 @@ endif
          - hall*((bx*dxdxby+by*dxdyby+bz*dxdzby-bx*dxdybx-by*dydybx-bz*dydzbx)&
          + (dybz*dxbz-dzby*dxbz-dxbz*dybz+dzbx*dybz+dxby*dzbz-dybx*dzbz ))
 
-IF (plot_nls) THEN 
+IF ((plot_nls.and.(mod(itime,istep_energy).eq.0))) THEN 
 ! b.grad v 
 WRITE(bdvio) fft_spec(bx*dxvx+by*dyvx+bz*dzvx)
 WRITE(bdvio) fft_spec(bx*dxvy+by*dyvy+bz*dzvy)
@@ -1589,7 +1591,7 @@ store_x = -(vx*dxvx+vy*dyvx+vz*dzvx) + (bx*dxbx+by*dybx+bz*dzbx) - 0.5*dxbmag
 store_y = -(vx*dxvy+vy*dyvy+vz*dzvy) + (bx*dxby+by*dyby+bz*dzby) - 0.5*dybmag
 store_z = -(vx*dxvz+vy*dyvz+vz*dzvz) + (bx*dxbz+by*dybz+bz*dzbz) - 0.5*dzbmag
 
-IF (plot_nls) THEN 
+IF ((plot_nls.and.(mod(itime,istep_energy).eq.0))) THEN 
 ! v . grad v
 WRITE(vdvio) fft_spec(vx*dxvx+vy*dyvx+vz*dzvx) 
 WRITE(vdvio) fft_spec(vx*dxvy+vy*dyvy+vz*dzvy)
@@ -1614,7 +1616,7 @@ store_x = -(vx*dxvx+vy*dyvx+vz*dzvx) + (by*dybx+bz*dzbx) - (by*dxby+bz*dxbz)
 store_y = -(vx*dxvy+vy*dyvy+vz*dzvy) + (bx*dxby+bz*dzby) - (bz*dybz+bx*dybx)
 store_z = -(vx*dxvz+vy*dyvz+vz*dzvz) + (bx*dxbz+by*dybz) - (by*dzby+bx*dzbx)
 
-IF (plot_nls) THEN 
+IF ((plot_nls.and.(mod(itime,istep_energy).eq.0))) THEN 
 ! v . grad v
 WRITE(vdvio) fft_spec(vx*dxvx+vy*dyvx+vz*dzvx)
 WRITE(vdvio) fft_spec(vx*dxvy+vy*dyvy+vz*dzvy)
@@ -1965,7 +1967,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   !    END DO
   !  END DO
 
-
+  if (nv.eq..false.) then
   !   SECOND ORDER  VX TERMS DXDXVX,   DXDYVX,   DXDZVX,  DYDYVX,   DYDZVX, DZDZVX
   !dxdxvx
   DO i=0,nkx0-1
@@ -2691,7 +2693,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
 
      if (verbose) print *, 'Bmag gradients dealiased'
   endif
-
+  endif
 !!! TERMS  vx,vy,vz
   !vx
   DO i=0,nkx0-1
@@ -2880,7 +2882,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   dzvz = store
 
   ! DONE ALL FIRST ORDER VX,VY AND VZ TERMS i.e.  dxvx dyvx dzvx,dxvy dyvy,dzvy, dxvz,dyvz,dzvz
-
+  if (nv.eq..false.) then
   ! FIRST ORDER BX TERMS ie. dxbx dybx dzbx`
   ! dxbx
   DO i=0,nkx0-1
@@ -3018,7 +3020,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   END DO!k loop
   CALL dfftw_execute_dft(plan_c2r,temp_big,store)
   dzbz = store
-
+  endif
   ! DONE ALL FIRST ORDER BX,BY BZ TERMS ie. dxbx dybx dzbx,  dxby, dyby,dzby,  dxbz,dybz,dzbz
 
   ! EQUATION (14) 1=xcomp, 2=ycomp 3=zcomp
@@ -3048,6 +3050,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   !store_z = (bx*dxvz+by*dyvz+bz*dzvz)- (vx*dxbz+vy*dybz+vz*dzbz)- (bx*dxdxby+by*dydxby+bz*dzdxby-bx*dxdybx-by*dydybx-bz*dzdybx)+ (dybz*dxbz-dzby*dxbz-dxbz*dybz+dzbx*dybz+dxby*dzbz-dybx*dz*bz )
   !
   !Redo with correct order in terms
+  if (nv.eq..false.) then
   store_x = (bx*dxvx+by*dyvx+bz*dzvx) - (vx*dxbx+vy*dybx+vz*dzbx)&
        - hall*((bx*dxdybz+by*dydybz+bz*dydzbz-bx*dxdzby-by*dydzby-bz*dzdzby)&
        + (dybz*dxbx-dzby*dxbx-dxbz*dybx+dzbx*dybx+dxby*dzbx-dybx*dzbx))
@@ -3060,7 +3063,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
        - hall*((bx*dxdxby+by*dxdyby+bz*dxdzby-bx*dxdybx-by*dydybx-bz*dydzbx)&
        + (dybz*dxbz-dzby*dxbz-dxbz*dybz+dzbx*dybz+dxby*dzbz-dybx*dzbz ))
 
-  IF (plot_nls) THEN
+  IF ((mod(counter,4).eq.0).and.(plot_nls.and.(mod(itime,istep_energy).eq.0))) THEN
      ! b.grad v
      WRITE(bdvio) fft_spec2(bx*dxvx+by*dyvx+bz*dzvx)
      WRITE(bdvio) fft_spec2(bx*dxvy+by*dyvy+bz*dzvy)
@@ -3104,7 +3107,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
         rhs_out_b(i,:,:,1)=rhs_out_b(i,:,:,1)+temp_bigy(i,0:nky0-1,0:nkz0-1)*fft_norm
         rhs_out_b(i,:,:,2)=rhs_out_b(i,:,:,2)+temp_bigz(i,0:nky0-1,0:nkz0-1)*fft_norm
   END DO!i loop  
-
+  endif
+  if (nv) rhs_out_b = cmplx(0.0,0.0)
   !! ! EQUATION (15)
   !! U1= vx*dxvx+vy*dyvx+vz*dzvx
   !! V2 = bx*dxvx+by*dyvx+bz*dzvx
@@ -3129,7 +3133,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
      store_y = -(vx*dxvy+vy*dyvy+vz*dzvy) + (bx*dxby+by*dyby+bz*dzby) - 0.5*dybmag
      store_z = -(vx*dxvz+vy*dyvz+vz*dzvz) + (bx*dxbz+by*dybz+bz*dzbz) - 0.5*dzbmag
 
-     IF (plot_nls) THEN
+     IF ((mod(counter,4).eq.0).and.(plot_nls.and.(mod(itime,istep_energy).eq.0))) THEN
         ! v . grad v
         WRITE(vdvio) fft_spec2(vx*dxvx+vy*dyvx+vz*dzvx)
         WRITE(vdvio) fft_spec2(vx*dxvy+vy*dyvy+vz*dzvy)
@@ -3154,7 +3158,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
      store_y = -(vx*dxvy+vy*dyvy+vz*dzvy) + (bx*dxby+bz*dzby) - (bz*dybz+bx*dybx)
      store_z = -(vx*dxvz+vy*dyvz+vz*dzvz) + (bx*dxbz+by*dybz) - (by*dzby+bx*dzbx)
 
-     IF (plot_nls) THEN
+     IF ((mod(counter,4).eq.0).and.(plot_nls.and.(mod(itime,istep_energy).eq.0))) THEN
         ! v . grad v
         WRITE(vdvio) fft_spec2(vx*dxvx+vy*dyvx+vz*dzvx)
         WRITE(vdvio) fft_spec2(vx*dxvy+vy*dyvy+vz*dzvy)
@@ -3491,6 +3495,7 @@ USE par_mod
   !  END DO
 
   !   SECOND ORDER  VX TERMS DXDXVX,   DXDYVX,   DXDZVX,  DYDYVX,   DYDZVX, DZDZVX
+  if (nv.eq..false.) then
   !dxdxvx
   DO i=0,nkx0-1
      temp_small(i,:,:)=i_complex*kxgrid(i)*i_complex*kxgrid(i)*v_inx0(i,:,:) ! there is  two i's in the
@@ -4214,7 +4219,7 @@ USE par_mod
      dzbmag = store
      if (verbose) print *, 'Bmag gradients dealiased'
   endif
-
+  endif 
 !!! TERMS  vx,vy,vz
   !vx
   DO i=0,nkx0-1
@@ -4403,7 +4408,7 @@ USE par_mod
   dzvz = store
 
   ! DONE ALL FIRST ORDER VX,VY AND VZ TERMS i.e.  dxvx dyvx dzvx,dxvy dyvy,dzvy, dxvz,dyvz,dzvz
-
+  if (nv.eq..false.) then
   ! FIRST ORDER BX TERMS ie. dxbx dybx dzbx`
   ! dxbx
   DO i=0,nkx0-1
@@ -4543,7 +4548,7 @@ USE par_mod
   dzbz = store
 
   ! DONE ALL FIRST ORDER BX,BY BZ TERMS ie. dxbx dybx dzbx,  dxby, dyby,dzby,  dxbz,dybz,dzbz
-
+  endif
   ! EQUATION (14) 1=xcomp, 2=ycomp 3=zcomp
   !     eq14x=P1-Q1-R1+S1
   !     eq14y=P2-Q2-R2+S2
@@ -4571,6 +4576,7 @@ USE par_mod
   !store_z = (bx*dxvz+by*dyvz+bz*dzvz)- (vx*dxbz+vy*dybz+vz*dzbz)- (bx*dxdxby+by*dydxby+bz*dzdxby-bx*dxdybx-by*dydybx-bz*dzdybx)+ (dybz*dxbz-dzby*dxbz-dxbz*dybz+dzbx*dybz+dxby*dzbz-dybx*dz*bz )
   !
   !Redo with correct order in terms
+  if (nv.eq..false.) then
   store_x = (bx*dxvx+by*dyvx+bz*dzvx) - (vx*dxbx+vy*dybx+vz*dzbx)&
        - hall*((bx*dxdybz+by*dydybz+bz*dydzbz-bx*dxdzby-by*dydzby-bz*dzdzby)&
        + (dybz*dxbx-dzby*dxbx-dxbz*dybx+dzbx*dybx+dxby*dzbx-dybx*dzbx))
@@ -4583,7 +4589,7 @@ USE par_mod
        - hall*((bx*dxdxby+by*dxdyby+bz*dxdzby-bx*dxdybx-by*dydybx-bz*dydzbx)&
        + (dybz*dxbz-dzby*dxbz-dxbz*dybz+dzbx*dybz+dxby*dzbz-dybx*dzbz ))
 
-  IF (plot_nls.and.(max(dx,dy,dz).le.10.0**(-10.0))) THEN
+  IF ((mod(counter,4).eq.0).and.((plot_nls.and.(max(dx,dy,dz).lt.10.0**(-10.0))).and.(mod(itime,istep_energy).eq.0)).and.(max(dx,dy,dz).le.10.0**(-10.0))) THEN
      ! b.grad v 
      WRITE(bdvio) fft_spec3(bx*dxvx+by*dyvx+bz*dzvx)
      WRITE(bdvio) fft_spec3(bx*dxvy+by*dyvy+bz*dzvy)
@@ -4625,7 +4631,10 @@ USE par_mod
         rhs_out_b(i,:,:,1)=rhs_out_b(i,:,:,1)+temp_bigy(i,0:nky0-1,0:nkz0-1)/ekd(i,0:nky0-1,0:nkz0-1)*fft_norm
         rhs_out_b(i,:,:,2)=rhs_out_b(i,:,:,2)+temp_bigz(i,0:nky0-1,0:nkz0-1)/ekd(i,0:nky0-1,0:nkz0-1)*fft_norm
   END DO!i loop  
+ 
+  endif
 
+  if (nv) rhs_out_b = cmplx(0.0,0.0)
   !! ! EQUATION (15)
   !! U1= vx*dxvx+vy*dyvx+vz*dzvx
   !! V2 = bx*dxvx+by*dyvx+bz*dzvx
@@ -4650,7 +4659,7 @@ USE par_mod
      store_y = -(vx*dxvy+vy*dyvy+vz*dzvy) + (bx*dxby+by*dyby+bz*dzby) - 0.5*dybmag
      store_z = -(vx*dxvz+vy*dyvz+vz*dzvz) + (bx*dxbz+by*dybz+bz*dzbz) - 0.5*dzbmag
 
-     IF (plot_nls.and.(max(dx,dy,dz).le.10.0**(-10.0))) THEN
+     IF ((mod(counter,4).eq.0).and.((plot_nls.and.(max(dx,dy,dz).lt.10.0**(-10.0))).and.(mod(itime,istep_energy).eq.0)).and.(max(dx,dy,dz).le.10.0**(-10.0))) THEN
         ! v . grad v
         WRITE(vdvio) fft_spec3(vx*dxvx+vy*dyvx+vz*dzvx)
         WRITE(vdvio) fft_spec3(vx*dxvy+vy*dyvy+vz*dzvy)
@@ -4675,7 +4684,7 @@ USE par_mod
      store_y = -(vx*dxvy+vy*dyvy+vz*dzvy) + (bx*dxby+bz*dzby) - (bz*dybz+bx*dybx)
      store_z = -(vx*dxvz+vy*dyvz+vz*dzvz) + (bx*dxbz+by*dybz) - (by*dzby+bx*dzbx)
 
-     IF (plot_nls.and.(max(dx,dy,dz).le.10.0**(-10.0))) THEN
+     IF ((mod(counter,4).eq.0).and.((plot_nls.and.(max(dx,dy,dz).lt.10.0**(-10.0))).and.(mod(itime,istep_energy).eq.0)).and.(max(dx,dy,dz).le.10.0**(-10.0))) THEN
         ! v . grad v
         WRITE(vdvio) fft_spec3(vx*dxvx+vy*dyvx+vz*dzvx)
         WRITE(vdvio) fft_spec3(vx*dxvy+vy*dyvy+vz*dzvy)
@@ -5026,6 +5035,7 @@ SUBROUTINE next_dt(dtn)
  real :: ndt1xr,ndt1yr,ndt1zr,ndt2xr,ndt2yr,ndt2zr,ndt3xr,ndt3yr,ndt3zr
  real :: ndtr
 
+ if (.not.nv) then
  ndt1xr = maxval(abs(kxgrid))*maxval(abs(bx))
  ndt1yr = maxval(abs(kygrid))*maxval(abs(by))
  ndt1zr = maxval(abs(kzgrid))*maxval(1+abs(bz))
@@ -5039,7 +5049,11 @@ SUBROUTINE next_dt(dtn)
    + ndt2xr + ndt2yr + ndt2zr &
    + ndt3xr + ndt3yr + ndt3zr
  dtn = courant/ndtr
-
+ else
+ dtn = courant/(maxval(abs(kxgrid))*maxval(abs(vx)) &
+    +maxval(abs(kygrid))*maxval(abs(vy)) &
+    + maxval(abs(kzgrid))*maxval(abs(vz)))
+ endif
 END SUBROUTINE next_dt
 
 FUNCTION fft_spec(arr_real) result(arr_spec)
@@ -5110,13 +5124,16 @@ implicit none
 
 call dfftw_destroy_plan(plan_r2c)
 call dfftw_destroy_plan(plan_c2r)
+if (verbose) print *, "Destroyed plans"
 call dfftw_cleanup()
-
+if (verbose) print *, "Destroyed plans"
 DEALLOCATE(store)
+if (verbose) print *, "Deallocated store"
 DEALLOCATE(temp_big)
-
+if (verbose) print *, "Deallocated temp_big"
 DEALLOCATE(plan_r2c)
 DEALLOCATE(plan_c2r)
+if (verbose) print *, "Deallocated plans"
 
 END SUBROUTINE finalize_fourier
 
@@ -5202,3 +5219,4 @@ END SUBROUTINE wherebvnotreal
 !END SUBROUTINE convcomp
 
 END MODULE nonlinearity
+

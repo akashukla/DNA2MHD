@@ -482,6 +482,7 @@ SUBROUTINE finalize_arrays
 !  IF(allocated(g_1)) DEALLOCATE(g_1)
   IF(allocated(b_1)) DEALLOCATE(b_1)
   IF(allocated(v_1)) DEALLOCATE(v_1)
+  if (verbose) print *, 'Deallocated b,v'
 
   IF(allocated(kxgrid)) DEALLOCATE(kxgrid)
   IF(allocated(kygrid)) DEALLOCATE(kygrid)

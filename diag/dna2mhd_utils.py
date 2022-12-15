@@ -592,37 +592,31 @@ ind specifies whether you want the x(0),y(1), or z(2) component."""
         t = optlist[i][0]
         print(wherenezero(optlist[i][1]))
         opty = np.array(optlist[i][1][:,ix,iy,iz,ind])
-        ax[0].plot(t,opty.real,fmts[opt],markersize=1,label=opt)
-        ax[1].plot(t,opty.imag,fmts[opt],markersize=1,label=opt)
+        fig,ax = plt.subplots(2)
+        ax[0].plot(t,opty.real,fmts[opt],markersize=1)
+        ax[1].plot(t,opty.imag,fmts[opt],markersize=1)
         i = i + 1
-
-    ax[0].set_ylabel('real nonlinearity %s'%ind_string)
-    ax[0].set_xlabel('time')
-    ax[1].set_ylabel('imag nonlinearity %s'%ind_string)
-    ax[0].set_xlabel('time')
-    ax[0].legend()
-    ax[1].legend()
-    ax[0].set_ylabel('real nonlinearity %s'%ind_string)
-    ax[0].set_xlabel('time')
-    ax[1].set_ylabel('imag nonlinearity %s'%ind_string)
-    ax[1].set_xlabel('time')
-    ax[0].legend()
-    ax[1].legend()
-
-    kx,ky,kz=get_grids()
-    fig.suptitle('kx,ky,kz = %1.2f,%1.2f,%1.2f'%(kx[ix],ky[iy],kz[iz]))
-
-    if lpath[-1] != '/':
-        lpath = lpath + '/'
-    if not os.path.exists(lpath + 'nls/'):
-        os.mkdir(lpath + 'nls/')
-    plt.savefig(lpath+'nls/nls_%s_%d_%d_%d'%(ind_string,ix,iy,iz))
-    if show == True:
-        plt.show()
-    plt.close()
+        ax[0].set_ylabel('real '+opt+' %s'%ind_string)
+        ax[0].set_xlabel('time')
+        ax[1].set_ylabel('imag '+opt+' %s'%ind_string)
+        ax[0].set_xlabel('time')
+        ax[0].set_ylabel('real '+opt+' %s'%ind_string)
+        ax[0].set_xlabel('time')
+        ax[1].set_ylabel('imag '+opt+' %s'%ind_string)
+        ax[1].set_xlabel('time')
+        kx,ky,kz=get_grids()
+        fig.suptitle('kx,ky,kz = %1.2f,%1.2f,%1.2f'%(kx[ix],ky[iy],kz[iz]))
+        if lpath[-1] != '/':
+            lpath = lpath + '/'
+        if not os.path.exists(lpath + 'nls/'):
+            os.mkdir(lpath + 'nls/')
+        plt.savefig(lpath+'nls/'+opt+'_%s_%d_%d_%d'%(ind_string,ix,iy,iz))
+        if show == True:
+            plt.show()
+        plt.close()
 
     if ask:
-        duml = input('Log Zoom? Y/N ')
+        duml = input('Log Zoom All? Y/N ')
     else:
         duml = 'N'
     
@@ -661,22 +655,23 @@ ind specifies whether you want the x(0),y(1), or z(2) component."""
         plt.close()
 
     if ask:
-        dum = input('Bar Zoom? Y/N ')
+        dum = input('Bar Zoom All? Y/N ')
     else:
         dum = 'N'
     
     if dum == 'Y':
         Nb = 4
-        N = 4*par['max_itime']
         bottom = np.zeros(Nb)
-        upbottom = np.ones(Nb)
-        lowbottom = -1*np.ones(Nb)
+        upbottom = 0.0001*np.ones(Nb)
+        lowbottom = -1*0.0001*np.ones(Nb)
         cs = {'bdv':'m','vdb':'m','bdcb':'g','cbdb':'g','vdv':'r',
             'bdb':'b','db2':'b'}
         hatchs = {'bdv':'++','vdb':'00','bdcb':'\\\\','cbdb':'////','vdv':'**','bdb':'xx','db2':'..'}
 
-        xl = int(input('Xmin? Integer '))
-        xh = int(input('Xmax? Integer '))
+        # xl = int(input('Xmin? Integer '))
+        # xh = int(input('Xmax? Integer '))
+        xl = 0
+        xh = 4*par['max_itime']
         x =  np.linspace(xl+(xh-xl)/(2*Nb),xh-(xh-xl)/(2*Nb),num=Nb)
         fig,ax=plt.subplots(2)
         i = 0 
@@ -684,15 +679,15 @@ ind specifies whether you want the x(0),y(1), or z(2) component."""
         for opt in opts:
             y = np.zeros(Nb)
             t = optlist[i][0]
-            opty = np.array(optlist[i][1][(t>xl)*(t<xh),ix,iy,iz,ind])
-            t = np.array(t[(t>xl)*(t<xh)]) 
-            N = np.size(t)
+            opty = np.array(optlist[i][1][:,ix,iy,iz,ind])
+            t = np.array(t) 
             dt = par['dt_max']
-            for j in range(0,np.size(t),4):
-                opty[j] = opty[j] * dt/6
-                opty[j+1] = opty[j] * 2*dt/6
-                opty[j+2] = opty[j] * 2*dt/6
-                opty[j+3] = opty[j] * dt/6
+            N = np.size(t)
+            for j in range(np.size(t)):
+                if (j%4 == 0 or j % 4 == 3):
+                    opty[j] = opty[j] * 1/6
+                else:
+                    opty[j] = opty[j] * 1/3
             w = 2/3*(xh-xl)/(Nb)
             for j in range(Nb):
                 y[j] = np.sum(opty[j*(N//Nb):(j+1)*(N//Nb)],dtype='complex64')
