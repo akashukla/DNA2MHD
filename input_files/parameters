@@ -43,12 +43,13 @@ init_amp_bz = 0.1
 init_amp_vx = 0.1
 init_amp_vy = 0.1
 init_amp_vz = 0.0
+init_kolm = 2.0
 force_amp = 0.0
 hyp = 1
 /
 
 &diagnostics
-diagdir = '/scratch/08929/echansen/dna2mhdrun231'
+diagdir = '/scratch/08929/echansen/dna2mhdrun239'
 istep_ffm =   20
 istep_energy3d =  500
 istep_energy =  20
@@ -84,7 +85,7 @@ force_turbulence = F
 plot_nls = T
 hall = 1
 enone = T
-nv = F
+nv = T
 /
 
 &eigensolve

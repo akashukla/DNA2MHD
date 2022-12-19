@@ -35,7 +35,7 @@ SUBROUTINE read_parameters
       np_kz,np_spec,np_hank,&
       courant,hyp_conv,num_k_hyp_conv,hyp_conv_ky,hypx_order,hypy_order,hypz_order,&
       kxinit_min, kxinit_max, kyinit_min, kyinit_max, kzinit_min, kzinit_max,&
-      init_amp_bx,init_amp_by,init_amp_bz, init_amp_vx, init_amp_vy, init_amp_vz,hyp, &
+      init_amp_bx,init_amp_by,init_amp_bz, init_amp_vx, init_amp_vy, init_amp_vz,init_kolm,hyp, &
       nkxforce,nkyforce,nkzforce, force_amp
   !,&
       !mu_grid_type, vmax,hyp_nu,fracx, fracy
@@ -301,7 +301,11 @@ SUBROUTINE output_parameters
     IF (.not.mu_integrated.and..not.hankel) WRITE(out_handle,"(A,G12.4)") "vmax = ",vmax
     IF (GyroLES.or.Gyroz.or.Corr) WRITE(out_handle,"(A,G12.4)") "fracx = ",fracx
     IF (GyroLES.or.Corr) WRITE(out_handle,"(A,G12.4)") "fracy = ",fracy
-    WRITE(out_handle,"(A,I4)") "hyp = ",hyp
+    WRITE(out_handle,"(A,G12.4)") "init_amp_bx = ",init_amp_bx
+    WRITE(out_handle,"(A,G12.4)") "init_amp_by = ",init_amp_by
+    WRITE(out_handle,"(A,G12.4)") "init_amp_vx = ",init_amp_vx
+    WRITE(out_handle,"(A,G12.4)") "init_amp_vy = ",init_amp_vy
+    WRITE(out_handle,"(A,G12.4)") "init_kolm = ",init_kolm
     WRITE(out_handle,"(A)")    "/"
     WRITE(out_handle,"(A)")    ""
 

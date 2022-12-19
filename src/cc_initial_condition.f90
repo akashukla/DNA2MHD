@@ -25,6 +25,8 @@ SUBROUTINE initial_condition(which_init0)
 
   INTEGER :: i,j,k, l
   REAL :: kfactor,err
+  REAL :: kmags(0:nkx0-1,0:nky0-1,1:nkz0-1),divratio(0:nkx0-1,0:nky0-1,1:nkz0-1)
+  REAL :: s1, s2
   !REAL :: init_prefactor
   COMPLEX :: phase
   REAL :: phase1,phase2,kspect
@@ -39,6 +41,18 @@ SUBROUTINE initial_condition(which_init0)
   !g_1(:,:,:,:,:,:)=cmplx(0.0,0.0)
   b_1(:,:,:,:)=cmplx(0.0,0.0)
   v_1(:,:,:,:)=cmplx(0.0,0.0)
+
+  DO i = 0,nkx0-1
+    DO j = 0,nky0-1
+      DO k = 1,nkz0-1
+        kmags(i,j,k) = sqrt(kxgrid(i)**2 + kygrid(j)**2 + kzgrid(k)**2)
+        divratio(i,j,k) = (kxgrid(i)+kygrid(j))/kzgrid(k)
+      END DO
+    END DO
+  END DO
+  s1 = sum(kmags(:,:,1:nkz0-1) ** (-1.0*init_kolm))
+  s2 = sum((divratio(:,:,1:nkz0-1) ** 2) * kmags(:,:,1:nkz0-1) ** (-1.0 * init_kolm))
+
   !init_prefactor=0.001
 !Default Initialization
 !      CALL RANDOM_SEED
@@ -60,21 +74,21 @@ SUBROUTINE initial_condition(which_init0)
              v_1(i,j,k,1)=cmplx(0.0,0.0)
              v_1(i,j,k,2)=cmplx(0.0,0.0)
          ELSE IF (.not.(enone)) THEN
-             b_1(i,j,k,0)=init_amp_bx*1.0/sqrt(real(nkx0*nky0*(nkz0-1)))
-             b_1(i,j,k,1)=init_amp_by*1.0/sqrt(real(nkx0*nky0*(nkz0-1)))
+             b_1(i,j,k,0)=init_amp_bx*1.0/sqrt(real(nkx0*nky0*(nkz0-1)))* 1/(kmags(i,j,k)**(init_kolm/2.0))
+             b_1(i,j,k,1)=init_amp_by*1.0/sqrt(real(nkx0*nky0*(nkz0-1)))*1/(kmags(i,j,k)**(init_kolm/2.0))
              b_1(i,j,k,2) = (-kxgrid(i)*b_1(i,j,k,0)-kygrid(j)*b_1(i,j,k,1))/kzgrid(k)
              !b_1(i,j,k,2)=init_amp_bz
-             v_1(i,j,k,0)=init_amp_vx*1.0/sqrt(real(nkx0*nky0*(nkz0-1)))
-             v_1(i,j,k,1)=init_amp_vy*1.0/sqrt(real(nkx0*nky0*(nkz0-1)))
+             v_1(i,j,k,0)=init_amp_vx*1.0/sqrt(real(nkx0*nky0*(nkz0-1)))*1/(kmags(i,j,k)**(init_kolm/2.0))
+             v_1(i,j,k,1)=init_amp_vy*1.0/sqrt(real(nkx0*nky0*(nkz0-1)))*1/(kmags(i,j,k)**(init_kolm/2.0))
              !v_1(i,j,k,2)=init_amp_vz
              v_1(i,j,k,2) = (-kxgrid(i)*v_1(i,j,k,0)-kygrid(j)*v_1(i,j,k,1))/kzgrid(k)
          ELSE
-             b_1(i,j,k,0)=0.32/sqrt((2+pi**2 * real(nkx0+nky0)/144.0) * real(nkx0*nky0*(nkz0-1)) * 8 * pi**3)
-             b_1(i,j,k,1)=0.32/sqrt((2+pi**2 * real(nkx0+nky0)/144.0) * real(nkx0*nky0*(nkz0-1)) * 8 * pi**3)
+             b_1(i,j,k,0)= sqrt(0.1/(8 * pi**3 * (2*s1 + s2)))/(kmags(i,j,k)**init_kolm) !0.32/sqrt((2+pi**2 * real(nkx0+nky0)/144.0) * real(nkx0*nky0*(nkz0-1)) * 8 * pi**3)
+             b_1(i,j,k,1)= sqrt(0.1/(8 * pi**3 * (2*s1 + s2)))/(kmags(i,j,k)**init_kolm) !0.32/sqrt((2+pi**2 * real(nkx0+nky0)/144.0) * real(nkx0*nky0*(nkz0-1)) * 8 * pi**3)
              b_1(i,j,k,2) = (-kxgrid(i)*b_1(i,j,k,0)-kygrid(j)*b_1(i,j,k,1))/kzgrid(k)
              !b_1(i,j,k,2)=init_amp_bz              
-             v_1(i,j,k,0)=0.32/sqrt((2+pi**2 * real(nkx0+nky0)/144.0) * real(nkx0*nky0*(nkz0-1)) * 8 * pi**3)
-             v_1(i,j,k,1)=0.32/sqrt((2+pi**2 * real(nkx0+nky0)/144.0) * real(nkx0*nky0*(nkz0-1)) * 8 * pi**3)
+             v_1(i,j,k,0)= sqrt(0.1/(8 * pi**3 * (2*s1 + s2)))/(kmags(i,j,k)**init_kolm) !0.32/sqrt((2+pi**2 * real(nkx0+nky0)/144.0) * real(nkx0*nky0*(nkz0-1)) * 8 * pi**3)
+             v_1(i,j,k,1)= sqrt(0.1/(8 * pi**3 * (2*s1 + s2)))/(kmags(i,j,k)**init_kolm) !0.32/sqrt((2+pi**2 * real(nkx0+nky0)/144.0) * real(nkx0*nky0*(nkz0-1)) * 8 * pi**3)
              !v_1(i,j,k,2)=init_amp_vz 
              v_1(i,j,k,2) = (-kxgrid(i)*v_1(i,j,k,0)-kygrid(j)*v_1(i,j,k,1))/kzgrid(k)
         END IF
