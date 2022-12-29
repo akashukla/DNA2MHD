@@ -346,7 +346,7 @@ def getopt(lpath,opt):
     print(par)
     print('time length = ', len(time))
     for t in range(len(time)):
-        if(t%1000==0):
+        if(t%10==0):
             print(str(t))
         gt = read_time_step_opt(t,opt)
         gt = np.reshape(gt,(par['nkx0'],par['nky0'],par['nkz0'],3),order='F')
@@ -590,7 +590,7 @@ ind specifies whether you want the x(0),y(1), or z(2) component."""
         else:
             optlist.append(getopt(lpath,opt))
         t = optlist[i][0]
-        print(wherenezero(optlist[i][1]))
+        # print(wherenezero(optlist[i][1]))
         opty = np.array(optlist[i][1][:,ix,iy,iz,ind])
         fig,ax = plt.subplots(2)
         ax[0].plot(t,opty.real,fmts[opt],markersize=1)

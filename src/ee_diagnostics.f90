@@ -397,7 +397,7 @@ SUBROUTINE diag
          IF(verbose) WRITE(*,*) "Starting energy diag.",mype
          WRITE(en_handle) time
          WRITE(en_handle) hmhdhmtn(v_1,b_1)
-         WRITE(en_handle) mag_helicity(v_1,b_1)
+         WRITE(en_handle) mag_helicity(b_1)
          WRITE(en_handle) cross_helicity(v_1,b_1)
          WRITE(en_handle) eta*resvischange(b_1)
          WRITE(en_handle) vnu*resvischange(v_1)
@@ -4251,18 +4251,14 @@ ENDDO
 if (verbose) print *, 'Debug files closed' 
 end subroutine finalize_debug
 
-function vec_potential(v,b) result(A)
+function vec_potential(b0) result(A)
 
 implicit none
-complex :: v(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
-complex :: b(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+complex :: b0(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
 complex :: A(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
-complex :: bg(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
 integer :: i,j,k,ind
 
-bg = b
-
-! A = - (curl B)/k^2
+! Ak = - (curl Bk)/k^2
 A = cmplx(0.0,0.0)
 
 do ind = 0,2
@@ -4270,53 +4266,57 @@ do ind = 0,2
     do j = 0,nky0-1
       do k = lkz1,lkz2
         if ((kzgrid(k)).ne.0) then 
-          if (ind.eq.0) A(i,j,k,ind) = cmplx(0.0,1.0) * (kygrid(j)*bg(i,j,k,2)-kzgrid(k)*bg(i,j,k,1))
-          if (ind.eq.1) A(i,j,k,ind) = cmplx(0.0,1.0) * (kzgrid(k)*bg(i,j,k,0)-kxgrid(i)*bg(i,j,k,2))
-          if (ind.eq.2) A(i,j,k,ind) = cmplx(0.0,1.0) * (kxgrid(i)*bg(i,j,k,1)-kygrid(j)*bg(i,j,k,0))
+          if (ind.eq.0) A(i,j,k,ind) = cmplx(0.0,1.0) * (kygrid(j)*b0(i,j,k,2)-kzgrid(k)*b0(i,j,k,1))
+          if (ind.eq.1) A(i,j,k,ind) = cmplx(0.0,1.0) * (kzgrid(k)*b0(i,j,k,0)-kxgrid(i)*b0(i,j,k,2))
+          if (ind.eq.2) A(i,j,k,ind) = cmplx(0.0,1.0) * (kxgrid(i)*b0(i,j,k,1)-kygrid(j)*b0(i,j,k,0))
           A(i,j,k,ind) = A(i,j,k,ind) / (kxgrid(i)**2 + kygrid(j)**2 + kzgrid(k)**2)
+!          if (verbose) write(*,*) A(i,j,k,ind),gpsi(i,j,k,ind),A(i,j,k,ind)+gpsi(i,j,k,ind) 
+!          A(i,j,k,ind) = A(i,j,k,ind) + gpsi(i,j,k,ind)
         endif
       enddo
     enddo
    enddo
 enddo
-A(0,0,0,2) = 0.5 * sum(aimag(b)**2+aimag(v)**2)
-
-if ((verbose).and.(itime.eq.200)) write(*,*) 'A',A
 
 end function vec_potential
 
-function mag_helicity(v0,b0) result(maghel)
+function mag_helicity(b0) result(maghel)
 
 implicit none
-complex :: v0(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
 complex :: b0(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
-real :: maghel
+real :: maghel,coulomb,gchange
 complex :: A0(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
 integer :: i,j,k,ind
 real :: intx
 
 maghel = 0.0
-A0 = vec_potential(v0,b0)
+coulomb = 0.0
+gchange = 0.0
+A0 = vec_potential(b0)
 
 do ind = 0,2
   do i = 0,nkx0-1
     do j = 0,nky0-1
       do k = lkz1,lkz2
-        maghel = maghel + real(conjg(A0(i,j,k,ind))*b0(i,j,k,ind))
+        coulomb = coulomb + (2*pi)**3 * real(conjg(A0(i,j,k,ind))*b0(i,j,k,ind))
+        gchange = gchange + (2*pi)**3 * real(conjg(gpsi(i,j,k,ind))*b0(i,j,k,ind))
       enddo
     enddo
+    if (i.ne.0) intx = intx + 1.0/3.0 * (2*pi)**3 * aimag(b0(i,0,0,1)) * (-1)**i * 1/i * 1/(kxmin**2)
   enddo
 enddo
 
 maghel = maghel + real(A0(0,0,0,2))
-maghel = real((2*pi)**3 * maghel)
+if (verbose) write(*,*) 'Coulomb',coulomb,'z Vec Potential',intx,&
+    'Transformation',gchange,'Overall Magnetic Helicity',coulomb+gchange
+maghel = coulomb+gchange
 
 end function mag_helicity
 
-function vorticity(v) result(w)
+function vorticity(v0) result(w)
 
 implicit none
-complex :: v(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+complex :: v0(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
 complex :: w(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
 integer :: ind,i,j,k
 
@@ -4326,9 +4326,9 @@ do ind = 0,2
   do i = 0,nkx0-1
     do j = 0,nky0-1
       do k = lkz1,lkz2
-          if (ind.eq.0) w(i,j,k,ind) = kygrid(j) * v(i,j,k,2) - kzgrid(k) * v(i,j,k,1)
-          if (ind.eq.1) w(i,j,k,ind) = kzgrid(k) * v(i,j,k,0) - kxgrid(i) * v(i,j,k,2)
-          if (ind.eq.2) w(i,j,k,ind) = kxgrid(i) * v(i,j,k,1) - kygrid(j) * v(i,j,k,0)
+          if (ind.eq.0) w(i,j,k,ind) = kygrid(j) * v0(i,j,k,2) - kzgrid(k) * v0(i,j,k,1)
+          if (ind.eq.1) w(i,j,k,ind) = kzgrid(k) * v0(i,j,k,0) - kxgrid(i) * v0(i,j,k,2)
+          if (ind.eq.2) w(i,j,k,ind) = kxgrid(i) * v0(i,j,k,1) - kygrid(j) * v0(i,j,k,0)
       enddo
     enddo
    enddo
@@ -4336,7 +4336,7 @@ enddo
 
 w = cmplx(0.0,1.0) * w
 
-if ((verbose).and.(itime.lt.200)) write(*,*) 'w',w
+! if ((verbose).and.(itime.lt.200)) write(*,*) 'w',w
 
 end function vorticity
 
@@ -4350,7 +4350,6 @@ complex :: A0(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
 complex :: w0(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
 integer :: i,j,k,ind
 
-crosshel = mag_helicity(v0,b0) / (8 * pi**3)
 w0 = vorticity(v0)
 
 do ind = 0,2

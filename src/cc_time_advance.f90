@@ -298,10 +298,14 @@ SUBROUTINE remove_div(b_in,v_in)
                 b_in(i,j,k,0) = b_in(i,j,k,0) - div_b*kxgrid(i)/k2
                 b_in(i,j,k,1) = b_in(i,j,k,1) - div_b*kygrid(j)/k2
                 b_in(i,j,k,2) = b_in(i,j,k,2) - div_b*kzgrid(k)/k2
-        END IF 
-     END DO
-   END DO
- END DO 
+
+                gpsi(i,j,k,0) = gpsi(i,j,k,0) - div_v*kxgrid(i)/k2
+                gpsi(i,j,k,1) = gpsi(i,j,k,1) - div_v*kygrid(j)/k2
+                gpsi(i,j,k,2) = gpsi(i,j,k,2) - div_v*kzgrid(k)/k2
+         ENDIF 
+     ENDDO
+   ENDDO
+ ENDDO 
 
 if (verbose) print *,'Divergence Removed'
 

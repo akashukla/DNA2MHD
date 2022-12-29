@@ -83,12 +83,16 @@ SUBROUTINE initial_condition(which_init0)
              !v_1(i,j,k,2)=init_amp_vz
              v_1(i,j,k,2) = (-kxgrid(i)*v_1(i,j,k,0)-kygrid(j)*v_1(i,j,k,1))/kzgrid(k)
          ELSE
-             b_1(i,j,k,0)= sqrt(0.1/(8 * pi**3 * (2*s1 + s2)))/(kmags(i,j,k)**init_kolm) !0.32/sqrt((2+pi**2 * real(nkx0+nky0)/144.0) * real(nkx0*nky0*(nkz0-1)) * 8 * pi**3)
-             b_1(i,j,k,1)= sqrt(0.1/(8 * pi**3 * (2*s1 + s2)))/(kmags(i,j,k)**init_kolm) !0.32/sqrt((2+pi**2 * real(nkx0+nky0)/144.0) * real(nkx0*nky0*(nkz0-1)) * 8 * pi**3)
+             b_1(i,j,k,0)= sqrt(init_amp_bx/(8 * pi**3 * (2*s1 + s2)))/(kmags(i,j,k)**(init_kolm/2.0)) 
+             !0.32/sqrt((2+pi**2 * real(nkx0+nky0)/144.0) * real(nkx0*nky0*(nkz0-1)) * 8 * pi**3)
+             b_1(i,j,k,1)= sqrt(init_amp_bx/(8 * pi**3 * (2*s1 + s2)))/(kmags(i,j,k)**(init_kolm/2.0))
+             !0.32/sqrt((2+pi**2 * real(nkx0+nky0)/144.0) * real(nkx0*nky0*(nkz0-1)) * 8 * pi**3)
              b_1(i,j,k,2) = (-kxgrid(i)*b_1(i,j,k,0)-kygrid(j)*b_1(i,j,k,1))/kzgrid(k)
              !b_1(i,j,k,2)=init_amp_bz              
-             v_1(i,j,k,0)= sqrt(0.1/(8 * pi**3 * (2*s1 + s2)))/(kmags(i,j,k)**init_kolm) !0.32/sqrt((2+pi**2 * real(nkx0+nky0)/144.0) * real(nkx0*nky0*(nkz0-1)) * 8 * pi**3)
-             v_1(i,j,k,1)= sqrt(0.1/(8 * pi**3 * (2*s1 + s2)))/(kmags(i,j,k)**init_kolm) !0.32/sqrt((2+pi**2 * real(nkx0+nky0)/144.0) * real(nkx0*nky0*(nkz0-1)) * 8 * pi**3)
+             v_1(i,j,k,0)= sqrt(init_amp_bx/(8 * pi**3 * (2*s1 + s2)))/(kmags(i,j,k)**(init_kolm/2.0))
+             !0.32/sqrt((2+pi**2 * real(nkx0+nky0)/144.0) * real(nkx0*nky0*(nkz0-1)) * 8 * pi**3)
+             v_1(i,j,k,1)= sqrt(init_amp_bx/(8 * pi**3 * (2*s1 + s2)))/(kmags(i,j,k)**(init_kolm/2.0))
+             !0.32/sqrt((2+pi**2 * real(nkx0+nky0)/144.0) * real(nkx0*nky0*(nkz0-1)) * 8 * pi**3)
              !v_1(i,j,k,2)=init_amp_vz 
              v_1(i,j,k,2) = (-kxgrid(i)*v_1(i,j,k,0)-kygrid(j)*v_1(i,j,k,1))/kzgrid(k)
         END IF
@@ -96,6 +100,8 @@ SUBROUTINE initial_condition(which_init0)
        END DO
       END DO
       if (nv) b_1(:,:,:,:) = cmplx(0.0,0.0)
+      gpsi(:,:,:,:) = cmplx(0.0,0.0)
+
 ! Only use default for now
 !  which_init=which_init0 
 !  IF(checkpoint_read) which_init='checkpoint'

@@ -101,7 +101,112 @@ SUBROUTINE initialize_fourier_ae_mu0
   counter = 0
   ALLOCATE(plan_r2c)
   ALLOCATE(plan_c2r)
+  ALLOCATE(temp_small(0:nkx0-1,0:nky0-1,0:nkz0-1))
+  ALLOCATE(temp_bigx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(temp_bigy(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(temp_bigz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
 
+  ALLOCATE(store_x(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(store_y(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(store_z(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+
+! All b arrays                                                                                                                                                                           
+  ALLOCATE(bx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(by(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(bz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+
+if (rhs_nl_version==1) then
+    !! real space term 
+    ALLOCATE(bmag(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+    !! k space term   
+    ALLOCATE(bmagk(0:nkx0-1,0:nky0-1,lkz1:lkz2))
+    ALLOCATE(dxbmag(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+    ALLOCATE(dybmag(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+    ALLOCATE(dzbmag(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+endif
+
+! All v arrays 
+  ALLOCATE(vx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(vy(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(vz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+! all first order v arrays  
+  !vx                                                                                                                                                                                   
+  ALLOCATE(dxvx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(dyvx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(dzvx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  !vy 
+  ALLOCATE(dxvy(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(dyvy(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(dzvy(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  !vz  
+  ALLOCATE(dxvz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(dyvz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(dzvz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+! all first order b arrays 
+ !bx
+  ALLOCATE(dxbx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(dybx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(dzbx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  !by
+  ALLOCATE(dxby(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(dyby(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(dzby(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  !bz
+  ALLOCATE(dxbz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(dybz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(dzbz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  
+! all  second order bx arrays  DXDXBX,   DXDYBX,   DXDZBX,  DYDYBX,   DYDZBX, DZDZBX
+  ALLOCATE(dxdxbx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(dxdybx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(dxdzbx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(dydybx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(dydzbx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(dzdzbx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ! all  second order by arrays
+  ALLOCATE(dxdxby(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(dxdyby(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(dxdzby(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(dydyby(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(dydzby(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(dzdzby(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ! all  second order bz arrays
+  ALLOCATE(dxdxbz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(dxdybz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(dxdzbz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(dydybz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(dydzbz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(dzdzbz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+    
+  ! all  second order vx arrays i.e. DXDXVX,   DXDYVX,   DXDZVX,  DYDYVX,   DYDZVX, DZDZVX
+  ALLOCATE(dxdxvx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(dxdyvx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(dxdzvx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(dydyvx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(dydzvx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(dzdzvx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ! all  second order vy arrays
+  ALLOCATE(dxdxvy(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(dxdyvy(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(dxdzvy(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(dydyvy(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(dydzvy(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(dzdzvy(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ! all  second order bz arrays
+  ALLOCATE(dxdxvz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(dxdyvz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(dxdzvz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(dydyvz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(dydzvz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(dzdzvz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+
+  ALLOCATE(b_inx0(0:nkx0-1,0:nky0-1,lkz1:lkz2))
+  ALLOCATE(b_iny0(0:nkx0-1,0:nky0-1,lkz1:lkz2))
+  ALLOCATE(b_inz0(0:nkx0-1,0:nky0-1,lkz1:lkz2))
+  ALLOCATE(v_inx0(0:nkx0-1,0:nky0-1,lkz1:lkz2))
+  ALLOCATE(v_iny0(0:nkx0-1,0:nky0-1,lkz1:lkz2))
+  ALLOCATE(v_inz0(0:nkx0-1,0:nky0-1,lkz1:lkz2))
+  ALLOCATE(ekd(0:nkx0-1,0:nky0-1,0:nkz0-1))
   ALLOCATE(store(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
   ALLOCATE(temp_big(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
 
@@ -173,9 +278,9 @@ SUBROUTINE get_rhs_nl(b_in, v_in, rhs_out_b, rhs_out_v,ndt)
     IF (dealias_type.eq.3) CALL get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
     IF (dealias_type.eq.4) CALL get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
     IF (dealias_type.eq.1) CALL get_rhs_nlps(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
-    if ((verbose).and.(mod(itime,100).eq.1)) CALL wherenezero(rhs_out_b(0:nkx0-1,0:nky0-1,0:nkz0-1,0)-b_in(0:nkx0-1,0:nky0-1,0:nkz0-1,0))
+ !   if ((verbose).and.(mod(itime,100).eq.1)) CALL wherenezero(rhs_out_b(0:nkx0-1,0:nky0-1,0:nkz0-1,0)-b_in(0:nkx0-1,0:nky0-1,0:nkz0-1,0))
     if (verbose) print *, 'Checked nonzero convolution terms'
-    if ((verbose).and.(mod(itime,100).eq.1)) CALL wherebvnotreal(rhs_out_b,rhs_out_v)
+ !   if ((verbose).and.(mod(itime,100).eq.1)) CALL wherebvnotreal(rhs_out_b,rhs_out_v)
     if (verbose) print *, 'Checked b,v reality condition'
     if (dealias_type.eq.20) THEN
       CALL finalize_fourier
@@ -266,119 +371,6 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   IF(np_kz.gt.1) STOP "get_rhs_nl1 not yet implemented for np_kz.gt.1"
 
   IF(np_kz.ne.1) STOP "get_rhs_nl1 only suitable for np_kz=1"
-  ALLOCATE(temp_small(0:nkx0-1,0:nky0-1,0:nkz0-1))
-  ALLOCATE(temp_bigx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(temp_bigy(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(temp_bigz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  
-  ALLOCATE(store_x(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(store_y(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(store_z(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-
-! All b arrays 
-  ALLOCATE(bx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(by(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(bz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-
-!  if (rhs_nl_version==1) then
-!    ALLOCATE(bmag(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))  
-!    ALLOCATE(bmag_in(0:nkx0-1,0:nky0-1,0:nkz0-1))
-!    ALLOCATE(bmag_inbig(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-!    ALLOCATE(dxbmag(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-!    ALLOCATE(dybmag(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-!    ALLOCATE(dzbmag(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-!  endif
-if (rhs_nl_version==1) then
-    !! real space term
-    ALLOCATE(bmag(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))  
-    !! k space term
-    ALLOCATE(bmagk(0:nkx0-1,0:nky0-1,lkz1:lkz2))  
-    ALLOCATE(dxbmag(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))  
-    ALLOCATE(dybmag(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))  
-    ALLOCATE(dzbmag(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))  
-endif
-
-! All v arrays 
-  ALLOCATE(vx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(vy(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(vz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-! all first order v arrays
-  !vx
-  ALLOCATE(dxvx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dyvx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dzvx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  !vy
-  ALLOCATE(dxvy(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dyvy(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dzvy(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  !vz
-  ALLOCATE(dxvz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dyvz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dzvz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-! all first order b arrays 
- !bx
-  ALLOCATE(dxbx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dybx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dzbx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  !by
-  ALLOCATE(dxby(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dyby(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dzby(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  !bz
-  ALLOCATE(dxbz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dybz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dzbz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  
-! all  second order bx arrays  DXDXBX,   DXDYBX,   DXDZBX,  DYDYBX,   DYDZBX, DZDZBX
-  ALLOCATE(dxdxbx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dxdybx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dxdzbx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dydybx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dydzbx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dzdzbx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ! all  second order by arrays
-  ALLOCATE(dxdxby(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dxdyby(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dxdzby(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dydyby(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dydzby(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dzdzby(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ! all  second order bz arrays
-  ALLOCATE(dxdxbz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dxdybz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dxdzbz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dydybz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dydzbz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dzdzbz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-    
-  ! all  second order vx arrays i.e. DXDXVX,   DXDYVX,   DXDZVX,  DYDYVX,   DYDZVX, DZDZVX
-  ALLOCATE(dxdxvx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dxdyvx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dxdzvx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dydyvx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dydzvx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dzdzvx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ! all  second order vy arrays
-  ALLOCATE(dxdxvy(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dxdyvy(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dxdzvy(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dydyvy(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dydzvy(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dzdzvy(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ! all  second order bz arrays
-  ALLOCATE(dxdxvz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dxdyvz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dxdzvz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dydyvz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dydzvz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dzdzvz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-
-  ALLOCATE(b_inx0(0:nkx0-1,0:nky0-1,lkz1:lkz2))
-  ALLOCATE(b_iny0(0:nkx0-1,0:nky0-1,lkz1:lkz2))
-  ALLOCATE(b_inz0(0:nkx0-1,0:nky0-1,lkz1:lkz2))
-  ALLOCATE(v_inx0(0:nkx0-1,0:nky0-1,lkz1:lkz2))
-  ALLOCATE(v_iny0(0:nkx0-1,0:nky0-1,lkz1:lkz2))
-  ALLOCATE(v_inz0(0:nkx0-1,0:nky0-1,lkz1:lkz2))
 
   ! I dont want to change g_in, so I copy temporaly to g_in0
   !g_in0 = g_in
@@ -1685,130 +1677,6 @@ if (calc_dt) CALL next_dt(ndt)
 if (.not.(calc_dt)) ndt = dt_max
 if (verbose) print *, 'next dt calculated ',ndt
 
-DEALLOCATE(temp_small)
-if (verbose) print *, 'ts deallocated'
-
-DEALLOCATE(temp_bigx)
-if (verbose) print *, 'tbx deallocated'
-DEALLOCATE(temp_bigy)
-if (verbose) print *, 'tby deallocated'
-DEALLOCATE(temp_bigz)
-if (verbose) print *, 'tbz deallocated'
-
-DEALLOCATE(store_x)
-if (verbose) print *, 'stx deallocated'
-DEALLOCATE(store_y)
-if (verbose) print *, 'sty deallocated'
-DEALLOCATE(store_z)
-if (verbose) print *, 'stz deallocated'
-
-! All b arrays 
-DEALLOCATE(bx)
-if (verbose) print *, 'bx deallocated'
-DEALLOCATE(by)
-if (verbose) print *, 'by deallocated'
-DEALLOCATE(bz)
-if (verbose) print *, 'first third deallocated'
-
-if (rhs_nl_version==1) then
-!DEALLOCATE(bmag_in) 
-!if (verbose) print *,'bmagin deallocated'
-DEALLOCATE(bmagk)
-if (verbose) print *,'bmagk deallocated'
-DEALLOCATE(bmag)
-if (verbose) print *,'bmag deallocated'
-DEALLOCATE(dxbmag)
-if (verbose) print *,'dxbmag deallocated'
-DEALLOCATE(dybmag)
-if (verbose) print *,'dybmag deallocated'
-DEALLOCATE(dzbmag)
-if (verbose) print *,'dzbmag deallocated'
-!DEALLOCATE(bmag_inbig)
-!if (verbose) print *, 'bmag terms deallocated'
-endif
-
-! All v arrays 
-  DEALLOCATE(vx)
-  DEALLOCATE(vy)
-  DEALLOCATE(vz)
-! all first order v arrays
-  !vx
-  DEALLOCATE(dxvx)
-  DEALLOCATE(dyvx)
-  DEALLOCATE(dzvx)
-  !vy
-  DEALLOCATE(dxvy)
-  DEALLOCATE(dyvy)
-  DEALLOCATE(dzvy)
-  !vz
-  DEALLOCATE(dxvz)
-  DEALLOCATE(dyvz)
-  DEALLOCATE(dzvz)
-! all first order b arrays 
- !bx
-  DEALLOCATE(dxbx)
-  DEALLOCATE(dybx)
-  DEALLOCATE(dzbx)
-  !by
-  DEALLOCATE(dxby)
-  DEALLOCATE(dyby)
-  DEALLOCATE(dzby)
-  !bz
-  DEALLOCATE(dxbz)
-  DEALLOCATE(dybz)
-  DEALLOCATE(dzbz)
-  
-! all  second order bx arrays  DXDXBX,   DXDYBX,   DXDZBX,  DYDYBX,   DYDZBX, DZDZBX
-  DEALLOCATE(dxdxbx)
-  DEALLOCATE(dxdybx)
-  DEALLOCATE(dxdzbx)
-  DEALLOCATE(dydybx)
-  DEALLOCATE(dydzbx)
-  DEALLOCATE(dzdzbx)
-  ! all  second o)
-  DEALLOCATE(dxdxby)
-  DEALLOCATE(dxdyby)
-  DEALLOCATE(dxdzby)
-  DEALLOCATE(dydyby)
-  DEALLOCATE(dydzby)
-  DEALLOCATE(dzdzby)
-  ! all  second o)
-  DEALLOCATE(dxdxbz)
-  DEALLOCATE(dxdybz)
-  DEALLOCATE(dxdzbz)
-  DEALLOCATE(dydybz)
-  DEALLOCATE(dydzbz)
-  DEALLOCATE(dzdzbz)
-  ! all  second o) DXDZVX,  DYDYVX,   DYDZVX, DZDZVX
-  DEALLOCATE(dxdxvx)
-  DEALLOCATE(dxdyvx)
-  DEALLOCATE(dxdzvx)
-  DEALLOCATE(dydyvx)
-  DEALLOCATE(dydzvx)
-  DEALLOCATE(dzdzvx)
-  ! all  second o)
-  DEALLOCATE(dxdxvy)
-  DEALLOCATE(dxdyvy)
-  DEALLOCATE(dxdzvy)
-  DEALLOCATE(dydyvy)
-  DEALLOCATE(dydzvy)
-  DEALLOCATE(dzdzvy)
-  ! all  second o)
-  DEALLOCATE(dxdxvz)
-  DEALLOCATE(dxdyvz)
-  DEALLOCATE(dxdzvz)
-  DEALLOCATE(dydyvz)
-  DEALLOCATE(dydzvz)
-  DEALLOCATE(dzdzvz)
-  DEALLOCATE(b_inx0)
-  DEALLOCATE(b_iny0)
-  DEALLOCATE(b_inz0)
-  DEALLOCATE(v_inx0)
-  DEALLOCATE(v_iny0)
-  DEALLOCATE(v_inz0)
-
-if (verbose) print *, 'deallocated nl code'
-
 END SUBROUTINE get_rhs_nl1
 
 
@@ -1826,6 +1694,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   COMPLEX, INTENT(inout) :: rhs_out_b(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
   COMPLEX, INTENT(inout) :: rhs_out_v(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
   REAL :: ndt
+  REAL :: sttime,dum
 
   INTEGER :: i,j,l,k,h, ierr
 
@@ -1833,120 +1702,9 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   IF(np_kz.gt.1) STOP "get_rhs_nl1 not yet implemented for np_kz.gt.1"
 
   IF(np_kz.ne.1) STOP "get_rhs_nl1 only suitable for np_kz=1"
-  ALLOCATE(temp_small(0:nkx0-1,0:nky0-1,0:nkz0-1))
-  ALLOCATE(temp_bigx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(temp_bigy(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(temp_bigz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-
-  ALLOCATE(store_x(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(store_y(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(store_z(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-
-  ! All b arrays
-  ALLOCATE(bx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(by(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(bz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-
-  !  if (rhs_nl_version==1) then
-  !    ALLOCATE(bmag(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  !    ALLOCATE(bmag_in(0:nkx0-1,0:nky0-1,0:nkz0-1))
-  !    ALLOCATE(bmag_inbig(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  !    ALLOCATE(dxbmag(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  !    ALLOCATE(dybmag(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  !    ALLOCATE(dzbmag(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  !  endif
-  if (rhs_nl_version==1) then
-     !! real space term
-     ALLOCATE(bmag(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-     !! k space term
-     ALLOCATE(bmagk(0:nkx0-1,0:nky0-1,lkz1:lkz2))
-     ALLOCATE(dxbmag(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-     ALLOCATE(dybmag(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-     ALLOCATE(dzbmag(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  endif
-
-  ! All v arrays
-  ALLOCATE(vx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(vy(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(vz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ! all first order v arrays
-  !vx
-  ALLOCATE(dxvx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dyvx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dzvx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  !vy
-  ALLOCATE(dxvy(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dyvy(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dzvy(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  !vz
-  ALLOCATE(dxvz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dyvz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dzvz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ! all first order b arrays
-  !bx
-  ALLOCATE(dxbx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dybx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dzbx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  !by
-  ALLOCATE(dxby(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dyby(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dzby(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  !bz
-  ALLOCATE(dxbz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dybz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dzbz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-
-  ! all  second order bx arrays  DXDXBX,   DXDYBX,   DXDZBX,  DYDYBX,   DYDZBX, DZDZBX
-  ALLOCATE(dxdxbx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dxdybx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dxdzbx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dydybx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dydzbx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dzdzbx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ! all  second order by arrays
-  ALLOCATE(dxdxby(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dxdyby(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dxdzby(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dydyby(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dydzby(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dzdzby(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ! all  second order bz arrays
-  ALLOCATE(dxdxbz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dxdybz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dxdzbz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dydybz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dydzbz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dzdzbz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-
-  ! all  second order vx arrays i.e. DXDXVX,   DXDYVX,   DXDZVX,  DYDYVX,   DYDZVX, DZDZVX
-  ALLOCATE(dxdxvx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dxdyvx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dxdzvx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dydyvx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dydzvx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dzdzvx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ! all  second order vy arrays
-  ALLOCATE(dxdxvy(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dxdyvy(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dxdzvy(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dydyvy(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dydzvy(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dzdzvy(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ! all  second order bz arrays
-  ALLOCATE(dxdxvz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dxdyvz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dxdzvz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dydyvz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dydzvz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dzdzvz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-
-  ALLOCATE(b_inx0(0:nkx0-1,0:nky0-1,lkz1:lkz2))
-  ALLOCATE(b_iny0(0:nkx0-1,0:nky0-1,lkz1:lkz2))
-  ALLOCATE(b_inz0(0:nkx0-1,0:nky0-1,lkz1:lkz2))
-  ALLOCATE(v_inx0(0:nkx0-1,0:nky0-1,lkz1:lkz2))
-  ALLOCATE(v_iny0(0:nkx0-1,0:nky0-1,lkz1:lkz2))
-  ALLOCATE(v_inz0(0:nkx0-1,0:nky0-1,lkz1:lkz2))
-
+  IF (verbose) CALL cpu_time(sttime)
+  IF (verbose) CALL cpu_time(dum)
+  IF(verbose) print *, 'RHS NL Start Time:',dum - sttime
   ! I dont want to change g_in, so I copy temporaly to g_in0
   !g_in0 = g_in
   b_inx0 = b_in(:,:,:,0)
@@ -1966,9 +1724,13 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   !        END DO
   !    END DO
   !  END DO
-
+  
   if (nv.eq..false.) then
-  !   SECOND ORDER  VX TERMS DXDXVX,   DXDYVX,   DXDZVX,  DYDYVX,   DYDZVX, DZDZVX
+  !   SECOND ORDER  VX TERMS DXDXVX,   DXDYVX,   DXDZVX,  DYDYVX,   DYDZVX, DZDZVX 
+  
+! Not needed for Hall MHD; bypass v term calculation
+if (.false.) then
+
   !dxdxvx
   DO i=0,nkx0-1
      temp_small(i,:,:)=i_complex*kxgrid(i)*i_complex*kxgrid(i)*v_inx0(i,:,:) ! there is  two i's in the
@@ -2266,6 +2028,9 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
 
   ! finished SECOND ORDER VZ TERMS
 
+endif 
+
+
   ! START SECOND ORDER b terms
 
   ! SECOND ORDER  BX TERMS DXDXBX,DXDYBX,DXDZBX,  DYDYBX,DYDZBX, DZDZBX
@@ -2281,7 +2046,11 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
+  IF (verbose) CALL cpu_time(dum)
+  IF(verbose) print *, 'RHS NL PreFFT1 Time:',dum-sttime
   CALL dfftw_execute_dft(plan_c2r,temp_big,store)
+  IF (verbose) CALL cpu_time(dum)
+  IF(verbose) print *, 'RHS NL PostFFT1 Time:',dum-sttime
   dxdxbx = store
 
   !dxdybx
@@ -2298,7 +2067,11 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
+  IF (verbose) CALL cpu_time(dum)
+  IF(verbose) print *, 'RHS NL PreFFT1 Time:',dum-sttime
   CALL dfftw_execute_dft(plan_c2r,temp_big,store)
+  IF (verbose) CALL cpu_time(dum)
+  IF(verbose) print *, 'RHS NL PostFFT1 Time:',dum-sttime
   dxdybx = store
 
   !dxdzbx
@@ -3023,6 +2796,9 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   endif
   ! DONE ALL FIRST ORDER BX,BY BZ TERMS ie. dxbx dybx dzbx,  dxby, dyby,dzby,  dxbz,dybz,dzbz
 
+  IF (verbose) CALL cpu_time(dum)
+  IF(verbose) print *, 'RHS NL PostIFFTs Time:',dum-sttime
+
   ! EQUATION (14) 1=xcomp, 2=ycomp 3=zcomp
   !     eq14x=P1-Q1-R1+S1
   !     eq14y=P2-Q2-R2+S2
@@ -3062,6 +2838,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   store_z = (bx*dxvz+by*dyvz+bz*dzvz)- (vx*dxbz+vy*dybz+vz*dzbz)&
        - hall*((bx*dxdxby+by*dxdyby+bz*dxdzby-bx*dxdybx-by*dydybx-bz*dydzbx)&
        + (dybz*dxbz-dzby*dxbz-dxbz*dybz+dzbx*dybz+dxby*dzbz-dybx*dzbz ))
+  IF (verbose) CALL cpu_time(dum)
+  IF(verbose) print *, 'RHS NL PreBNLWrite Time:',dum-sttime
 
   IF ((mod(counter,4).eq.0).and.(plot_nls.and.(mod(itime,istep_energy).eq.0))) THEN
      ! b.grad v
@@ -3084,6 +2862,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
      WRITE(cbdbio) fft_spec2(dybz*dxby-dzby*dxby-dxbz*dyby+dzbx*dyby+dxby*dzby-dybx*dzby)
      WRITE(cbdbio) fft_spec2(dybz*dxbz-dzby*dxbz-dxbz*dybz+dzbx*dybz+dxby*dzbz-dybx*dzbz)
   ENDIF
+  IF (verbose) CALL cpu_time(dum)
+  IF(verbose) print *, 'RHS NL PostBNLWrite Time:',dum-sttime
 
   !inverse FFT to get back to Fourier
 
@@ -3100,6 +2880,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   CALL dfftw_execute_dft(plan_r2c,store,temp_big)
   temp_bigz = temp_big
 
+  IF (verbose) CALL cpu_time(dum)
+  IF(verbose) print *, 'RHS NL PostBFFFTs Time:',dum-sttime
 
   !Now fill in appropriate rhs elements                                                                                                                                                                
   DO i=0,nkx0-1
@@ -3109,6 +2891,10 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   END DO!i loop  
   endif
   if (nv) rhs_out_b = cmplx(0.0,0.0)
+
+  IF (verbose) CALL cpu_time(dum)
+  IF(verbose) print *, 'RHS NL PostBUpdate Time:',dum-sttime
+
   !! ! EQUATION (15)
   !! U1= vx*dxvx+vy*dyvx+vz*dzvx
   !! V2 = bx*dxvx+by*dyvx+bz*dzvx
@@ -3128,7 +2914,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   !!      eq15y=-U2+V2-W2
   !!      eq15z=-U3+V3-W3
 
-  if (rhs_nl_version == 1) then
+  if (rhs_nl_version.eq.1) then
      store_x = -(vx*dxvx+vy*dyvx+vz*dzvx) + (bx*dxbx+by*dybx+bz*dzbx) - 0.5*dxbmag
      store_y = -(vx*dxvy+vy*dyvy+vz*dzvy) + (bx*dxby+by*dyby+bz*dzby) - 0.5*dybmag
      store_z = -(vx*dxvz+vy*dyvz+vz*dzvz) + (bx*dxbz+by*dybz+bz*dzbz) - 0.5*dzbmag
@@ -3153,7 +2939,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
      endif
   ENDIF
 
-  if (rhs_nl_version == 12) then
+  if (rhs_nl_version.eq.12) then
      store_x = -(vx*dxvx+vy*dyvx+vz*dzvx) + (by*dybx+bz*dzbx) - (by*dxby+bz*dxbz)
      store_y = -(vx*dxvy+vy*dyvy+vz*dzvy) + (bx*dxby+bz*dzby) - (bz*dybz+bx*dybx)
      store_z = -(vx*dxvz+vy*dyvz+vz*dzvz) + (bx*dxbz+by*dybz) - (by*dzby+bx*dzbx)
@@ -3177,6 +2963,9 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
         if (verbose) print *, 'v12 nl equation stored'
      endif
   ENDIF
+
+  IF (verbose) CALL cpu_time(dum)
+  IF(verbose) print *, 'RHS NL Postveom Time:',dum-sttime
 
   store = store_x
   CALL dfftw_execute_dft(plan_r2c,store,temp_big)
@@ -3202,130 +2991,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   if (calc_dt) CALL next_dt(ndt)
   if (.not.(calc_dt)) ndt = dt_max
   if (verbose) print *, 'next dt calculated ',ndt
-
-  DEALLOCATE(temp_small)
-  if (verbose) print *, 'ts deallocated'
- 
-  DEALLOCATE(temp_bigx)
-  if (verbose) print *, 'tbx deallocated'
-  DEALLOCATE(temp_bigy)
-  if (verbose) print *, 'tby deallocated'
-  DEALLOCATE(temp_bigz)
-  if (verbose) print *, 'tbz deallocated'
-
-  DEALLOCATE(store_x)
-  if (verbose) print *, 'stx deallocated'
-  DEALLOCATE(store_y)
-  if (verbose) print *, 'sty deallocated'
-  DEALLOCATE(store_z)
-  if (verbose) print *, 'stz deallocated'
-
-  ! All b arrays
-  DEALLOCATE(bx)
-  if (verbose) print *, 'bx deallocated'
-  DEALLOCATE(by)
-  if (verbose) print *, 'by deallocated'
-  DEALLOCATE(bz)
-  if (verbose) print *, 'first third deallocated'
-
-  if (rhs_nl_version==1) then
-     !DEALLOCATE(bmag_in)
-     !if (verbose) print *,'bmagin de'
-     DEALLOCATE(bmagk)
-     if (verbose) print *,'bmagk deallocated'
-     DEALLOCATE(bmag)
-     if (verbose) print *,'bmag deallocated'
-     DEALLOCATE(dxbmag)
-     if (verbose) print *,'xbmag deallocated'
-     DEALLOCATE(dybmag)
-     if (verbose) print *,'ybmag deallocated'
-     DEALLOCATE(dzbmag)
-     if (verbose) print *,'ybmag deallocated'
-     !DEALLOCATE(bmag_inbig)
-     !if (verbose) print *, 'bmag terms deallocated'
-  endif
-
-  ! All v arrays
-  DEALLOCATE(vx)
-  DEALLOCATE(vy)
-  DEALLOCATE(vz)
-  ! all first order v arrays
-  !vx
-  DEALLOCATE(dxvx)
-  DEALLOCATE(dyvx)
-  DEALLOCATE(dzvx)
-  !vy
-  DEALLOCATE(dxvy)
-  DEALLOCATE(dyvy)
-  DEALLOCATE(dzvy)
-  !vz
-  DEALLOCATE(dxvz)
-  DEALLOCATE(dyvz)
-  DEALLOCATE(dzvz) ! all first order b arrays
-  !bx
-  DEALLOCATE(dxbx)
-  DEALLOCATE(dybx)
-  DEALLOCATE(dzbx)
-  !by
-  DEALLOCATE(dxby)
-  DEALLOCATE(dyby)
-  DEALLOCATE(dzby)
-  !bz
-  DEALLOCATE(dxbz)
-  DEALLOCATE(dybz)
-  DEALLOCATE(dzbz)
-
-  ! all  second order bx arrays  DXDXBX,   DXDYBX,   DXDZBX,  DYDYBX,   DYDZBX, DZDZBX
-  DEALLOCATE(dxdxbx)
-  DEALLOCATE(dxdybx)
-  DEALLOCATE(dxdzbx)
-  DEALLOCATE(dydybx)
-  DEALLOCATE(dydzbx)
-  DEALLOCATE(dzdzbx)
-  ! all  second o)
-  DEALLOCATE(dxdxby)
-  DEALLOCATE(dxdyby)
-  DEALLOCATE(dxdzby)
-  DEALLOCATE(dydyby)
-  DEALLOCATE(dydzby)
-  DEALLOCATE(dzdzby)
-  ! all  second o)
-  DEALLOCATE(dxdxbz)
-  DEALLOCATE(dxdybz)
-  DEALLOCATE(dxdzbz)
-  DEALLOCATE(dydybz)
-  DEALLOCATE(dydzbz)
-  DEALLOCATE(dzdzbz)
-  ! all  second o) DXDZVX,  DYDYVX,   DYDZVX, DZDZVX
-  DEALLOCATE(dxdxvx)
-  DEALLOCATE(dxdyvx)
-  DEALLOCATE(dxdzvx)
-  DEALLOCATE(dydyvx)
-  DEALLOCATE(dydzvx)
-  DEALLOCATE(dzdzvx)
-  ! all  second o)
-  DEALLOCATE(dxdxvy)
-  DEALLOCATE(dxdyvy)
-  DEALLOCATE(dxdzvy)
-  DEALLOCATE(dydyvy)
-  DEALLOCATE(dydzvy)
-  DEALLOCATE(dzdzvy)
-  ! all  second o)
-  DEALLOCATE(dxdxvz)
-  DEALLOCATE(dxdyvz)
-  DEALLOCATE(dxdzvz)
-  DEALLOCATE(dydyvz)
-  DEALLOCATE(dydzvz)
-  DEALLOCATE(dzdzvz)
-  DEALLOCATE(b_inx0)
-  DEALLOCATE(b_iny0)
-  DEALLOCATE(b_inz0)
-  DEALLOCATE(v_inx0)
-  DEALLOCATE(v_iny0)
-  DEALLOCATE(v_inz0)
-
-  if (verbose) print *, 'deallocated nl code'
-
+  IF (verbose) CALL cpu_time(dum)
+  IF(verbose) print *, 'RHS NL Total Time:',dum-sttime
 END SUBROUTINE get_rhs_nl2
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -3346,8 +3013,6 @@ USE par_mod
 
   INTEGER :: i,j,l,k,h, ierr
 
-  ALLOCATE(ekd(0:nkx0-1,0:nky0-1,0:nkz0-1))
-
   ekd = cmplx(0.0,0.0)
   DO i = 0,nkx0-1
      DO j = 0,nky0-1
@@ -3361,119 +3026,6 @@ USE par_mod
   IF(np_kz.gt.1) STOP "get_rhs_nl1 not yet implemented for np_kz.gt.1"
 
   IF(np_kz.ne.1) STOP "get_rhs_nl1 only suitable for np_kz=1"
-  ALLOCATE(temp_small(0:nkx0-1,0:nky0-1,0:nkz0-1))
-  ALLOCATE(temp_bigx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(temp_bigy(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(temp_bigz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-
-  ALLOCATE(store_x(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(store_y(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(store_z(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-
-  ! All b arrays
-  ALLOCATE(bx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(by(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(bz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-
-  !  if (rhs_nl_version==1) then
-  !    ALLOCATE(bmag(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  !    ALLOCATE(bmag_in(0:nkx0-1,0:nky0-1,0:nkz0-1))
-  !    ALLOCATE(bmag_inbig(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  !    ALLOCATE(dxbmag(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  !    ALLOCATE(dybmag(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  !    ALLOCATE(dzbmag(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  !  endif
-  if (rhs_nl_version==1) then
-     !! real space term
-     ALLOCATE(bmag(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-     !! k space term
-     ALLOCATE(bmagk(0:nkx0-1,0:nky0-1,lkz1:lkz2))
-     ALLOCATE(dxbmag(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-     ALLOCATE(dybmag(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-     ALLOCATE(dzbmag(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  endif
-
-  ! All v arrays
-  ALLOCATE(vx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(vy(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(vz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ! all first order v arrays
-  !vx
-  ALLOCATE(dxvx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dyvx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dzvx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  !vy
-  ALLOCATE(dxvy(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dyvy(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dzvy(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  !vz
-  ALLOCATE(dxvz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dyvz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dzvz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ! all first order b arrays
-  !bx
-  ALLOCATE(dxbx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dybx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dzbx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  !by
-  ALLOCATE(dxby(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dyby(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dzby(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  !bz
-  ALLOCATE(dxbz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dybz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dzbz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-
-  ! all  second order bx arrays  DXDXBX,   DXDYBX,   DXDZBX,  DYDYBX,   DYDZBX, DZDZBX
-  ALLOCATE(dxdxbx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dxdybx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dxdzbx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dydybx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dydzbx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dzdzbx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ! all  second order by arrays
-  ALLOCATE(dxdxby(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dxdyby(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dxdzby(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dydyby(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dydzby(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dzdzby(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ! all  second order bz arrays
-  ALLOCATE(dxdxbz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dxdybz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dxdzbz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dydybz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dydzbz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dzdzbz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-
-  ! all  second order vx arrays i.e. DXDXVX,   DXDYVX,   DXDZVX,  DYDYVX,   DYDZVX, DZDZVX
-  ALLOCATE(dxdxvx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dxdyvx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dxdzvx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dydyvx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dydzvx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dzdzvx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ! all  second order vy arrays
-  ALLOCATE(dxdxvy(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dxdyvy(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dxdzvy(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dydyvy(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dydzvy(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dzdzvy(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ! all  second order bz arrays
-  ALLOCATE(dxdxvz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dxdyvz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dxdzvz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dydyvz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dydzvz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(dzdzvz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-
-  ALLOCATE(b_inx0(0:nkx0-1,0:nky0-1,lkz1:lkz2))
-  ALLOCATE(b_iny0(0:nkx0-1,0:nky0-1,lkz1:lkz2))
-  ALLOCATE(b_inz0(0:nkx0-1,0:nky0-1,lkz1:lkz2))
-  ALLOCATE(v_inx0(0:nkx0-1,0:nky0-1,lkz1:lkz2))
-  ALLOCATE(v_iny0(0:nkx0-1,0:nky0-1,lkz1:lkz2))
-  ALLOCATE(v_inz0(0:nkx0-1,0:nky0-1,lkz1:lkz2))
 
   ! I dont want to change g_in, so I copy temporaly to g_in0
   !g_in0 = g_in
@@ -3497,6 +3049,8 @@ USE par_mod
   !   SECOND ORDER  VX TERMS DXDXVX,   DXDYVX,   DXDZVX,  DYDYVX,   DYDZVX, DZDZVX
   if (nv.eq..false.) then
   !dxdxvx
+
+if (.false.) then
   DO i=0,nkx0-1
      temp_small(i,:,:)=i_complex*kxgrid(i)*i_complex*kxgrid(i)*v_inx0(i,:,:) ! there is  two i's in the
   END DO
@@ -3792,6 +3346,8 @@ USE par_mod
   dzdzvz = store
 
   ! finished SECOND ORDER VZ TERMS
+
+endif
 
   ! START SECOND ORDER b terms
 
@@ -4729,133 +4285,6 @@ USE par_mod
   if (.not.(calc_dt)) ndt = dt_max
   if (verbose) print *, 'next dt calculated ',ndt
 
-  DEALLOCATE(ekd)
-  if (verbose) print *, 'ekd deallocated'
-  DEALLOCATE(temp_small)
-  if (verbose) print *, 'ts deallocated'
- 
-  DEALLOCATE(temp_bigx)
-  if (verbose) print *, 'tbx deallocated'
-  DEALLOCATE(temp_bigy)
-  if (verbose) print *, 'tby deallocated'
-  DEALLOCATE(temp_bigz)
-  if (verbose) print *, 'tbz deallocated'
-
-  DEALLOCATE(store_x)
-  if (verbose) print *, 'stx deallocated'
-  DEALLOCATE(store_y)
-  if (verbose) print *, 'sty deallocated'
-  DEALLOCATE(store_z)
-  if (verbose) print *, 'stz deallocated'
-
-  ! All b arrays
-  DEALLOCATE(bx)
-  if (verbose) print *, 'bx deallocated'
-  DEALLOCATE(by)
-  if (verbose) print *, 'by deallocated'
-  DEALLOCATE(bz)
-  if (verbose) print *, 'first third deallocated'
-
-  if (rhs_nl_version==1) then
-     !DEALLOCATE(bmag_in)
-     !if (verbose) print *,'bmagin de'
-     DEALLOCATE(bmagk)
-     if (verbose) print *,'bmagk deallocated'
-     DEALLOCATE(bmag)
-     if (verbose) print *,'bmag deallocated'
-     DEALLOCATE(dxbmag)
-     if (verbose) print *,'xbmag deallocated'
-     DEALLOCATE(dybmag)
-     if (verbose) print *,'ybmag deallocated'
-     DEALLOCATE(dzbmag)
-     if (verbose) print *,'ybmag deallocated'
-     !DEALLOCATE(bmag_inbig)
-     !if (verbose) print *, 'bmag terms deallocated'
-  endif
-
-  ! All v arrays
- 
-  DEALLOCATE(vx)
-  DEALLOCATE(vy)
-  DEALLOCATE(vz)
-  ! all first order v arrays
-  !vx
-  DEALLOCATE(dxvx)
-  DEALLOCATE(dyvx)
-  DEALLOCATE(dzvx)
-  !vy
-  DEALLOCATE(dxvy)
-  DEALLOCATE(dyvy)
-  DEALLOCATE(dzvy)
-  !vz
-  DEALLOCATE(dxvz)
-  DEALLOCATE(dyvz)
-  DEALLOCATE(dzvz)
-  ! all first order b arrays
-  !bx
-  DEALLOCATE(dxbx)
-  DEALLOCATE(dybx)
-  DEALLOCATE(dzbx)
-  !by
-  DEALLOCATE(dxby)
-  DEALLOCATE(dyby)
-  DEALLOCATE(dzby)
-  !bz
-  DEALLOCATE(dxbz)
-  DEALLOCATE(dybz)
-  DEALLOCATE(dzbz)
-
-  ! all  second order bx arrays  DXDXBX,   DXDYBX,   DXDZBX,  DYDYBX,   DYDZBX, DZDZBX
-  DEALLOCATE(dxdxbx)
-  DEALLOCATE(dxdybx)
-  DEALLOCATE(dxdzbx)
-  DEALLOCATE(dydybx)
-  DEALLOCATE(dydzbx)
-  DEALLOCATE(dzdzbx)
-  ! all  second o)
-  DEALLOCATE(dxdxby)
-  DEALLOCATE(dxdyby)
-  DEALLOCATE(dxdzby)
-  DEALLOCATE(dydyby)
-  DEALLOCATE(dydzby)
-  DEALLOCATE(dzdzby)
-  ! all  second o)
-  DEALLOCATE(dxdxbz)
-  DEALLOCATE(dxdybz)
-  DEALLOCATE(dxdzbz)
-  DEALLOCATE(dydybz)
-  DEALLOCATE(dydzbz)
-  DEALLOCATE(dzdzbz)
-  ! all  second o) DXDZVX,  DYDYVX,   DYDZVX, DZDZVX
-  DEALLOCATE(dxdxvx)
-  DEALLOCATE(dxdyvx)
-  DEALLOCATE(dxdzvx)
-  DEALLOCATE(dydyvx)
-  DEALLOCATE(dydzvx)
-  DEALLOCATE(dzdzvx)
-  ! all  second o)
-  DEALLOCATE(dxdxvy)
-  DEALLOCATE(dxdyvy)
-  DEALLOCATE(dxdzvy)
-  DEALLOCATE(dydyvy)
-  DEALLOCATE(dydzvy)
-  DEALLOCATE(dzdzvy)
-  ! all  second o)
-  DEALLOCATE(dxdxvz)
-  DEALLOCATE(dxdyvz)
-  DEALLOCATE(dxdzvz)
-  DEALLOCATE(dydyvz)
-  DEALLOCATE(dydzvz)
-  DEALLOCATE(dzdzvz)
-  DEALLOCATE(b_inx0)
-  DEALLOCATE(b_iny0)
-  DEALLOCATE(b_inz0)
-  DEALLOCATE(v_inx0)
-  DEALLOCATE(v_iny0)
-  DEALLOCATE(v_inz0)
-
-  if (verbose) print *, 'deallocated nl code'
-
 END SUBROUTINE get_rhs_nl3
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -5124,6 +4553,130 @@ implicit none
 
 call dfftw_destroy_plan(plan_r2c)
 call dfftw_destroy_plan(plan_c2r)
+DEALLOCATE(temp_small)
+if (verbose) print *, 'ts deallocated'
+
+DEALLOCATE(temp_bigx)
+if (verbose) print *, 'tbx deallocated'
+DEALLOCATE(temp_bigy)
+if (verbose) print *, 'tby deallocated'
+DEALLOCATE(temp_bigz)
+if (verbose) print *, 'tbz deallocated'
+
+DEALLOCATE(store_x)
+if (verbose) print *, 'stx deallocated'
+DEALLOCATE(store_y)
+if (verbose) print *, 'sty deallocated'
+DEALLOCATE(store_z)
+if (verbose) print *, 'stz deallocated'
+
+! All b arrays 
+DEALLOCATE(bx)
+if (verbose) print *, 'bx deallocated'
+DEALLOCATE(by)
+if (verbose) print *, 'by deallocated'
+DEALLOCATE(bz)
+if (verbose) print *, 'first third deallocated'
+
+if (rhs_nl_version==1) then
+!DEALLOCATE(bmag_in) 
+!if (verbose) print *,'bmagin deallocated'
+DEALLOCATE(bmagk)
+if (verbose) print *,'bmagk deallocated'
+DEALLOCATE(bmag)
+if (verbose) print *,'bmag deallocated'
+DEALLOCATE(dxbmag)
+if (verbose) print *,'dxbmag deallocated'
+DEALLOCATE(dybmag)
+if (verbose) print *,'dybmag deallocated'
+DEALLOCATE(dzbmag)
+if (verbose) print *,'dzbmag deallocated'
+!DEALLOCATE(bmag_inbig)
+!if (verbose) print *, 'bmag terms deallocated'
+endif
+
+! All v arrays 
+  DEALLOCATE(vx)
+  DEALLOCATE(vy)
+  DEALLOCATE(vz)
+! all first order v arrays
+  !vx
+  DEALLOCATE(dxvx)
+  DEALLOCATE(dyvx)
+  DEALLOCATE(dzvx)
+  !vy
+  DEALLOCATE(dxvy)
+  DEALLOCATE(dyvy)
+  DEALLOCATE(dzvy)
+  !vz
+  DEALLOCATE(dxvz)
+  DEALLOCATE(dyvz)
+  DEALLOCATE(dzvz)
+! all first order b arrays 
+ !bx
+  DEALLOCATE(dxbx)
+  DEALLOCATE(dybx)
+  DEALLOCATE(dzbx)
+  !by
+  DEALLOCATE(dxby)
+  DEALLOCATE(dyby)
+  DEALLOCATE(dzby)
+  !bz
+  DEALLOCATE(dxbz)
+  DEALLOCATE(dybz)
+  DEALLOCATE(dzbz)
+  
+! all  second order bx arrays  DXDXBX,   DXDYBX,   DXDZBX,  DYDYBX,   DYDZBX, DZDZBX
+  DEALLOCATE(dxdxbx)
+  DEALLOCATE(dxdybx)
+  DEALLOCATE(dxdzbx)
+  DEALLOCATE(dydybx)
+  DEALLOCATE(dydzbx)
+  DEALLOCATE(dzdzbx)
+  ! all  second o)
+  DEALLOCATE(dxdxby)
+  DEALLOCATE(dxdyby)
+  DEALLOCATE(dxdzby)
+  DEALLOCATE(dydyby)
+  DEALLOCATE(dydzby)
+  DEALLOCATE(dzdzby)
+  ! all  second o)
+  DEALLOCATE(dxdxbz)
+  DEALLOCATE(dxdybz)
+  DEALLOCATE(dxdzbz)
+  DEALLOCATE(dydybz)
+  DEALLOCATE(dydzbz)
+  DEALLOCATE(dzdzbz)
+  ! all  second o) DXDZVX,  DYDYVX,   DYDZVX, DZDZVX
+  DEALLOCATE(dxdxvx)
+  DEALLOCATE(dxdyvx)
+  DEALLOCATE(dxdzvx)
+  DEALLOCATE(dydyvx)
+  DEALLOCATE(dydzvx)
+  DEALLOCATE(dzdzvx)
+  ! all  second o)
+  DEALLOCATE(dxdxvy)
+  DEALLOCATE(dxdyvy)
+  DEALLOCATE(dxdzvy)
+  DEALLOCATE(dydyvy)
+  DEALLOCATE(dydzvy)
+  DEALLOCATE(dzdzvy)
+  ! all  second o)
+  DEALLOCATE(dxdxvz)
+  DEALLOCATE(dxdyvz)
+  DEALLOCATE(dxdzvz)
+  DEALLOCATE(dydyvz)
+  DEALLOCATE(dydzvz)
+  DEALLOCATE(dzdzvz)
+  DEALLOCATE(b_inx0)
+  DEALLOCATE(b_iny0)
+  DEALLOCATE(b_inz0)
+  DEALLOCATE(v_inx0)
+  DEALLOCATE(v_iny0)
+  DEALLOCATE(v_inz0)
+  DEALLOCATE(ekd)
+
+if (verbose) print *, 'deallocated nl code'
 if (verbose) print *, "Destroyed plans"
 call dfftw_cleanup()
 if (verbose) print *, "Destroyed plans"
