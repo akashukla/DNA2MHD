@@ -28,7 +28,7 @@ SUBROUTINE initial_condition(which_init0)
   REAL :: kmags(0:nkx0-1,0:nky0-1,1:nkz0-1),divratio(0:nkx0-1,0:nky0-1,1:nkz0-1)
   REAL :: s1, s2
   !REAL :: init_prefactor
-  COMPLEX :: phase
+  COMPLEX :: phase,phaseb,phasev
   REAL :: phase1,phase2,kspect
   CHARACTER(len=40), INTENT(in) :: which_init0
   CHARACTER(len=40) :: which_init
@@ -50,8 +50,8 @@ SUBROUTINE initial_condition(which_init0)
       END DO
     END DO
   END DO
-  s1 = sum(kmags(:,:,1:nkz0-1) ** (-1.0*init_kolm))
-  s2 = sum((divratio(:,:,1:nkz0-1) ** 2) * kmags(:,:,1:nkz0-1) ** (-1.0 * init_kolm))
+  s1 = sum(kmags(kxinit_min:kxinit_max-1,kyinit_min:kyinit_max,max(1,kzinit_min):kzinit_max-1) ** (-1.0*init_kolm))
+  s2 = sum((divratio(kxinit_min:kxinit_max-1,kyinit_min:kyinit_max-1,max(1,kzinit_min):kzinit_max-1) ** 2) * kmags(kxinit_min:kxinit_max-1,kyinit_min:kyinit_max-1,max(1,kzinit_min):kzinit_max-1) ** (-1.0 * init_kolm))
 
   !init_prefactor=0.001
 !Default Initialization
@@ -65,6 +65,10 @@ SUBROUTINE initial_condition(which_init0)
       DO i=kxinit_min,kxinit_max-1
        DO j=kyinit_min,kyinit_max-1
         DO k=kzinit_min,kzinit_max-1
+         CALL RANDOM_NUMBER(phase1)
+         CALL RANDOM_NUMBER(phase2)
+         phaseb = cmplx(cos(2*pi*phase1),sin(2*pi*phase1))
+         phasev = cmplx(cos(2*pi*phase2),sin(2*pi*phase2))
          !DO l=0,2
          IF(kzgrid(k).eq.zerocmplx) THEN
              b_1(i,j,k,0)=cmplx(0.0,0.0)
@@ -74,24 +78,24 @@ SUBROUTINE initial_condition(which_init0)
              v_1(i,j,k,1)=cmplx(0.0,0.0)
              v_1(i,j,k,2)=cmplx(0.0,0.0)
          ELSE IF (.not.(enone)) THEN
-             b_1(i,j,k,0)=init_amp_bx*1.0/sqrt(real(nkx0*nky0*(nkz0-1)))* 1/(kmags(i,j,k)**(init_kolm/2.0))
-             b_1(i,j,k,1)=init_amp_by*1.0/sqrt(real(nkx0*nky0*(nkz0-1)))*1/(kmags(i,j,k)**(init_kolm/2.0))
+             b_1(i,j,k,0)=init_amp_bx*1.0/sqrt(real(nkx0*nky0*(nkz0-1)))* 1/(kmags(i,j,k)**(init_kolm/2.0))*phaseb
+             b_1(i,j,k,1)=init_amp_by*1.0/sqrt(real(nkx0*nky0*(nkz0-1)))*1/(kmags(i,j,k)**(init_kolm/2.0))*phaseb
              b_1(i,j,k,2) = (-kxgrid(i)*b_1(i,j,k,0)-kygrid(j)*b_1(i,j,k,1))/kzgrid(k)
              !b_1(i,j,k,2)=init_amp_bz
-             v_1(i,j,k,0)=init_amp_vx*1.0/sqrt(real(nkx0*nky0*(nkz0-1)))*1/(kmags(i,j,k)**(init_kolm/2.0))
-             v_1(i,j,k,1)=init_amp_vy*1.0/sqrt(real(nkx0*nky0*(nkz0-1)))*1/(kmags(i,j,k)**(init_kolm/2.0))
+             v_1(i,j,k,0)=init_amp_vx*1.0/sqrt(real(nkx0*nky0*(nkz0-1)))*1/(kmags(i,j,k)**(init_kolm/2.0)) * phasev
+             v_1(i,j,k,1)=init_amp_vy*1.0/sqrt(real(nkx0*nky0*(nkz0-1)))*1/(kmags(i,j,k)**(init_kolm/2.0)) * phasev
              !v_1(i,j,k,2)=init_amp_vz
              v_1(i,j,k,2) = (-kxgrid(i)*v_1(i,j,k,0)-kygrid(j)*v_1(i,j,k,1))/kzgrid(k)
          ELSE
-             b_1(i,j,k,0)= sqrt(init_amp_bx/(8 * pi**3 * (2*s1 + s2)))/(kmags(i,j,k)**(init_kolm/2.0)) 
+             b_1(i,j,k,0)= sqrt(init_amp_bx/(8 * pi**3 * (2*s1 + s2)))/(kmags(i,j,k)**(init_kolm/2.0)) * phaseb
              !0.32/sqrt((2+pi**2 * real(nkx0+nky0)/144.0) * real(nkx0*nky0*(nkz0-1)) * 8 * pi**3)
-             b_1(i,j,k,1)= sqrt(init_amp_bx/(8 * pi**3 * (2*s1 + s2)))/(kmags(i,j,k)**(init_kolm/2.0))
+             b_1(i,j,k,1)= sqrt(init_amp_bx/(8 * pi**3 * (2*s1 + s2)))/(kmags(i,j,k)**(init_kolm/2.0)) * phaseb
              !0.32/sqrt((2+pi**2 * real(nkx0+nky0)/144.0) * real(nkx0*nky0*(nkz0-1)) * 8 * pi**3)
              b_1(i,j,k,2) = (-kxgrid(i)*b_1(i,j,k,0)-kygrid(j)*b_1(i,j,k,1))/kzgrid(k)
              !b_1(i,j,k,2)=init_amp_bz              
-             v_1(i,j,k,0)= sqrt(init_amp_bx/(8 * pi**3 * (2*s1 + s2)))/(kmags(i,j,k)**(init_kolm/2.0))
+             v_1(i,j,k,0)= sqrt(init_amp_bx/(8 * pi**3 * (2*s1 + s2)))/(kmags(i,j,k)**(init_kolm/2.0)) * phasev
              !0.32/sqrt((2+pi**2 * real(nkx0+nky0)/144.0) * real(nkx0*nky0*(nkz0-1)) * 8 * pi**3)
-             v_1(i,j,k,1)= sqrt(init_amp_bx/(8 * pi**3 * (2*s1 + s2)))/(kmags(i,j,k)**(init_kolm/2.0))
+             v_1(i,j,k,1)= sqrt(init_amp_bx/(8 * pi**3 * (2*s1 + s2)))/(kmags(i,j,k)**(init_kolm/2.0)) * phasev
              !0.32/sqrt((2+pi**2 * real(nkx0+nky0)/144.0) * real(nkx0*nky0*(nkz0-1)) * 8 * pi**3)
              !v_1(i,j,k,2)=init_amp_vz 
              v_1(i,j,k,2) = (-kxgrid(i)*v_1(i,j,k,0)-kygrid(j)*v_1(i,j,k,1))/kzgrid(k)

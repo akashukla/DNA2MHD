@@ -397,7 +397,7 @@ SUBROUTINE diag
          IF(verbose) WRITE(*,*) "Starting energy diag.",mype
          WRITE(en_handle) time
          WRITE(en_handle) hmhdhmtn(v_1,b_1)
-         WRITE(en_handle) mag_helicity(b_1)
+         WRITE(en_handle) mag_helicity(b_1,v_1)
          WRITE(en_handle) cross_helicity(v_1,b_1)
          WRITE(en_handle) eta*resvischange(b_1)
          WRITE(en_handle) vnu*resvischange(v_1)
@@ -4251,10 +4251,11 @@ ENDDO
 if (verbose) print *, 'Debug files closed' 
 end subroutine finalize_debug
 
-function vec_potential(b0) result(A)
+function vec_potential(b0,v0) result(A)
 
 implicit none
 complex :: b0(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+complex :: v0(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
 complex :: A(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
 integer :: i,j,k,ind
 
@@ -4278,12 +4279,16 @@ do ind = 0,2
    enddo
 enddo
 
+! bandage guide field vector potential that seems to work
+! A(0,0,0,2) = 0.5 * sum(aimag(b(:,:,:,:))**2 +aimag(v(:,:,:,:))**2) 
+
 end function vec_potential
 
-function mag_helicity(b0) result(maghel)
+function mag_helicity(b0,v0) result(maghel)
 
 implicit none
 complex :: b0(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+complex :: v0(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
 real :: maghel,coulomb,gchange
 complex :: A0(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
 integer :: i,j,k,ind
@@ -4292,7 +4297,7 @@ real :: intx
 maghel = 0.0
 coulomb = 0.0
 gchange = 0.0
-A0 = vec_potential(b0)
+A0 = vec_potential(b0,v0)
 
 do ind = 0,2
   do i = 0,nkx0-1
