@@ -490,7 +490,7 @@ SUBROUTINE checkpoint_out(purpose)
    IF(np_hank.gt.1) STOP "checkpoint_out not yet implemented for np_hank.gt.1"
    IF(np_spec.gt.1) STOP "checkpoint_out not yet implemented for np_spec.gt.1"
    IF(np_kz.gt.1) STOP "checkpoint_out not yet implemented for np_kz.gt.1"
-
+ 
   not_first=.false.
   IF(purpose==1) THEN !WRITE security checkpoint
     chp_name='/s_checkpoint'

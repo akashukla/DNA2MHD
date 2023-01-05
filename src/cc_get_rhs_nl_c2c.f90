@@ -37,11 +37,11 @@ MODULE nonlinearity
   PRIVATE
 
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:) :: b_inx0, b_iny0,  b_inz0, v_inx0, v_iny0,  v_inz0, bmag_in, bmagk, ekd
-  COMPLEX, ALLOCATABLE, DIMENSION(:,:,:) :: temp_small,temp_big, temp_bigx, temp_bigy, temp_bigz
+  COMPLEX, ALLOCATABLE, DIMENSION(:,:,:) :: temp_small,temp_big, temp_bigx, temp_bigy, temp_bigz,temp_smallm,temp_bigm
 
-  COMPLEX, ALLOCATABLE, DIMENSION(:,:,:) ::  store_x, store_y, store_z,store
+  COMPLEX, ALLOCATABLE, DIMENSION(:,:,:) ::  store_x, store_y, store_z,store,store_xm,store_ym,store_zm
+  COMPLEX, ALLOCATABLE, DIMENSION(:,:,:) ::  bdv,vdb,bdcb,cbdb,vdv,bdb,db2
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:) ::  bmag, dxbmag, dybmag, dzbmag,bmag_inbig
-
 
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:) :: bx,by,bz, dxbx, dybx,dzbx, dxby,dyby,dzby, dxbz,dybz,dzbz
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:) :: vx,vy,vz, dxvx, dyvx,dzvx, dxvy,dyvy,dzvy, dxvz,dyvz,dzvz
@@ -99,13 +99,20 @@ SUBROUTINE initialize_fourier_ae_mu0
   nz0_big=zpad*nkz0/2
   fft_norm=1.0/(REAL(nx0_big*ny0_big*nz0_big))
   counter = 0
+
+  CALL dfftw_mpi_init()
+
   ALLOCATE(plan_r2c)
   ALLOCATE(plan_c2r)
   ALLOCATE(temp_small(0:nkx0-1,0:nky0-1,0:nkz0-1))
+  ALLOCATE(temp_smallm(0:nkx0-1,0:nky0-1,0:nkz0-1))
+  ALLOCATE(temp_bigm(0:nkx0-1,0:nky0-1,0:nkz0-1))
   ALLOCATE(temp_bigx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
   ALLOCATE(temp_bigy(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
   ALLOCATE(temp_bigz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-
+  ALLOCATE(store_xm(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(store_ym(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ALLOCATE(store_zm(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
   ALLOCATE(store_x(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
   ALLOCATE(store_y(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
   ALLOCATE(store_z(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
@@ -200,6 +207,17 @@ endif
   ALLOCATE(dydzvz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
   ALLOCATE(dzdzvz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
 
+  ! nonlinearities
+  ALLOCATE(bdv(0:nkx0-1,0:nky0-1,lkz1:lkz2))
+  ALLOCATE(vdb(0:nkx0-1,0:nky0-1,lkz1:lkz2))
+  ALLOCATE(bdcb(0:nkx0-1,0:nky0-1,lkz1:lkz2))
+  ALLOCATE(cbdb(0:nkx0-1,0:nky0-1,lkz1:lkz2))
+  ALLOCATE(vdv(0:nkx0-1,0:nky0-1,lkz1:lkz2))
+  ALLOCATE(bdb(0:nkx0-1,0:nky0-1,lkz1:lkz2))
+  ALLOCATE(db2(0:nkx0-1,0:nky0-1,lkz1:lkz2))
+
+
+  ! initial arrays
   ALLOCATE(b_inx0(0:nkx0-1,0:nky0-1,lkz1:lkz2))
   ALLOCATE(b_iny0(0:nkx0-1,0:nky0-1,lkz1:lkz2))
   ALLOCATE(b_inz0(0:nkx0-1,0:nky0-1,lkz1:lkz2))
@@ -210,11 +228,13 @@ endif
   ALLOCATE(store(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
   ALLOCATE(temp_big(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
 
+
+
   !WRITE(*,*) "making plans"
-  CALL dfftw_plan_dft_3d(plan_c2r,nx0_big,ny0_big,nz0_big,&
-                             temp_big,store,FFTW_ESTIMATE,FFTW_BACKWARD)
-  CALL dfftw_plan_dft_3d(plan_r2c,nx0_big,ny0_big,nz0_big,&
-                             store,temp_big,FFTW_ESTIMATE,FFTW_FORWARD)
+  CALL dfftw_mpi_plan_dft_3d(plan_c2r,nx0_big,ny0_big,nz0_big,&
+                             temp_big,store,MPI_COMM_WORLD,FFTW_ESTIMATE,FFTW_BACKWARD)
+  CALL dfftw_mpi_plan_dft_3d(plan_r2c,nx0_big,ny0_big,nz0_big,&
+                             store,temp_big,MPI_COMM_WORLD,FFTW_ESTIMATE,FFTW_FORWARD)
   
   lky_big=ny0_big-hky_ind !Index of minimum (most negative) FILLED ky value for big arrays
   lkz_big=nz0_big-hkz_ind !Index of minimum (most negative) FILLED kz value for big arrays 
@@ -1693,6 +1713,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   COMPLEX, INTENT(in) :: v_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
   COMPLEX, INTENT(inout) :: rhs_out_b(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
   COMPLEX, INTENT(inout) :: rhs_out_v(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+  COMPLEX :: rhs_out_bm(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2),rhs_out_vm(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
   REAL :: ndt
   REAL :: sttime,dum
 
@@ -2035,307 +2056,522 @@ endif
 
   ! SECOND ORDER  BX TERMS DXDXBX,DXDYBX,DXDZBX,  DYDYBX,DYDZBX, DZDZBX
   !dxdxbx
-  DO i=0,nkx0-1
-     temp_small(i,:,:)=i_complex*kxgrid(i)*i_complex*kxgrid(i)*b_inx0(i,:,:) ! there is  two i's in the
+  DO i=mype,nkx0-1,n_mpi_procs
+     temp_smallm(i,:,:)=i_complex*kxgrid(i)*i_complex*kxgrid(i)*b_inx0(i,:,:) ! there is  two i's in the
   END DO
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_smallm,temp_small,nkx0*nky0*nkz0&                                        
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   !Add padding for dealiasing
-  temp_big=cmplx(0.0,0.0)
-  DO i=0,nkx0-1
-     temp_big(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
+  temp_bigm=cmplx(0.0,0.0)
+  DO i=mype,nkx0-1,n_mpi_procs
+     temp_bigm(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
       !kz negative, ky positive
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_bigm,temp_big,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   IF (verbose) CALL cpu_time(dum)
   IF(verbose) print *, 'RHS NL PreFFT1 Time:',dum-sttime
+
   CALL dfftw_execute_dft(plan_c2r,temp_big,store)
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(store,dxdxbx,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   IF (verbose) CALL cpu_time(dum)
   IF(verbose) print *, 'RHS NL PostFFT1 Time:',dum-sttime
-  dxdxbx = store
 
   !dxdybx
-  DO i=0,nkx0-1
+  DO i=mype,nkx0-1,n_mpi_procs
      DO j=0,nky0-1
-        temp_small(i,j,:)=i_complex*kxgrid(i)*i_complex*kygrid(j)*b_inx0(i,j,:)
+        temp_smallm(i,j,:)=i_complex*kxgrid(i)*i_complex*kygrid(j)*b_inx0(i,j,:)
      END DO
   END DO
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_smallm,temp_small,nkx0*nky0*nkz0&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   !Add padding for dealiasing
-  temp_big=cmplx(0.0,0.0)
-  DO i=0,nkx0-1
-     temp_big(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
+  temp_bigm=cmplx(0.0,0.0)
+  DO i=mype,nkx0-1,n_mpi_procs
+     temp_bigm(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
       !kz negative, ky positive
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  IF (verbose) CALL cpu_time(dum)
-  IF(verbose) print *, 'RHS NL PreFFT1 Time:',dum-sttime
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_bigm,temp_big,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   CALL dfftw_execute_dft(plan_c2r,temp_big,store)
-  IF (verbose) CALL cpu_time(dum)
-  IF(verbose) print *, 'RHS NL PostFFT1 Time:',dum-sttime
-  dxdybx = store
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(store,dxdybx,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
 
   !dxdzbx
-  DO i=0,nkx0-1
+  DO i=mype,nkx0-1,n_mpi_procs
      DO k=0,nkz0-1
-        temp_small(i,:,k)=i_complex*kxgrid(i)*i_complex*kzgrid(k)*b_inx0(i,:,k)
+        temp_smallm(i,:,k)=i_complex*kxgrid(i)*i_complex*kzgrid(k)*b_inx0(i,:,k)
      END DO
   END DO
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_smallm,temp_small,nkx0*nky0*nkz0&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   !Add padding for dealiasing
-  temp_big=cmplx(0.0,0.0)
-  DO i=0,nkx0-1
-     temp_big(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
+  temp_bigm=cmplx(0.0,0.0)
+  DO i=mype,nkx0-1,n_mpi_procs
+     temp_bigm(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
       !kz negative, ky positive
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_bigm,temp_big,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   CALL dfftw_execute_dft(plan_c2r,temp_big,store)
-  dxdzbx = store
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(store,dxdzbx,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
 
   ! DYDYbX
-  DO j=0,nky0-1
-     temp_small(:,j,:)=i_complex*kygrid(j)*i_complex*kygrid(j)*b_inx0(:,j,:)  ! towo y grid
+  DO j=mype,nky0-1,n_mpi_procs
+     temp_smallm(:,j,:)=i_complex*kygrid(j)*i_complex*kygrid(j)*b_inx0(:,j,:)  ! towo y grid
   END DO
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_smallm,temp_small,nkx0*nky0*nkz0&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   !Add padding for dealiasing
-  temp_big=cmplx(0.0,0.0)
-  DO i=0,nkx0-1
-     temp_big(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
+  temp_bigm=cmplx(0.0,0.0)
+  DO i=mype,nkx0-1,n_mpi_procs
+     temp_bigm(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
       !kz negative, ky positive
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
-  CALL dfftw_execute_dft(plan_c2r,temp_big,store)
-  dydybx = store
 
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_bigm,temp_big,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
+  CALL dfftw_execute_dft(plan_c2r,temp_big,store)
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(store,dydybx,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+ 
   ! DYDzbX
-  DO j=0,nky0-1
+  DO j=mype,nky0-1,n_mpi_procs
      DO k=0,nkz0-1
-        temp_small(:,j,k)=i_complex*kygrid(j)*i_complex*kzgrid(k)*b_inx0(:,j,k)
+        temp_smallm(:,j,k)=i_complex*kygrid(j)*i_complex*kzgrid(k)*b_inx0(:,j,k)
      END DO
   END DO
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_smallm,temp_small,nkx0*nky0*nkz0&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   !Add padding for dealiasing
-  temp_big=cmplx(0.0,0.0)
-  DO i=0,nkx0-1
-     temp_big(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
+  temp_bigm=cmplx(0.0,0.0)
+  DO i=mype,nkx0-1,n_mpi_procs
+     temp_bigm(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
       !kz negative, ky positive
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_bigm,temp_big,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   CALL dfftw_execute_dft(plan_c2r,temp_big,store)
-  dydzbx = store
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(store,dydzbx,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr) 
 
   ! DzDzbX
-  DO k=0,nkz0-1
-     temp_small(:,:,k)=i_complex*kzgrid(k)*i_complex*kzgrid(k)*b_inx0(:,:,k)  !two kz grid
+  DO k=mype,nkz0-1,n_mpi_procs
+     temp_smallm(:,:,k)=i_complex*kzgrid(k)*i_complex*kzgrid(k)*b_inx0(:,:,k)  !two kz grid
   END DO
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_smallm,temp_small,nkx0*nky0*nkz0&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   !Add padding for dealiasing
-  temp_big=cmplx(0.0,0.0)
-  DO i=0,nkx0-1
-     temp_big(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
+  temp_bigm=cmplx(0.0,0.0)
+  DO i=mype,nkx0-1,n_mpi_procs
+     temp_bigm(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
       !kz negative, ky positive
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_bigm,temp_big,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   CALL dfftw_execute_dft(plan_c2r,temp_big,store)
-  dzdzbx = store
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(store,dzdzbx,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
 
   ! FINISHED SECOND ORDER  BX TERMS
 
   ! SECOND ORDER  by TERMS DXDXBY,DXDYBY,DXDZBY, DYDYBY,DYDZBY, DZDZBY
 
   !dxdxby
-  DO i=0,nkx0-1
-     temp_small(i,:,:)=i_complex*kxgrid(i)*i_complex*kxgrid(i)*b_iny0(i,:,:) ! there is  two i's in the
+  DO i=mype,nkx0-1,n_mpi_procs
+     temp_smallm(i,:,:)=i_complex*kxgrid(i)*i_complex*kxgrid(i)*b_iny0(i,:,:) ! there is  two i's in the
   END DO
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_smallm,temp_small,nkx0*nky0*nkz0&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   !Add padding for dealiasing
-  temp_big=cmplx(0.0,0.0)
-  DO i=0,nkx0-1
-     temp_big(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
+  temp_bigm=cmplx(0.0,0.0)
+  DO i=mype,nkx0-1,n_mpi_procs
+     temp_bigm(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
       !kz negative, ky positive
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_bigm,temp_big,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   CALL dfftw_execute_dft(plan_c2r,temp_big,store)
-  dxdxby = store
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(store,dxdxby,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
 
   !dxdyby
-  DO i=0,nkx0-1
+  DO i=mype,nkx0-1,n_mpi_procs
      DO j=0,nky0-1
-        temp_small(i,j,:)=i_complex*kxgrid(i)*i_complex*kygrid(j)*b_iny0(i,j,:)
+        temp_smallm(i,j,:)=i_complex*kxgrid(i)*i_complex*kygrid(j)*b_iny0(i,j,:)
      END DO
   END DO
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_smallm,temp_small,nkx0*nky0*nkz0&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   !Add padding for dealiasing
-  temp_big=cmplx(0.0,0.0)
-  DO i=0,nkx0-1
-     temp_big(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
+  temp_bigm=cmplx(0.0,0.0)
+  DO i=mype,nkx0-1,n_mpi_procs
+     temp_bigm(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
       !kz negative, ky positive
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_bigm,temp_big,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   CALL dfftw_execute_dft(plan_c2r,temp_big,store)
-  dxdyby = store
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(store,dxdyby,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
 
   !dxdzby
-  DO i=0,nkx0-1
+  DO i=mype,nkx0-1,n_mpi_procs
      DO k=0,nkz0-1
-        temp_small(i,:,k)=i_complex*kxgrid(i)*i_complex*kzgrid(k)*b_iny0(i,:,k)
+        temp_smallm(i,:,k)=i_complex*kxgrid(i)*i_complex*kzgrid(k)*b_iny0(i,:,k)
      END DO
   END DO
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_smallm,temp_small,nkx0*nky0*nkz0&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   !Add padding for dealiasing
-  temp_big=cmplx(0.0,0.0)
-  DO i=0,nkx0-1
-     temp_big(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
+  temp_bigm=cmplx(0.0,0.0)
+  DO i=mype,nkx0-1,n_mpi_procs
+     temp_bigm(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
       !kz negative, ky positive
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_bigm,temp_big,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   CALL dfftw_execute_dft(plan_c2r,temp_big,store)
-  dxdzby = store
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(store,dxdzby,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
 
   ! DYDYby
-  DO j=0,nky0-1
-     temp_small(:,j,:)=i_complex*kygrid(j)*i_complex*kygrid(j)*b_iny0(:,j,:)  ! towo y grid
+  DO j=mype,nky0-1,n_mpi_procs
+     temp_smallm(:,j,:)=i_complex*kygrid(j)*i_complex*kygrid(j)*b_iny0(:,j,:)  ! towo y grid
   END DO
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_smallm,temp_small,nkx0*nky0*nkz0&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   !Add padding for dealiasing
-  temp_big=cmplx(0.0,0.0)
-  DO i=0,nkx0-1
-     temp_big(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
+  temp_bigm=cmplx(0.0,0.0)
+  DO i=mype,nkx0-1,n_mpi_procs
+     temp_bigm(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
       !kz negative, ky positive
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_bigm,temp_big,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   CALL dfftw_execute_dft(plan_c2r,temp_big,store)
-  dydyby = store
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(store,dydyby,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
 
   ! DYDzbY
-  DO j=0,nky0-1
+  DO j=mype,nky0-1,n_mpi_procs
      DO k=0,nkz0-1
-        temp_small(:,j,k)=i_complex*kygrid(j)*i_complex*kzgrid(k)*b_iny0(:,j,k)
+        temp_smallm(:,j,k)=i_complex*kygrid(j)*i_complex*kzgrid(k)*b_iny0(:,j,k)
      END DO
   END DO
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_smallm,temp_small,nkx0*nky0*nkz0&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   !Add padding for dealiasing
-  temp_big=cmplx(0.0,0.0)
-  DO i=0,nkx0-1
-     temp_big(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
+  temp_bigm=cmplx(0.0,0.0)
+  DO i=mype,nkx0-1,n_mpi_procs
+     temp_bigm(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
       !kz negative, ky positive
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_bigm,temp_big,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   CALL dfftw_execute_dft(plan_c2r,temp_big,store)
-  dydzby = store
-  
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(store,dydzby,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+   
   ! DzDzbY
-  DO k=0,nkz0-1
-     temp_small(:,:,k)=i_complex*kzgrid(k)*i_complex*kzgrid(k)*b_iny0(:,:,k)  !two kz grid
+  DO k=mype,nkz0-1,n_mpi_procs
+     temp_smallm(:,:,k)=i_complex*kzgrid(k)*i_complex*kzgrid(k)*b_iny0(:,:,k)  !two kz grid
   END DO
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_smallm,temp_small,nkx0*nky0*nkz0&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   !Add padding for dealiasing
-  temp_big=cmplx(0.0,0.0)
-  DO i=0,nkx0-1
-     temp_big(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
+  temp_bigm=cmplx(0.0,0.0)
+  DO i=mype,nkx0-1,n_mpi_procs
+     temp_bigm(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
       !kz negative, ky positive
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_bigm,temp_big,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   CALL dfftw_execute_dft(plan_c2r,temp_big,store)
-  dzdzby = store
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(store,dzdzby,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr) 
 
   ! FINISHED SECOND ORDER bY TERMS
 
   ! SECOND ORDER  BZ TERMS DXDXBZ,DXDYBZ,DXDZBZ, DYDYBz,DYDZBz, DZDZBz
   !dxdxbz
-  DO i=0,nkx0-1
-     temp_small(i,:,:)=i_complex*kxgrid(i)*i_complex*kxgrid(i)*b_inz0(i,:,:) ! there is  two i's in the
+
+  DO i=mype,nkx0-1,n_mpi_procs
+     temp_smallm(i,:,:)=i_complex*kxgrid(i)*i_complex*kxgrid(i)*b_inz0(i,:,:) ! there is  two i's in the
   END DO
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_smallm,temp_small,nkx0*nky0*nkz0&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   !Add padding for dealiasing
-  temp_big=cmplx(0.0,0.0)
-  DO i=0,nkx0-1
-     temp_big(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
+  temp_bigm=cmplx(0.0,0.0)
+  DO i=mype,nkx0-1,n_mpi_procs
+     temp_bigm(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
       !kz negative, ky positive
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_bigm,temp_big,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   CALL dfftw_execute_dft(plan_c2r,temp_big,store)
-  dxdxbz = store
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(store,dxdxbz,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
 
   !dxdybz
-  DO i=0,nkx0-1
+  DO i=mype,nkx0-1,n_mpi_procs
      DO j=0,nky0-1
-        temp_small(i,j,:)=i_complex*kxgrid(i)*i_complex*kygrid(j)*b_inz0(i,j,:)
+        temp_smallm(i,j,:)=i_complex*kxgrid(i)*i_complex*kygrid(j)*b_inz0(i,j,:)
      END DO
   END DO
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_smallm,temp_small,nkx0*nky0*nkz0&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   !Add padding for dealiasing
-  temp_big=cmplx(0.0,0.0)
-  DO i=0,nkx0-1
-     temp_big(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
+  temp_bigm=cmplx(0.0,0.0)
+  DO i=mype,nkx0-1,n_mpi_procs
+     temp_bigm(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
       !kz negative, ky positive
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_bigm,temp_big,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   CALL dfftw_execute_dft(plan_c2r,temp_big,store)
-  dxdybz = store
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(store,dxdybz,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
 
   !dxdzbz
-  DO i=0,nkx0-1
+  DO i=mype,nkx0-1,n_mpi_procs
      DO k=0,nkz0-1
-        temp_small(i,:,k)=i_complex*kxgrid(i)*i_complex*kzgrid(k)*b_inz0(i,:,k)
+        temp_smallm(i,:,k)=i_complex*kxgrid(i)*i_complex*kzgrid(k)*b_inz0(i,:,k)
      END DO
   END DO
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_smallm,temp_small,nkx0*nky0*nkz0&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   !Add padding for dealiasing
-  temp_big=cmplx(0.0,0.0)
-  DO i=0,nkx0-1
-     temp_big(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
+  temp_bigm=cmplx(0.0,0.0)
+  DO i=mype,nkx0-1,n_mpi_procs
+     temp_bigm(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
       !kz negative, ky positive
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_bigm,temp_big,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   CALL dfftw_execute_dft(plan_c2r,temp_big,store)
-  dxdzbz = store
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(store,dxdzbz,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
 
   ! DYDYbz
-  DO j=0,nky0-1
-     temp_small(:,j,:)=i_complex*kygrid(j)*i_complex*kygrid(j)*b_inz0(:,j,:)  ! towo y grid
+  DO j=mype,nky0-1,n_mpi_procs
+     temp_smallm(:,j,:)=i_complex*kygrid(j)*i_complex*kygrid(j)*b_inz0(:,j,:)  ! towo y grid
   END DO
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_smallm,temp_small,nkx0*nky0*nkz0&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   !Add padding for dealiasing
-  temp_big=cmplx(0.0,0.0)
-  DO i=0,nkx0-1
-     temp_big(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
+  temp_bigm=cmplx(0.0,0.0)
+  DO i=mype,nkx0-1,n_mpi_procs
+     temp_bigm(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
       !kz negative, ky positive
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_bigm,temp_big,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   CALL dfftw_execute_dft(plan_c2r,temp_big,store)
-  dydybz = store
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(store,dydybz,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
 
   ! DYDzbz
-  DO j=0,nky0-1
+  DO j=mype,nky0-1,n_mpi_procs
      DO k=0,nkz0-1
-        temp_small(:,j,k)=i_complex*kygrid(j)*i_complex*kzgrid(k)*b_inz0(:,j,k)
+        temp_smallm(:,j,k)=i_complex*kygrid(j)*i_complex*kzgrid(k)*b_inz0(:,j,k)
      END DO
   END DO
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_smallm,temp_small,nkx0*nky0*nkz0&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   !Add padding for dealiasing
-  temp_big=cmplx(0.0,0.0)
-  DO i=0,nkx0-1
-     temp_big(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
+  temp_bigm=cmplx(0.0,0.0)
+  DO i=mype,nkx0-1,n_mpi_procs
+     temp_bigm(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
       !kz negative, ky positive
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_bigm,temp_big,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   CALL dfftw_execute_dft(plan_c2r,temp_big,store)
-  dydzbz = store
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(store,dydzbz,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
 
   ! DzDzbz
-  DO k=0,nkz0-1
-     temp_small(:,:,k)=i_complex*kzgrid(k)*i_complex*kzgrid(k)*b_inz0(:,:,k)  !two kz grid
+  DO k=mype,nkz0-1,n_mpi_procs
+     temp_smallm(:,:,k)=i_complex*kzgrid(k)*i_complex*kzgrid(k)*b_inz0(:,:,k)  !two kz grid
   END DO
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_smallm,temp_small,nkx0*nky0*nkz0&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   !Add padding for dealiasing
-  temp_big=cmplx(0.0,0.0)
-  DO i=0,nkx0-1
-     temp_big(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
+  temp_bigm=cmplx(0.0,0.0)
+  DO i=mype,nkx0-1,n_mpi_procs
+     temp_bigm(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
       !kz negative, ky positive
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_bigm,temp_big,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   CALL dfftw_execute_dft(plan_c2r,temp_big,store)
-  dzdzbz = store
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(store,dzdzbz,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
 
   !finished END SECOND ORDER BZ TERMS
 
@@ -2344,49 +2580,85 @@ endif
   ! TERMS BX BY BZ
 
   !bx
-  DO i=0,nkx0-1
-     temp_small(i,:,:)=b_inx0(i,:,:)
+  DO i=mype,nkx0-1,n_mpi_procs
+     temp_smallm(i,:,:)=b_inx0(i,:,:)
   END DO
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_smallm,temp_small,nkx0*nky0*nkz0&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   !Add padding for dealiasing
-  temp_big=cmplx(0.0,0.0)
-  DO i=0,nkx0-1
-     temp_big(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
+  temp_bigm=cmplx(0.0,0.0)
+  DO i=mype,nkx0-1,n_mpi_procs
+     temp_bigm(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
       !kz negative, ky positive
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_bigm,temp_big,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   CALL dfftw_execute_dft(plan_c2r,temp_big,store)
-  bx = store
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(store,bx,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
 
   !by
-  DO j=0,nky0-1
-     temp_small(:,j,:)=b_iny0(:,j,:)
+  DO j=mype,nky0-1,n_mpi_procs
+     temp_smallm(:,j,:)=b_iny0(:,j,:)
   END DO
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_smallm,temp_small,nkx0*nky0*nkz0&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   !Add padding for dealiasing
-  temp_big=cmplx(0.0,0.0)
-  DO i=0,nkx0-1
-     temp_big(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
+  temp_bigm=cmplx(0.0,0.0)
+  DO i=mype,nkx0-1,n_mpi_procs
+     temp_bigm(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
       !kz negative, ky positive
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_bigm,temp_big,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   CALL dfftw_execute_dft(plan_c2r,temp_big,store)
-  by = store
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(store,by,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
 
   !bz
-  DO k=0,nkz0-1
-     temp_small(:,:,k)=b_inz0(:,:,k)
+  DO k=mype,nkz0-1,n_mpi_procs
+     temp_smallm(:,:,k)=b_inz0(:,:,k)
   END DO
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_smallm,temp_small,nkx0*nky0*nkz0&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   !Add padding for dealiasing
-  temp_big=cmplx(0.0,0.0)
-  DO i=0,nkx0-1
-     temp_big(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
+  temp_bigm=cmplx(0.0,0.0)
+  DO i=0,nkx0-1,n_mpi_procs
+     temp_bigm(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
       !kz negative, ky positive
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_bigm,temp_big,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   CALL dfftw_execute_dft(plan_c2r,temp_big,store)
-  bz = store
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(store,bz,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
 
 !!! bmag terms
   if (rhs_nl_version == 1) then
@@ -2469,330 +2741,577 @@ endif
   endif
 !!! TERMS  vx,vy,vz
   !vx
-  DO i=0,nkx0-1
-     temp_small(i,:,:)=v_inx0(i,:,:)
+  DO i=mype,nkx0-1,n_mpi_procs
+     temp_smallm(i,:,:)=v_inx0(i,:,:)
   END DO
   !Add padding for dealiasing
-  temp_big=cmplx(0.0,0.0)
-  DO i=0,nkx0-1
-     temp_big(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
+  temp_bigm=cmplx(0.0,0.0)
+  DO i=mype,nkx0-1,n_mpi_procs
+     temp_bigm(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
       !kz negative, ky positive
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_bigm,temp_big,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   CALL dfftw_execute_dft(plan_c2r,temp_big,store)
-  vx = store
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(store,vx,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
 
   !vy
-  DO j=0,nky0-1
+  DO j=mype,nky0-1,n_mpi_procs
      !temp_small(i,:,:)=i_complex*kxgrid(i)*phi_in(i,:,:)
-     temp_small(:,j,:)=v_iny0(:,j,:)
+     temp_smallm(:,j,:)=v_iny0(:,j,:)
   END DO
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_smallm,temp_small,nkx0*nky0*nkz0&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   !Add padding for dealiasing
-  temp_big=cmplx(0.0,0.0)
-  DO i=0,nkx0-1
-     temp_big(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
+  temp_bigm=cmplx(0.0,0.0)
+  DO i=mype,nkx0-1,n_mpi_procs
+     temp_bigm(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
       !kz negative, ky positive
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_bigm,temp_big,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   CALL dfftw_execute_dft(plan_c2r,temp_big,store)
-  vy = store
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(store,vy,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
 
   !vz
-  DO k=0,nkz0-1
-     temp_small(:,:,k)=v_inz0(:,:,k)
+  DO k=mype,nkz0-1,n_mpi_procs
+     temp_smallm(:,:,k)=v_inz0(:,:,k)
   END DO
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_smallm,temp_small,nkx0*nky0*nkz0&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   !Add padding for dealiasing
-  temp_big=cmplx(0.0,0.0)
-  DO i=0,nkx0-1
-     temp_big(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
+  temp_bigm=cmplx(0.0,0.0)
+  DO i=mype,nkx0-1,n_mpi_procs
+     temp_bigm(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
       !kz negative, ky positive
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_bigm,temp_big,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   CALL dfftw_execute_dft(plan_c2r,temp_big,store)
-  vz = store
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(store,vz,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
 
   !  FIRST ORDER VX TERMS DXVX , DYVX,  DZVX
 
   ! dxvx
-  DO i=0,nkx0-1
-     temp_small(i,:,:)=i_complex*kxgrid(i)*v_inx0(i,:,:)
+  DO i=mype,nkx0-1,n_mpi_procs
+     temp_smallm(i,:,:)=i_complex*kxgrid(i)*v_inx0(i,:,:)
   END DO
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_smallm,temp_small,nkx0*nky0*nkz0&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   !Add padding for dealiasing
-  temp_big=cmplx(0.0,0.0)
-  DO i=0,nkx0-1
-     temp_big(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
+  temp_bigm=cmplx(0.0,0.0)
+  DO i=mype,nkx0-1,n_mpi_procs
+     temp_bigm(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
       !kz negative, ky positive
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_bigm,temp_big,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   CALL dfftw_execute_dft(plan_c2r,temp_big,store)
-  dxvx = store
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(store,dxvx,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
 
   ! dyvx
-  DO j=0,nky0-1
-     temp_small(:,j,:)=i_complex*kygrid(j)*v_inx0(:,j,:)
+  DO j=mype,nky0-1,n_mpi_procs
+     temp_smallm(:,j,:)=i_complex*kygrid(j)*v_inx0(:,j,:)
   END DO
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_smallm,temp_small,nkx0*nky0*nkz0&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   !Add padding for dealiasing
-  temp_big=cmplx(0.0,0.0)
-  DO i=0,nkx0-1
-     temp_big(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
+  temp_bigm=cmplx(0.0,0.0)
+  DO i=mype,nkx0-1,n_mpi_procs
+     temp_bigm(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
       !kz negative, ky positive
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_bigm,temp_big,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   CALL dfftw_execute_dft(plan_c2r,temp_big,store)
-  dyvx = store
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(store,dyvx,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
 
   ! dzvx
-  DO k=0,nkz0-1
-     temp_small(:,:,k)=i_complex*kzgrid(k)*v_inx0(:,:,k)
+  DO k=mype,nkz0-1,n_mpi_procs
+     temp_smallm(:,:,k)=i_complex*kzgrid(k)*v_inx0(:,:,k)
   END DO
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_smallm,temp_small,nkx0*nky0*nkz0&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   !Add padding for dealiasing
-  temp_big=cmplx(0.0,0.0)
-  DO i=0,nkx0-1
-     temp_big(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
+  temp_bigm=cmplx(0.0,0.0)
+  DO i=mype,nkx0-1,n_mpi_procs
+     temp_bigm(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
       !kz negative, ky positive
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_bigm,temp_big,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   CALL dfftw_execute_dft(plan_c2r,temp_big,store)
-  dzvx = store
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(store,dzvx,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
 
   !  FIRST ORDER VY TERMS  dxvy dyvy dzvz,
 
   ! dxvy
-  DO i=0,nkx0-1
-     temp_small(i,:,:)=i_complex*kxgrid(i)*v_iny0(i,:,:)
+  DO i=mype,nkx0-1,n_mpi_procs
+     temp_smallm(i,:,:)=i_complex*kxgrid(i)*v_iny0(i,:,:)
   END DO
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_smallm,temp_small,nkx0*nky0*nkz0&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   !Add padding for dealiasing
-  temp_big=cmplx(0.0,0.0)
-  DO i=0,nkx0-1
-     temp_big(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
+  temp_bigm=cmplx(0.0,0.0)
+  DO i=mype,nkx0-1,n_mpi_procs
+     temp_bigm(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
       !kz negative, ky positive
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_bigm,temp_big,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   CALL dfftw_execute_dft(plan_c2r,temp_big,store)
-  dxvy = store
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(store,dxvy,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
 
   ! dyvy
-  DO j=0,nky0-1
-     temp_small(:,j,:)=i_complex*kygrid(j)*v_iny0(:,j,:)
+  DO j=mype,nky0-1,n_mpi_procs
+     temp_smallm(:,j,:)=i_complex*kygrid(j)*v_iny0(:,j,:)
   END DO
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_smallm,temp_small,nkx0*nky0*nkz0&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   !Add padding for dealiasing
-  temp_big=cmplx(0.0,0.0)
-  DO i=0,nkx0-1
-     temp_big(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
+  temp_bigm=cmplx(0.0,0.0)
+  DO i=mype,nkx0-1,n_mpi_procs
+     temp_bigm(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
       !kz negative, ky positive
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_bigm,temp_big,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   CALL dfftw_execute_dft(plan_c2r,temp_big,store)
-  dyvy = store
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(store,dyvy,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
 
   ! dzvy
-  DO k=0,nkz0-1
-     temp_small(:,:,k)=i_complex*kzgrid(k)*v_iny0(:,:,k)
+  DO k=mype,nkz0-1,n_mpi_procs
+     temp_smallm(:,:,k)=i_complex*kzgrid(k)*v_iny0(:,:,k)
   END DO
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_smallm,temp_small,nkx0*nky0*nkz0&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   !Add padding for dealiasing
-  temp_big=cmplx(0.0,0.0)
-  DO i=0,nkx0-1
-     temp_big(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
+  temp_bigm=cmplx(0.0,0.0)
+  DO i=mype,nkx0-1,n_mpi_procs
+     temp_bigm(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
       !kz negative, ky positive
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_bigm,temp_big,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   CALL dfftw_execute_dft(plan_c2r,temp_big,store)
-  dzvy = store
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(store,dzvy,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
 
   !  FIRST ORDER VZ TERMS  dxvz dyvz dzvz
   ! dxvz
-  DO i=0,nkx0-1
-     temp_small(i,:,:)=i_complex*kxgrid(i)*v_inz0(i,:,:)
+  DO i=mype,nkx0-1,n_mpi_procs
+     temp_smallm(i,:,:)=i_complex*kxgrid(i)*v_inz0(i,:,:)
   END DO
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_smallm,temp_small,nkx0*nky0*nkz0&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   !Add padding for dealiasing
-  temp_big=cmplx(0.0,0.0)
-  DO i=0,nkx0-1
-     temp_big(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
+  temp_bigm=cmplx(0.0,0.0)
+  DO i=mype,nkx0-1,n_mpi_procs
+     temp_bigm(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
       !kz negative, ky positive
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_bigm,temp_big,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   CALL dfftw_execute_dft(plan_c2r,temp_big,store)
-  dxvz = store
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(store,dxvz,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
 
   ! dyvz
-  DO j=0,nky0-1
-     temp_small(:,j,:)=i_complex*kygrid(j)*v_inz0(:,j,:)
+  DO j=mype,nky0-1,n_mpi_procs
+     temp_smallm(:,j,:)=i_complex*kygrid(j)*v_inz0(:,j,:)
   END DO
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_smallm,temp_small,nkx0*nky0*nkz0&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   !Add padding for dealiasing
-  temp_big=cmplx(0.0,0.0)
-  DO i=0,nkx0-1
-     temp_big(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
+  temp_bigm=cmplx(0.0,0.0)
+  DO i=mype,nkx0-1,n_mpi_procs
+     temp_bigm(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
       !kz negative, ky positive
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_bigm,temp_big,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   CALL dfftw_execute_dft(plan_c2r,temp_big,store)
-  dyvz = store
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(store,dyvz,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
 
   ! dzvz
-  DO k=0,nkz0-1
-     temp_small(:,:,k)=i_complex*kzgrid(k)*v_inz0(:,:,k)
+  DO k=mype,nkz0-1,n_mpi_procs
+     temp_smallm(:,:,k)=i_complex*kzgrid(k)*v_inz0(:,:,k)
   END DO
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_smallm,temp_small,nkx0*nky0*nkz0&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   !Add padding for dealiasing
-  temp_big=cmplx(0.0,0.0)
-  DO i=0,nkx0-1
-     temp_big(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
+  temp_bigm=cmplx(0.0,0.0)
+  DO i=mype,nkx0-1,n_mpi_procs
+     temp_bigm(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
       !kz negative, ky positive
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_bigm,temp_big,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   CALL dfftw_execute_dft(plan_c2r,temp_big,store)
-  dzvz = store
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(store,dzvz,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
 
   ! DONE ALL FIRST ORDER VX,VY AND VZ TERMS i.e.  dxvx dyvx dzvx,dxvy dyvy,dzvy, dxvz,dyvz,dzvz
   if (nv.eq..false.) then
   ! FIRST ORDER BX TERMS ie. dxbx dybx dzbx`
   ! dxbx
-  DO i=0,nkx0-1
-     temp_small(i,:,:)=i_complex*kxgrid(i)*b_inx0(i,:,:)
+  DO i=mype,nkx0-1,n_mpi_procs
+     temp_smallm(i,:,:)=i_complex*kxgrid(i)*b_inx0(i,:,:)
   END DO
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_smallm,temp_small,nkx0*nky0*nkz0&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   !Add padding for dealiasing
-  temp_big=cmplx(0.0,0.0)
-  DO i=0,nkx0-1
-     temp_big(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
+  temp_bigm=cmplx(0.0,0.0)
+  DO i=mype,nkx0-1,n_mpi_procs
+     temp_bigm(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
       !kz negative, ky positive
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_bigm,temp_big,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   CALL dfftw_execute_dft(plan_c2r,temp_big,store)
-  dxbx = store
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(store,dxbx,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
 
   ! dybx
-  DO j=0,nky0-1
-     temp_small(:,j,:)=i_complex*kygrid(j)*b_inx0(:,j,:)
+  DO j=mype,nky0-1,n_mpi_procs
+     temp_smallm(:,j,:)=i_complex*kygrid(j)*b_inx0(:,j,:)
   END DO
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_smallm,temp_small,nkx0*nky0*nkz0&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   !Add padding for dealiasing
-  temp_big=cmplx(0.0,0.0)
-  DO i=0,nkx0-1
-     temp_big(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
+  temp_bigm=cmplx(0.0,0.0)
+  DO i=mype,nkx0-1,n_mpi_procs
+     temp_bigm(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
       !kz negative, ky positive
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_bigm,temp_big,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   CALL dfftw_execute_dft(plan_c2r,temp_big,store)
-  dybx = store
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(store,dybx,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
 
   ! dzbx
-  DO k=0,nkz0-1
-     temp_small(:,:,k)=i_complex*kzgrid(k)*b_inx0(:,:,k)
+  DO k=mype,nkz0-1,n_mpi_procs
+     temp_smallm(:,:,k)=i_complex*kzgrid(k)*b_inx0(:,:,k)
   END DO
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_smallm,temp_small,nkx0*nky0*nkz0&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   !Add padding for dealiasing
-  temp_big=cmplx(0.0,0.0)
-  DO i=0,nkx0-1
-     temp_big(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
+  temp_bigm=cmplx(0.0,0.0)
+  DO i=mype,nkx0-1,n_mpi_procs
+     temp_bigm(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
       !kz negative, ky positive
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_bigm,temp_big,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   CALL dfftw_execute_dft(plan_c2r,temp_big,store)
-  dzbx = store
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(store,dzbx,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
 
   !  FIRST ORDER BY TERMS ie. dxby dyby dzby
   ! dxby
-  DO i=0,nkx0-1
-     temp_small(i,:,:)=i_complex*kxgrid(i)*b_iny0(i,:,:)
+  DO i=mype,nkx0-1,n_mpi_procs
+     temp_smallm(i,:,:)=i_complex*kxgrid(i)*b_iny0(i,:,:)
   END DO
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_smallm,temp_small,nkx0*nky0*nkz0&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   !Add padding for dealiasing
-  temp_big=cmplx(0.0,0.0)
-  DO i=0,nkx0-1
-     temp_big(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
+  temp_bigm=cmplx(0.0,0.0)
+  DO i=mype,nkx0-1,n_mpi_procs
+     temp_bigm(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
       !kz negative, ky positive
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_bigm,temp_big,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   CALL dfftw_execute_dft(plan_c2r,temp_big,store)
-  dxby = store
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(store,dxby,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
 
   ! dyby
-  DO j=0,nky0-1
-     temp_small(:,j,:)=i_complex*kygrid(j)*b_iny0(:,j,:)
+  DO j=mype,nky0-1,n_mpi_procs
+     temp_smallm(:,j,:)=i_complex*kygrid(j)*b_iny0(:,j,:)
   END DO
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_smallm,temp_small,nkx0*nky0*nkz0&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   !Add padding for dealiasing
-  temp_big=cmplx(0.0,0.0)
-  DO i=0,nkx0-1
-     temp_big(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
+  temp_bigm=cmplx(0.0,0.0)
+  DO i=mype,nkx0-1,n_mpi_procs
+     temp_bigm(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
       !kz negative, ky positive
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_bigm,temp_big,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   CALL dfftw_execute_dft(plan_c2r,temp_big,store)
-  dyby = store
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(store,dyby,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
 
   ! dzby
-  DO k=0,nkz0-1
-     temp_small(:,:,k)=i_complex*kzgrid(k)*b_iny0(:,:,k)
+  DO k=mype,nkz0-1,n_mpi_procs
+     temp_smallm(:,:,k)=i_complex*kzgrid(k)*b_iny0(:,:,k)
   END DO
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_smallm,temp_small,nkx0*nky0*nkz0&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   !Add padding for dealiasing
-  temp_big=cmplx(0.0,0.0)
-  DO i=0,nkx0-1
-     temp_big(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
+  temp_bigm=cmplx(0.0,0.0)
+  DO i=mype,nkx0-1,n_mpi_procs
+     temp_bigm(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
       !kz negative, ky positive
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_bigm,temp_big,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   CALL dfftw_execute_dft(plan_c2r,temp_big,store)
-  dzby = store
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(store,dzby,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
 
   !! FIRST ORDER BZ TERMS ie. dxbz dybz dzbz
   ! dxbz
-  DO i=0,nkx0-1
-     temp_small(i,:,:)=i_complex*kxgrid(i)*b_inz0(i,:,:)
+  DO i=mype,nkx0-1,n_mpi_procs
+     temp_smallm(i,:,:)=i_complex*kxgrid(i)*b_inz0(i,:,:)
   END DO
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_smallm,temp_small,nkx0*nky0*nkz0&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   !Add padding for dealiasing
-  temp_big=cmplx(0.0,0.0)
-  DO i=0,nkx0-1
-     temp_big(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
+  temp_bigm=cmplx(0.0,0.0)
+  DO i=mype,nkx0-1,n_mpi_procs
+     temp_bigm(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
       !kz negative, ky positive
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_bigm,temp_big,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   CALL dfftw_execute_dft(plan_c2r,temp_big,store)
-  dxbz = store
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(store,dxbz,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
 
   ! dybz
-  DO j=0,nky0-1
-     temp_small(:,j,:)=i_complex*kygrid(j)*b_inz0(:,j,:)
+  DO j=mype,nky0-1,n_mpi_procs
+     temp_smallm(:,j,:)=i_complex*kygrid(j)*b_inz0(:,j,:)
   END DO
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_smallm,temp_small,nkx0*nky0*nkz0&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   !Add padding for dealiasing
-  temp_big=cmplx(0.0,0.0)
-  DO i=0,nkx0-1
-     temp_big(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
+  temp_bigm=cmplx(0.0,0.0)
+  DO i=mype,nkx0-1,n_mpi_procs
+     temp_bigm(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
       !kz negative, ky positive
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_bigm,temp_big,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   CALL dfftw_execute_dft(plan_c2r,temp_big,store)
-  dybz = store
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(store,dybz,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
 
   ! dzbz
-  DO k=0,nkz0-1
-     temp_small(:,:,k)=i_complex*kzgrid(k)*b_inz0(:,:,k)
+  DO k=mype,nkz0-1,n_mpi_procs
+     temp_smallm(:,:,k)=i_complex*kzgrid(k)*b_inz0(:,:,k)
   END DO
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_smallm,temp_small,nkx0*nky0*nkz0&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   !Add padding for dealiasing
-  temp_big=cmplx(0.0,0.0)
-  DO i=0,nkx0-1
-     temp_big(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
+  temp_bigm=cmplx(0.0,0.0)
+  DO i=mype,nkx0-1,n_mpi_procs
+     temp_bigm(i,0:nky0-1,0:nkz0-1)=temp_small(i,0:nky0-1,0:nkz0-1)    !kz positive, ky positive
       !kz negative, ky positive
       !kz negative, ky negative
       !kz positive, ky negative
   END DO!k loop
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_bigm,temp_big,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   CALL dfftw_execute_dft(plan_c2r,temp_big,store)
-  dzbz = store
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(store,dzbz,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
   endif
   ! DONE ALL FIRST ORDER BX,BY BZ TERMS ie. dxbx dybx dzbx,  dxby, dyby,dzby,  dxbz,dybz,dzbz
 
@@ -2827,166 +3346,222 @@ endif
   !
   !Redo with correct order in terms
   if (nv.eq..false.) then
-  store_x = (bx*dxvx+by*dyvx+bz*dzvx) - (vx*dxbx+vy*dybx+vz*dzbx)&
-       - hall*((bx*dxdybz+by*dydybz+bz*dydzbz-bx*dxdzby-by*dydzby-bz*dzdzby)&
-       + (dybz*dxbx-dzby*dxbx-dxbz*dybx+dzbx*dybx+dxby*dzbx-dybx*dzbx))
 
-  store_y = (bx*dxvy+by*dyvy+bz*dzvy) - (vx*dxby+vy*dyby+vz*dzby)&
-       - hall*((bx*dxdzbx+by*dydzbx+bz*dzdzbx-bx*dxdxbz-by*dxdybz-bz*dxdzbz)&
-       + (dybz*dxby-dzby*dxby-dxbz*dyby+dzbx*dyby+dxby*dzby-dybx*dzby))
+  DO i = mype,nx0_big-1,n_mpi_procs
+  store_xm(i,:,:) = (bx(i,:,:)*dxvx(i,:,:)+by(i,:,:)*dyvx(i,:,:)+bz(i,:,:)*dzvx(i,:,:)) - (vx(i,:,:)*dxbx(i,:,:)+vy(i,:,:)*dybx(i,:,:)+vz(i,:,:)*dzbx(i,:,:))&
+       - hall*((bx(i,:,:)*dxdybz(i,:,:)+by(i,:,:)*dydybz(i,:,:)+bz(i,:,:)*dydzbz(i,:,:)-bx(i,:,:)*dxdzby(i,:,:)-by(i,:,:)*dydzby(i,:,:)-bz(i,:,:)*dzdzby(i,:,:))&
+       + (dybz(i,:,:)*dxbx(i,:,:)-dzby(i,:,:)*dxbx(i,:,:)-dxbz(i,:,:)*dybx(i,:,:)+dzbx(i,:,:)*dybx(i,:,:)+dxby(i,:,:)*dzbx(i,:,:)-dybx(i,:,:)*dzbx(i,:,:)))
 
-  store_z = (bx*dxvz+by*dyvz+bz*dzvz)- (vx*dxbz+vy*dybz+vz*dzbz)&
-       - hall*((bx*dxdxby+by*dxdyby+bz*dxdzby-bx*dxdybx-by*dydybx-bz*dydzbx)&
-       + (dybz*dxbz-dzby*dxbz-dxbz*dybz+dzbx*dybz+dxby*dzbz-dybx*dzbz ))
-  IF (verbose) CALL cpu_time(dum)
-  IF(verbose) print *, 'RHS NL PreBNLWrite Time:',dum-sttime
+  store_ym(i,:,:) = (bx(i,:,:)*dxvy(i,:,:)+by(i,:,:)*dyvy(i,:,:)+bz(i,:,:)*dzvy(i,:,:)) - (vx(i,:,:)*dxby(i,:,:)+vy(i,:,:)*dyby(i,:,:)+vz(i,:,:)*dzby(i,:,:))&
+       - hall*((bx(i,:,:)*dxdzbx(i,:,:)+by(i,:,:)*dydzbx(i,:,:)+bz(i,:,:)*dzdzbx(i,:,:)-bx(i,:,:)*dxdxbz(i,:,:)-by(i,:,:)*dxdybz(i,:,:)-bz(i,:,:)*dxdzbz(i,:,:))&
+       + (dybz(i,:,:)*dxby(i,:,:)-dzby(i,:,:)*dxby(i,:,:)-dxbz(i,:,:)*dyby(i,:,:)+dzbx(i,:,:)*dyby(i,:,:)+dxby(i,:,:)*dzby(i,:,:)-dybx(i,:,:)*dzby(i,:,:)))
 
-  IF ((mod(counter,4).eq.0).and.(plot_nls.and.(mod(itime,istep_energy).eq.0))) THEN
-     ! b.grad v
-     WRITE(bdvio) fft_spec2(bx*dxvx+by*dyvx+bz*dzvx)
-     WRITE(bdvio) fft_spec2(bx*dxvy+by*dyvy+bz*dzvy)
-     WRITE(bdvio) fft_spec2(bx*dxvz+by*dyvz+bz*dzvz)
+  store_zm(i,:,:) = (bx(i,:,:)*dxvz(i,:,:)+by(i,:,:)*dyvz(i,:,:)+bz(i,:,:)*dzvz(i,:,:))- (vx(i,:,:)*dxbz(i,:,:)+vy(i,:,:)*dybz(i,:,:)+vz(i,:,:)*dzbz(i,:,:))&
+       - hall*((bx(i,:,:)*dxdxby(i,:,:)+by(i,:,:)*dxdyby(i,:,:)+bz(i,:,:)*dxdzby(i,:,:)-bx(i,:,:)*dxdybx(i,:,:)-by(i,:,:)*dydybx(i,:,:)-bz(i,:,:)*dydzbx(i,:,:))&
+       + (dybz(i,:,:)*dxbz(i,:,:)-dzby(i,:,:)*dxbz(i,:,:)-dxbz(i,:,:)*dybz(i,:,:)+dzbx(i,:,:)*dybz(i,:,:)+dxby(i,:,:)*dzbz(i,:,:)-dybx(i,:,:)*dzbz(i,:,:) ))
+  ENDDO
 
-     ! v.grad b
-     WRITE(vdbio) fft_spec2(vx*dxbx+vy*dybx+vz*dzbx)
-     WRITE(vdbio) fft_spec2(vx*dxby+vy*dyby+vz*dzby)
-     WRITE(vdbio) fft_spec2(vx*dxbz+vy*dybz+vz*dzbz)
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(store_xm,store_x,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(store_ym,store_y,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(store_zm,store_z,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+  
+! FFT back to Fourier space
 
-     ! b. grad curl b
-     WRITE(bdcbio) fft_spec2(bx*dxdybz+by*dydybz+bz*dydzbz-bx*dxdzby-by*dydzby-bz*dzdzby)
-     WRITE(bdcbio) fft_spec2(bx*dxdzbx+by*dydzbx+bz*dzdzbx-bx*dxdxbz-by*dxdybz-bz*dxdzbz)
-     WRITE(bdcbio) fft_spec2(bx*dxdxby+by*dxdyby+bz*dxdzby-bx*dxdybx-by*dydybx-bz*dydzbx)
+  temp_bigx = fft_spec2(store_x)
+!  store = store_x
+!  CALL dfftw_execute_dft(plan_r2c,store,temp_big)
+!  temp_bigx = temp_big
+!  if ((verbose).and.(mod(itime,100).eq.1)) CALL wherenezero(temp_bigx)                                                                            
 
-     ! curl b . grad b
-     WRITE(cbdbio) fft_spec2(dybz*dxbx-dzby*dxbx-dxbz*dybx+dzbx*dybx+dxby*dzbx-dybx*dzbx)
-     WRITE(cbdbio) fft_spec2(dybz*dxby-dzby*dxby-dxbz*dyby+dzbx*dyby+dxby*dzby-dybx*dzby)
-     WRITE(cbdbio) fft_spec2(dybz*dxbz-dzby*dxbz-dxbz*dybz+dzbx*dybz+dxby*dzbz-dybx*dzbz)
-  ENDIF
-  IF (verbose) CALL cpu_time(dum)
-  IF(verbose) print *, 'RHS NL PostBNLWrite Time:',dum-sttime
+  temp_bigy = fft_spec2(store_y)
+!  store = store_y
+!  CALL dfftw_execute_dft(plan_r2c,store,temp_big)
+!  temp_bigy = temp_big
 
-  !inverse FFT to get back to Fourier
-
-  store = store_x
-  CALL dfftw_execute_dft(plan_r2c,store,temp_big)
-  temp_bigx = temp_big
-!  if ((verbose).and.(mod(itime,100).eq.1)) CALL wherenezero(temp_bigx)
-
-  store = store_y
-  CALL dfftw_execute_dft(plan_r2c,store,temp_big)
-  temp_bigy = temp_big
-
-  store = store_z
-  CALL dfftw_execute_dft(plan_r2c,store,temp_big)
-  temp_bigz = temp_big
+  temp_bigz = fft_spec2(store_z)
+!  store = store_z
+!  CALL dfftw_execute_dft(plan_r2c,store,temp_big)
+!  temp_bigz = temp_big
 
   IF (verbose) CALL cpu_time(dum)
   IF(verbose) print *, 'RHS NL PostBFFFTs Time:',dum-sttime
 
-  !Now fill in appropriate rhs elements                                                                                                                                                                
-  DO i=0,nkx0-1
-        rhs_out_b(i,:,:,0)=rhs_out_b(i,:,:,0)+temp_bigx(i,0:nky0-1,0:nkz0-1)*fft_norm
-        rhs_out_b(i,:,:,1)=rhs_out_b(i,:,:,1)+temp_bigy(i,0:nky0-1,0:nkz0-1)*fft_norm
-        rhs_out_b(i,:,:,2)=rhs_out_b(i,:,:,2)+temp_bigz(i,0:nky0-1,0:nkz0-1)*fft_norm
-  END DO!i loop  
+  IF (verbose) CALL cpu_time(dum)
+  IF(verbose) print *, 'RHS NL PreBNLWrite Time:',dum-sttime
+
+  !Now fill in appropriate rhs elements                                                                                                                                                       
+  DO i=mype,nkx0-1,n_mpi_procs
+        rhs_out_bm(i,:,:,0)=rhs_out_b(i,:,:,0)+temp_bigx(i,0:nky0-1,0:nkz0-1)*fft_norm
+        rhs_out_bm(i,:,:,1)=rhs_out_b(i,:,:,1)+temp_bigy(i,0:nky0-1,0:nkz0-1)*fft_norm
+        rhs_out_bm(i,:,:,2)=rhs_out_b(i,:,:,2)+temp_bigz(i,0:nky0-1,0:nkz0-1)*fft_norm
+  END DO!i loop 
   endif
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(rhs_out_bm,rhs_out_b,nkx0*nky0*nkz0*3&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   if (nv) rhs_out_b = cmplx(0.0,0.0)
 
   IF (verbose) CALL cpu_time(dum)
   IF(verbose) print *, 'RHS NL PostBUpdate Time:',dum-sttime
 
-  !! ! EQUATION (15)
-  !! U1= vx*dxvx+vy*dyvx+vz*dzvx
-  !! V2 = bx*dxvx+by*dyvx+bz*dzvx
-  !! W1= (0.5)*dyb^2  ! TO BE DONE
-  !!
-  !! U2= vx*dxvy+vy*dyvy+vz*dzvy
-  !! V2 = bx*dxvy+by*dyvy+bz*dzvy
+  !! ! EQUATION (15)  
+  !! U1= vx*dxvx+vy*dyvx+vz*dzvx 
+  !! V2 = bx*dxvx+by*dyvx+bz*dzvx 
+  !! W1= (0.5)*dyb^2  ! TO BE DONE 
+
+  !! U2= vx*dxvy+vy*dyvy+vz*dzvy   
+  !! V2 = bx*dxvy+by*dyvy+bz*dzvy  
   !! W2= (0.5)*dyb^2  ! TO BE DONE
-  !!
-  !! U3= vx*dxvz+vy*dyvz+vz*dzvz
-  !! V3 = bx*dxvz+by*dyvz+bz*dzvz
+
+  !! U3= vx*dxvz+vy*dyvz+vz*dzvz  
+  !! V3 = bx*dxvz+by*dyvz+bz*dzvz 
   !! W3= (0.5)*dzb^2  ! TO BE DONE
-  !!
-  !!
-  !!
-  !!      eq15x= -U1+V1 -W1
-  !!      eq15y=-U2+V2-W2
-  !!      eq15z=-U3+V3-W3
 
-  if (rhs_nl_version.eq.1) then
-     store_x = -(vx*dxvx+vy*dyvx+vz*dzvx) + (bx*dxbx+by*dybx+bz*dzbx) - 0.5*dxbmag
-     store_y = -(vx*dxvy+vy*dyvy+vz*dzvy) + (bx*dxby+by*dyby+bz*dzby) - 0.5*dybmag
-     store_z = -(vx*dxvz+vy*dyvz+vz*dzvz) + (bx*dxbz+by*dybz+bz*dzbz) - 0.5*dzbmag
+  !!      eq15x= -U1+V1 -W1       
+  !!      eq15y=-U2+V2-W2         
+  !!      eq15z=-U3+V3-W3         
 
-     IF ((mod(counter,4).eq.0).and.(plot_nls.and.(mod(itime,istep_energy).eq.0))) THEN
-        ! v . grad v
-        WRITE(vdvio) fft_spec2(vx*dxvx+vy*dyvx+vz*dzvx)
-        WRITE(vdvio) fft_spec2(vx*dxvy+vy*dyvy+vz*dzvy)
-        WRITE(vdvio) fft_spec2(vx*dxvz+vy*dyvz+vz*dzvz)
+if (rhs_nl_version.eq.1) then
+     DO i = mype,nx0_big-1,n_mpi_procs
+     store_x(i,:,:) = -(vx(i,:,:)*dxvx(i,:,:)+vy(i,:,:)*dyvx(i,:,:)+vz(i,:,:)*dzvx(i,:,:)) + (bx(i,:,:)*dxbx(i,:,:)+by(i,:,:)*dybx(i,:,:)+bz(i,:,:)*dzbx(i,:,:)) - 0.5*dxbmag(i,:,:)
+     store_y(i,:,:) = -(vx(i,:,:)*dxvy(i,:,:)+vy(i,:,:)*dyvy(i,:,:)+vz(i,:,:)*dzvy(i,:,:)) + (bx(i,:,:)*dxby(i,:,:)+by(i,:,:)*dyby(i,:,:)+bz(i,:,:)*dzby(i,:,:)) - 0.5*dybmag(i,:,:)
+     store_z(i,:,:) = -(vx(i,:,:)*dxvz(i,:,:)+vy(i,:,:)*dyvz(i,:,:)+vz(i,:,:)*dzvz(i,:,:)) + (bx(i,:,:)*dxbz(i,:,:)+by(i,:,:)*dybz(i,:,:)+bz(i,:,:)*dzbz(i,:,:)) - 0.5*dzbmag(i,:,:)
+     ENDDO 
+endif
 
-        ! b . grad b
-        WRITE(bdbio) fft_spec2(bx*dxbx+by*dybx+bz*dzbx)
-        WRITE(bdbio) fft_spec2(bx*dxby+by*dyby+bz*dzby)
-        WRITE(bdbio) fft_spec2(bx*dxbz+by*dybz+bz*dzbz)
+if (rhs_nl_version.eq.12) then
+   DO i = mype,nx0_big-1,n_mpi_procs
+   store_x(i,:,:) = -(vx(i,:,:)*dxvx(i,:,:)+vy(i,:,:)*dyvx(i,:,:)+vz(i,:,:)*dzvx(i,:,:)) + (by(i,:,:)*dybx(i,:,:)+bz(i,:,:)*dzbx(i,:,:)) &
+     - (by(i,:,:)*dxby(i,:,:)+bz(i,:,:)*dxbz(i,:,:))
+   store_y(i,:,:) = -(vx(i,:,:)*dxvy(i,:,:)+vy(i,:,:)*dyvy(i,:,:)+vz(i,:,:)*dzvy(i,:,:)) + (bx(i,:,:)*dxby(i,:,:)+bz(i,:,:)*dzby(i,:,:)) &
+     - (bz(i,:,:)*dybz(i,:,:)+bx(i,:,:)*dybx(i,:,:))
+   store_z(i,:,:) = -(vx(i,:,:)*dxvz(i,:,:)+vy(i,:,:)*dyvz(i,:,:)+vz(i,:,:)*dzvz(i,:,:)) + (bx(i,:,:)*dxbz(i,:,:)+by(i,:,:)*dybz(i,:,:)) &
+     - (by(i,:,:)*dzby(i,:,:)+bx(i,:,:)*dzbx(i,:,:))
+   ENDDO
+endif
 
-        ! 0.5 grad b^2
-        WRITE(db2io) fft_spec2(0.5*dxbmag)
-        WRITE(db2io) fft_spec2(0.5*dybmag)
-        WRITE(db2io) fft_spec2(0.5*dzbmag)
-
-        if (verbose) print *, 'v1 nl equation stored'
-     endif
-  ENDIF
-
-  if (rhs_nl_version.eq.12) then
-     store_x = -(vx*dxvx+vy*dyvx+vz*dzvx) + (by*dybx+bz*dzbx) - (by*dxby+bz*dxbz)
-     store_y = -(vx*dxvy+vy*dyvy+vz*dzvy) + (bx*dxby+bz*dzby) - (bz*dybz+bx*dybx)
-     store_z = -(vx*dxvz+vy*dyvz+vz*dzvz) + (bx*dxbz+by*dybz) - (by*dzby+bx*dzbx)
-
-     IF ((mod(counter,4).eq.0).and.(plot_nls.and.(mod(itime,istep_energy).eq.0))) THEN
-        ! v . grad v
-        WRITE(vdvio) fft_spec2(vx*dxvx+vy*dyvx+vz*dzvx)
-        WRITE(vdvio) fft_spec2(vx*dxvy+vy*dyvy+vz*dzvy)
-        WRITE(vdvio) fft_spec2(vx*dxvz+vy*dyvz+vz*dzvz)
-
-        ! b . grad b
-        WRITE(bdbio) fft_spec2(bx*dxbx+by*dybx+bz*dzbx)
-        WRITE(bdbio) fft_spec2(bx*dxby+by*dyby+bz*dzby)
-        WRITE(bdbio) fft_spec2(bx*dxbz+by*dybz+bz*dzbz)
-
-        ! 0.5 grad b^2
-        WRITE(db2io) fft_spec2(bx*dxbx+by*dxby+bz*dxbz)
-        WRITE(db2io) fft_spec2(bx*dybx+by*dyby+bz*dybz)
-        WRITE(db2io) fft_spec2(bx*dzbx+by*dzby+bz*dzbz)
-
-        if (verbose) print *, 'v12 nl equation stored'
-     endif
-  ENDIF
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(store_xm,store_x,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(store_ym,store_y,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(store_zm,store_z,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
 
   IF (verbose) CALL cpu_time(dum)
   IF(verbose) print *, 'RHS NL Postveom Time:',dum-sttime
 
-  store = store_x
-  CALL dfftw_execute_dft(plan_r2c,store,temp_big)
-  temp_bigx = temp_big
+  temp_bigx = fft_spec2(store_x)
+!  store = store_x
+!  CALL dfftw_execute_dft(plan_r2c,store,temp_big)
+!  temp_bigx = temp_big
 
-  store = store_y
-  CALL dfftw_execute_dft(plan_r2c,store,temp_big)
-  temp_bigy = temp_big
+  temp_bigy = fft_spec2(store_y)
+!  store = store_y
+!  CALL dfftw_execute_dft(plan_r2c,store,temp_big)
+!  temp_bigy = temp_big
 
-  store = store_z
-  CALL dfftw_execute_dft(plan_r2c,store,temp_big)
-  temp_bigz = temp_big
+  temp_bigz = fft_spec2(store_z)
+!  store = store_z
+!  CALL dfftw_execute_dft(plan_r2c,store,temp_big)
+!  temp_bigz = temp_big
 
   !Now fill in appropriate rhs elements
-  DO i=0,nkx0-1
-        rhs_out_v(i,:,:,0)=rhs_out_v(i,:,:,0)+temp_bigx(i,0:nky0-1,0:nkz0-1)*fft_norm
-        rhs_out_v(i,:,:,1)=rhs_out_v(i,:,:,1)+temp_bigy(i,0:nky0-1,0:nkz0-1)*fft_norm
-        rhs_out_v(i,:,:,2)=rhs_out_v(i,:,:,2)+temp_bigz(i,0:nky0-1,0:nkz0-1)*fft_norm
+  DO i=mype,nkx0-1,n_mpi_procs
+        rhs_out_vm(i,:,:,0)=rhs_out_v(i,:,:,0)+temp_bigx(i,0:nky0-1,0:nkz0-1)*fft_norm
+        rhs_out_vm(i,:,:,1)=rhs_out_v(i,:,:,1)+temp_bigy(i,0:nky0-1,0:nkz0-1)*fft_norm
+        rhs_out_vm(i,:,:,2)=rhs_out_v(i,:,:,2)+temp_bigz(i,0:nky0-1,0:nkz0-1)*fft_norm
   END DO!i loop
 
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(rhs_out_vm,rhs_out_v,nkx0*nky0*nkz0*3&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
   if (verbose) print *, 'rhs out v nl found'
+
+  if (calc_dt) CALL next_dt(ndt)
+  if (.not.(calc_dt)) ndt = dt_max
+  if (verbose) print *, 'next dt calculated ',ndt
+
+  IF ((mod(counter,4).eq.0).and.(plot_nls.and.(mod(itime,istep_energy).eq.0))) THEN
+     ! b.grad v
+
+     bdv = fft_spec2(bx*dxvx+by*dyvx+bz*dzvx)
+     if(mod(mype,n_mpi_procs).eq.0) WRITE(bdvio) bdv
+     bdv = fft_spec2(bx*dxvy+by*dyvy+bz*dzvy)
+     if(mod(mype,n_mpi_procs).eq.0) WRITE(bdvio) bdv     
+     bdv = fft_spec2(bx*dxvz+by*dyvz+bz*dzvz)
+     if(mod(mype,n_mpi_procs).eq.0) WRITE(bdvio) bdv
+
+     ! v.grad b
+     vdb = fft_spec2(vx*dxbx+vy*dybx+vz*dzbx)
+     if(mod(mype-1,n_mpi_procs).eq.0) WRITE(vdbio) vdb
+     vdb = fft_spec2(vx*dxby+vy*dyby+vz*dzby)
+     if(mod(mype-1,n_mpi_procs).eq.0) WRITE(vdbio) vdb
+     vdb = fft_spec2(vx*dxbz+vy*dybz+vz*dzbz)
+     if(mod(mype-1,n_mpi_procs).eq.0) WRITE(vdbio) vdb
+
+     ! b. grad curl b
+
+     bdcb = fft_spec2(bx*dxdybz+by*dydybz+bz*dydzbz-bx*dxdzby-by*dydzby-bz*dzdzby)
+     if(mod(mype-2,n_mpi_procs).eq.0) WRITE(bdcbio) bdcb
+     bdcb = fft_spec2(bx*dxdzbx+by*dydzbx+bz*dzdzbx-bx*dxdxbz-by*dxdybz-bz*dxdzbz)
+     if(mod(mype-2,n_mpi_procs).eq.0) WRITE(bdcbio) bdcb
+     bdcb = fft_spec2(bx*dxdxby+by*dxdyby+bz*dxdzby-bx*dxdybx-by*dydybx-bz*dydzbx)
+     if(mod(mype-2,n_mpi_procs).eq.0) WRITE(bdcbio) bdcb
+
+     ! curl b . grad b
+     cbdb = fft_spec2(dybz*dxbx-dzby*dxbx-dxbz*dybx+dzbx*dybx+dxby*dzbx-dybx*dzbx)
+     if(mod(mype-3,n_mpi_procs).eq.0) WRITE(cbdbio) cbdb
+     cbdb = fft_spec2(dybz*dxby-dzby*dxby-dxbz*dyby+dzbx*dyby+dxby*dzby-dybx*dzby)
+     if(mod(mype-3,n_mpi_procs).eq.0) WRITE(cbdbio) cbdb
+     cbdb = fft_spec2(dybz*dxbz-dzby*dxbz-dxbz*dybz+dzbx*dybz+dxby*dzbz-dybx*dzbz)
+     if(mod(mype-3,n_mpi_procs).eq.0) WRITE(cbdbio) cbdb
+
+     ! v . grad v
+     vdv = fft_spec2(vx*dxvx+vy*dyvx+vz*dzvx)
+     if(mod(mype-4,n_mpi_procs).eq.0) WRITE(vdvio) vdv
+     vdv = fft_spec2(vx*dxvy+vy*dyvy+vz*dzvy)
+     if(mod(mype-4,n_mpi_procs).eq.0) WRITE(vdvio) vdv
+     vdv = fft_spec2(vx*dxvz+vy*dyvz+vz*dzvz)
+     if(mod(mype-4,n_mpi_procs).eq.0) WRITE(vdvio) vdv
+
+     ! b . grad b
+     bdb = fft_spec2(bx*dxbx+by*dybx+bz*dzbx)
+     if(mod(mype-5,n_mpi_procs).eq.0) WRITE(bdbio) bdb
+     bdb = fft_spec2(bx*dxby+by*dyby+bz*dzby)
+     if(mod(mype-5,n_mpi_procs).eq.0) WRITE(bdbio) bdb
+     bdb = fft_spec2(bx*dxbz+by*dybz+bz*dzbz)
+     if(mod(mype-5,n_mpi_procs).eq.0) WRITE(bdbio) bdb
+        
+     if (rhs_nl_version.eq.12) then 
+     ! 0.5 grad b^2
+     db2 = fft_spec2(bx*dxbx+by*dxby+bz*dxbz)
+     if(mod(mype-6,n_mpi_procs).eq.0) WRITE(db2io) db2
+     db2 = fft_spec2(bx*dybx+by*dyby+bz*dybz)
+     if(mod(mype-6,n_mpi_procs).eq.0) WRITE(db2io) db2     
+     db2 = fft_spec2(bx*dzbx+by*dzby+bz*dzbz)
+     if(mod(mype-6,n_mpi_procs).eq.0) WRITE(db2io) db2
+     endif 
+
+     if (rhs_nl_version.eq.1) then 
+     db2 = fft_spec2(0.5*dxbmag)
+     if(mod(mype-6,n_mpi_procs).eq.0) WRITE(db2io) db2
+     db2 = fft_spec2(0.5*dybmag)
+     if(mod(mype-6,n_mpi_procs).eq.0) WRITE(db2io) db2
+     db2 = fft_spec2(0.5*dzbmag)
+     if(mod(mype-6,n_mpi_procs).eq.0) WRITE(db2io) db2
+     endif
+
+  ENDIF
+  IF (verbose) CALL cpu_time(dum)
+  IF(verbose) print *, 'RHS NL PostWrite Time:',dum-sttime
 
   if (calc_dt) CALL next_dt(ndt)
   if (.not.(calc_dt)) ndt = dt_max
@@ -4514,16 +5089,29 @@ implicit none
 complex :: arr_real(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1)
 complex :: arr_spec(0:nkx0-1,0:nky0-1,lkz1:lkz2)
 complex :: temporary(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1)
-integer :: s
+integer :: s,ierr
 
-  store = arr_real
-  CALL dfftw_execute_dft(plan_r2c,store,temp_big)
-  temporary = temp_big
+  DO s = mype,nx0_big-1,n_mpi_procs
+     temp_bigm(s,:,:) = arr_real(s,:,:)
+  ENDDO
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_bigm,store,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
+  CALL dfftw_execute_dft(plan_r2c,store,temp_bigm)
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_bigm,temporary,nx0_big*ny0_big*nz0_big&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
 !Now fill in appropriate rhs elements 
 
-  DO s=0,nkx0-1
-     arr_spec(s,:,:)=temporary(s,0:nky0-1,0:nkz0-1)*fft_norm
+  DO s=mype,nkx0-1,n_mpi_procs
+     temp_smallm(s,:,:)=temporary(s,0:nky0-1,0:nkz0-1)*fft_norm
   END DO!i loop
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(temp_smallm,arr_spec,nkx0*nky0*nkz0&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
 
 END FUNCTION fft_spec2
 
@@ -4554,15 +5142,20 @@ implicit none
 call dfftw_destroy_plan(plan_r2c)
 call dfftw_destroy_plan(plan_c2r)
 DEALLOCATE(temp_small)
+DEALLOCATE(temp_smallm)
 if (verbose) print *, 'ts deallocated'
 
 DEALLOCATE(temp_bigx)
+DEALLOCATE(temp_bigm)
 if (verbose) print *, 'tbx deallocated'
 DEALLOCATE(temp_bigy)
 if (verbose) print *, 'tby deallocated'
 DEALLOCATE(temp_bigz)
 if (verbose) print *, 'tbz deallocated'
 
+DEALLOCATE(store_xm)
+DEALLOCATE(store_ym)
+DEALLOCATE(store_zm)
 DEALLOCATE(store_x)
 if (verbose) print *, 'stx deallocated'
 DEALLOCATE(store_y)
@@ -4668,6 +5261,15 @@ endif
   DEALLOCATE(dydyvz)
   DEALLOCATE(dydzvz)
   DEALLOCATE(dzdzvz)
+
+
+  DEALLOCATE(bdv)
+  DEALLOCATE(vdb)
+  DEALLOCATE(bdcb)
+  DEALLOCATE(cbdb)
+  DEALLOCATE(vdv)
+  DEALLOCATE(bdb)
+  DEALLOCATE(db2)
   DEALLOCATE(b_inx0)
   DEALLOCATE(b_iny0)
   DEALLOCATE(b_inz0)

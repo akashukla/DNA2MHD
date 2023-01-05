@@ -392,7 +392,7 @@ SUBROUTINE diag
 !!     END IF
 !!   END IF
 !! 
-     IF(istep_energy.ne.0) THEN
+     IF((istep_energy.ne.0).and.(mype.eq.0))THEN
        IF(MOD(itime,istep_energy)==0) THEN
          IF(verbose) WRITE(*,*) "Starting energy diag.",mype
          WRITE(en_handle) time
@@ -426,7 +426,7 @@ SUBROUTINE diag
        END IF
      END IF
 
-     IF(istep_energyspec.ne.0) THEN
+     IF((istep_energyspec.ne.0).and.(mype.eq.0)) THEN
        IF(MOD(itime,istep_energyspec)==0) THEN
          IF(verbose) WRITE(*,*) "Starting energyspec diag.",mype
          WRITE(enspec_handle) time
