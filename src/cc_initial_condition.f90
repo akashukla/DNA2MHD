@@ -36,7 +36,7 @@ SUBROUTINE initial_condition(which_init0)
   INTEGER :: rseed_size
   REAL :: zerocmplx
 
-  zerocmplx=cmplx(0.0,0.0)
+  zerocmplx=0.0
    
   !g_1(:,:,:,:,:,:)=cmplx(0.0,0.0)
   b_1(:,:,:,:)=cmplx(0.0,0.0)
@@ -50,8 +50,8 @@ SUBROUTINE initial_condition(which_init0)
       END DO
     END DO
   END DO
-  s1 = sum(kmags(kxinit_min:kxinit_max-1,kyinit_min:kyinit_max,max(1,kzinit_min):kzinit_max-1) ** (-1.0*init_kolm))
-  s2 = sum((divratio(kxinit_min:kxinit_max-1,kyinit_min:kyinit_max-1,max(1,kzinit_min):kzinit_max-1) ** 2) * kmags(kxinit_min:kxinit_max-1,kyinit_min:kyinit_max-1,max(1,kzinit_min):kzinit_max-1) ** (-1.0 * init_kolm))
+  s1 = sum(kmags(0:kxinit_max-1,0:kyinit_max-1,1:kzinit_max-1) ** (-1.0*init_kolm))
+  s2 = sum((divratio(0:kxinit_max-1,0:kyinit_max-1,1:kzinit_max-1) ** 2) * kmags(0:kxinit_max-1,0:kyinit_max-1,1:kzinit_max-1) ** (-1.0 * init_kolm))
 
   !init_prefactor=0.001
 !Default Initialization
@@ -62,12 +62,13 @@ SUBROUTINE initial_condition(which_init0)
       CALL RANDOM_SEED(PUT=rseed)
       DEALLOCATE(rseed)
  
-      DO i=kxinit_min,kxinit_max-1
-       DO j=kyinit_min,kyinit_max-1
-        DO k=kzinit_min,kzinit_max-1
+      DO i=0,kxinit_max-1
+       DO j=0,kyinit_max-1
+        DO k=0,kzinit_max-1
          CALL RANDOM_NUMBER(phase1)
          CALL RANDOM_NUMBER(phase2)
          phaseb = cmplx(cos(2*pi*phase1),sin(2*pi*phase1))
+         if (verbose) write(*,*) phaseb
          phasev = cmplx(cos(2*pi*phase2),sin(2*pi*phase2))
          !DO l=0,2
          IF(kzgrid(k).eq.zerocmplx) THEN
@@ -78,8 +79,8 @@ SUBROUTINE initial_condition(which_init0)
              v_1(i,j,k,1)=cmplx(0.0,0.0)
              v_1(i,j,k,2)=cmplx(0.0,0.0)
          ELSE IF (.not.(enone)) THEN
-             b_1(i,j,k,0)=init_amp_bx*1.0/sqrt(real(nkx0*nky0*(nkz0-1)))* 1/(kmags(i,j,k)**(init_kolm/2.0))*phaseb
-             b_1(i,j,k,1)=init_amp_by*1.0/sqrt(real(nkx0*nky0*(nkz0-1)))*1/(kmags(i,j,k)**(init_kolm/2.0))*phaseb
+             b_1(i,j,k,0)=init_amp_bx*1.0/sqrt(real(nkx0*nky0*(nkz0-1)))*1/(kmags(i,j,k)**(init_kolm/2.0)) * phaseb
+             b_1(i,j,k,1)=init_amp_by*1.0/sqrt(real(nkx0*nky0*(nkz0-1)))*1/(kmags(i,j,k)**(init_kolm/2.0)) * phaseb
              b_1(i,j,k,2) = (-kxgrid(i)*b_1(i,j,k,0)-kygrid(j)*b_1(i,j,k,1))/kzgrid(k)
              !b_1(i,j,k,2)=init_amp_bz
              v_1(i,j,k,0)=init_amp_vx*1.0/sqrt(real(nkx0*nky0*(nkz0-1)))*1/(kmags(i,j,k)**(init_kolm/2.0)) * phasev

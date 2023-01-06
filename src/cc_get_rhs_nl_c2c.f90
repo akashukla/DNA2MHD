@@ -173,9 +173,9 @@ SUBROUTINE get_rhs_nl(b_in, v_in, rhs_out_b, rhs_out_v,ndt)
     IF (dealias_type.eq.3) CALL get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
     IF (dealias_type.eq.4) CALL get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
     IF (dealias_type.eq.1) CALL get_rhs_nlps(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
-    if ((verbose).and.(mod(itime,100).eq.1)) CALL wherenezero(rhs_out_b(0:nkx0-1,0:nky0-1,0:nkz0-1,0)-b_in(0:nkx0-1,0:nky0-1,0:nkz0-1,0))
+!    if ((verbose).and.(mod(itime,100).eq.1)) CALL wherenezero(rhs_out_b(0:nkx0-1,0:nky0-1,0:nkz0-1,0)-b_in(0:nkx0-1,0:nky0-1,0:nkz0-1,0))
     if (verbose) print *, 'Checked nonzero convolution terms'
-    if ((verbose).and.(mod(itime,100).eq.1)) CALL wherebvnotreal(rhs_out_b,rhs_out_v)
+!    if ((verbose).and.(mod(itime,100).eq.1)) CALL wherebvnotreal(rhs_out_b,rhs_out_v)
     if (verbose) print *, 'Checked b,v reality condition'
     if (dealias_type.eq.20) THEN
       CALL finalize_fourier
@@ -402,6 +402,9 @@ endif
 
   
    !   SECOND ORDER  VX TERMS DXDXVX,   DXDYVX,   DXDZVX,  DYDYVX,   DYDZVX, DZDZVX
+  ! second order v terms are not needed 
+  if (.false.) then 
+
     !dxdxvx
   DO i=0,nkx0-1
         temp_small(i,:,:)=i_complex*kxgrid(i)*i_complex*kxgrid(i)*v_inx0(i,:,:) ! there is  two i's in the 
@@ -698,6 +701,7 @@ endif
     dzdzvz = store
     
 ! finished SECOND ORDER VZ TERMS
+  endif
 
 ! START SECOND ORDER b terms  
 
@@ -1968,6 +1972,10 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   !  END DO
 
   if (nv.eq..false.) then
+  
+  ! second order v terms are not needed
+  if (.false.) then
+
   !   SECOND ORDER  VX TERMS DXDXVX,   DXDYVX,   DXDZVX,  DYDYVX,   DYDZVX, DZDZVX
   !dxdxvx
   DO i=0,nkx0-1
@@ -2264,7 +2272,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   CALL dfftw_execute_dft(plan_c2r,temp_big,store)
   dzdzvz = store
 
-  ! finished SECOND ORDER VZ TERMS
+  ! finished SECOND ORDER VZ TERMS   ! second order v terms are not needed  
+  endif
 
   ! START SECOND ORDER b terms
 
@@ -3496,6 +3505,7 @@ USE par_mod
 
   !   SECOND ORDER  VX TERMS DXDXVX,   DXDYVX,   DXDZVX,  DYDYVX,   DYDZVX, DZDZVX
   if (nv.eq..false.) then
+  if (.false.) then
   !dxdxvx
   DO i=0,nkx0-1
      temp_small(i,:,:)=i_complex*kxgrid(i)*i_complex*kxgrid(i)*v_inx0(i,:,:) ! there is  two i's in the
@@ -3792,6 +3802,7 @@ USE par_mod
   dzdzvz = store
 
   ! finished SECOND ORDER VZ TERMS
+  endif
 
   ! START SECOND ORDER b terms
 
