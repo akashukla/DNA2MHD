@@ -68,7 +68,7 @@ SUBROUTINE initial_condition(which_init0)
          CALL RANDOM_NUMBER(phase1)
          CALL RANDOM_NUMBER(phase2)
          phaseb = cmplx(cos(2*pi*phase1),sin(2*pi*phase1))
-         if (verbose) write(*,*) phaseb
+!         if (verbose) write(*,*) phaseb
          phasev = cmplx(cos(2*pi*phase2),sin(2*pi*phase2))
          !DO l=0,2
          IF(kzgrid(k).eq.zerocmplx) THEN
