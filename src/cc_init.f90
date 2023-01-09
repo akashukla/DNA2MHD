@@ -30,7 +30,7 @@ SUBROUTINE init_run
   
   !! Initial value computation
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  IF (verbose) WRITE(*,*) "Starting initial value computation.",mype
+  IF (verbose.and.(mype.eq.0)) WRITE(*,*) "Starting initial value computation.",mype
   !IF(calc_dt.and.nonlinear) THEN
   !    CALL calc_initial_dt
   !    CALL output_parameters
@@ -56,12 +56,12 @@ SUBROUTINE init_run
   !! Initialised run
   !!!!!!!!!!!!!!!!!!!!
   CALL initial_condition(init_cond)   !checkpoint must be READ before others
-  IF (verbose) WRITE(*,*) "Called initial condition.",mype
+  IF (verbose.and.(mype.eq.0)) WRITE(*,*) "Called initial condition.",mype
   CALL initialize_diagnostics
-  IF (verbose) WRITE(*,*) "Called initial diagnostice.",mype
+  IF (verbose.and.(mype.eq.0)) WRITE(*,*) "Called initial diagnostice.",mype
   !IF(nonlinear) CALL initialize_adapt_dt
   IF(nonlinear) CALL initialize_fourier
-  IF (verbose) WRITE(*,*) "Called initial fourier.",mype
+  IF (verbose.and.(mype.eq.0)) WRITE(*,*) "Called initial fourier.",mype
   
 END SUBROUTINE init_run
 
@@ -98,7 +98,7 @@ SUBROUTINE arrays
     lkz_ind=nkz0-hkz_ind !Index of minimum (most negative) kz value
   END IF
 
-  IF(verbose) THEN
+  IF(verbose.and.(mype.eq.0)) THEN
     WRITE(*,*) "hkx_ind",hkx_ind
     WRITE(*,*) "hky_ind",hky_ind
     WRITE(*,*) "lky_ind",lky_ind
@@ -297,7 +297,7 @@ SUBROUTINE arrays_temp
   hkz_ind=nkz0/2-1 !Index of maximum (used,i.e. not dummy) kz value
   lkz_ind=nkz0-hkz_ind !Index of minimum (most negative) kz value
 
-  IF(verbose) THEN
+  IF(verbose.and.(mype.eq.0)) THEN
     WRITE(*,*) "hkx_ind",hkx_ind
     WRITE(*,*) "hky_ind",hky_ind
     WRITE(*,*) "lky_ind",lky_ind
@@ -484,7 +484,7 @@ SUBROUTINE finalize_arrays
   IF(allocated(b_1)) DEALLOCATE(b_1)
   IF(allocated(v_1)) DEALLOCATE(v_1)
   IF(allocated(gpsi)) DEALLOCATE(gpsi)
-  if (verbose) print *, 'Deallocated b,v'
+  if (verbose.and.(mype.eq.0)) print *, 'Deallocated b,v'
 
   IF(allocated(kxgrid)) DEALLOCATE(kxgrid)
   IF(allocated(kygrid)) DEALLOCATE(kygrid)
@@ -502,7 +502,7 @@ SUBROUTINE finalize_arrays
 !  IF(allocated(hyp_x_herm1)) DEALLOCATE(hyp_x_herm1)
 !  IF(allocated(hyp_y_herm1)) DEALLOCATE(hyp_y_herm1)
   !IF(allocated(f_in)) DEALLOCATE(f_in)
-  IF(verbose) print *, 'Deallocated kgrids'
+  IF(verbose.and.(mype.eq.0)) print *, 'Deallocated kgrids'
 
 END SUBROUTINE finalize_arrays
 

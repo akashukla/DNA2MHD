@@ -126,7 +126,7 @@ SUBROUTINE read_parameters
     !STOP
   END IF
 
-  IF(np_total.ne.n_mpi_procs) STOP "wrong number of processors!"
+!  IF(np_total.ne.n_mpi_procs) STOP "wrong number of processors!"
 
   IF(nh0==1) THEN
      mu_integrated=.true.
@@ -240,7 +240,7 @@ SUBROUTINE output_parameters
   USE par_mod
   INTEGER :: out_handle
 
-  IF (verbose) WRITE(*,*) "In Output Parameters"
+  IF (verbose.and.(mype.eq.0)) WRITE(*,*) "In Output Parameters"
 
 
   CALL get_io_number

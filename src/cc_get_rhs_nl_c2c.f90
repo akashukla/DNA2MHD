@@ -181,9 +181,9 @@ SUBROUTINE get_rhs_nl(b_in, v_in, rhs_out_b, rhs_out_v,ndt)
     IF (dealias_type.eq.4) CALL get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
     IF (dealias_type.eq.1) CALL get_rhs_nlps(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
 !    if ((verbose).and.(mod(itime,100).eq.1)) CALL wherenezero(rhs_out_b(0:nkx0-1,0:nky0-1,0:nkz0-1,0)-b_in(0:nkx0-1,0:nky0-1,0:nkz0-1,0))
-    if (verbose) print *, 'Checked nonzero convolution terms'
+!    if (verbose) print *, 'Checked nonzero convolution terms'
 !    if ((verbose).and.(mod(itime,100).eq.1)) CALL wherebvnotreal(rhs_out_b,rhs_out_v)
-    if (verbose) print *, 'Checked b,v reality condition'
+!    if (verbose) print *, 'Checked b,v reality condition'
     if (dealias_type.eq.20) THEN
       CALL finalize_fourier
       dealias_type = 4
@@ -1138,7 +1138,7 @@ CALL dfftw_execute_dft(plan_r2c,store,temp_big)
     CALL dfftw_execute_dft(plan_c2r,temp_big,store)
     dzbmag = store
 
-    if (verbose) print *, 'Bmag gradients dealiased'
+    if (verbose.and.(mype.eq.0)) print *, 'Bmag gradients dealiased'
 endif
 
 
@@ -1619,7 +1619,7 @@ WRITE(db2io) fft_spec(0.5*dxbmag)
 WRITE(db2io) fft_spec(0.5*dybmag)
 WRITE(db2io) fft_spec(0.5*dzbmag)
 
-if (verbose) print *, 'v1 nl equation stored'
+if (verbose.and.(mype.eq.0)) print *, 'v1 nl equation stored'
 endif
 ENDIF
 
@@ -1644,7 +1644,7 @@ WRITE(db2io) fft_spec(bx*dxbx+by*dxby+bz*dxbz)
 WRITE(db2io) fft_spec(bx*dybx+by*dyby+bz*dybz)
 WRITE(db2io) fft_spec(bx*dzbx+by*dzby+bz*dzbz)
 
-if (verbose) print *, 'v12 nl equation stored'
+if (verbose.and.(mype.eq.0)) print *, 'v12 nl equation stored'
 endif
 ENDIF
 
@@ -1691,36 +1691,36 @@ temp_bigz = temp_big
                                        temp_bigz(i,lky_big:ny0_big-1,0:hkz_ind)*fft_norm
   END DO!i loop
 
-if (verbose) print *, 'rhs out v nl found'
+if (verbose.and.(mype.eq.0)) print *, 'rhs out v nl found'
 
 if (calc_dt) CALL next_dt(ndt)
 if (.not.(calc_dt)) ndt = dt_max
-if (verbose) print *, 'next dt calculated ',ndt
+if (verbose.and.(mype.eq.0)) print *, 'next dt calculated ',ndt
 
 DEALLOCATE(temp_small)
-if (verbose) print *, 'ts deallocated'
+if (verbose.and.(mype.eq.0)) print *, 'ts deallocated'
 
 DEALLOCATE(temp_bigx)
-if (verbose) print *, 'tbx deallocated'
+if (verbose.and.(mype.eq.0)) print *, 'tbx deallocated'
 DEALLOCATE(temp_bigy)
-if (verbose) print *, 'tby deallocated'
+if (verbose.and.(mype.eq.0)) print *, 'tby deallocated'
 DEALLOCATE(temp_bigz)
-if (verbose) print *, 'tbz deallocated'
+if (verbose.and.(mype.eq.0)) print *, 'tbz deallocated'
 
 DEALLOCATE(store_x)
-if (verbose) print *, 'stx deallocated'
+if (verbose.and.(mype.eq.0)) print *, 'stx deallocated'
 DEALLOCATE(store_y)
-if (verbose) print *, 'sty deallocated'
+if (verbose.and.(mype.eq.0)) print *, 'sty deallocated'
 DEALLOCATE(store_z)
-if (verbose) print *, 'stz deallocated'
+if (verbose.and.(mype.eq.0)) print *, 'stz deallocated'
 
 ! All b arrays 
 DEALLOCATE(bx)
-if (verbose) print *, 'bx deallocated'
+if (verbose.and.(mype.eq.0)) print *, 'bx deallocated'
 DEALLOCATE(by)
-if (verbose) print *, 'by deallocated'
+if (verbose.and.(mype.eq.0)) print *, 'by deallocated'
 DEALLOCATE(bz)
-if (verbose) print *, 'first third deallocated'
+if (verbose.and.(mype.eq.0)) print *, 'first third deallocated'
 
 if (rhs_nl_version==1) then
 !DEALLOCATE(bmag_in) 
@@ -1819,7 +1819,7 @@ endif
   DEALLOCATE(v_iny0)
   DEALLOCATE(v_inz0)
 
-if (verbose) print *, 'deallocated nl code'
+if (verbose.and.(mype.eq.0)) print *, 'deallocated nl code'
 
 END SUBROUTINE get_rhs_nl1
 
@@ -1846,7 +1846,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
 
   INTEGER :: i,j,l,k,h, ierr
 
-  if (verbose) CALL cpu_time(sttime)
+  if (verbose.and.(mype.eq.0)) CALL cpu_time(sttime)
 
   IF(np_spec.gt.1) STOP "get_rhs_nl1 not yet implemented for np_spec.gt.1"
   IF(np_kz.gt.1) STOP "get_rhs_nl1 not yet implemented for np_kz.gt.1"
@@ -2355,7 +2355,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
 
   ! SECOND ORDER  BX TERMS DXDXBX,DXDYBX,DXDZBX,  DYDYBX,DYDZBX, DZDZBX
   !dxdxbx
-  IF (mod(mype-0,n_mpi_procs).eq.0) THEN
+  IF (mod(mype-1,n_mpi_procs).eq.0) THEN
   DO i=0,nkx0-1
      mytemp_small(i,:,:)=i_complex*kxgrid(i)*i_complex*kxgrid(i)*b_inx0(i,:,:) ! there is  two i's in the
   END DO
@@ -2372,7 +2372,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   ENDIF
 
   !dxdybx
-  IF (mod(mype-1,n_mpi_procs).eq.0) THEN
+  IF (mod(mype-2,n_mpi_procs).eq.0) THEN
   DO i=0,nkx0-1
      DO j=0,nky0-1
         mytemp_small(i,j,:)=i_complex*kxgrid(i)*i_complex*kygrid(j)*b_inx0(i,j,:)
@@ -2391,7 +2391,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   ENDIF
 
   !dxdzbx
-  IF (mod(mype-2,n_mpi_procs).eq.0) THEN
+  IF (mod(mype-3,n_mpi_procs).eq.0) THEN
   DO i=0,nkx0-1
      DO k=0,nkz0-1
         mytemp_small(i,:,k)=i_complex*kxgrid(i)*i_complex*kzgrid(k)*b_inx0(i,:,k)
@@ -2410,7 +2410,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   ENDIF
 
   ! DYDYbX
-  IF (mod(mype-3,n_mpi_procs).eq.0) THEN
+  IF (mod(mype-4,n_mpi_procs).eq.0) THEN
   DO j=0,nky0-1
      mytemp_small(:,j,:)=i_complex*kygrid(j)*i_complex*kygrid(j)*b_inx0(:,j,:)  ! towo y grid
   END DO
@@ -2427,7 +2427,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   ENDIF
 
   ! DYDzbX
-  IF (mod(mype-4,n_mpi_procs).eq.0) THEN
+  IF (mod(mype-5,n_mpi_procs).eq.0) THEN
   DO j=0,nky0-1
      DO k=0,nkz0-1
         mytemp_small(:,j,k)=i_complex*kygrid(j)*i_complex*kzgrid(k)*b_inx0(:,j,k)
@@ -2446,7 +2446,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   ENDIF
 
   ! DzDzbX
-  IF (mod(mype-5,n_mpi_procs).eq.0) THEN
+  IF (mod(mype-6,n_mpi_procs).eq.0) THEN
   DO k=0,nkz0-1
      mytemp_small(:,:,k)=i_complex*kzgrid(k)*i_complex*kzgrid(k)*b_inx0(:,:,k)  !two kz grid
   END DO
@@ -2466,7 +2466,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   ! SECOND ORDER  by TERMS DXDXBY,DXDYBY,DXDZBY, DYDYBY,DYDZBY, DZDZBY
 
   !dxdxby
-  IF (mod(mype-6,n_mpi_procs).eq.0) THEN
+  IF (mod(mype-7,n_mpi_procs).eq.0) THEN
   DO i=0,nkx0-1
      mytemp_small(i,:,:)=i_complex*kxgrid(i)*i_complex*kxgrid(i)*b_iny0(i,:,:) ! there is  two i's in the
   END DO
@@ -2483,7 +2483,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   ENDIF
 
   !dxdyby
-  IF (mod(mype-7,n_mpi_procs).eq.0) THEN
+  IF (mod(mype-8,n_mpi_procs).eq.0) THEN
   DO i=0,nkx0-1
      DO j=0,nky0-1
         mytemp_small(i,j,:)=i_complex*kxgrid(i)*i_complex*kygrid(j)*b_iny0(i,j,:)
@@ -2502,7 +2502,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   ENDIF
 
   !dxdzby
-  IF (mod(mype-8,n_mpi_procs).eq.0) THEN
+  IF (mod(mype-9,n_mpi_procs).eq.0) THEN
   DO i=0,nkx0-1
      DO k=0,nkz0-1
         mytemp_small(i,:,k)=i_complex*kxgrid(i)*i_complex*kzgrid(k)*b_iny0(i,:,k)
@@ -2521,7 +2521,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   ENDIF
 
   ! DYDYby
-  IF (mod(mype-9,n_mpi_procs).eq.0) THEN
+  IF (mod(mype-10,n_mpi_procs).eq.0) THEN
   DO j=0,nky0-1
      mytemp_small(:,j,:)=i_complex*kygrid(j)*i_complex*kygrid(j)*b_iny0(:,j,:)  ! towo y grid
   END DO
@@ -2538,7 +2538,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   ENDIF
 
   ! DYDzbY
-  IF (mod(mype-10,n_mpi_procs).eq.0) THEN
+  IF (mod(mype-11,n_mpi_procs).eq.0) THEN
   DO j=0,nky0-1
      DO k=0,nkz0-1
         mytemp_small(:,j,k)=i_complex*kygrid(j)*i_complex*kzgrid(k)*b_iny0(:,j,k)
@@ -2557,7 +2557,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   ENDIF
 
   ! DzDzbY
-  IF (mod(mype-11,n_mpi_procs).eq.0) THEN
+  IF (mod(mype-12,n_mpi_procs).eq.0) THEN
   DO k=0,nkz0-1
      mytemp_small(:,:,k)=i_complex*kzgrid(k)*i_complex*kzgrid(k)*b_iny0(:,:,k)  !two kz grid
   END DO
@@ -2577,7 +2577,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   ! SECOND ORDER  BZ TERMS DXDXBZ,DXDYBZ,DXDZBZ, DYDYBz,DYDZBz, DZDZBz
   !dxdxbz
 
-  IF (mod(mype-12,n_mpi_procs).eq.0) THEN 
+  IF (mod(mype-13,n_mpi_procs).eq.0) THEN 
   DO i=0,nkx0-1
      mytemp_small(i,:,:)=i_complex*kxgrid(i)*i_complex*kxgrid(i)*b_inz0(i,:,:) ! there is  two i's in the
   END DO
@@ -2595,7 +2595,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
 
 
   !dxdybz
-  IF (mod(mype-13,n_mpi_procs).eq.0) THEN
+  IF (mod(mype-14,n_mpi_procs).eq.0) THEN
   DO i=0,nkx0-1
      DO j=0,nky0-1
         mytemp_small(i,j,:)=i_complex*kxgrid(i)*i_complex*kygrid(j)*b_inz0(i,j,:)
@@ -2614,7 +2614,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   ENDIF
 
   !dxdzbz
-  IF (mod(mype-14,n_mpi_procs).eq.0) THEN
+  IF (mod(mype-15,n_mpi_procs).eq.0) THEN
   DO i=0,nkx0-1
      DO k=0,nkz0-1
         mytemp_small(i,:,k)=i_complex*kxgrid(i)*i_complex*kzgrid(k)*b_inz0(i,:,k)
@@ -2633,7 +2633,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   ENDIF
 
   ! DYDYbz
-  IF (mod(mype-15,n_mpi_procs).eq.0) THEN
+  IF (mod(mype-16,n_mpi_procs).eq.0) THEN
   DO j=0,nky0-1
      mytemp_small(:,j,:)=i_complex*kygrid(j)*i_complex*kygrid(j)*b_inz0(:,j,:)  ! towo y grid
   END DO
@@ -2650,7 +2650,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   ENDIF
 
   ! DYDzbz
-  IF (mod(mype-16,n_mpi_procs).eq.0) THEN
+  IF (mod(mype-17,n_mpi_procs).eq.0) THEN
   DO j=0,nky0-1
      DO k=0,nkz0-1
         mytemp_small(:,j,k)=i_complex*kygrid(j)*i_complex*kzgrid(k)*b_inz0(:,j,k)
@@ -2669,7 +2669,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   ENDIF
 
   ! DzDzbz
-  IF (mod(mype-17,n_mpi_procs).eq.0) THEN
+  IF (mod(mype-18,n_mpi_procs).eq.0) THEN
   DO k=0,nkz0-1
      mytemp_small(:,:,k)=i_complex*kzgrid(k)*i_complex*kzgrid(k)*b_inz0(:,:,k)  !two kz grid
   END DO
@@ -2692,7 +2692,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   ! TERMS BX BY BZ
 
   !bx
-  IF (mod(mype-18,n_mpi_procs).eq.0) THEN
+  IF (mod(mype-19,n_mpi_procs).eq.0) THEN
   DO i=0,nkx0-1
      mytemp_small(i,:,:)=b_inx0(i,:,:)
   END DO
@@ -2709,7 +2709,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   ENDIF
 
   !by
-  IF (mod(mype-19,n_mpi_procs).eq.0) THEN
+  IF (mod(mype-20,n_mpi_procs).eq.0) THEN
   DO j=0,nky0-1
      mytemp_small(:,j,:)=b_iny0(:,j,:)
   END DO
@@ -2726,7 +2726,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   ENDIF
 
   !bz
-  IF (mod(mype-20,n_mpi_procs).eq.0) THEN
+  IF (mod(mype-21,n_mpi_procs).eq.0) THEN
   DO k=0,nkz0-1
      mytemp_small(:,:,k)=b_inz0(:,:,k)
   END DO
@@ -2818,12 +2818,12 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
      CALL dfftw_execute_dft(plan_c2r,temp_big,store)
      dzbmag = store
 
-     if (verbose) print *, 'Bmag gradients dealiased'
+     if (verbose.and.(mype.eq.0)) print *, 'Bmag gradients dealiased'
   endif
   endif
 !!! TERMS  vx,vy,vz
   !vx
-  IF (mod(mype-21,n_mpi_procs).eq.0) THEN
+  IF (mod(mype-22,n_mpi_procs).eq.0) THEN
   DO i=0,nkx0-1
      mytemp_small(i,:,:)=v_inx0(i,:,:)
   END DO
@@ -2840,7 +2840,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   ENDIF
 
   !vy
-  IF (mod(mype-22,n_mpi_procs).eq.0) THEN
+  IF (mod(mype-23,n_mpi_procs).eq.0) THEN
   DO j=0,nky0-1
      !temp_small(i,:,:)=i_complex*kxgrid(i)*phi_in(i,:,:)
      mytemp_small(:,j,:)=v_iny0(:,j,:)
@@ -2858,7 +2858,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   ENDIF
 
   !vz
-  IF (mod(mype-23,n_mpi_procs).eq.0) THEN
+  IF (mod(mype-24,n_mpi_procs).eq.0) THEN
   DO k=0,nkz0-1
      mytemp_small(:,:,k)=v_inz0(:,:,k)
   END DO
@@ -2877,7 +2877,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   !  FIRST ORDER VX TERMS DXVX , DYVX,  DZVX
 
   ! dxvx
-  IF (mod(mype-24,n_mpi_procs).eq.0) THEN
+  IF (mod(mype-25,n_mpi_procs).eq.0) THEN
   DO i=0,nkx0-1
      mytemp_small(i,:,:)=i_complex*kxgrid(i)*v_inx0(i,:,:)
   END DO
@@ -2894,7 +2894,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   ENDIF
 
   ! dyvx
-  IF (mod(mype-25,n_mpi_procs).eq.0) THEN
+  IF (mod(mype-26,n_mpi_procs).eq.0) THEN
   DO j=0,nky0-1
      mytemp_small(:,j,:)=i_complex*kygrid(j)*v_inx0(:,j,:)
   END DO
@@ -2911,7 +2911,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   ENDIF
 
   ! dzvx
-  IF (mod(mype-26,n_mpi_procs).eq.0) THEN
+  IF (mod(mype-27,n_mpi_procs).eq.0) THEN
   DO k=0,nkz0-1
      mytemp_small(:,:,k)=i_complex*kzgrid(k)*v_inx0(:,:,k)
   END DO
@@ -2930,7 +2930,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   !  FIRST ORDER VY TERMS  dxvy dyvy dzvz,
 
   ! dxvy
-  IF (mod(mype-27,n_mpi_procs).eq.0) THEN
+  IF (mod(mype-28,n_mpi_procs).eq.0) THEN
   DO i=0,nkx0-1
      mytemp_small(i,:,:)=i_complex*kxgrid(i)*v_iny0(i,:,:)
   END DO
@@ -2947,7 +2947,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   ENDIF
 
   ! dyvy
-  IF (mod(mype-28,n_mpi_procs).eq.0) THEN
+  IF (mod(mype-29,n_mpi_procs).eq.0) THEN
   DO j=0,nky0-1
      mytemp_small(:,j,:)=i_complex*kygrid(j)*v_iny0(:,j,:)
   END DO
@@ -2964,7 +2964,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   ENDIF
 
   ! dzvy
-  IF (mod(mype-29,n_mpi_procs).eq.0) THEN
+  IF (mod(mype-30,n_mpi_procs).eq.0) THEN
   DO k=0,nkz0-1
      mytemp_small(:,:,k)=i_complex*kzgrid(k)*v_iny0(:,:,k)
   END DO
@@ -2982,7 +2982,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
 
   !  FIRST ORDER VZ TERMS  dxvz dyvz dzvz
   ! dxvz
-  IF (mod(mype-30,n_mpi_procs).eq.0) THEN
+  IF (mod(mype-31,n_mpi_procs).eq.0) THEN
   DO i=0,nkx0-1
      mytemp_small(i,:,:)=i_complex*kxgrid(i)*v_inz0(i,:,:)
   END DO
@@ -2999,7 +2999,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   ENDIF
 
   ! dyvz
-  IF (mod(mype-31,n_mpi_procs).eq.0) THEN
+  IF (mod(mype-32,n_mpi_procs).eq.0) THEN
   DO j=0,nky0-1
      mytemp_small(:,j,:)=i_complex*kygrid(j)*v_inz0(:,j,:)
   END DO
@@ -3016,7 +3016,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   ENDIF
 
   ! dzvz
-  IF (mod(mype-32,n_mpi_procs).eq.0) THEN
+  IF (mod(mype-33,n_mpi_procs).eq.0) THEN
   DO k=0,nkz0-1
      mytemp_small(:,:,k)=i_complex*kzgrid(k)*v_inz0(:,:,k)
   END DO
@@ -3036,7 +3036,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   if (nv.eq..false.) then
   ! FIRST ORDER BX TERMS ie. dxbx dybx dzbx`
   ! dxbx
-  IF (mod(mype-33,n_mpi_procs).eq.0) THEN  
+  IF (mod(mype-34,n_mpi_procs).eq.0) THEN  
   DO i=0,nkx0-1
      mytemp_small(i,:,:)=i_complex*kxgrid(i)*b_inx0(i,:,:)
   END DO
@@ -3053,7 +3053,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   ENDIF
 
   ! dybx
-  IF (mod(mype-34,n_mpi_procs).eq.0) THEN
+  IF (mod(mype-35,n_mpi_procs).eq.0) THEN
   DO j=0,nky0-1
      mytemp_small(:,j,:)=i_complex*kygrid(j)*b_inx0(:,j,:)
   END DO
@@ -3070,7 +3070,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   ENDIF
 
   ! dzbx
-  IF (mod(mype-35,n_mpi_procs).eq.0) THEN
+  IF (mod(mype-36,n_mpi_procs).eq.0) THEN
   DO k=0,nkz0-1
      mytemp_small(:,:,k)=i_complex*kzgrid(k)*b_inx0(:,:,k)
   END DO
@@ -3088,7 +3088,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
 
   !  FIRST ORDER BY TERMS ie. dxby dyby dzby
   ! dxby
-  IF (mod(mype-36,n_mpi_procs).eq.0) THEN
+  IF (mod(mype-37,n_mpi_procs).eq.0) THEN
   DO i=0,nkx0-1
      mytemp_small(i,:,:)=i_complex*kxgrid(i)*b_iny0(i,:,:)
   END DO
@@ -3105,7 +3105,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   ENDIF
 
   ! dyby
-  IF (mod(mype-37,n_mpi_procs).eq.0) THEN
+  IF (mod(mype-38,n_mpi_procs).eq.0) THEN
   DO j=0,nky0-1
      mytemp_small(:,j,:)=i_complex*kygrid(j)*b_iny0(:,j,:)
   END DO
@@ -3122,7 +3122,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   ENDIF
 
   ! dzby
-  IF (mod(mype-38,n_mpi_procs).eq.0) THEN
+  IF (mod(mype-39,n_mpi_procs).eq.0) THEN
   DO k=0,nkz0-1
      mytemp_small(:,:,k)=i_complex*kzgrid(k)*b_iny0(:,:,k)
   END DO
@@ -3140,7 +3140,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
 
   !! FIRST ORDER BZ TERMS ie. dxbz dybz dzbz
   ! dxbz
-  IF (mod(mype-39,n_mpi_procs).eq.0) THEN
+  IF (mod(mype-40,n_mpi_procs).eq.0) THEN
   DO i=0,nkx0-1
      mytemp_small(i,:,:)=i_complex*kxgrid(i)*b_inz0(i,:,:)
   END DO
@@ -3157,7 +3157,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   ENDIF
 
   ! dybz
-  IF (mod(mype-40,n_mpi_procs).eq.0) THEN
+  IF (mod(mype-41,n_mpi_procs).eq.0) THEN
   DO j=0,nky0-1
      mytemp_small(:,j,:)=i_complex*kygrid(j)*b_inz0(:,j,:)
   END DO
@@ -3174,7 +3174,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   ENDIF
 
   ! dzbz
-  IF (mod(mype-41,n_mpi_procs).eq.0) THEN
+  IF (mod(mype-42,n_mpi_procs).eq.0) THEN
   DO k=0,nkz0-1
      mytemp_small(:,:,k)=i_complex*kzgrid(k)*b_inz0(:,:,k)
   END DO
@@ -3319,7 +3319,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   !Redo with correct order in terms
   if (nv.eq..false.) then
 
-  IF (mod(mype-0,n_mpi_procs).eq.0) THEN 
+  IF (mod(mype-1,n_mpi_procs).eq.0) THEN 
 
   store_x = (bx*dxvx+by*dyvx+bz*dzvx) - (vx*dxbx+vy*dybx+vz*dzbx)&
        - hall*((bx*dxdybz+by*dydybz+bz*dydzbz-bx*dxdzby-by*dydzby-bz*dzdzby)&
@@ -3331,7 +3331,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
 
   ENDIF
 
-  IF (mod(mype-1,n_mpi_procs).eq.0) THEN
+  IF (mod(mype-2,n_mpi_procs).eq.0) THEN
   store_y = (bx*dxvy+by*dyvy+bz*dzvy) - (vx*dxby+vy*dyby+vz*dzby)&
        - hall*((bx*dxdzbx+by*dydzbx+bz*dzdzbx-bx*dxdxbz-by*dxdybz-bz*dxdzbz)&
        + (dybz*dxby-dzby*dxby-dxbz*dyby+dzbx*dyby+dxby*dzby-dybx*dzby))
@@ -3342,7 +3342,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
 
   ENDIF
 
-  IF (mod(mype-2,n_mpi_procs).eq.0) THEN
+  IF (mod(mype-3,n_mpi_procs).eq.0) THEN
 
   store_z = (bx*dxvz+by*dyvz+bz*dzvz)- (vx*dxbz+vy*dybz+vz*dzbz)&
        - hall*((bx*dxdxby+by*dxdyby+bz*dxdzby-bx*dxdybx-by*dydybx-bz*dydzbx)&
@@ -3381,7 +3381,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
 
   if (rhs_nl_version == 12) then
 
-     IF (mod(mype-3,n_mpi_procs).eq.0) THEN 
+     IF (mod(mype-4,n_mpi_procs).eq.0) THEN 
      store_x = -(vx*dxvx+vy*dyvx+vz*dzvx) + (by*dybx+bz*dzbx) - (by*dxby+bz*dxbz)
 
      store = store_x
@@ -3390,7 +3390,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
 
      ENDIF 
 
-     IF (mod(mype-4,n_mpi_procs).eq.0) THEN
+     IF (mod(mype-5,n_mpi_procs).eq.0) THEN
      store_y = -(vx*dxvy+vy*dyvy+vz*dzvy) + (bx*dxby+bz*dzby) - (bz*dybz+bx*dybx)
 
      store = store_y
@@ -3399,7 +3399,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
 
      ENDIF
 
-     IF (mod(mype-5,n_mpi_procs).eq.0) THEN
+     IF (mod(mype-6,n_mpi_procs).eq.0) THEN
      store_z = -(vx*dxvz+vy*dyvz+vz*dzvz) + (bx*dxbz+by*dybz) - (by*dzby+bx*dzbx)
 
      store = store_z
@@ -3410,19 +3410,19 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
 
   endif
   if (rhs_nl_version.eq.1) then 
-     IF (mod(mype-3,n_mpi_procs).eq.0) THEN
+     IF (mod(mype-4,n_mpi_procs).eq.0) THEN
      store_x = -(vx*dxvx+vy*dyvx+vz*dzvx) + (bx*dxbx+by*dybx+bz*dzbx) - 0.5*dxbmag
      store = store_x
      CALL dfftw_execute_dft(plan_r2c,store,temp_big)
      myrhs_out_nlv(:,:,:,0) = temp_big*fft_norm
      ENDIF
-     IF (mod(mype-4,n_mpi_procs).eq.0) THEN
+     IF (mod(mype-5,n_mpi_procs).eq.0) THEN
      store_y = -(vx*dxvy+vy*dyvy+vz*dzvy) + (bx*dxby+by*dyby+bz*dzby) - 0.5*dybmag
      store = store_y
      CALL dfftw_execute_dft(plan_r2c,store,temp_big)
      myrhs_out_nlv(:,:,:,1) = temp_big*fft_norm
      ENDIF
-     IF (mod(mype-5,n_mpi_procs).eq.0) THEN
+     IF (mod(mype-6,n_mpi_procs).eq.0) THEN
      store_z = -(vx*dxvz+vy*dyvz+vz*dzvz) + (bx*dxbz+by*dybz+bz*dzbz) - 0.5*dzbmag     
      store = store_z
      CALL dfftw_execute_dft(plan_r2c,store,temp_big)
@@ -3432,44 +3432,44 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
 
      IF ((mod(counter,4).eq.0).and.(plot_nls.and.(mod(itime,istep_energy).eq.0))) THEN
         ! b.grad v 
-        IF (mod(mype-6,n_mpi_procs).eq.0) THEN
+        IF (mod(mype-7,n_mpi_procs).eq.0) THEN
         WRITE(bdvio) fft_spec2(bx*dxvx+by*dyvx+bz*dzvx)
         WRITE(bdvio) fft_spec2(bx*dxvy+by*dyvy+bz*dzvy)
         WRITE(bdvio) fft_spec2(bx*dxvz+by*dyvz+bz*dzvz)
         ENDIF
         ! v.grad b 
-        IF (mod(mype-7,n_mpi_procs).eq.0) THEN
+        IF (mod(mype-8,n_mpi_procs).eq.0) THEN
         WRITE(vdbio) fft_spec2(vx*dxbx+vy*dybx+vz*dzbx)
         WRITE(vdbio) fft_spec2(vx*dxby+vy*dyby+vz*dzby)
         WRITE(vdbio) fft_spec2(vx*dxbz+vy*dybz+vz*dzbz)
         ENDIF
         ! b. grad curl b
-        IF (mod(mype-8,n_mpi_procs).eq.0) THEN  
+        IF (mod(mype-9,n_mpi_procs).eq.0) THEN  
         WRITE(bdcbio) fft_spec2(bx*dxdybz+by*dydybz+bz*dydzbz-bx*dxdzby-by*dydzby-bz*dzdzby)
         WRITE(bdcbio) fft_spec2(bx*dxdzbx+by*dydzbx+bz*dzdzbx-bx*dxdxbz-by*dxdybz-bz*dxdzbz)
         WRITE(bdcbio) fft_spec2(bx*dxdxby+by*dxdyby+bz*dxdzby-bx*dxdybx-by*dydybx-bz*dydzbx)
         ENDIF
         ! curl b . grad b                       
-        IF (mod(mype-9,n_mpi_procs).eq.0) THEN
+        IF (mod(mype-10,n_mpi_procs).eq.0) THEN
         WRITE(cbdbio) fft_spec2(dybz*dxbx-dzby*dxbx-dxbz*dybx+dzbx*dybx+dxby*dzbx-dybx*dzbx)
         WRITE(cbdbio) fft_spec2(dybz*dxby-dzby*dxby-dxbz*dyby+dzbx*dyby+dxby*dzby-dybx*dzby)
         WRITE(cbdbio) fft_spec2(dybz*dxbz-dzby*dxbz-dxbz*dybz+dzbx*dybz+dxby*dzbz-dybx*dzbz)  
         ENDIF
         ! v . grad v
-        IF (mod(mype-10,n_mpi_procs).eq.0) THEN
+        IF (mod(mype-11,n_mpi_procs).eq.0) THEN
         WRITE(vdvio) fft_spec2(vx*dxvx+vy*dyvx+vz*dzvx)
         WRITE(vdvio) fft_spec2(vx*dxvy+vy*dyvy+vz*dzvy)
         WRITE(vdvio) fft_spec2(vx*dxvz+vy*dyvz+vz*dzvz)
         ENDIF
         ! b . grad b
-        IF (mod(mype-11,n_mpi_procs).eq.0) THEN
+        IF (mod(mype-12,n_mpi_procs).eq.0) THEN
         WRITE(bdbio) fft_spec2(bx*dxbx+by*dybx+bz*dzbx)
         WRITE(bdbio) fft_spec2(bx*dxby+by*dyby+bz*dzby)
         WRITE(bdbio) fft_spec2(bx*dxbz+by*dybz+bz*dzbz)
         ENDIF
         if (rhs_nl_version.eq.12) then
         ! 0.5 grad b^2
-        IF (mod(mype-12,n_mpi_procs).eq.0) THEN
+        IF (mod(mype-13,n_mpi_procs).eq.0) THEN
         WRITE(db2io) fft_spec2(bx*dxbx+by*dxby+bz*dxbz)
         WRITE(db2io) fft_spec2(bx*dybx+by*dyby+bz*dybz)
         WRITE(db2io) fft_spec2(bx*dzbx+by*dzby+bz*dzbz)
@@ -3480,7 +3480,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
         WRITE(db2io) fft_spec2(0.5*dybmag)
         WRITE(db2io) fft_spec2(0.5*dzbmag)
         endif
-        if (verbose) print *, 'v12 nl equation stored'
+        if (verbose.and.(mype.eq.0)) print *, 'v12 nl equation stored'
      ENDIF
 
   !Now fill in appropriate rhs elements
@@ -3495,36 +3495,36 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   if (nv) rhs_out_b = cmplx(0.0,0.0)
   rhs_out_v = rhs_out_v + rhs_out_nlv
 
-  if (verbose) print *, 'rhs out v nl found'
+  if (verbose.and.(mype.eq.0)) print *, 'rhs out v nl found'
 
   if (calc_dt) CALL next_dt(ndt)
   if (.not.(calc_dt)) ndt = dt_max
-  if (verbose) print *, 'next dt calculated ',ndt
+  if (verbose.and.(mype.eq.0)) print *, 'next dt calculated ',ndt
 
   DEALLOCATE(temp_small)
-  if (verbose) print *, 'ts deallocated'
+  if (verbose.and.(mype.eq.0)) print *, 'ts deallocated'
  
   DEALLOCATE(temp_bigx)
-  if (verbose) print *, 'tbx deallocated'
+  if (verbose.and.(mype.eq.0)) print *, 'tbx deallocated'
   DEALLOCATE(temp_bigy)
-  if (verbose) print *, 'tby deallocated'
+  if (verbose.and.(mype.eq.0)) print *, 'tby deallocated'
   DEALLOCATE(temp_bigz)
-  if (verbose) print *, 'tbz deallocated'
+  if (verbose.and.(mype.eq.0)) print *, 'tbz deallocated'
 
   DEALLOCATE(store_x)
-  if (verbose) print *, 'stx deallocated'
+  if (verbose.and.(mype.eq.0)) print *, 'stx deallocated'
   DEALLOCATE(store_y)
-  if (verbose) print *, 'sty deallocated'
+  if (verbose.and.(mype.eq.0)) print *, 'sty deallocated'
   DEALLOCATE(store_z)
-  if (verbose) print *, 'stz deallocated'
+  if (verbose.and.(mype.eq.0)) print *, 'stz deallocated'
 
   ! All b arrays
   DEALLOCATE(bx)
-  if (verbose) print *, 'bx deallocated'
+  if (verbose.and.(mype.eq.0)) print *, 'bx deallocated'
   DEALLOCATE(by)
-  if (verbose) print *, 'by deallocated'
+  if (verbose.and.(mype.eq.0)) print *, 'by deallocated'
   DEALLOCATE(bz)
-  if (verbose) print *, 'first third deallocated'
+  if (verbose.and.(mype.eq.0)) print *, 'first third deallocated'
 
   if (rhs_nl_version==1) then
      !DEALLOCATE(bmag_in)
@@ -3679,10 +3679,10 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   DEALLOCATE(v_iny0)
   DEALLOCATE(v_inz0)
 
-  if (verbose) CALL cpu_time(dum)
-  if (verbose) WRITE(*,*) 'time for nl code', dum-sttime
+  if (verbose.and.(mype.eq.0)) CALL cpu_time(dum)
+  if (verbose.and.(mype.eq.0)) WRITE(*,*) 'time for nl code', dum-sttime
 
-  if (verbose) print *, 'deallocated nl code'
+  if (verbose.and.(mype.eq.0)) print *, 'deallocated nl code'
 
 END SUBROUTINE get_rhs_nl2
 
@@ -5486,14 +5486,14 @@ call dfftw_destroy_plan(plan_r2c)
 call dfftw_destroy_plan(plan_c2r)
 if (verbose) print *, "Destroyed plans"
 call dfftw_cleanup()
-if (verbose) print *, "Destroyed plans"
+if (verbose.and.(mype.eq.0)) print *, "Destroyed plans"
 DEALLOCATE(store)
-if (verbose) print *, "Deallocated store"
+if (verbose.and.(mype.eq.0)) print *, "Deallocated store"
 DEALLOCATE(temp_big)
-if (verbose) print *, "Deallocated temp_big"
+if (verbose.and.(mype.eq.0)) print *, "Deallocated temp_big"
 DEALLOCATE(plan_r2c)
 DEALLOCATE(plan_c2r)
-if (verbose) print *, "Deallocated plans"
+if (verbose.and.(mype.eq.0)) print *, "Deallocated plans"
 
 END SUBROUTINE finalize_fourier
 

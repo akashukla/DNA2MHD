@@ -62,17 +62,17 @@ PROGRAM dna
   
   !if(calc_dt.and..not.dt_slepc) call calc_dt_lapack
 
-  CALL comm
+!  CALL comm
   
   !! Initiating the current run of the simulation
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   CALL init_run
   
-  IF (verbose) WRITE(*,*) "Finished Init_run."
+  IF (verbose.and.(mype.eq.0)) WRITE(*,*) "Finished Init_run."
   !! Test of rk4--i.e. calculates stability region
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   IF(test_rk4) CALL rk4_stability
-  IF (verbose) WRITE(*,*) "Finished rk stability."
+  IF (verbose.and.(mype.eq.0)) WRITE(*,*) "Finished rk stability."
   
   !! Runs various routines for performance tests
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -81,7 +81,7 @@ PROGRAM dna
   !! Initial output
   !!!!!!!!!!!!!!!!!!!
   CALL output_parameters
-  IF (verbose) WRITE(*,*) "Finished output parameters."
+  IF (verbose.and.(mype.eq.0)) WRITE(*,*) "Finished output parameters."
 
 
   !! Selects what to do this run 
@@ -96,7 +96,7 @@ PROGRAM dna
   !! Main loop
   !!!!!!!!!!!!!! 
   CASE(0)
-    IF (verbose) WRITE(*,*) "Starting time loop.",mype
+    IF (verbose.and.(mype.eq.0)) WRITE(*,*) "Starting time loop.",mype
     !IF (performance_tests) CALL start_clock
     CALL iv_solver
     !IF (performance_tests) THEN 
@@ -157,7 +157,7 @@ PROGRAM dna
  
   !! Finalizing the run
   !!!!!!!!!!!!!!!!!!!!!!!
-  IF (verbose) WRITE(*,*) "Finalizing diagnostics.",mype
+  IF (verbose.and.(mype.eq.0)) WRITE(*,*) "Finalizing diagnostics.",mype
   CALL finalize_diagnostics
   IF (nonlinear) CALL finalize_fourier
   !CALL finalize_adapt_dt

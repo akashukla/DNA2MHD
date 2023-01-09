@@ -119,7 +119,7 @@ WRITE(dvio) vnu*(Larr**hyp)*v_in(:,:,:,0)
 WRITE(dvio) vnu*(Larr**hyp)*v_in(:,:,:,1)
 WRITE(dvio) vnu*(Larr**hyp)*v_in(:,:,:,2)
 
-if (verbose) print *, 'Dissipation written'
+if (verbose.and.(mype.eq.0)) print *, 'Dissipation written'
 endif
 
 END SUBROUTINE get_rhs_lin1_ae

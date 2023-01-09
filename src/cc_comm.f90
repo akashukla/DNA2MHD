@@ -76,7 +76,7 @@ SUBROUTINE comm
 !  if(mype==0) write(*,*) "Creating y subcommunicator."
   sub_grid=(/.false.,.true.,.false.,.false./)
   call MPI_CART_SUB(mpi_comm_cart_4d,sub_grid,mpi_comm_herm,ierr)
-  IF(verbose) write(*,*) "mpi_comm_herm",mpi_comm_herm
+  IF(verbose.and.(mype.eq.0)) write(*,*) "mpi_comm_herm",mpi_comm_herm
 
 !  if(mype==0) write(*,*) "Creating hank subcommunicator."
   sub_grid=(/.false.,.false.,.true.,.false./)
@@ -114,7 +114,7 @@ SUBROUTINE comm_temp
 !  if(mype==0) write(*,*) "Creating y subcommunicator."
   sub_grid=(/.false.,.true.,.false.,.false./)
   call MPI_CART_SUB(mpi_comm_cart_4d,sub_grid,mpi_comm_herm,ierr)
-  IF(verbose) write(*,*) "mpi_comm_herm",mpi_comm_herm
+  IF(verbose.and.(mype.eq.0)) write(*,*) "mpi_comm_herm",mpi_comm_herm
 
 !  if(mype==0) write(*,*) "Creating z subcommunicator."
   sub_grid=(/.false.,.false.,.true.,.false./)
@@ -150,9 +150,9 @@ SUBROUTINE finalize_mpi
   INTEGER :: ierr
 
   CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-  IF (verbose) print *,'MPI Barrier called'
+  IF (verbose.and.(mype.eq.0)) print *,'MPI Barrier called'
   CALL MPI_FINALIZE(ierr)
-  IF (verbose) print *,'MPI Finalize called'
+  IF (verbose.and.(mype.eq.0)) print *,'MPI Finalize called'
 
 END SUBROUTINE finalize_mpi
 

@@ -58,8 +58,8 @@ SUBROUTINE iv_solver
    CALL diag
    !IF(verbose) WRITE(*,*) "Done with diagnostics",time,itime,mype
 
-   IF(verbose) WRITE(*,*) "iv_solver: before get_g_next",time,itime,mype
-   IF(verbose) WRITE(*,*) "iv_solver: before get_g_next dt=",dt
+   IF(verbose.and.(mype.eq.0)) WRITE(*,*) "iv_solver: before get_g_next",time,itime,mype
+   IF(verbose.and.(mype.eq.0)) WRITE(*,*) "iv_solver: before get_g_next dt=",dt
    !CALL save_b(b_1)
    !CALL save_time(itime)
    CALL get_g_next(b_1, v_1,dt_next)
@@ -82,7 +82,7 @@ SUBROUTINE iv_solver
   !END IF
  END DO
  write(*,*) 'Simulation Time: ',current_wallclock
- IF(verbose) WRITE(*,*) "time,itime,mype",time,itime,mype
+ IF(verbose.and.(mype.eq.0)) WRITE(*,*) "time,itime,mype",time,itime,mype
 
 END SUBROUTINE iv_solver
 
@@ -148,7 +148,7 @@ SUBROUTINE get_g_next(b_in, v_in,dt_new)
  INTEGER :: ionums(9)
  INTEGER :: q
 
- IF (plot_nls.and.(mod(itime,istep_energy).eq.0)) THEN
+ IF ((mype.eq.0).and.(plot_nls.and.(mod(itime,istep_energy).eq.0))) THEN
  ionums = [dbio,dvio,bdvio,vdbio,bdcbio,cbdbio,vdvio,bdbio,db2io]
  DO q = 1,9
     WRITE(ionums(q)) rkstage
@@ -307,7 +307,7 @@ SUBROUTINE remove_div(b_in,v_in)
    ENDDO
  ENDDO 
 
-if (verbose) print *,'Divergence Removed'
+if (verbose.and.(mype.eq.0)) print *,'Divergence Removed'
 
 END SUBROUTINE remove_div
 
@@ -335,7 +335,7 @@ SUBROUTINE get_rhs(b_in,v_in, rhs_out_b,rhs_out_v,ndt)
 
   ! Add forcing
   IF(force_turbulence) CALL get_rhs_force(rhs_out_b, rhs_out_v,ndt)
-if (verbose) print *,'RHS found'
+if (verbose.and.(mype.eq.0)) print *,'RHS found'
 rkstage = rkstage + 1
 
 END SUBROUTINE get_rhs
@@ -402,7 +402,7 @@ SUBROUTINE rk4_stability
   IF(np_herm .gt.1) STOP "rk test only for serial execution."
   
   c0 = cmplx(rc0,ic0)
-
+IF (mype.eq.0) THEN
   OPEN(unit=100,file=trim(diagdir)//'/rout.dat',status='unknown')
   OPEN(unit=200,file=trim(diagdir)//'/iout.dat',status='unknown')
   OPEN(unit=300,file=trim(diagdir)//'/rgrid.dat',status='unknown')
@@ -529,6 +529,8 @@ SUBROUTINE rk4_stability
       WRITE(100,*) rlam,REAL(omega)
   END DO
   CLOSE(100)
+
+ENDIF
 
 END SUBROUTINE rk4_stability
 

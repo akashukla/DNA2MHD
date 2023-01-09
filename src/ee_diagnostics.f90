@@ -247,7 +247,7 @@ SUBROUTINE finalize_diagnostics
   IF(istep_energyspec.gt.0.and.mype==0) THEN
     CLOSE(enspec_handle)
   END IF
-  IF(verbose) print *, 'Closed energy handles'
+  IF(verbose.and.(mype==0)) print *, 'Closed energy handles'
   ! IF(istep_hermite.gt.0.and.mype==0) CLOSE(herm_handle)
 
   ! IF(istep_gk.gt.0) THEN
@@ -271,7 +271,7 @@ SUBROUTINE finalize_diagnostics
   ! IF (Corr) call finalize_corr
  
   if (plot_nls) CALL finalize_debug
-  IF(verbose.and.plot_nls) print *, 'Closed nl handles'
+  IF((verbose.and.plot_nls).and.(mype.eq.0)) print *, 'Closed nl handles'
 
 END SUBROUTINE finalize_diagnostics
 
@@ -394,7 +394,7 @@ SUBROUTINE diag
 !! 
      IF((istep_energy.ne.0).and.(mype.eq.0))THEN
        IF(MOD(itime,istep_energy)==0) THEN
-         IF(verbose) WRITE(*,*) "Starting energy diag.",mype
+         IF(verbose.and.(mype.eq.0)) WRITE(*,*) "Starting energy diag.",mype
          WRITE(en_handle) time
          WRITE(en_handle) hmhdhmtn(v_1,b_1)
          WRITE(en_handle) mag_helicity(b_1,v_1)
@@ -435,7 +435,7 @@ SUBROUTINE diag
        END IF
      END IF
 
-  IF(istep_schpt.ne.0) THEN
+  IF((istep_schpt.ne.0).and.(mype.eq.0)) THEN
     IF(MOD(itime,istep_schpt)==0) THEN
       IF(verbose) WRITE(*,*) "Writing s_checkpoint.",mype
       CALL checkpoint_out(1)
@@ -455,7 +455,7 @@ SUBROUTINE diag
 !!   END IF
 
   !Outputs the entire distribution function
-  IF(istep_gout.ne.0) THEN
+  IF((istep_gout.ne.0).and.(mype.eq.0)) THEN
     IF(MOD(itime,istep_gout)==0.or.(MOD(itime,istep_gout)==1.and.gout_2xt)) THEN
 
       IF(verbose) WRITE(*,*) "Starting gout diag.",mype
@@ -4248,7 +4248,7 @@ DO q = 1,9
 CLOSE(ionums(q))
 ENDDO 
 
-if (verbose) print *, 'Debug files closed' 
+if (verbose.and.(mype.eq.0)) print *, 'Debug files closed' 
 end subroutine finalize_debug
 
 function vec_potential(b0,v0) result(A)
@@ -4279,8 +4279,8 @@ do ind = 0,2
    enddo
 enddo
 
-! bandage guide field vector potential that seems to work
-! A(0,0,0,2) = 0.5 * sum(aimag(b(:,:,:,:))**2 +aimag(v(:,:,:,:))**2) 
+! bandage guide field vector potential that used to work
+! A(0,0,0,2) = 0.5 * sum(aimag(b0)**2 +aimag(v0)**2) 
 
 end function vec_potential
 
