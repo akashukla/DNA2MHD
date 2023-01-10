@@ -63,6 +63,8 @@ MODULE nonlinearity
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:) :: mydxdxby, mydxdyby, mydxdzby, mydydyby, mydydzby, mydzdzby
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:) :: mydxdxbz, mydxdybz, mydxdzbz, mydydybz, mydydzbz, mydzdzbz
 
+  COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:) :: rhs_out_nlb,rhs_out_nlv,myrhs_out_nlb,myrhs_out_nlv
+
   !For fft's
 
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:):: g_kbig
@@ -1837,10 +1839,6 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   COMPLEX, INTENT(in) :: v_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
   COMPLEX, INTENT(inout) :: rhs_out_b(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
   COMPLEX, INTENT(inout) :: rhs_out_v(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
-  COMPLEX :: rhs_out_nlb(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
-  COMPLEX :: rhs_out_nlv(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
-  COMPLEX :: myrhs_out_nlb(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
-  COMPLEX :: myrhs_out_nlv(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
   REAL :: sttime,dum
   REAL :: ndt
 
@@ -1852,6 +1850,11 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   IF(np_kz.gt.1) STOP "get_rhs_nl1 not yet implemented for np_kz.gt.1"
 
   IF(np_kz.ne.1) STOP "get_rhs_nl1 only suitable for np_kz=1"
+
+  ALLOCATE(rhs_out_nlb(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
+  ALLOCATE(rhs_out_nlv(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
+  ALLOCATE(myrhs_out_nlb(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
+  ALLOCATE(myrhs_out_nlv(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
 
   ALLOCATE(temp_small(0:nkx0-1,0:nky0-1,0:nkz0-1))
   ALLOCATE(temp_bigx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
@@ -3320,45 +3323,31 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   if (nv.eq..false.) then
 
   IF (mod(mype-1,n_mpi_procs).eq.0) THEN 
-
-  store_x = (bx*dxvx+by*dyvx+bz*dzvx) - (vx*dxbx+vy*dybx+vz*dzbx)&
+  store = (bx*dxvx+by*dyvx+bz*dzvx) - (vx*dxbx+vy*dybx+vz*dzbx)&
        - hall*((bx*dxdybz+by*dydybz+bz*dydzbz-bx*dxdzby-by*dydzby-bz*dzdzby)&
        + (dybz*dxbx-dzby*dxbx-dxbz*dybx+dzbx*dybx+dxby*dzbx-dybx*dzbx))
-
-  store = store_x
   CALL dfftw_execute_dft(plan_r2c,store,temp_big)
   myrhs_out_nlb(:,:,:,0) = temp_big*fft_norm
-
   ENDIF
 
   IF (mod(mype-2,n_mpi_procs).eq.0) THEN
-  store_y = (bx*dxvy+by*dyvy+bz*dzvy) - (vx*dxby+vy*dyby+vz*dzby)&
+  store = (bx*dxvy+by*dyvy+bz*dzvy) - (vx*dxby+vy*dyby+vz*dzby)&
        - hall*((bx*dxdzbx+by*dydzbx+bz*dzdzbx-bx*dxdxbz-by*dxdybz-bz*dxdzbz)&
        + (dybz*dxby-dzby*dxby-dxbz*dyby+dzbx*dyby+dxby*dzby-dybx*dzby))
-
-  store = store_y
   CALL dfftw_execute_dft(plan_r2c,store,temp_big)
   myrhs_out_nlb(:,:,:,1) = temp_big*fft_norm
-
   ENDIF
 
   IF (mod(mype-3,n_mpi_procs).eq.0) THEN
-
-  store_z = (bx*dxvz+by*dyvz+bz*dzvz)- (vx*dxbz+vy*dybz+vz*dzbz)&
+  store = (bx*dxvz+by*dyvz+bz*dzvz)- (vx*dxbz+vy*dybz+vz*dzbz)&
        - hall*((bx*dxdxby+by*dxdyby+bz*dxdzby-bx*dxdybx-by*dydybx-bz*dydzbx)&
        + (dybz*dxbz-dzby*dxbz-dxbz*dybz+dzbx*dybz+dxby*dzbz-dybx*dzbz ))
-
-  store = store_z
   CALL dfftw_execute_dft(plan_r2c,store,temp_big)
   myrhs_out_nlb(:,:,:,2) = temp_big*fft_norm
-
   ENDIF
 
   endif
 
-  !Now fill in appropriate rhs elements                                                                                                                                                                
-  
-  if (nv) rhs_out_b = cmplx(0.0,0.0)
   !! ! EQUATION (15)
   !! U1= vx*dxvx+vy*dyvx+vz*dzvx
   !! V2 = bx*dxvx+by*dyvx+bz*dzvx
@@ -3379,56 +3368,65 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   !!      eq15z=-U3+V3-W3
 
 
-  if (rhs_nl_version == 12) then
+  if (rhs_nl_version.eq.12) then
 
      IF (mod(mype-4,n_mpi_procs).eq.0) THEN 
-     store_x = -(vx*dxvx+vy*dyvx+vz*dzvx) + (by*dybx+bz*dzbx) - (by*dxby+bz*dxbz)
-
-     store = store_x
+     store = -(vx*dxvx+vy*dyvx+vz*dzvx) + (by*dybx+bz*dzbx) - (by*dxby+bz*dxbz)
      CALL dfftw_execute_dft(plan_r2c,store,temp_big)
      myrhs_out_nlv(:,:,:,0) = temp_big*fft_norm
-
+     IF(verbose) WRITE(*,*), "Max V NL ",mype,maxval(abs(myrhs_out_nlv))
      ENDIF 
 
      IF (mod(mype-5,n_mpi_procs).eq.0) THEN
-     store_y = -(vx*dxvy+vy*dyvy+vz*dzvy) + (bx*dxby+bz*dzby) - (bz*dybz+bx*dybx)
-
-     store = store_y
+     store = -(vx*dxvy+vy*dyvy+vz*dzvy) + (bx*dxby+bz*dzby) - (bz*dybz+bx*dybx)
      CALL dfftw_execute_dft(plan_r2c,store,temp_big)
      myrhs_out_nlv(:,:,:,1) = temp_big*fft_norm
-
+     IF(verbose) WRITE(*,*), "Max V NL ",mype,maxval(abs(myrhs_out_nlv))
      ENDIF
 
      IF (mod(mype-6,n_mpi_procs).eq.0) THEN
-     store_z = -(vx*dxvz+vy*dyvz+vz*dzvz) + (bx*dxbz+by*dybz) - (by*dzby+bx*dzbx)
-
-     store = store_z
+     store = -(vx*dxvz+vy*dyvz+vz*dzvz) + (bx*dxbz+by*dybz) - (by*dzby+bx*dzbx)
      CALL dfftw_execute_dft(plan_r2c,store,temp_big)
      myrhs_out_nlv(:,:,:,2) = temp_big*fft_norm
-
+     IF(verbose) WRITE(*,*), "Max V NL ",mype,maxval(abs(myrhs_out_nlv))
      ENDIF
 
   endif
   if (rhs_nl_version.eq.1) then 
      IF (mod(mype-4,n_mpi_procs).eq.0) THEN
-     store_x = -(vx*dxvx+vy*dyvx+vz*dzvx) + (bx*dxbx+by*dybx+bz*dzbx) - 0.5*dxbmag
-     store = store_x
+     store = -(vx*dxvx+vy*dyvx+vz*dzvx) + (bx*dxbx+by*dybx+bz*dzbx) - 0.5*dxbmag
      CALL dfftw_execute_dft(plan_r2c,store,temp_big)
      myrhs_out_nlv(:,:,:,0) = temp_big*fft_norm
      ENDIF
      IF (mod(mype-5,n_mpi_procs).eq.0) THEN
-     store_y = -(vx*dxvy+vy*dyvy+vz*dzvy) + (bx*dxby+by*dyby+bz*dzby) - 0.5*dybmag
-     store = store_y
+     store = -(vx*dxvy+vy*dyvy+vz*dzvy) + (bx*dxby+by*dyby+bz*dzby) - 0.5*dybmag
      CALL dfftw_execute_dft(plan_r2c,store,temp_big)
      myrhs_out_nlv(:,:,:,1) = temp_big*fft_norm
      ENDIF
      IF (mod(mype-6,n_mpi_procs).eq.0) THEN
-     store_z = -(vx*dxvz+vy*dyvz+vz*dzvz) + (bx*dxbz+by*dybz+bz*dzbz) - 0.5*dzbmag     
-     store = store_z
+     store = -(vx*dxvz+vy*dyvz+vz*dzvz) + (bx*dxbz+by*dybz+bz*dzbz) - 0.5*dzbmag     
      CALL dfftw_execute_dft(plan_r2c,store,temp_big)
      myrhs_out_nlv(:,:,:,2) = temp_big*fft_norm
      ENDIF
   endif
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  if (nv.eq..false.) CALL MPI_ALLREDUCE(myrhs_out_nlb,rhs_out_nlb,nkx0*nky0*nkz0*3&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(myrhs_out_nlv,rhs_out_nlv,nkx0*nky0*nkz0*3&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+  
+  IF (verbose.and.(mype.eq.0)) WRITE(*,*) ierr
+  IF (verbose.and.(mype.eq.0)) WRITE(*,*) 'Abs NL Term Vx kmax',abs(rhs_out_nlv(nkx0-1,nky0/2,nkz0/2,0))
+  IF (verbose.and.(mype.eq.0)) WRITE(*,*) 'Abs NL Term Bx kmax',abs(rhs_out_nlb(nkx0-1,nky0/2,nkz0/2,0))
+
+  if (nv.eq..false.) rhs_out_b = rhs_out_b + rhs_out_nlb
+  if (nv) rhs_out_b = cmplx(0.0,0.0)
+  rhs_out_v = rhs_out_v + rhs_out_nlv
+
+  if (verbose.and.(mype.eq.0)) print *, 'rhs out v nl found'
 
      IF ((mod(counter,4).eq.0).and.(plot_nls.and.(mod(itime,istep_energy).eq.0))) THEN
         ! b.grad v 
@@ -3480,22 +3478,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
         WRITE(db2io) fft_spec2(0.5*dybmag)
         WRITE(db2io) fft_spec2(0.5*dzbmag)
         endif
-        if (verbose.and.(mype.eq.0)) print *, 'v12 nl equation stored'
+        if (verbose.and.(mype.eq.0)) print *, 'nonlinearities written'
      ENDIF
-
-  !Now fill in appropriate rhs elements
-
-  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-  if (nv.eq..false.) CALL MPI_ALLREDUCE(myrhs_out_nlb,rhs_out_nlb,nkx0*nky0*nkz0*3&
-      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
-  CALL MPI_ALLREDUCE(myrhs_out_nlv,rhs_out_nlv,nkx0*nky0*nkz0*3&
-      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
-
-  if (nv.eq..false.) rhs_out_b = rhs_out_b + rhs_out_nlb
-  if (nv) rhs_out_b = cmplx(0.0,0.0)
-  rhs_out_v = rhs_out_v + rhs_out_nlv
-
-  if (verbose.and.(mype.eq.0)) print *, 'rhs out v nl found'
 
   if (calc_dt) CALL next_dt(ndt)
   if (.not.(calc_dt)) ndt = dt_max
@@ -3670,6 +3654,11 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   DEALLOCATE(mydydybz)
   DEALLOCATE(mydydzbz)
   DEALLOCATE(mydzdzbz)
+
+  DEALLOCATE(rhs_out_nlb)
+  DEALLOCATE(rhs_out_nlv)
+  DEALLOCATE(myrhs_out_nlb)
+  DEALLOCATE(myrhs_out_nlv)
 
   ! current bv arrays
   DEALLOCATE(b_inx0)
