@@ -185,9 +185,9 @@ SUBROUTINE read_parameters
   END IF
 
   IF(nonlinear) THEN
-    kxmax0=(nkx0-1)*kxmin
+    kzmax0=(nkz0-1)*kzmin
     kymax0=(nky0/2-1)*kymin !max not nyquist
-    kzmax0=(nkz0/2-1)*kzmin !max not nyquist
+    kxmax0=(nkx0/2-1)*kxmin !max not nyquist
   END IF
 
   IF(test_nl.and..not.nonlinear) STOP "Error! Must USE nonlinear=T for test_nl=T."

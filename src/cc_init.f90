@@ -84,18 +84,18 @@ SUBROUTINE arrays
   INTEGER :: i,j,l,hypv_handle
 
   !Info for k grids
-  !Note the format for the ky/kz indices:
+  !Note the format for the ky/kx indices:
   !Index:	0,    1,      2,. . . .       hky_ind,  nky0/2,  lky_ind, . . . nky0-1
   !ky val:	0.0,  kymin,  2*kymin . . . . kymax,    *,       -kymax, . . .  -kymin
-  hkx_ind=nkx0-1     !Index of maximum kx value
+  hkx_ind=nkx0/2-1     !Index of maximum kx value
   hky_ind=nky0/2-1     !Index of maximum (used,i.e. not dummy) ky value 
   lky_ind=nky0-hky_ind !Index of minimum (most negative) ky value
   IF(nkz0==1) THEN
     hkz_ind=0
     lkz_ind=0
   ELSE
-    hkz_ind=nkz0/2-1 !Index of maximum (used,i.e. not dummy) kz value
-    lkz_ind=nkz0-hkz_ind !Index of minimum (most negative) kz value
+    hkz_ind=nkz0-1 !Index of maximum (used,i.e. not dummy) kz value
+    lkz_ind=0 !Index of minimum (most negative) kz value
   END IF
 
   IF(verbose.and.(mype.eq.0)) THEN
@@ -116,9 +116,9 @@ SUBROUTINE arrays
   IF(mype_herm==np_herm-1) ubv=lv2  
 
   !Info for kz grid
-  lkz0=nkz0/np_kz
-  lkz1=mype_kz*lkz0
-  lkz2=(mype_kz+1)*lkz0-1
+  lkz0=nkz0
+  lkz1=0
+  lkz2=nkz0-1
   !Verify the following when implementing kz parallelization
   lbkz=lkz1
   ubkz=lkz2
@@ -175,10 +175,10 @@ SUBROUTINE arrays
 
  
   IF(kmin_eq_0) THEN
-    DO i=0,nkx0-1
-      kxgrid(i)=i*kxmin
+    DO i=0,nkz0-1
+      kzgrid(i)=i*kzmin
     END DO 
-    kxmax=(nkx0-1)*kxmin
+    kzmax=(nkz0-1)*kzmin
     !WRITE(*,*) "kx grid:", kxgrid
 
     kygrid(0)=0.0
@@ -190,14 +190,14 @@ SUBROUTINE arrays
     kygrid(nky0/2)=kymax+kymin  !dummy index
     !WRITE(*,*) "ky grid:", kygrid
 
-    IF(nkz0.ge.2) THEN
-      kzgrid(0)=0.0
-      DO i=1,nkz0/2-1
-        kzgrid(i)=i*kzmin
-        kzgrid(nkz0-i)=-i*kzmin
+    IF(nkx0.ge.2) THEN
+      kxgrid(0)=0.0
+      DO i=1,nkx0/2-1
+        kxgrid(i)=i*kxmin
+        kxgrid(nkx0-i)=-i*kxmin
       END DO 
-      kzmax=(nkz0/2-1)*kzmin
-      kzgrid(nkz0/2)=kzmax+kzmin  !dummy index
+      kxmax=(nkx0/2-1)*kxmin
+      kxgrid(nkx0/2)=kxmax+kxmin  !dummy index
     ELSE
       !See Watanabe and Sugama '04
       kzgrid=kygrid*kzmin/kymin
@@ -348,9 +348,9 @@ SUBROUTINE arrays_temp
 !  IF(.not.allocated(g_1))&
 !      ALLOCATE(g_1(0:nkx0-1,0:nky0-1,lkz1:lkz2,lv1:lv2,lh1:lh2,ls1:ls2)) 
   IF(.not.allocated(b_1))&
-      ALLOCATE(b_1(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:3)) 
+      ALLOCATE(b_1(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)) 
   IF(.not.allocated(v_1))&
-      ALLOCATE(v_1(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:3)) 
+      ALLOCATE(v_1(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)) 
   IF(.not.allocated(kxgrid)) ALLOCATE(kxgrid(0:nkx0-1))
   IF(.not.allocated(kygrid)) ALLOCATE(kygrid(0:nky0-1))
   IF(spatial2d) THEN

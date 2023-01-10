@@ -77,20 +77,34 @@ def get_grids():
     """Returns kx,ky,kz grids in the same form as used in the code \n
     kxgrid = 0, kxmin, . . . kxmax \n
     kygrid = 0, kymin, . . . kymax, kymax+kymin, -kymax, . . . -kymin """
-    kxgrid=np.arange((par['nkx0']))
-    kxgrid=kxgrid*par['kxmin']
-    kygrid=np.empty(par['nky0'])
-    kzgrid=np.empty(par['nkz0'])
-    herm_grid=np.arange(2)
-    herm_grid=1.0*herm_grid
-    for i in range(par['nky0']//2):
-        kygrid[par['nky0']-1-i]=-float(i+1)*par['kymin']
-        kygrid[i]=float(i)*par['kymin']
-    kygrid[par['nky0']//2]=par['nky0']/2*par['kymin']
-    for i in range(par['nkz0']//2):
-        kzgrid[par['nkz0']-1-i]=-float(i+1)*par['kzmin']
-        kzgrid[i]=float(i)*par['kzmin']
-    kzgrid[par['nkz0']//2]=par['nkz0']//2*par['kzmin']
+    if (1==1): #lpath[-4:-1].isnumeric() and int(lpath[-4:-1]) > 280: 
+        kzgrid=np.arange(par['nkz0'])
+        kzgrid=kzgrid*par['kzmin']
+        kygrid=np.empty(par['nky0'])
+        kxgrid=np.empty(par['nkx0'])
+        for i in range(par['nky0']//2):
+            kygrid[par['nky0']-1-i]=-float(i+1)*par['kymin']
+            kygrid[i]=float(i)*par['kymin']
+        kygrid[par['nky0']//2]=par['nky0']/2*par['kymin']
+        for i in range(par['nkx0']//2):
+            kxgrid[par['nkx0']-1-i]=-float(i+1)*par['kxmin']
+            kxgrid[i]=float(i)*par['kxmin']
+        kxgrid[par['nkx0']//2]=par['nkx0']//2*par['kxmin']
+    else:
+        kxgrid=np.arange((par['nkx0']))
+        kxgrid=kxgrid*par['kxmin']
+        kygrid=np.empty(par['nky0'])
+        kzgrid=np.empty(par['nkz0'])
+        herm_grid=np.arange(2)
+        herm_grid=1.0*herm_grid
+        for i in range(par['nky0']//2):
+            kygrid[par['nky0']-1-i]=-float(i+1)*par['kymin']
+            kygrid[i]=float(i)*par['kymin']
+        kygrid[par['nky0']//2]=par['nky0']/2*par['kymin']
+        for i in range(par['nkz0']//2):
+            kzgrid[par['nkz0']-1-i]=-float(i+1)*par['kzmin']
+            kzgrid[i]=float(i)*par['kzmin']
+        kzgrid[par['nkz0']//2]=par['nkz0']//2*par['kzmin']
     return kxgrid,kygrid,kzgrid
 
 def read_time_step_b(which_itime,swap_endian=False):
