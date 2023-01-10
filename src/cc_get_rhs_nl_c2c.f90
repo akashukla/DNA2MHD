@@ -64,6 +64,8 @@ MODULE nonlinearity
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:) :: mydxdxbz, mydxdybz, mydxdzbz, mydydybz, mydydzbz, mydzdzbz
 
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:) :: rhs_out_nlb,rhs_out_nlv,myrhs_out_nlb,myrhs_out_nlv
+  COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:) :: bdv,vdb,bdcb,cbdb,vdv,bdb,db2
+  COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:) :: mybdv,myvdb,mybdcb,mycbdb,myvdv,mybdb,mydb2
 
   !For fft's
 
@@ -2021,6 +2023,25 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   ALLOCATE(mydydzbz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
   ALLOCATE(mydzdzbz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
 
+  ! nonlinearities
+  IF(mod(counter,4).eq.0) THEN
+  ALLOCATE(bdv(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1,0:2))
+  ALLOCATE(vdb(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1,0:2))
+  ALLOCATE(bdcb(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1,0:2))
+  ALLOCATE(cbdb(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1,0:2))
+  ALLOCATE(vdv(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1,0:2))
+  ALLOCATE(bdb(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1,0:2))
+  ALLOCATE(db2(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1,0:2))
+  ALLOCATE(mybdv(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1,0:2))
+  ALLOCATE(myvdb(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1,0:2))
+  ALLOCATE(mybdcb(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1,0:2))
+  ALLOCATE(mycbdb(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1,0:2))
+  ALLOCATE(myvdv(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1,0:2))
+  ALLOCATE(mybdb(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1,0:2))
+  ALLOCATE(mydb2(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1,0:2))
+  ENDIF
+
+
   ! current b and v arrays
 
   ALLOCATE(b_inx0(0:nkx0-1,0:nky0-1,lkz1:lkz2))
@@ -3410,14 +3431,122 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
      ENDIF
   endif
 
-  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-  if (nv.eq..false.) CALL MPI_ALLREDUCE(myrhs_out_nlb,rhs_out_nlb,nkx0*nky0*nkz0*3&
-      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+! Find nonlinearities at energy timestep
+
+     IF (plot_nls.and.(mod(itime,istep_energy).eq.0)) THEN
+        ! b.grad v
+        IF (mod(mype-7,n_mpi_procs).eq.0) THEN
+        mybdv(:,:,:,0) = mybdv(:,:,:,0) + (5.0/12.0 - 1.0/6.0 * abs(real(counter) - 3.0/2.0)) * fft_spec2(bx*dxvx+by*dyvx+bz*dzvz)
+        ENDIF
+        IF (mod(mype-8,n_mpi_procs).eq.0) THEN
+        mybdv(:,:,:,1) = mybdv(:,:,:,1) + (5.0/12.0 - 1.0/6.0 * abs(real(counter) - 3.0/2.0)) * fft_spec2(bx*dxvy+by*dyvy+bz*dzvy)
+        ENDIF
+        IF (mod(mype-9,n_mpi_procs).eq.0) THEN
+        mybdv(:,:,:,2) = mybdv(:,:,:,2) + (5.0/12.0 - 1.0/6.0 * abs(real(counter) - 3.0/2.0)) * fft_spec2(bx*dxvz+by*dyvz+bz*dzvz)
+        ENDIF
+
+        ! v.grad b
+        IF (mod(mype-10,n_mpi_procs).eq.0) THEN
+        myvdb(:,:,:,0) = myvdb(:,:,:,0) + (5.0/12.0 - 1.0/6.0 * abs(real(counter) - 3.0/2.0)) * fft_spec2(vx*dxbx+vy*dybx+vz*dzbx)
+        ENDIF
+        IF (mod(mype-11,n_mpi_procs).eq.0) THEN
+        myvdb(:,:,:,1) = myvdb(:,:,:,1) + (5.0/12.0 - 1.0/6.0 * abs(real(counter) - 3.0/2.0)) * fft_spec2(vx*dxby+vy*dyby+vz*dzby)
+        ENDIF
+        IF (mod(mype-12,n_mpi_procs).eq.0) THEN
+        myvdb(:,:,:,2) = myvdb(:,:,:,2) + (5.0/12.0 - 1.0/6.0 * abs(real(counter) - 3.0/2.0)) * fft_spec2(vx*dxbz+vy*dybz+vz*dzbz)
+        ENDIF
+
+        ! b. grad curl b
+        IF (mod(mype-13,n_mpi_procs).eq.0) THEN
+        mybdcb(:,:,:,0) = mybdcb(:,:,:,0) + (5.0/12.0 - 1.0/6.0 * abs(real(counter) - 3.0/2.0)) * fft_spec2(bx*dxdybz+by*dydybz+bz*dydzbz-bx*dxdzby-by*dydzby-bz*dzdzby)
+        ENDIF
+        IF (mod(mype-14,n_mpi_procs).eq.0) THEN
+        mybdcb(:,:,:,1) = mybdcb(:,:,:,1) + (5.0/12.0 - 1.0/6.0 * abs(real(counter) - 3.0/2.0)) * fft_spec2(bx*dxdzbx+by*dydzbx+bz*dzdzbx-bx*dxdxbz-by*dxdybz-bz*dxdzbz)
+        ENDIF
+        IF (mod(mype-15,n_mpi_procs).eq.0) THEN
+        mybdcb(:,:,:,2) = mybdcb(:,:,:,2) + (5.0/12.0 - 1.0/6.0 * abs(real(counter) - 3.0/2.0)) * fft_spec2(bx*dxdxby+by*dxdyby+bz*dxdzby-bx*dxdybx-by*dydybx-bz*dydzbx)
+        ENDIF
+
+        ! curl b . grad b                       
+        IF (mod(mype-16,n_mpi_procs).eq.0) THEN
+        mycbdb(:,:,:,0) = mycbdb(:,:,:,0) + (5.0/12.0 - 1.0/6.0 * abs(real(counter) - 3.0/2.0)) * fft_spec2(dybz*dxbx-dzby*dxbx-dxbz*dybx+dzbx*dybx+dxby*dzbx-dybx*dzbx)
+        ENDIF
+        IF (mod(mype-17,n_mpi_procs).eq.0) THEN
+        mycbdb(:,:,:,1) = mycbdb(:,:,:,1) + (5.0/12.0 - 1.0/6.0 * abs(real(counter) - 3.0/2.0)) * fft_spec2(dybz*dxby-dzby*dxby-dxbz*dyby+dzbx*dyby+dxby*dzby-dybx*dzby)
+        ENDIF
+        IF (mod(mype-18,n_mpi_procs).eq.0) THEN
+        mycbdb(:,:,:,2) = mycbdb(:,:,:,2) + (5.0/12.0 - 1.0/6.0 * abs(real(counter) - 3.0/2.0)) * fft_spec2(dybz*dxbz-dzby*dxbz-dxbz*dybz+dzbx*dybz+dxby*dzbz-dybx*dzbz)
+        ENDIF
+
+        ! v . grad v
+        IF (mod(mype-19,n_mpi_procs).eq.0) THEN
+        myvdv(:,:,:,0) = myvdv(:,:,:,0) + (5.0/12.0 - 1.0/6.0 * abs(real(counter) - 3.0/2.0)) * fft_spec2(vx*dxvx+vy*dyvx+vz*dzvz)
+        ENDIF
+        IF (mod(mype-20,n_mpi_procs).eq.0) THEN
+        myvdv(:,:,:,1) = myvdv(:,:,:,1) + (5.0/12.0 - 1.0/6.0 * abs(real(counter) - 3.0/2.0)) * fft_spec2(vx*dxvy+vy*dyvy+vz*dzvy)
+        ENDIF
+        IF (mod(mype-21,n_mpi_procs).eq.0) THEN
+        myvdv(:,:,:,2) = myvdv(:,:,:,2) + (5.0/12.0 - 1.0/6.0 * abs(real(counter) - 3.0/2.0)) * fft_spec2(vx*dxvz+vy*dyvz+vz*dzvz)
+        ENDIF
+
+        ! b . grad b
+        IF (mod(mype-22,n_mpi_procs).eq.0) THEN
+        mybdb(:,:,:,0) = mybdb(:,:,:,0) + (5.0/12.0 - 1.0/6.0 * abs(real(counter) - 3.0/2.0)) * fft_spec2(bx*dxbx+by*dybx+bz*dzbz)
+        ENDIF
+        IF (mod(mype-23,n_mpi_procs).eq.0) THEN
+        mybdb(:,:,:,1) = mybdb(:,:,:,1) + (5.0/12.0 - 1.0/6.0 * abs(real(counter) - 3.0/2.0)) * fft_spec2(bx*dxby+by*dyby+bz*dzby)
+        ENDIF
+        IF (mod(mype-24,n_mpi_procs).eq.0) THEN
+        mybdb(:,:,:,2) = mybdb(:,:,:,2) + (5.0/12.0 - 1.0/6.0 * abs(real(counter) - 3.0/2.0)) * fft_spec2(bx*dxbz+by*dybz+bz*dzbz)
+        ENDIF
+
+        ! 0.5 grad b^2
+        if (rhs_nl_version.eq.12) then
+        IF (mod(mype-25,n_mpi_procs).eq.0) THEN
+        mydb2(:,:,:,0) = mydb2(:,:,:,0) + (5.0/12.0 - 1.0/6.0 * abs(real(counter) - 3.0/2.0)) * fft_spec2(bx*dxbx+by*dxby+bz*dxbz)
+        ENDIF
+        IF (mod(mype-26,n_mpi_procs).eq.0) THEN
+        mydb2(:,:,:,1) = mydb2(:,:,:,1) + (5.0/12.0 - 1.0/6.0 * abs(real(counter) - 3.0/2.0)) * fft_spec2(bx*dybx+by*dyby+bz*dybz)
+        ENDIF
+        IF (mod(mype-27,n_mpi_procs).eq.0) THEN
+        mydb2(:,:,:,2) = mydb2(:,:,:,2) + (5.0/12.0 - 1.0/6.0 * abs(real(counter) - 3.0/2.0)) * fft_spec2(bx*dzbx+by*dzby+bz*dzbz)
+        ENDIF
+        endif 
+        if (rhs_nl_version.eq.1) then
+        IF (mod(mype-25,n_mpi_procs).eq.0) THEN
+        mydb2(:,:,:,0) = mydb2(:,:,:,0) + (5.0/12.0 - 1.0/6.0 * abs(real(counter) - 3.0/2.0)) * fft_spec2(0.5*dxbmag)
+        ENDIF
+        IF (mod(mype-26,n_mpi_procs).eq.0) THEN
+        mydb2(:,:,:,1) = mydb2(:,:,:,1) + (5.0/12.0 - 1.0/6.0 * abs(real(counter) - 3.0/2.0)) * fft_spec2(0.5*dybmag)
+        ENDIF
+        IF (mod(mype-27,n_mpi_procs).eq.0) THEN
+        mydb2(:,:,:,2) = mydb2(:,:,:,2) + (5.0/12.0 - 1.0/6.0 * abs(real(counter) - 3.0/2.0)) * fft_spec2(0.5*dzbmag)
+        ENDIF
+        endif
+    ENDIF
+
+! Get nonlinear right hand sides and record nonlinearities
 
   CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(mybdv,bdv,nkx0*nky0*nkz0*3&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(myvdb,vdb,nkx0*nky0*nkz0*3&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(mybdcb,bdcb,nkx0*nky0*nkz0*3&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(mycbdb,cbdb,nkx0*nky0*nkz0*3&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(myvdv,vdv,nkx0*nky0*nkz0*3&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(mybdb,bdb,nkx0*nky0*nkz0*3&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(mydb2,db2,nkx0*nky0*nkz0*3&
+      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+  if (nv.eq..false.) CALL MPI_ALLREDUCE(myrhs_out_nlb,rhs_out_nlb,nkx0*nky0*nkz0*3&
+       ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
   CALL MPI_ALLREDUCE(myrhs_out_nlv,rhs_out_nlv,nkx0*nky0*nkz0*3&
       ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
-  
+
   IF (verbose.and.(mype.eq.0)) WRITE(*,*) ierr
   IF (verbose.and.(mype.eq.0)) WRITE(*,*) 'Abs NL Term Vx kmax',abs(rhs_out_nlv(nkx0-1,nky0/2,nkz0/2,0))
   IF (verbose.and.(mype.eq.0)) WRITE(*,*) 'Abs NL Term Bx kmax',abs(rhs_out_nlb(nkx0-1,nky0/2,nkz0/2,0))
@@ -3428,58 +3557,48 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
 
   if (verbose.and.(mype.eq.0)) print *, 'rhs out v nl found'
 
-     IF ((mod(counter,4).eq.0).and.(plot_nls.and.(mod(itime,istep_energy).eq.0))) THEN
-        ! b.grad v 
-        IF (mod(mype-7,n_mpi_procs).eq.0) THEN
-        WRITE(bdvio) fft_spec2(bx*dxvx+by*dyvx+bz*dzvx)
-        WRITE(bdvio) fft_spec2(bx*dxvy+by*dyvy+bz*dzvy)
-        WRITE(bdvio) fft_spec2(bx*dxvz+by*dyvz+bz*dzvz)
-        ENDIF
-        ! v.grad b 
-        IF (mod(mype-8,n_mpi_procs).eq.0) THEN
-        WRITE(vdbio) fft_spec2(vx*dxbx+vy*dybx+vz*dzbx)
-        WRITE(vdbio) fft_spec2(vx*dxby+vy*dyby+vz*dzby)
-        WRITE(vdbio) fft_spec2(vx*dxbz+vy*dybz+vz*dzbz)
-        ENDIF
-        ! b. grad curl b
-        IF (mod(mype-9,n_mpi_procs).eq.0) THEN  
-        WRITE(bdcbio) fft_spec2(bx*dxdybz+by*dydybz+bz*dydzbz-bx*dxdzby-by*dydzby-bz*dzdzby)
-        WRITE(bdcbio) fft_spec2(bx*dxdzbx+by*dydzbx+bz*dzdzbx-bx*dxdxbz-by*dxdybz-bz*dxdzbz)
-        WRITE(bdcbio) fft_spec2(bx*dxdxby+by*dxdyby+bz*dxdzby-bx*dxdybx-by*dydybx-bz*dydzbx)
-        ENDIF
-        ! curl b . grad b                       
-        IF (mod(mype-10,n_mpi_procs).eq.0) THEN
-        WRITE(cbdbio) fft_spec2(dybz*dxbx-dzby*dxbx-dxbz*dybx+dzbx*dybx+dxby*dzbx-dybx*dzbx)
-        WRITE(cbdbio) fft_spec2(dybz*dxby-dzby*dxby-dxbz*dyby+dzbx*dyby+dxby*dzby-dybx*dzby)
-        WRITE(cbdbio) fft_spec2(dybz*dxbz-dzby*dxbz-dxbz*dybz+dzbx*dybz+dxby*dzbz-dybx*dzbz)  
-        ENDIF
-        ! v . grad v
-        IF (mod(mype-11,n_mpi_procs).eq.0) THEN
-        WRITE(vdvio) fft_spec2(vx*dxvx+vy*dyvx+vz*dzvx)
-        WRITE(vdvio) fft_spec2(vx*dxvy+vy*dyvy+vz*dzvy)
-        WRITE(vdvio) fft_spec2(vx*dxvz+vy*dyvz+vz*dzvz)
-        ENDIF
-        ! b . grad b
-        IF (mod(mype-12,n_mpi_procs).eq.0) THEN
-        WRITE(bdbio) fft_spec2(bx*dxbx+by*dybx+bz*dzbx)
-        WRITE(bdbio) fft_spec2(bx*dxby+by*dyby+bz*dzby)
-        WRITE(bdbio) fft_spec2(bx*dxbz+by*dybz+bz*dzbz)
-        ENDIF
-        if (rhs_nl_version.eq.12) then
-        ! 0.5 grad b^2
-        IF (mod(mype-13,n_mpi_procs).eq.0) THEN
-        WRITE(db2io) fft_spec2(bx*dxbx+by*dxby+bz*dxbz)
-        WRITE(db2io) fft_spec2(bx*dybx+by*dyby+bz*dybz)
-        WRITE(db2io) fft_spec2(bx*dzbx+by*dzby+bz*dzbz)
-        ENDIF
-        endif 
-        if (rhs_nl_version.eq.1) then
-        WRITE(db2io) fft_spec2(0.5*dxbmag)
-        WRITE(db2io) fft_spec2(0.5*dybmag)
-        WRITE(db2io) fft_spec2(0.5*dzbmag)
-        endif
+    IF ((mod(counter,4).eq.3).and.(mod(itime,istep_energy).eq.0)) THEN
+       IF (mod(mype-1,n_mpi_procs).eq.0) THEN
+          WRITE(bdvio) bdv(:,:,:,0)
+          WRITE(bdvio) bdv(:,:,:,1)
+          WRITE(bdvio) bdv(:,:,:,2)
+       ENDIF
+       IF (mod(mype-2,n_mpi_procs).eq.0) THEN
+          WRITE(vdbio) vdb(:,:,:,0)
+          WRITE(vdbio) vdb(:,:,:,1)
+          WRITE(vdbio) vdb(:,:,:,2)
+       ENDIF
+       IF (mod(mype-3,n_mpi_procs).eq.0) THEN
+          WRITE(bdcbio) bdcb(:,:,:,0)
+          WRITE(bdcbio) bdcb(:,:,:,1)
+          WRITE(bdcbio) bdcb(:,:,:,2)
+       ENDIF
+       IF (mod(mype-4,n_mpi_procs).eq.0) THEN
+          WRITE(cbdbio) cbdb(:,:,:,0)
+          WRITE(cbdbio) cbdb(:,:,:,1)
+          WRITE(cbdbio) cbdb(:,:,:,2)
+       ENDIF
+       IF (mod(mype-5,n_mpi_procs).eq.0) THEN
+          WRITE(vdvio) vdv(:,:,:,0)
+          WRITE(vdvio) vdv(:,:,:,1)
+          WRITE(vdvio) vdv(:,:,:,2)
+       ENDIF
+       IF (mod(mype-6,n_mpi_procs).eq.0) THEN
+          WRITE(bdbio) bdb(:,:,:,0)
+          WRITE(bdbio) bdb(:,:,:,1)
+          WRITE(bdbio) bdb(:,:,:,2)
+       ENDIF
+       IF (mod(mype-7,n_mpi_procs).eq.0) THEN
+          WRITE(db2io) db2(:,:,:,0)
+          WRITE(db2io) db2(:,:,:,1)
+          WRITE(db2io) db2(:,:,:,2)
+       ENDIF
+     
         if (verbose.and.(mype.eq.0)) print *, 'nonlinearities written'
-     ENDIF
+
+    ENDIF
+
+
 
   if (calc_dt) CALL next_dt(ndt)
   if (.not.(calc_dt)) ndt = dt_max
@@ -3667,6 +3786,24 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   DEALLOCATE(v_inx0)
   DEALLOCATE(v_iny0)
   DEALLOCATE(v_inz0)
+
+  ! nonlinearities
+  IF(mod(counter,4).eq.3) THEN
+  DEALLOCATE(bdv)
+  DEALLOCATE(vdb)
+  DEALLOCATE(bdcb)
+  DEALLOCATE(cbdb)
+  DEALLOCATE(vdv)
+  DEALLOCATE(bdb)
+  DEALLOCATE(db2)
+  DEALLOCATE(mybdv)
+  DEALLOCATE(myvdb)
+  DEALLOCATE(mybdcb)
+  DEALLOCATE(mycbdb)
+  DEALLOCATE(myvdv)
+  DEALLOCATE(mybdb)
+  DEALLOCATE(mydb2)
+  ENDIF
 
   if (verbose.and.(mype.eq.0)) CALL cpu_time(dum)
   if (verbose.and.(mype.eq.0)) WRITE(*,*) 'time for nl code', dum-sttime
