@@ -3548,8 +3548,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
       ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
 
   IF (verbose.and.(mype.eq.0)) WRITE(*,*) ierr
-  IF (verbose.and.(mype.eq.0)) WRITE(*,*) 'Abs NL Term Vx kmax',abs(rhs_out_nlv(nkx0-1,nky0/2,nkz0/2,0))
-  IF (verbose.and.(mype.eq.0)) WRITE(*,*) 'Abs NL Term Bx kmax',abs(rhs_out_nlb(nkx0-1,nky0/2,nkz0/2,0))
+  IF (verbose.and.(mype.eq.0)) WRITE(*,*) 'Max Abs NL Term Vx',maxval(abs(rhs_out_nlv)),maxloc(abs(rhs_out_nlv))
+  IF (verbose.and.(mype.eq.0)) WRITE(*,*) 'Max Abs NL Term Bx',maxval(abs(rhs_out_nlb)),maxloc(abs(rhs_out_nlb))
 
   if (nv.eq..false.) rhs_out_b = rhs_out_b + rhs_out_nlb
   if (nv) rhs_out_b = cmplx(0.0,0.0)

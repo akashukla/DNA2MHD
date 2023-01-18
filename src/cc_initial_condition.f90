@@ -106,6 +106,7 @@ SUBROUTINE initial_condition(which_init0)
       END DO
       if (nv) b_1(:,:,:,:) = cmplx(0.0,0.0)
       gpsi(:,:,:,:) = cmplx(0.0,0.0)
+      IF (force_turbulence) force_amp = force_amp * abs(b_1(nkx0/2,nky0/2,nkz0-1,0))
 
 ! Only use default for now
 !  which_init=which_init0 

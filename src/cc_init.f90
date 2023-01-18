@@ -58,7 +58,7 @@ SUBROUTINE init_run
   CALL initial_condition(init_cond)   !checkpoint must be READ before others
   IF (verbose.and.(mype.eq.0)) WRITE(*,*) "Called initial condition.",mype
   CALL initialize_diagnostics
-  IF (verbose.and.(mype.eq.0)) WRITE(*,*) "Called initial diagnostice.",mype
+  IF (verbose.and.(mype.eq.0)) WRITE(*,*) "Called initial diagnostics.",mype
   !IF(nonlinear) CALL initialize_adapt_dt
   IF(nonlinear) CALL initialize_fourier
   IF (verbose.and.(mype.eq.0)) WRITE(*,*) "Called initial fourier.",mype
@@ -181,6 +181,20 @@ SUBROUTINE arrays
     kzmax=(nkz0-1)*kzmin
     !WRITE(*,*) "kx grid:", kxgrid
 
+!    DO i=0,nkx0-1  
+!      kxgrid(i)=i*kxmin   
+!    END DO 
+!    kxmax=(nkx0-1)*kxmin       
+    !WRITE(*,*) "kx grid:", kxgrid
+
+!    kzgrid(0)=0.0
+!    DO i=1,nkz0/2-1
+!      kzgrid(i)=i*kzmin
+!      kzgrid(nky0-i)=-i*kzmin
+!    END DO
+!    kzmax=(nkz0/2-1)*kzmin
+!    kzgrid(nkz0/2)=kzmax+kzmin  !dummy index 
+
     kygrid(0)=0.0
     DO i=1,nky0/2-1
       kygrid(i)=i*kymin
@@ -198,10 +212,10 @@ SUBROUTINE arrays
       END DO 
       kxmax=(nkx0/2-1)*kxmin
       kxgrid(nkx0/2)=kxmax+kxmin  !dummy index
-    ELSE
-      !See Watanabe and Sugama '04
-      kzgrid=kygrid*kzmin/kymin
-      kzmax=kymax*kzmin/kymin
+ !   ELSE
+ !     !See Watanabe and Sugama '04
+ !     kzgrid=kygrid*kzmin/kymin
+ !     kzmax=kymax*kzmin/kymin
     END IF
   ELSE !.not.kmin_eq_0, i.e. linear
     kxgrid(0)=kxmin

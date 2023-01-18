@@ -77,7 +77,7 @@ def get_grids():
     """Returns kx,ky,kz grids in the same form as used in the code \n
     kxgrid = 0, kxmin, . . . kxmax \n
     kygrid = 0, kymin, . . . kymax, kymax+kymin, -kymax, . . . -kymin """
-    if (1==1): #lpath[-4:-1].isnumeric() and int(lpath[-4:-1]) > 280: 
+    if (0==1): #lpath[-4:-1].isnumeric() and int(lpath[-4:-1]) > 280: 
         kzgrid=np.arange(par['nkz0'])
         kzgrid=kzgrid*par['kzmin']
         kygrid=np.empty(par['nky0'])
