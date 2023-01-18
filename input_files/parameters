@@ -45,6 +45,9 @@ init_amp_vy = 0.1
 init_amp_vz = 0.0
 init_kolm = 2.0
 force_amp = 0.0
+nkxforce = 2
+nkyforce = 2
+nkzforce = 2
 hyp = 1
 /
 
@@ -80,7 +83,7 @@ em_conserve = T
 nuno_closure = T
 rhs_nl_version = 12
 rhs_lin_version = 1
-dealias_type = 3
+dealias_type = 4
 force_turbulence = F
 plot_nls = T
 hall = 1
@@ -92,7 +95,7 @@ nv = F
 /
 
 &initial_value
-max_itime =  2
+max_itime =  1
 max_walltime =   14000
 dt_max =   0.1
 max_time =   10000000.0    

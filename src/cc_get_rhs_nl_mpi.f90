@@ -41,7 +41,7 @@ MODULE nonlinearity
   COMPLEX(C_DOUBLE_COMPLEX), DIMENSION(:,:,:), pointer :: data,datai
   TYPE(C_PTR) :: plan_c2r,plan_r2c
   TYPE(C_PTR) :: cdatai,cdata
-  INTEGER(C_INTPTR_T) :: alloc_local,local_N,local_j_offset,alloc_locali,local_Ni,local_j_offseti,i,j,k,l,h
+  INTEGER(C_INTPTR_T) :: alloc_local,local_N,local_k_offset,alloc_locali,local_Ni,local_k_offseti,i,j,k,l,h
 
   COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:) ::  store_bx, store_by, store_bz,store_bxm,store_bym,store_bzm,store_vx, store_vy, store_vz,store_vxm,store_vym,store_vzm
   COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:,:) ::  bdv,vdb,bdcb,cbdb,vdv,bdb,db2
@@ -104,21 +104,22 @@ SUBROUTINE initialize_fourier_ae_mu0
   counter = 0
 
   ! Set Up Modern FFTW Plan
+  DO l = 0,1 
 
   alloc_local = fftw_mpi_local_size_3d(nz0_big, ny0_big, nx0_big, MPI_COMM_WORLD, &
-    local_N, local_j_offset)
+    local_N, local_k_offset)
   cdata = fftw_alloc_complex(alloc_local)
   call c_f_pointer(cdata, data, [nx0_big,ny0_big,local_N])
-  ALLOCATE(data(1:nx0_big,1:ny0_big,1:local_N))
+!  ALLOCATE(data(1:nx0_big,1:ny0_big,1:local_N))
   ! create MPI plan for in-place forward DFT (note dimension reversal)
   plan_r2c = fftw_mpi_plan_dft_3d(nz0_big,ny0_big,nx0_big, data, data, MPI_COMM_WORLD, &
     FFTW_FORWARD, FFTW_ESTIMATE)
   ! backward plan
   alloc_locali = fftw_mpi_local_size_3d(nz0_big,ny0_big,nx0_big,MPI_COMM_WORLD, &
-       local_Ni,local_j_offseti)
+       local_Ni,local_k_offseti)
   cdatai = fftw_alloc_complex(alloc_locali)
   call c_f_pointer(cdatai,datai,[nx0_big,ny0_big,local_Ni])
-  ALLOCATE(datai(1:nx0_big,1:ny0_big,1:local_Ni))
+!  ALLOCATE(datai(1:nx0_big,1:ny0_big,1:local_Ni))
   plan_c2r = fftw_mpi_plan_dft_3d(nz0_big,ny0_big,nx0_big,datai,datai,MPI_COMM_WORLD, &
        FFTW_BACKWARD,FFTW_ESTIMATE)
 
@@ -133,167 +134,46 @@ SUBROUTINE initialize_fourier_ae_mu0
   IF(mype==0) WRITE(*,*) "hkz_ind,lkz_ind",hkz_ind,lkz_ind
   IF(mype==0) WRITE(*,*) "lkz_big",lkz_big
 
-  ! Practice FFTs
-!  do k = 1, local_N
-!    do j = 1,ny0_big
-!    do i = 1, nx0_big
-!       data(i, j,k) = 1.0/real(i) + 1.0/(real(k+local_j_offset))+1.0/real(j)
-!   end do
-!   end do 
-!  end do
-!
+IF (l.eq.0) THEN
+! Practice FFTs
+  do k = 1, local_N
+    do j = 1,ny0_big
+    do i = 1, nx0_big
+       data(i, j,k) = 1.0/real(i) + 1.0/(real(k+local_k_offset))+1.0/real(j)
+   end do
+   end do 
+  end do
 
-  print *,'Is local_N local_Ni?',(local_N.eq.local_Ni),local_N,local_Ni
-  print *,'Are offsets 0?',local_j_offset,local_j_offseti
 
-!  print *, maxval(abs(data))
-!
-!  call MPI_BARRIER(MPI_COMM_WORLD,ierr)                                                               
-!  call fftw_mpi_execute_dft(plan_r2c, data, data)
-!  print *, 'Through FFFT'
-!  print *, 'Max FFTd data',maxval(abs(data))
-!
-!  do k = 1, local_Ni
-!    do j = 1,ny0_big
-!    do i = 1, nx0_big
-!       datai(i, j,k) = data(i,j,k)**2
-!   end do
-!   end do
-!  end do
-!
-!  print *,maxval(abs(datai))
+  if (verbose.and.(mype.eq.0)) print *,'Is local_N local_Ni?',(local_N.eq.local_Ni),local_N,local_Ni
+  if (verbose.and.(mype.eq.0)) print *,'Are offsets 0?',local_k_offset,local_k_offseti
+
+  print *, maxval(abs(data))
+
+    call fftw_mpi_execute_dft(plan_r2c, data, data)
+  print *, 'Through FFFT'
+  print *, 'Max FFTd data',maxval(abs(data))
+
+  do k = 1, local_Ni
+    do j = 1,ny0_big
+    do i = 1, nx0_big
+       datai(i, j,k) = data(i,j,k)**2
+   end do
+   end do
+  end do
+
+  print *,maxval(abs(datai))
 
   call MPI_BARRIER(MPI_COMM_WORLD,ierr)
   call fftw_mpi_execute_dft(plan_c2r,datai,datai)
   print *, 'Through IFFT'
 
-  ! ALLOCATIONS
-  ALLOCATE(temp_small(1:nkx0,1:nky0,1:nkz0))
-  ALLOCATE(temp_smallm(1:nkx0,1:nky0,1:nkz0))
-  ALLOCATE(temp_bigm(1:nx0_big,1:ny0_big,1:local_Ni))
-  ALLOCATE(temp_bigx(1:nx0_big,1:ny0_big,1:local_N))
-  ALLOCATE(temp_bigy(1:nx0_big,1:ny0_big,1:local_N))
-  ALLOCATE(temp_bigz(1:nx0_big,1:ny0_big,1:local_N))
-  ALLOCATE(temp_bigbx(0:nkx0-1,0:nky0-1,0:nkz0-1))
-  ALLOCATE(temp_bigby(0:nkx0-1,0:nky0-1,0:nkz0-1))
-  ALLOCATE(temp_bigbz(0:nkx0-1,0:nky0-1,0:nkz0-1))
-  ALLOCATE(temp_bigvx(0:nkx0-1,0:nky0-1,0:nkz0-1))
-  ALLOCATE(temp_bigvy(0:nkx0-1,0:nky0-1,0:nkz0-1))
-  ALLOCATE(temp_bigvz(0:nkx0-1,0:nky0-1,0:nkz0-1))
-  ALLOCATE(store_bxm(1:nx0_big,1:ny0_big,1:local_N))
-  ALLOCATE(store_bym(1:nx0_big,1:ny0_big,1:local_N))
-  ALLOCATE(store_bzm(1:nx0_big,1:ny0_big,1:local_N))
-  ALLOCATE(store_vxm(1:nx0_big,1:ny0_big,1:local_N))
-  ALLOCATE(store_vym(1:nx0_big,1:ny0_big,1:local_N))
-  ALLOCATE(store_vzm(1:nx0_big,1:ny0_big,1:local_N))
-  ALLOCATE(store_vx(1:nx0_big,1:ny0_big,1:local_N))
-  ALLOCATE(store_vy(1:nx0_big,1:ny0_big,1:local_N))
-  ALLOCATE(store_vz(1:nx0_big,1:ny0_big,1:local_N))
-  ALLOCATE(store_bx(1:nx0_big,1:ny0_big,1:local_N))
-  ALLOCATE(store_by(1:nx0_big,1:ny0_big,1:local_N))
-  ALLOCATE(store_bz(1:nx0_big,1:ny0_big,1:local_N))
-
-  ALLOCATE(output(1:nx0_big,1:ny0_big,1:nz0_big))
- 
-! All b arrays  
-  ALLOCATE(bx(1:nx0_big,1:ny0_big,1:local_Ni))
-  ALLOCATE(by(1:nx0_big,1:ny0_big,1:local_Ni))
-  ALLOCATE(bz(1:nx0_big,1:ny0_big,1:local_Ni))
-
-! All v arrays 
-  ALLOCATE(vx(1:nx0_big,1:ny0_big,1:local_Ni))
-  ALLOCATE(vy(1:nx0_big,1:ny0_big,1:local_Ni))
-  ALLOCATE(vz(1:nx0_big,1:ny0_big,1:local_Ni))
-! all first order v arrays  
-  !vx                                                                                                                                                                                   
-  ALLOCATE(dxvx(1:nx0_big,1:ny0_big,1:local_Ni))
-  ALLOCATE(dyvx(1:nx0_big,1:ny0_big,1:local_Ni))
-  ALLOCATE(dzvx(1:nx0_big,1:ny0_big,1:local_Ni))
-  !vy 
-  ALLOCATE(dxvy(1:nx0_big,1:ny0_big,1:local_Ni))
-  ALLOCATE(dyvy(1:nx0_big,1:ny0_big,1:local_Ni))
-  ALLOCATE(dzvy(1:nx0_big,1:ny0_big,1:local_Ni))
-  !vz  
-  ALLOCATE(dxvz(1:nx0_big,1:ny0_big,1:local_Ni))
-  ALLOCATE(dyvz(1:nx0_big,1:ny0_big,1:local_Ni))
-  ALLOCATE(dzvz(1:nx0_big,1:ny0_big,1:local_Ni))
-! all first order b arrays 
- !bx
-  ALLOCATE(dxbx(1:nx0_big,1:ny0_big,1:local_Ni))
-  ALLOCATE(dybx(1:nx0_big,1:ny0_big,1:local_Ni))
-  ALLOCATE(dzbx(1:nx0_big,1:ny0_big,1:local_Ni))
-  !by
-  ALLOCATE(dxby(1:nx0_big,1:ny0_big,1:local_Ni))
-  ALLOCATE(dyby(1:nx0_big,1:ny0_big,1:local_Ni))
-  ALLOCATE(dzby(1:nx0_big,1:ny0_big,1:local_Ni))
-  !bz
-  ALLOCATE(dxbz(1:nx0_big,1:ny0_big,1:local_Ni))
-  ALLOCATE(dybz(1:nx0_big,1:ny0_big,1:local_Ni))
-  ALLOCATE(dzbz(1:nx0_big,1:ny0_big,1:local_Ni))
-  
-! all  second order bx arrays  DXDXBX,   DXDYBX,   DXDZBX,  DYDYBX,   DYDZBX, DZDZBX
-  ALLOCATE(dxdxbx(1:nx0_big,1:ny0_big,1:local_Ni))
-  ALLOCATE(dxdybx(1:nx0_big,1:ny0_big,1:local_Ni))
-  ALLOCATE(dxdzbx(1:nx0_big,1:ny0_big,1:local_Ni))
-  ALLOCATE(dydybx(1:nx0_big,1:ny0_big,1:local_Ni))
-  ALLOCATE(dydzbx(1:nx0_big,1:ny0_big,1:local_Ni))
-  ALLOCATE(dzdzbx(1:nx0_big,1:ny0_big,1:local_Ni))
-  ! all  second order by arrays
-  ALLOCATE(dxdxby(1:nx0_big,1:ny0_big,1:local_Ni))
-  ALLOCATE(dxdyby(1:nx0_big,1:ny0_big,1:local_Ni))
-  ALLOCATE(dxdzby(1:nx0_big,1:ny0_big,1:local_Ni))
-  ALLOCATE(dydyby(1:nx0_big,1:ny0_big,1:local_Ni))
-  ALLOCATE(dydzby(1:nx0_big,1:ny0_big,1:local_Ni))
-  ALLOCATE(dzdzby(1:nx0_big,1:ny0_big,1:local_Ni))
-  ! all  second order bz arrays
-  ALLOCATE(dxdxbz(1:nx0_big,1:ny0_big,1:local_Ni))
-  ALLOCATE(dxdybz(1:nx0_big,1:ny0_big,1:local_Ni))
-  ALLOCATE(dxdzbz(1:nx0_big,1:ny0_big,1:local_Ni))
-  ALLOCATE(dydybz(1:nx0_big,1:ny0_big,1:local_Ni))
-  ALLOCATE(dydzbz(1:nx0_big,1:ny0_big,1:local_Ni))
-  ALLOCATE(dzdzbz(1:nx0_big,1:ny0_big,1:local_Ni))
-    
-  ! all  second order vx arrays i.e. DXDXVX,   DXDYVX,   DXDZVX,  DYDYVX,   DYDZVX, DZDZVX
-  ALLOCATE(dxdxvx(1:nx0_big,1:ny0_big,1:local_Ni))
-  ALLOCATE(dxdyvx(1:nx0_big,1:ny0_big,1:local_Ni))
-  ALLOCATE(dxdzvx(1:nx0_big,1:ny0_big,1:local_Ni))
-  ALLOCATE(dydyvx(1:nx0_big,1:ny0_big,1:local_Ni))
-  ALLOCATE(dydzvx(1:nx0_big,1:ny0_big,1:local_Ni))
-  ALLOCATE(dzdzvx(1:nx0_big,1:ny0_big,1:local_Ni))
-  ! all  second order vy arrays
-  ALLOCATE(dxdxvy(1:nx0_big,1:ny0_big,1:local_Ni))
-  ALLOCATE(dxdyvy(1:nx0_big,1:ny0_big,1:local_Ni))
-  ALLOCATE(dxdzvy(1:nx0_big,1:ny0_big,1:local_Ni))
-  ALLOCATE(dydyvy(1:nx0_big,1:ny0_big,1:local_Ni))
-  ALLOCATE(dydzvy(1:nx0_big,1:ny0_big,1:local_Ni))
-  ALLOCATE(dzdzvy(1:nx0_big,1:ny0_big,1:local_Ni))
-  ! all  second order bz arrays
-  ALLOCATE(dxdxvz(1:nx0_big,1:ny0_big,1:local_Ni))
-  ALLOCATE(dxdyvz(1:nx0_big,1:ny0_big,1:local_Ni))
-  ALLOCATE(dxdzvz(1:nx0_big,1:ny0_big,1:local_Ni))
-  ALLOCATE(dydyvz(1:nx0_big,1:ny0_big,1:local_Ni))
-  ALLOCATE(dydzvz(1:nx0_big,1:ny0_big,1:local_Ni))
-  ALLOCATE(dzdzvz(1:nx0_big,1:ny0_big,1:local_Ni))
-
-  ! nonlinearities
-  IF(mod(counter,4).eq.0) THEN
-  ALLOCATE(bdv(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
-  ALLOCATE(vdb(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
-  ALLOCATE(bdcb(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
-  ALLOCATE(cbdb(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
-  ALLOCATE(vdv(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
-  ALLOCATE(bdb(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
-  ALLOCATE(db2(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
+  call fftw_destroy_plan(plan_c2r)
+  call fftw_destroy_plan(plan_r2c)
+  print *, 'Plans Destroyed'
   ENDIF
+ENDDO
 
-  ! initial arrays
-  ALLOCATE(b_inx0(1:nkx0,1:nky0,1:nkz0))
-  ALLOCATE(b_iny0(1:nkx0,1:nky0,1:nkz0))
-  ALLOCATE(b_inz0(1:nkx0,1:nky0,1:nkz0))
-  ALLOCATE(v_inx0(1:nkx0,1:nky0,1:nkz0))
-  ALLOCATE(v_iny0(1:nkx0,1:nky0,1:nkz0))
-  ALLOCATE(v_inz0(1:nkx0,1:nky0,1:nkz0))
- 
 END SUBROUTINE initialize_fourier_ae_mu0
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -339,6 +219,9 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   IF(verbose.and.(mype.eq.0)) print *, 'RHS NL Start Time:',dum - sttime
   ! I dont want to change g_in, so I copy temporaly to g_in0
   !g_in0 = g_in
+
+  CALL ALLOCATIONS
+
   b_inx0(1:nkx0,1:nky0,1:nkz0) = b_in(0:nkx0-1,0:nky0-1,0:nkz0-1,0)
   b_iny0(1:nkx0,1:nky0,1:nkz0) = b_in(0:nkx0-1,0:nky0-1,0:nkz0-1,1)
   b_inz0(1:nkx0,1:nky0,1:nkz0) = b_in(0:nkx0-1,0:nky0-1,0:nkz0-1,2)
@@ -353,20 +236,20 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
 
   ! SECOND ORDER  BX TERMS DXDXBX,DXDYBX,DXDZBX,  DYDYBX,DYDZBX, DZDZBX
   !dxdxbx
-  DO i=mype+1,nkx0-1,n_mpi_procs
+  DO i=mype+1,nkx0,n_mpi_procs
      temp_smallm(i,:,:)=i_complex*kxgrid(i-1)*i_complex*kxgrid(i-1)*b_inx0(i,:,:) ! there is  two i's in the
   END DO
   CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
   CALL MPI_ALLREDUCE(temp_smallm,temp_small,nkx0*nky0*nkz0&                                        
       ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
-  if (verbose.and.(mype.eq.0)) print *,'Through temp small'
+!  if (verbose.and.(mype.eq.0)) print *,'Through temp small'
 
   !Add padding for dealiasing
   CALL torealspace(temp_small,dxdxbx)
 
   !dxdybx
-  DO i=mype+1,nkx0-1,n_mpi_procs
-     DO j=0,nky0-1
+  DO i=mype+1,nkx0,n_mpi_procs
+     DO j=1,nky0
         temp_smallm(i,j,:)=i_complex*kxgrid(i-1)*i_complex*kygrid(j-1)*b_inx0(i,j,:)
      END DO
   END DO
@@ -379,8 +262,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   CALL torealspace(temp_small,dxdybx)
 
   !dxdzbx
-  DO i=mype+1,nkx0-1,n_mpi_procs
-     DO k=0,nkz0-1
+  DO i=mype+1,nkx0,n_mpi_procs
+     DO k=1,nkz0
         temp_smallm(i,:,k)=i_complex*kxgrid(i-1)*i_complex*kzgrid(k-1)*b_inx0(i,:,k)
      END DO
   END DO
@@ -393,7 +276,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   CALL torealspace(temp_small,dxdzbx)
 
   ! DYDYbX
-  DO j=mype+1,nky0-1,n_mpi_procs
+  DO j=mype+1,nky0,n_mpi_procs
      temp_smallm(:,j,:)=i_complex*kygrid(j-1)*i_complex*kygrid(j-1)*b_inx0(:,j,:)  ! towo y grid
   END DO
 
@@ -405,8 +288,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   CALL torealspace(temp_small,dydybx)
  
   ! DYDzbX
-  DO j=mype+1,nky0-1,n_mpi_procs
-     DO k=0,nkz0-1
+  DO j=mype+1,nky0,n_mpi_procs
+     DO k=1,nkz0
         temp_smallm(:,j,k)=i_complex*kygrid(j-1)*i_complex*kzgrid(k-1)*b_inx0(:,j,k)
      END DO
   END DO
@@ -419,7 +302,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   CALL torealspace(temp_small,dydzbx)
 
   ! DzDzbX
-  DO k=mype+1,nkz0-1,n_mpi_procs
+  DO k=mype+1,nkz0,n_mpi_procs
      temp_smallm(:,:,k)=i_complex*kzgrid(k-1)*i_complex*kzgrid(k-1)*b_inx0(:,:,k)  !two kz grid
   END DO
 
@@ -435,7 +318,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   ! SECOND ORDER  by TERMS DXDXBY,DXDYBY,DXDZBY, DYDYBY,DYDZBY, DZDZBY
 
   !dxdxby
-  DO i=mype+1,nkx0-1,n_mpi_procs
+  DO i=mype+1,nkx0,n_mpi_procs
      temp_smallm(i,:,:)=i_complex*kxgrid(i-1)*i_complex*kxgrid(i-1)*b_iny0(i,:,:) ! there is  two i's in the
   END DO
 
@@ -447,8 +330,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   CALL torealspace(temp_small,dxdxby)
 
   !dxdyby
-  DO i=mype+1,nkx0-1,n_mpi_procs
-     DO j=0,nky0-1
+  DO i=mype+1,nkx0,n_mpi_procs
+     DO j=1,nky0
         temp_smallm(i,j,:)=i_complex*kxgrid(i-1)*i_complex*kygrid(j-1)*b_iny0(i,j,:)
      END DO
   END DO
@@ -461,8 +344,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   CALL torealspace(temp_small,dxdyby)
 
   !dxdzby
-  DO i=mype+1,nkx0-1,n_mpi_procs
-     DO k=0,nkz0-1
+  DO i=mype+1,nkx0,n_mpi_procs
+     DO k=1,nkz0
         temp_smallm(i,:,k)=i_complex*kxgrid(i-1)*i_complex*kzgrid(k-1)*b_iny0(i,:,k)
      END DO
   END DO
@@ -475,7 +358,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   CALL torealspace(temp_small,dxdzby)
 
   ! DYDYby
-  DO j=mype+1,nky0-1,n_mpi_procs
+  DO j=mype+1,nky0,n_mpi_procs
      temp_smallm(:,j,:)=i_complex*kygrid(j-1)*i_complex*kygrid(j-1)*b_iny0(:,j,:)  ! two y grid
   END DO
 
@@ -487,8 +370,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   CALL torealspace(temp_small,dydyby)
 
   ! DYDzbY
-  DO j=mype+1,nky0-1,n_mpi_procs
-     DO k=0,nkz0-1
+  DO j=mype+1,nky0,n_mpi_procs
+     DO k=1,nkz0
         temp_smallm(:,j,k)=i_complex*kygrid(j-1)*i_complex*kzgrid(k-1)*b_iny0(:,j,k)
      END DO
   END DO
@@ -501,7 +384,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   CALL torealspace(temp_small,dydzby)
    
   ! DzDzbY
-  DO k=mype+1,nkz0-1,n_mpi_procs
+  DO k=mype+1,nkz0,n_mpi_procs
      temp_smallm(:,:,k)=i_complex*kzgrid(k-1)*i_complex*kzgrid(k-1)*b_iny0(:,:,k)  !two kz grid
   END DO
 
@@ -517,7 +400,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   ! SECOND ORDER  BZ TERMS DXDXBZ,DXDYBZ,DXDZBZ, DYDYBz,DYDZBz, DZDZBz
   !dxdxbz
 
-  DO i=mype+1,nkx0-1,n_mpi_procs
+  DO i=mype+1,nkx0,n_mpi_procs
      temp_smallm(i,:,:)=i_complex*kxgrid(i-1)*i_complex*kxgrid(i-1)*b_inz0(i,:,:) ! there is  two i's in the
   END DO
 
@@ -529,8 +412,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   CALL torealspace(temp_small,dxdxbz)
 
   !dxdybz
-  DO i=mype+1,nkx0-1,n_mpi_procs
-     DO j=0,nky0-1
+  DO i=mype+1,nkx0,n_mpi_procs
+     DO j=1,nky0
         temp_smallm(i,j,:)=i_complex*kxgrid(i-1)*i_complex*kygrid(j-1)*b_inz0(i,j,:)
      END DO
   END DO
@@ -543,8 +426,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   CALL torealspace(temp_small,dxdybz)
 
   !dxdzbz
-  DO i=mype+1,nkx0-1,n_mpi_procs
-     DO k=0,nkz0-1
+  DO i=mype+1,nkx0,n_mpi_procs
+     DO k=1,nkz0
         temp_smallm(i,:,k)=i_complex*kxgrid(i-1)*i_complex*kzgrid(k-1)*b_inz0(i,:,k)
      END DO
   END DO
@@ -557,7 +440,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   CALL torealspace(temp_small,dxdzbz)
 
   ! DYDYbz
-  DO j=mype+1,nky0-1,n_mpi_procs
+  DO j=mype+1,nky0,n_mpi_procs
      temp_smallm(:,j,:)=i_complex*kygrid(j-1)*i_complex*kygrid(j-1)*b_inz0(:,j,:)  ! towo y grid
   END DO
 
@@ -569,8 +452,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   CALL torealspace(temp_small,dydybz)
 
   ! DYDzbz
-  DO j=mype+1,nky0-1,n_mpi_procs
-     DO k=0,nkz0-1
+  DO j=mype+1,nky0,n_mpi_procs
+     DO k=1,nkz0
         temp_smallm(:,j,k)=i_complex*kygrid(j-1)*i_complex*kzgrid(k-1)*b_inz0(:,j,k)
      END DO
   END DO
@@ -583,7 +466,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   CALL torealspace(temp_small,dydzbz)
 
   ! DzDzbz
-  DO k=mype+1,nkz0-1,n_mpi_procs
+  DO k=mype+1,nkz0,n_mpi_procs
      temp_smallm(:,:,k)=i_complex*kzgrid(k-1)*i_complex*kzgrid(k-1)*b_inz0(:,:,k)  !two kz grid
   END DO
 
@@ -601,7 +484,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   ! TERMS BX BY BZ
 
   !bx
-  DO i=mype+1,nkx0-1,n_mpi_procs
+  DO i=mype+1,nkx0,n_mpi_procs
      temp_smallm(i,:,:)=b_inx0(i,:,:)
   END DO
 
@@ -613,7 +496,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   CALL torealspace(temp_small,bx)
 
   !by
-  DO j=mype+1,nky0-1,n_mpi_procs
+  DO j=mype+1,nky0,n_mpi_procs
      temp_smallm(:,j,:)=b_iny0(:,j,:)
   END DO
 
@@ -625,7 +508,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   CALL torealspace(temp_small,by)
 
   !bz
-  DO k=mype+1,nkz0-1,n_mpi_procs
+  DO k=mype+1,nkz0,n_mpi_procs
      temp_smallm(:,:,k)=b_inz0(:,:,k)
   END DO
 
@@ -640,7 +523,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
 
 !!! TERMS  vx,vy,vz
   !vx
-  DO i=mype+1,nkx0-1,n_mpi_procs
+  DO i=mype+1,nkx0,n_mpi_procs
      temp_smallm(i,:,:)=v_inx0(i,:,:)
   END DO
 
@@ -652,7 +535,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   CALL torealspace(temp_small,vx)
 
   !vy
-  DO j=mype+1,nky0-1,n_mpi_procs
+  DO j=mype+1,nky0,n_mpi_procs
      !temp_small(i,:,:)=i_complex*kxgrid(i-1)*phi_in(i,:,:)
      temp_smallm(:,j,:)=v_iny0(:,j,:)
   END DO
@@ -665,7 +548,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   CALL torealspace(temp_small,vy)
 
   !vz
-  DO k=mype+1,nkz0-1,n_mpi_procs
+  DO k=mype+1,nkz0,n_mpi_procs
      temp_smallm(:,:,k)=v_inz0(:,:,k)
   END DO
 
@@ -679,7 +562,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   !  FIRST ORDER VX TERMS DXVX , DYVX,  DZVX
 
   ! dxvx
-  DO i=mype+1,nkx0-1,n_mpi_procs
+  DO i=mype+1,nkx0,n_mpi_procs
      temp_smallm(i,:,:)=i_complex*kxgrid(i-1)*v_inx0(i,:,:)
   END DO
 
@@ -691,7 +574,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   CALL torealspace(temp_small,dxvx)
 
   ! dyvx
-  DO j=mype+1,nky0-1,n_mpi_procs
+  DO j=mype+1,nky0,n_mpi_procs
      temp_smallm(:,j,:)=i_complex*kygrid(j-1)*v_inx0(:,j,:)
   END DO
 
@@ -703,7 +586,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   CALL torealspace(temp_small,dyvx)
 
   ! dzvx
-  DO k=mype+1,nkz0-1,n_mpi_procs
+  DO k=mype+1,nkz0,n_mpi_procs
      temp_smallm(:,:,k)=i_complex*kzgrid(k-1)*v_inx0(:,:,k)
   END DO
 
@@ -717,7 +600,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   !  FIRST ORDER VY TERMS  dxvy dyvy dzvz,
 
   ! dxvy
-  DO i=mype+1,nkx0-1,n_mpi_procs
+  DO i=mype+1,nkx0,n_mpi_procs
      temp_smallm(i,:,:)=i_complex*kxgrid(i-1)*v_iny0(i,:,:)
   END DO
 
@@ -729,7 +612,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   CALL torealspace(temp_small,dxvy)
 
   ! dyvy
-  DO j=mype+1,nky0-1,n_mpi_procs
+  DO j=mype+1,nky0,n_mpi_procs
      temp_smallm(:,j,:)=i_complex*kygrid(j-1)*v_iny0(:,j,:)
   END DO
 
@@ -741,7 +624,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   CALL torealspace(temp_small,dyvy)
 
   ! dzvy
-  DO k=mype+1,nkz0-1,n_mpi_procs
+  DO k=mype+1,nkz0,n_mpi_procs
      temp_smallm(:,:,k)=i_complex*kzgrid(k-1)*v_iny0(:,:,k)
   END DO
 
@@ -754,7 +637,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
 
   !  FIRST ORDER VZ TERMS  dxvz dyvz dzvz
   ! dxvz
-  DO i=mype+1,nkx0-1,n_mpi_procs
+  DO i=mype+1,nkx0,n_mpi_procs
      temp_smallm(i,:,:)=i_complex*kxgrid(i-1)*v_inz0(i,:,:)
   END DO
 
@@ -766,7 +649,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   CALL torealspace(temp_small,dxvz)
 
   ! dyvz
-  DO j=mype+1,nky0-1,n_mpi_procs
+  DO j=mype+1,nky0,n_mpi_procs
      temp_smallm(:,j,:)=i_complex*kygrid(j-1)*v_inz0(:,j,:)
   END DO
 
@@ -778,7 +661,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   CALL torealspace(temp_small,dyvz)
 
   ! dzvz
-  DO k=mype+1,nkz0-1,n_mpi_procs
+  DO k=mype+1,nkz0,n_mpi_procs
      temp_smallm(:,:,k)=i_complex*kzgrid(k-1)*v_inz0(:,:,k)
   END DO
 
@@ -793,7 +676,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   if (nv.eq..false.) then
   ! FIRST ORDER BX TERMS ie. dxbx dybx dzbx`
   ! dxbx
-  DO i=mype+1,nkx0-1,n_mpi_procs
+  DO i=mype+1,nkx0,n_mpi_procs
      temp_smallm(i,:,:)=i_complex*kxgrid(i-1)*b_inx0(i,:,:)
   END DO
 
@@ -805,7 +688,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   CALL torealspace(temp_small,dxbx)
 
   ! dybx
-  DO j=mype+1,nky0-1,n_mpi_procs
+  DO j=mype+1,nky0,n_mpi_procs
      temp_smallm(:,j,:)=i_complex*kygrid(j-1)*b_inx0(:,j,:)
   END DO
 
@@ -817,7 +700,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   CALL torealspace(temp_small,dybx)
 
   ! dzbx
-  DO k=mype+1,nkz0-1,n_mpi_procs
+  DO k=mype+1,nkz0,n_mpi_procs
      temp_smallm(:,:,k)=i_complex*kzgrid(k-1)*b_inx0(:,:,k)
   END DO
 
@@ -830,7 +713,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
 
   !  FIRST ORDER BY TERMS ie. dxby dyby dzby
   ! dxby
-  DO i=mype+1,nkx0-1,n_mpi_procs
+  DO i=mype+1,nkx0,n_mpi_procs
      temp_smallm(i,:,:)=i_complex*kxgrid(i-1)*b_iny0(i,:,:)
   END DO
 
@@ -842,7 +725,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   CALL torealspace(temp_small,dxby)
 
   ! dyby
-  DO j=mype+1,nky0-1,n_mpi_procs
+  DO j=mype+1,nky0,n_mpi_procs
      temp_smallm(:,j,:)=i_complex*kygrid(j-1)*b_iny0(:,j,:)
   END DO
 
@@ -854,7 +737,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   CALL torealspace(temp_small,dyby)
 
   ! dzby
-  DO k=mype+1,nkz0-1,n_mpi_procs
+  DO k=mype+1,nkz0,n_mpi_procs
      temp_smallm(:,:,k)=i_complex*kzgrid(k-1)*b_iny0(:,:,k)
   END DO
 
@@ -867,7 +750,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
 
   !! FIRST ORDER BZ TERMS ie. dxbz dybz dzbz
   ! dxbz
-  DO i=mype+1,nkx0-1,n_mpi_procs
+  DO i=mype+1,nkx0,n_mpi_procs
      temp_smallm(i,:,:)=i_complex*kxgrid(i-1)*b_inz0(i,:,:)
   END DO
 
@@ -879,7 +762,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   CALL torealspace(temp_small,dxbz)
 
   ! dybz
-  DO j=mype+1,nky0-1,n_mpi_procs
+  DO j=mype+1,nky0,n_mpi_procs
      temp_smallm(:,j,:)=i_complex*kygrid(j-1)*b_inz0(:,j,:)
   END DO
 
@@ -891,7 +774,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   CALL torealspace(temp_small,dybz)
 
   ! dzbz
-  DO k=mype+1,nkz0-1,n_mpi_procs
+  DO k=mype+1,nkz0,n_mpi_procs
      temp_smallm(:,:,k)=i_complex*kzgrid(k-1)*b_inz0(:,:,k)
   END DO
 
@@ -1124,9 +1007,8 @@ endif
   IF (verbose.and.(mype.eq.0)) CALL cpu_time(dum)
   IF(verbose.and.(mype.eq.0)) print *, 'RHS NL PostWrite Time:',dum-sttime
 
-  if (calc_dt) CALL next_dt(ndt)
-  if (.not.(calc_dt)) ndt = dt_max
-  if (verbose.and.(mype.eq.0)) print *, 'next dt calculated ',ndt
+  CALL DEALLOCATIONS
+
   IF (verbose.and.(mype.eq.0)) CALL cpu_time(dum)
   IF(verbose.and.(mype.eq.0)) print *, 'RHS NL Total Time:',dum-sttime
 
@@ -1211,7 +1093,6 @@ implicit none
 complex :: arr_real(1:nx0_big,1:ny0_big,1:local_N)
 complex :: arr_spec(0:nkx0-1,0:nky0-1,0:nkz0-1)
 complex :: arr_specm(0:nkx0-1,0:nky0-1,0:nkz0-1)
-integer :: s
 
   data = cmplx(0.0,0.0)
   arr_specm = cmplx(0.0,0.0)
@@ -1219,7 +1100,10 @@ integer :: s
   data = arr_real
   CALL fftw_mpi_execute_dft(plan_r2c,data,data)
   if (verbose.and.(mype.eq.0)) print *, 'Through ffft'
-  if (local_j_offset.lt.nkz0) arr_specm(0:nkx0-1,0:nky0-1,local_j_offset:min(nkz0-1,local_j_offset+local_N-1)) = data(1:nkx0,1:nky0,local_j_offset+1:min(nkz0,local_j_offset+local_N))
+  DO k = 1,local_N
+    if ((k+local_k_offset).le.nkz0) arr_specm(0:nkx0-1,0:nky0-1,local_k_offset+k-1) = data(1:nkx0,1:nky0,local_k_offset+k)
+  ENDDO
+
   if (verbose.and.(mype.eq.0)) print *, 'Through post assignment'
 
   CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
@@ -1233,7 +1117,191 @@ END FUNCTION fft_spec2
 
 SUBROUTINE finalize_fourier
 
-implicit none
+!  call fftw_cleanup()
+!  if (verbose.and.(mype.eq.0)) print *, 'cleaned up'
+  call fftw_destroy_plan(plan_c2r)
+  if (verbose.and.(mype.eq.0)) print *, "Destroyed c2r"
+  call fftw_destroy_plan(plan_r2c)
+  if (verbose.and.(mype.eq.0)) print *, "Destroyed r2c"
+!  DEALLOCATE(data)
+!  DEALLOCATE(datai)
+!  if (verbose.and.(mype.eq.0)) print *, 'deallocated nl code'
+  call fftw_free(cdata)
+  call fftw_free(cdatai)
+  if (verbose.and.(mype.eq.0)) print *, 'freed arrays'
+  call fftw_cleanup() 
+  if (verbose.and.(mype.eq.0)) print *, 'cleaned up' 
+
+END SUBROUTINE finalize_fourier
+
+SUBROUTINE torealspace(temp_small,output)
+
+  COMPLEX(C_DOUBLE_COMPLEX), intent(inout) :: temp_small(1:nkx0,1:nky0,1:nkz0)
+  COMPLEX(C_DOUBLE_COMPLEX), intent(out) :: output(1:nx0_big,1:ny0_big,1:nz0_big)
+  INTEGER(C_INTPTR_T) :: xcind,ycind,zcind
+
+ IF (verbose.and.(mype.eq.0)) print *, maxval(abs(temp_small))
+
+  datai = cmplx(0.0,0.0)
+  output = cmplx(0.0,0.0)
+
+  DO k = 1,min(local_Ni,nkz0),n_mpi_procs
+    DO j = 1,nky0
+      DO i = 1,nkx0
+        if ((k+local_k_offseti).le.nkz0) datai(i,j,k) = temp_small(i,j,k+local_k_offseti)
+        if (dealias_type.eq.3) then 
+          if (((k+local_k_offseti).le.2*nkz0).and.((k+local_k_offseti).gt.nkz0+1)) then
+            datai(i,j,k) = conjg(temp_small(1+mod(nkx0+1-i,nkx0),1+mod(nky0+1-j,nky0),1+mod(2*nkz0+1-(k+local_k_offseti),2*nkz0)))
+          endif
+        endif
+      ENDDO
+    ENDDO
+  ENDDO
+
+ IF (verbose.and.(mype.eq.0)) print *, maxval(abs(datai))
+
+!  if (verbose.and.(mype.eq.0)) print *,'Through \"temp big\"'
+
+ CALL fftw_mpi_execute_dft(plan_c2r,datai,datai)
+ output = datai
+ temp_small = cmplx(0.0,0.0)
+
+ IF (verbose.and.(mype.eq.0)) print *, maxval(abs(datai)),maxval(abs(output))
+
+END SUBROUTINE torealspace
+
+SUBROUTINE ALLOCATIONS
+
+! ALLOCATIONS
+  ALLOCATE(temp_small(1:nkx0,1:nky0,1:nkz0))
+  ALLOCATE(temp_smallm(1:nkx0,1:nky0,1:nkz0))
+  ALLOCATE(temp_bigm(1:nx0_big,1:ny0_big,1:local_Ni))
+  ALLOCATE(temp_bigx(1:nx0_big,1:ny0_big,1:local_N))
+  ALLOCATE(temp_bigy(1:nx0_big,1:ny0_big,1:local_N))
+  ALLOCATE(temp_bigz(1:nx0_big,1:ny0_big,1:local_N))
+  ALLOCATE(temp_bigbx(0:nkx0-1,0:nky0-1,0:nkz0-1))
+  ALLOCATE(temp_bigby(0:nkx0-1,0:nky0-1,0:nkz0-1))
+  ALLOCATE(temp_bigbz(0:nkx0-1,0:nky0-1,0:nkz0-1))
+  ALLOCATE(temp_bigvx(0:nkx0-1,0:nky0-1,0:nkz0-1))
+  ALLOCATE(temp_bigvy(0:nkx0-1,0:nky0-1,0:nkz0-1))
+  ALLOCATE(temp_bigvz(0:nkx0-1,0:nky0-1,0:nkz0-1))
+  ALLOCATE(store_bxm(1:nx0_big,1:ny0_big,1:local_N))
+  ALLOCATE(store_bym(1:nx0_big,1:ny0_big,1:local_N))
+  ALLOCATE(store_bzm(1:nx0_big,1:ny0_big,1:local_N))
+  ALLOCATE(store_vxm(1:nx0_big,1:ny0_big,1:local_N))
+  ALLOCATE(store_vym(1:nx0_big,1:ny0_big,1:local_N))
+  ALLOCATE(store_vzm(1:nx0_big,1:ny0_big,1:local_N))
+  ALLOCATE(store_vx(1:nx0_big,1:ny0_big,1:local_N))
+  ALLOCATE(store_vy(1:nx0_big,1:ny0_big,1:local_N))
+  ALLOCATE(store_vz(1:nx0_big,1:ny0_big,1:local_N))
+  ALLOCATE(store_bx(1:nx0_big,1:ny0_big,1:local_N))
+  ALLOCATE(store_by(1:nx0_big,1:ny0_big,1:local_N))
+  ALLOCATE(store_bz(1:nx0_big,1:ny0_big,1:local_N))
+
+  ALLOCATE(output(1:nx0_big,1:ny0_big,1:nz0_big))
+ 
+! All b arrays  
+  ALLOCATE(bx(1:nx0_big,1:ny0_big,1:local_Ni))
+  ALLOCATE(by(1:nx0_big,1:ny0_big,1:local_Ni))
+  ALLOCATE(bz(1:nx0_big,1:ny0_big,1:local_Ni))
+
+! All v arrays 
+  ALLOCATE(vx(1:nx0_big,1:ny0_big,1:local_Ni))
+  ALLOCATE(vy(1:nx0_big,1:ny0_big,1:local_Ni))
+  ALLOCATE(vz(1:nx0_big,1:ny0_big,1:local_Ni))
+! all first order v arrays  
+  !vx                                                                                                                                                                                   
+  ALLOCATE(dxvx(1:nx0_big,1:ny0_big,1:local_Ni))
+  ALLOCATE(dyvx(1:nx0_big,1:ny0_big,1:local_Ni))
+  ALLOCATE(dzvx(1:nx0_big,1:ny0_big,1:local_Ni))
+  !vy 
+  ALLOCATE(dxvy(1:nx0_big,1:ny0_big,1:local_Ni))
+  ALLOCATE(dyvy(1:nx0_big,1:ny0_big,1:local_Ni))
+  ALLOCATE(dzvy(1:nx0_big,1:ny0_big,1:local_Ni))
+  !vz  
+  ALLOCATE(dxvz(1:nx0_big,1:ny0_big,1:local_Ni))
+  ALLOCATE(dyvz(1:nx0_big,1:ny0_big,1:local_Ni))
+  ALLOCATE(dzvz(1:nx0_big,1:ny0_big,1:local_Ni))
+! all first order b arrays 
+ !bx
+  ALLOCATE(dxbx(1:nx0_big,1:ny0_big,1:local_Ni))
+  ALLOCATE(dybx(1:nx0_big,1:ny0_big,1:local_Ni))
+  ALLOCATE(dzbx(1:nx0_big,1:ny0_big,1:local_Ni))
+  !by
+  ALLOCATE(dxby(1:nx0_big,1:ny0_big,1:local_Ni))
+  ALLOCATE(dyby(1:nx0_big,1:ny0_big,1:local_Ni))
+  ALLOCATE(dzby(1:nx0_big,1:ny0_big,1:local_Ni))
+  !bz
+  ALLOCATE(dxbz(1:nx0_big,1:ny0_big,1:local_Ni))
+  ALLOCATE(dybz(1:nx0_big,1:ny0_big,1:local_Ni))
+  ALLOCATE(dzbz(1:nx0_big,1:ny0_big,1:local_Ni))
+  
+! all  second order bx arrays  DXDXBX,   DXDYBX,   DXDZBX,  DYDYBX,   DYDZBX, DZDZBX
+  ALLOCATE(dxdxbx(1:nx0_big,1:ny0_big,1:local_Ni))
+  ALLOCATE(dxdybx(1:nx0_big,1:ny0_big,1:local_Ni))
+  ALLOCATE(dxdzbx(1:nx0_big,1:ny0_big,1:local_Ni))
+  ALLOCATE(dydybx(1:nx0_big,1:ny0_big,1:local_Ni))
+  ALLOCATE(dydzbx(1:nx0_big,1:ny0_big,1:local_Ni))
+  ALLOCATE(dzdzbx(1:nx0_big,1:ny0_big,1:local_Ni))
+  ! all  second order by arrays
+  ALLOCATE(dxdxby(1:nx0_big,1:ny0_big,1:local_Ni))
+  ALLOCATE(dxdyby(1:nx0_big,1:ny0_big,1:local_Ni))
+  ALLOCATE(dxdzby(1:nx0_big,1:ny0_big,1:local_Ni))
+  ALLOCATE(dydyby(1:nx0_big,1:ny0_big,1:local_Ni))
+  ALLOCATE(dydzby(1:nx0_big,1:ny0_big,1:local_Ni))
+  ALLOCATE(dzdzby(1:nx0_big,1:ny0_big,1:local_Ni))
+  ! all  second order bz arrays
+  ALLOCATE(dxdxbz(1:nx0_big,1:ny0_big,1:local_Ni))
+  ALLOCATE(dxdybz(1:nx0_big,1:ny0_big,1:local_Ni))
+  ALLOCATE(dxdzbz(1:nx0_big,1:ny0_big,1:local_Ni))
+  ALLOCATE(dydybz(1:nx0_big,1:ny0_big,1:local_Ni))
+  ALLOCATE(dydzbz(1:nx0_big,1:ny0_big,1:local_Ni))
+  ALLOCATE(dzdzbz(1:nx0_big,1:ny0_big,1:local_Ni))
+    
+  ! all  second order vx arrays i.e. DXDXVX,   DXDYVX,   DXDZVX,  DYDYVX,   DYDZVX, DZDZVX
+  ALLOCATE(dxdxvx(1:nx0_big,1:ny0_big,1:local_Ni))
+  ALLOCATE(dxdyvx(1:nx0_big,1:ny0_big,1:local_Ni))
+  ALLOCATE(dxdzvx(1:nx0_big,1:ny0_big,1:local_Ni))
+  ALLOCATE(dydyvx(1:nx0_big,1:ny0_big,1:local_Ni))
+  ALLOCATE(dydzvx(1:nx0_big,1:ny0_big,1:local_Ni))
+  ALLOCATE(dzdzvx(1:nx0_big,1:ny0_big,1:local_Ni))
+  ! all  second order vy arrays
+  ALLOCATE(dxdxvy(1:nx0_big,1:ny0_big,1:local_Ni))
+  ALLOCATE(dxdyvy(1:nx0_big,1:ny0_big,1:local_Ni))
+  ALLOCATE(dxdzvy(1:nx0_big,1:ny0_big,1:local_Ni))
+  ALLOCATE(dydyvy(1:nx0_big,1:ny0_big,1:local_Ni))
+  ALLOCATE(dydzvy(1:nx0_big,1:ny0_big,1:local_Ni))
+  ALLOCATE(dzdzvy(1:nx0_big,1:ny0_big,1:local_Ni))
+  ! all  second order bz arrays
+  ALLOCATE(dxdxvz(1:nx0_big,1:ny0_big,1:local_Ni))
+  ALLOCATE(dxdyvz(1:nx0_big,1:ny0_big,1:local_Ni))
+  ALLOCATE(dxdzvz(1:nx0_big,1:ny0_big,1:local_Ni))
+  ALLOCATE(dydyvz(1:nx0_big,1:ny0_big,1:local_Ni))
+  ALLOCATE(dydzvz(1:nx0_big,1:ny0_big,1:local_Ni))
+  ALLOCATE(dzdzvz(1:nx0_big,1:ny0_big,1:local_Ni))
+
+  ! nonlinearities
+  IF (plot_nls.and.(mod(counter,4).eq.0)) THEN
+  ALLOCATE(bdv(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
+  ALLOCATE(vdb(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
+  ALLOCATE(bdcb(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
+  ALLOCATE(cbdb(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
+  ALLOCATE(vdv(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
+  ALLOCATE(bdb(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
+  ALLOCATE(db2(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
+  ENDIF
+
+  ! initial arrays
+  ALLOCATE(b_inx0(1:nkx0,1:nky0,1:nkz0))
+  ALLOCATE(b_iny0(1:nkx0,1:nky0,1:nkz0))
+  ALLOCATE(b_inz0(1:nkx0,1:nky0,1:nkz0))
+  ALLOCATE(v_inx0(1:nkx0,1:nky0,1:nkz0))
+  ALLOCATE(v_iny0(1:nkx0,1:nky0,1:nkz0))
+  ALLOCATE(v_inz0(1:nkx0,1:nky0,1:nkz0))
+
+END SUBROUTINE ALLOCATIONS
+
+SUBROUTINE DEALLOCATIONS
 
 DEALLOCATE(temp_small)
 DEALLOCATE(temp_smallm)
@@ -1351,7 +1419,7 @@ if (verbose.and.(mype.eq.0)) print *, 'first third deallocated'
   DEALLOCATE(dydzvz)
   DEALLOCATE(dzdzvz)
   
-  if (plot_nls) then
+  if (plot_nls.and.(mod(counter,4).eq.3)) then
   DEALLOCATE(bdv)
   DEALLOCATE(vdb)
   DEALLOCATE(bdcb)
@@ -1370,56 +1438,7 @@ if (verbose.and.(mype.eq.0)) print *, 'first third deallocated'
   DEALLOCATE(v_iny0)
   DEALLOCATE(v_inz0)
 
-  DEALLOCATE(data)
-  DEALLOCATE(datai)
-
-  if (verbose.and.(mype.eq.0)) print *, 'deallocated nl code'
-  call fftw_destroy_plan(plan_r2c)
-  call fftw_destroy_plan(plan_c2r)
-
-if (verbose.and.(mype.eq.0)) print *, "Destroyed plans"
-call fftw_cleanup()
-if (verbose.and.(mype.eq.0)) print *, 'cleaned up'
-call fftw_free(cdata)
-call fftw_free(cdatai)
-
-END SUBROUTINE finalize_fourier
-
-SUBROUTINE torealspace(temp_small,output)
-
-  COMPLEX(C_DOUBLE_COMPLEX), intent(inout) :: temp_small(1:nkx0,1:nky0,1:nkz0)
-  COMPLEX(C_DOUBLE_COMPLEX), intent(out) :: output(1:nx0_big,1:ny0_big,1:nz0_big)
-  INTEGER(C_INTPTR_T) :: xcind,ycind,zcind
-
- IF (verbose.and.(mype.eq.0)) print *, maxval(abs(temp_small))
-
-  datai = cmplx(0.0,0.0)
-  output = cmplx(0.0,0.0)
-
-  DO k = 1,min(local_Ni,nkz0),n_mpi_procs
-    DO j = 1,nky0
-      DO i = 1,nkx0
-        if (k.le.nkz0) datai(i,j,k) = temp_small(i,j,k+local_j_offseti)
-        if (dealias_type.eq.3) then 
-          if ((k.le.2*nkz0).and.(k.gt.nkz0+1)) then 
-            datai(i,j,k) = conjg(temp_small(1+mod(nkx0+1-i,nkx0),1+mod(nky0+1-j,nky0),1+mod(2*nkz0+1-(k+local_j_offseti),2*nkz0)))
-          endif
-        endif
-      ENDDO
-    ENDDO
-  ENDDO
-
- IF (verbose.and.(mype.eq.0)) print *, maxval(abs(datai))
-
-!  if (verbose.and.(mype.eq.0)) print *,'Through \"temp big\"'
-
- CALL fftw_mpi_execute_dft(plan_c2r,datai,datai)
- output = datai
- temp_small = cmplx(0.0,0.0)
-
- IF (verbose.and.(mype.eq.0)) print *, maxval(abs(datai)),maxval(abs(output))
-
-END SUBROUTINE torealspace
+END SUBROUTINE DEALLOCATIONS
 
 END MODULE nonlinearity
 
