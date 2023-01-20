@@ -36,15 +36,16 @@ MODULE nonlinearity
   REAL, PUBLIC :: ve_max(2)
 
   COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:) :: b_inx0, b_iny0,  b_inz0, v_inx0, v_iny0,  v_inz0
-  COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:) :: temp_small, temp_bigx, temp_bigy, temp_bigz,temp_bigbx, temp_bigby, temp_bigbz,temp_bigvx, temp_bigvy, temp_bigvz,temp_smallm,temp_bigm
+  COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:) :: temp_small,temp_smallm
 
   COMPLEX(C_DOUBLE_COMPLEX), DIMENSION(:,:,:), pointer :: data,datai
   TYPE(C_PTR) :: plan_c2r,plan_r2c
   TYPE(C_PTR) :: cdatai,cdata
   INTEGER(C_INTPTR_T) :: alloc_local,local_N,local_k_offset,alloc_locali,local_Ni,local_k_offseti,i,j,k,l,h
 
-  COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:) ::  store_bx, store_by, store_bz,store_bxm,store_bym,store_bzm,store_vx, store_vy, store_vz,store_vxm,store_vym,store_vzm
-  COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:,:) ::  bdv,vdb,bdcb,cbdb,vdv,bdb,db2
+  COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:) ::  store_bx, store_by, store_bz,store_vx, store_vy, store_vz
+  COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:,:) ::  bdv,vdb,bdcb,cbdb,vdv,bdb,db2,rhs_out_nlb,rhs_out_nlv
+  COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:) :: arr_spec,arr_specm
 
   COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:) :: bx,by,bz, dxbx, dybx,dzbx, dxby,dyby,dzby, dxbz,dybz,dzbz
   COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:) :: vx,vy,vz, dxvx, dyvx,dzvx, dxvy,dyvy,dzvy, dxvz,dyvz,dzvz
@@ -104,7 +105,7 @@ SUBROUTINE initialize_fourier_ae_mu0
   counter = 0
 
   ! Set Up Modern FFTW Plan
-  DO l = 0,1 
+
 
   alloc_local = fftw_mpi_local_size_3d(nz0_big, ny0_big, nx0_big, MPI_COMM_WORLD, &
     local_N, local_k_offset)
@@ -134,45 +135,50 @@ SUBROUTINE initialize_fourier_ae_mu0
   IF(mype==0) WRITE(*,*) "hkz_ind,lkz_ind",hkz_ind,lkz_ind
   IF(mype==0) WRITE(*,*) "lkz_big",lkz_big
 
-IF (l.eq.0) THEN
+  if (verbose) print *,'Is local_N local_Ni?',mype,(local_N.eq.local_Ni),local_N,local_Ni
+  if (verbose) print *,'Are offsets 0?',mype,local_k_offset,local_k_offseti
+
+IF (.false.) THEN
 ! Practice FFTs
-  do k = 1, local_N
-    do j = 1,ny0_big
-    do i = 1, nx0_big
-       data(i, j,k) = 1.0/real(i) + 1.0/(real(k+local_k_offset))+1.0/real(j)
-   end do
-   end do 
-  end do
+!  do k = 1, local_N
+!    do j = 1,ny0_big
+!    do i = 1, nx0_big
+!       data(i, j,k) = 1.0/real(i) + 1.0/(real(k+local_k_offset))+1.0/real(j)
+!   end do
+!   end do 
+!  end do
+ ! print *, 'Pre FFT',data
+!
+!  print *, maxval(abs(data))
+!  call fftw_mpi_execute_dft(plan_r2c, data, data)
+!  print *, 'Through FFFT'
+!  print *, 'Max FFTd data',maxval(abs(data))
+!
+!  do k = 1, local_Ni
+!    do j = 1,ny0_big
+!    do i = 1, nx0_big
+!      datai(i,j,k) = data(i,j,k)
+!   end do
+!   end do
+!  end do
+!
+!  print *,maxval(abs(datai))
 
-
-  if (verbose.and.(mype.eq.0)) print *,'Is local_N local_Ni?',(local_N.eq.local_Ni),local_N,local_Ni
-  if (verbose.and.(mype.eq.0)) print *,'Are offsets 0?',local_k_offset,local_k_offseti
-
-  print *, maxval(abs(data))
-
-    call fftw_mpi_execute_dft(plan_r2c, data, data)
-  print *, 'Through FFFT'
-  print *, 'Max FFTd data',maxval(abs(data))
-
-  do k = 1, local_Ni
-    do j = 1,ny0_big
-    do i = 1, nx0_big
-       datai(i, j,k) = data(i,j,k)**2
-   end do
-   end do
-  end do
-
-  print *,maxval(abs(datai))
-
-  call MPI_BARRIER(MPI_COMM_WORLD,ierr)
-  call fftw_mpi_execute_dft(plan_c2r,datai,datai)
-  print *, 'Through IFFT'
-
-  call fftw_destroy_plan(plan_c2r)
-  call fftw_destroy_plan(plan_r2c)
-  print *, 'Plans Destroyed'
+!  call MPI_BARRIER(MPI_COMM_WORLD,ierr)
+!  call fftw_mpi_execute_dft(plan_c2r,datai,datai)
+!  print *, 'Post IFFT',datai*fft_norm
+!  print *, 'Through IFFT'
+!  call fftw_destroy_plan(plan_c2r)
+!  call fftw_destroy_plan(plan_r2c)
+!  print *, 'Plans Destroyed'
+!  call fftw_free(cdata)
+!  call fftw_free(cdatai)
+!  print *, 'Freed Cdata'
+  call fftw_cleanup()
+  print *, "Cleaned First Time"
   ENDIF
-ENDDO
+
+  CALL ALLOCATIONS
 
 END SUBROUTINE initialize_fourier_ae_mu0
 
@@ -207,20 +213,17 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   COMPLEX, INTENT(in) :: v_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
   COMPLEX, INTENT(inout) :: rhs_out_b(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
   COMPLEX, INTENT(inout) :: rhs_out_v(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
-  COMPLEX :: rhs_out_nlb(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
-  COMPLEX :: rhs_out_nlv(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2) 
-  COMPLEX :: rhs_out_nlbm(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2),rhs_out_nlvm(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+  COMPLEX :: rhs_out_nlb(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2)
+  COMPLEX :: rhs_out_nlv(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2) 
   REAL :: ndt,myndt
   REAL :: sttime,dum
   REAL :: rsnls
 
-  IF (verbose.and.(mype.eq.0)) CALL cpu_time(sttime)
+  IF ((mype.eq.0)) CALL cpu_time(sttime)
   IF (verbose.and.(mype.eq.0)) CALL cpu_time(dum)
   IF(verbose.and.(mype.eq.0)) print *, 'RHS NL Start Time:',dum - sttime
   ! I dont want to change g_in, so I copy temporaly to g_in0
   !g_in0 = g_in
-
-  CALL ALLOCATIONS
 
   b_inx0(1:nkx0,1:nky0,1:nkz0) = b_in(0:nkx0-1,0:nky0-1,0:nkz0-1,0)
   b_iny0(1:nkx0,1:nky0,1:nkz0) = b_in(0:nkx0-1,0:nky0-1,0:nkz0-1,1)
@@ -885,40 +888,23 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   IF(verbose.and.(mype.eq.0)) print *, 'RHS NL PostNLEq Time:',dum-sttime
   IF(verbose.and.(mype.eq.0)) print *, 'NL BVx Store Values', maxval(abs(store_bx)),maxval(abs(store_vx))
 
-if (nv.eq..false.) then
-  temp_bigbx = fft_spec2(store_bx)
-  temp_bigby = fft_spec2(store_by) 
-  temp_bigbz = fft_spec2(store_bz) 
-endif
-
-  temp_bigvx = fft_spec2(store_vx)
-  temp_bigvy = fft_spec2(store_vy)
-  temp_bigvz = fft_spec2(store_vz)
+  if (nv.eq..false.) then
+  rhs_out_nlb = cmplx(0.0,0.0)
+  rhs_out_nlb(:,:,:,0) = fft_spec2(store_bx)
+  rhs_out_nlb(:,:,:,1) = fft_spec2(store_by) 
+  rhs_out_nlb(:,:,:,2) = fft_spec2(store_bz) 
+  endif
+  rhs_out_nlv = cmplx(0.0,0.0)
+  rhs_out_nlv(:,:,:,0) = fft_spec2(store_vx)
+  rhs_out_nlv(:,:,:,1) = fft_spec2(store_vy)
+  rhs_out_nlv(:,:,:,2) = fft_spec2(store_vz)
 
   IF (verbose.and.(mype.eq.0)) CALL cpu_time(dum)
   IF(verbose.and.(mype.eq.0)) print *, 'RHS NL PostFFFTs Time:',dum-sttime
 
   !Now fill in appropriate rhs elements
-
-  if (nv.eq..false.) then
-  DO i=mype,nkx0-1,n_mpi_procs
-        rhs_out_nlbm(i,:,:,0)=temp_bigbx(i,0:nky0-1,0:nkz0-1)
-        rhs_out_nlbm(i,:,:,1)=temp_bigby(i,0:nky0-1,0:nkz0-1)
-        rhs_out_nlbm(i,:,:,2)=temp_bigbz(i,0:nky0-1,0:nkz0-1)
-  END DO!i loop                                                 
-  endif
-
-  DO i=mype,nkx0-1,n_mpi_procs
-        rhs_out_nlvm(i,:,:,0)=temp_bigvx(i,0:nky0-1,0:nkz0-1)
-        rhs_out_nlvm(i,:,:,1)=temp_bigvy(i,0:nky0-1,0:nkz0-1)
-        rhs_out_nlvm(i,:,:,2)=temp_bigvz(i,0:nky0-1,0:nkz0-1)
-  END DO!i loop
-
-  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-  CALL MPI_ALLREDUCE(rhs_out_nlvm,rhs_out_nlv,nkx0*nky0*nkz0*3&
-      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
-  if (nv.eq..false.) CALL MPI_ALLREDUCE(rhs_out_nlbm,rhs_out_nlb,nkx0*nky0*nkz0*3&
-      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
+  if ((mype.eq.0)) print *,'Max NLB',maxval(abs(rhs_out_nlb)),maxloc(abs(rhs_out_nlb))
+  if ((mype.eq.0)) print *,'Max NLV',maxval(abs(rhs_out_nlv)),maxloc(abs(rhs_out_nlv))
 
   rhs_out_v = rhs_out_v + rhs_out_nlv
   if (nv.eq..false.) rhs_out_b = rhs_out_b + rhs_out_nlb
@@ -929,7 +915,7 @@ endif
   if (calc_dt) CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
   if (calc_dt) CALL MPI_ALLREDUCE(myndt,ndt,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD,ierr)
   if (.not.(calc_dt)) ndt = dt_max
-  if (verbose.and.(mype.eq.0)) print *, 'next dt calculated ',ndt
+  if ((mype.eq.0)) print *, 'next dt calculated ',ndt
 
   IF ((plot_nls.and.(mod(itime,istep_energy).eq.0))) THEN
      rsnls = 1
@@ -939,7 +925,7 @@ endif
      bdv(:,:,:,0) = rsnls*bdv(:,:,:,0) + (5.0/12.0 - 1.0/6.0 * abs(real(counter) - 1.5)) * fft_spec2(bx*dxvx+by*dyvx+bz*dzvx)
      bdv(:,:,:,1) = rsnls*bdv(:,:,:,1) + (5.0/12.0 - 1.0/6.0 * abs(real(counter) - 1.5)) * fft_spec2(bx*dxvy+by*dyvy+bz*dzvy)
      bdv(:,:,:,2) = rsnls*bdv(:,:,:,2) + (5.0/12.0 - 1.0/6.0 * abs(real(counter) - 1.5)) * fft_spec2(bx*dxvz+by*dyvz+bz*dzvz)
-
+  if (verbose.and.(mype.eq.0)) print *, 'max val bdv',maxval(abs(bdv))
      ! v.grad b
      vdb(:,:,:,0) = rsnls*vdb(:,:,:,0) + (5.0/12.0 - 1.0/6.0 * abs(real(counter) - 1.5)) * fft_spec2(vx*dxbx+vy*dybx+vz*dzbx)
      vdb(:,:,:,1) = rsnls*vdb(:,:,:,1) + (5.0/12.0 - 1.0/6.0 * abs(real(counter) - 1.5)) * fft_spec2(vx*dxby+vy*dyby+vz*dzby)
@@ -1007,10 +993,8 @@ endif
   IF (verbose.and.(mype.eq.0)) CALL cpu_time(dum)
   IF(verbose.and.(mype.eq.0)) print *, 'RHS NL PostWrite Time:',dum-sttime
 
-  CALL DEALLOCATIONS
-
-  IF (verbose.and.(mype.eq.0)) CALL cpu_time(dum)
-  IF(verbose.and.(mype.eq.0)) print *, 'RHS NL Total Time:',dum-sttime
+  IF ((mype.eq.0)) CALL cpu_time(dum)
+  IF ((mype.eq.0)) print *, 'RHS NL Total Time:',dum-sttime
 
 END SUBROUTINE get_rhs_nl2
 
@@ -1111,7 +1095,7 @@ complex :: arr_specm(0:nkx0-1,0:nky0-1,0:nkz0-1)
 
   arr_spec = arr_spec * fft_norm
   if (verbose.and.(mype.eq.0)) print *, 'Through fft_spec2'
-  IF(verbose.and.(mype.eq.0)) print *, 'NL FFFT Maxes', maxval(abs(arr_spec)),maxloc(abs(arr_spec))
+  IF(verbose) print *, mype,'NL FFFT Maxes', maxval(abs(arr_spec)),maxloc(abs(arr_spec))
 
 END FUNCTION fft_spec2
 
@@ -1119,16 +1103,15 @@ SUBROUTINE finalize_fourier
 
 !  call fftw_cleanup()
 !  if (verbose.and.(mype.eq.0)) print *, 'cleaned up'
-  call fftw_destroy_plan(plan_c2r)
-  if (verbose.and.(mype.eq.0)) print *, "Destroyed c2r"
-  call fftw_destroy_plan(plan_r2c)
-  if (verbose.and.(mype.eq.0)) print *, "Destroyed r2c"
-!  DEALLOCATE(data)
-!  DEALLOCATE(datai)
+!  call fftw_destroy_plan(plan_c2r)
+!  if (verbose.and.(mype.eq.0)) print *, "Destroyed c2r"
+!  call fftw_destroy_plan(plan_r2c)
+!  if (verbose.and.(mype.eq.0)) print *, "Destroyed r2c"
 !  if (verbose.and.(mype.eq.0)) print *, 'deallocated nl code'
-  call fftw_free(cdata)
-  call fftw_free(cdatai)
-  if (verbose.and.(mype.eq.0)) print *, 'freed arrays'
+!  call fftw_free(cdata)
+!  call fftw_free(cdatai)
+!  if (verbose.and.(mype.eq.0)) print *, 'freed arrays'
+  CALL DEALLOCATIONS
   call fftw_cleanup() 
   if (verbose.and.(mype.eq.0)) print *, 'cleaned up' 
 
@@ -1137,7 +1120,7 @@ END SUBROUTINE finalize_fourier
 SUBROUTINE torealspace(temp_small,output)
 
   COMPLEX(C_DOUBLE_COMPLEX), intent(inout) :: temp_small(1:nkx0,1:nky0,1:nkz0)
-  COMPLEX(C_DOUBLE_COMPLEX), intent(out) :: output(1:nx0_big,1:ny0_big,1:nz0_big)
+  COMPLEX(C_DOUBLE_COMPLEX), intent(out) :: output(1:nx0_big,1:ny0_big,1:local_Ni)
   INTEGER(C_INTPTR_T) :: xcind,ycind,zcind
 
  IF (verbose.and.(mype.eq.0)) print *, maxval(abs(temp_small))
@@ -1160,13 +1143,14 @@ SUBROUTINE torealspace(temp_small,output)
 
  IF (verbose.and.(mype.eq.0)) print *, maxval(abs(datai))
 
-!  if (verbose.and.(mype.eq.0)) print *,'Through \"temp big\"'
+  if (verbose.and.(mype.eq.0)) print *,'Through \"temp big\"'
 
  CALL fftw_mpi_execute_dft(plan_c2r,datai,datai)
  output = datai
  temp_small = cmplx(0.0,0.0)
 
- IF (verbose.and.(mype.eq.0)) print *, maxval(abs(datai)),maxval(abs(output))
+ IF (verbose) print *, mype,maxval(abs(aimag(output)))
+ IF (verbose) print *, mype,maxval(abs(datai)),maxval(abs(output))
 
 END SUBROUTINE torealspace
 
@@ -1175,30 +1159,23 @@ SUBROUTINE ALLOCATIONS
 ! ALLOCATIONS
   ALLOCATE(temp_small(1:nkx0,1:nky0,1:nkz0))
   ALLOCATE(temp_smallm(1:nkx0,1:nky0,1:nkz0))
-  ALLOCATE(temp_bigm(1:nx0_big,1:ny0_big,1:local_Ni))
-  ALLOCATE(temp_bigx(1:nx0_big,1:ny0_big,1:local_N))
-  ALLOCATE(temp_bigy(1:nx0_big,1:ny0_big,1:local_N))
-  ALLOCATE(temp_bigz(1:nx0_big,1:ny0_big,1:local_N))
-  ALLOCATE(temp_bigbx(0:nkx0-1,0:nky0-1,0:nkz0-1))
-  ALLOCATE(temp_bigby(0:nkx0-1,0:nky0-1,0:nkz0-1))
-  ALLOCATE(temp_bigbz(0:nkx0-1,0:nky0-1,0:nkz0-1))
-  ALLOCATE(temp_bigvx(0:nkx0-1,0:nky0-1,0:nkz0-1))
-  ALLOCATE(temp_bigvy(0:nkx0-1,0:nky0-1,0:nkz0-1))
-  ALLOCATE(temp_bigvz(0:nkx0-1,0:nky0-1,0:nkz0-1))
-  ALLOCATE(store_bxm(1:nx0_big,1:ny0_big,1:local_N))
-  ALLOCATE(store_bym(1:nx0_big,1:ny0_big,1:local_N))
-  ALLOCATE(store_bzm(1:nx0_big,1:ny0_big,1:local_N))
-  ALLOCATE(store_vxm(1:nx0_big,1:ny0_big,1:local_N))
-  ALLOCATE(store_vym(1:nx0_big,1:ny0_big,1:local_N))
-  ALLOCATE(store_vzm(1:nx0_big,1:ny0_big,1:local_N))
+  if (verbose) print *, 'alloc ts'
+  ALLOCATE(rhs_out_nlb(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+  ALLOCATE(rhs_out_nlv(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+  if (verbose) print *,'alloc rnls'
+  ALLOCATE(arr_specm(0:nkx0-1,0:nky0-1,0:nkz0-1))
+  ALLOCATE(arr_spec(0:nkx0-1,0:nky0-1,0:nkz0-1))
+  if (verbose) print *,'alloc arrs'
   ALLOCATE(store_vx(1:nx0_big,1:ny0_big,1:local_N))
   ALLOCATE(store_vy(1:nx0_big,1:ny0_big,1:local_N))
   ALLOCATE(store_vz(1:nx0_big,1:ny0_big,1:local_N))
   ALLOCATE(store_bx(1:nx0_big,1:ny0_big,1:local_N))
   ALLOCATE(store_by(1:nx0_big,1:ny0_big,1:local_N))
   ALLOCATE(store_bz(1:nx0_big,1:ny0_big,1:local_N))
+  if (verbose) print *,'alloc stores'
 
-  ALLOCATE(output(1:nx0_big,1:ny0_big,1:nz0_big))
+  ALLOCATE(output(1:nx0_big,1:ny0_big,1:local_Ni))
+  if (verbose) print *,'alloc outputs'
  
 ! All b arrays  
   ALLOCATE(bx(1:nx0_big,1:ny0_big,1:local_Ni))
@@ -1209,6 +1186,7 @@ SUBROUTINE ALLOCATIONS
   ALLOCATE(vx(1:nx0_big,1:ny0_big,1:local_Ni))
   ALLOCATE(vy(1:nx0_big,1:ny0_big,1:local_Ni))
   ALLOCATE(vz(1:nx0_big,1:ny0_big,1:local_Ni))
+  if (verbose) print *,'alloc rawvars'
 ! all first order v arrays  
   !vx                                                                                                                                                                                   
   ALLOCATE(dxvx(1:nx0_big,1:ny0_big,1:local_Ni))
@@ -1235,6 +1213,7 @@ SUBROUTINE ALLOCATIONS
   ALLOCATE(dxbz(1:nx0_big,1:ny0_big,1:local_Ni))
   ALLOCATE(dybz(1:nx0_big,1:ny0_big,1:local_Ni))
   ALLOCATE(dzbz(1:nx0_big,1:ny0_big,1:local_Ni))
+  if (verbose) print *,'alloc derivs'
   
 ! all  second order bx arrays  DXDXBX,   DXDYBX,   DXDZBX,  DYDYBX,   DYDZBX, DZDZBX
   ALLOCATE(dxdxbx(1:nx0_big,1:ny0_big,1:local_Ni))
@@ -1257,29 +1236,8 @@ SUBROUTINE ALLOCATIONS
   ALLOCATE(dydybz(1:nx0_big,1:ny0_big,1:local_Ni))
   ALLOCATE(dydzbz(1:nx0_big,1:ny0_big,1:local_Ni))
   ALLOCATE(dzdzbz(1:nx0_big,1:ny0_big,1:local_Ni))
+  if (verbose) print *,'alloc 2derivs'
     
-  ! all  second order vx arrays i.e. DXDXVX,   DXDYVX,   DXDZVX,  DYDYVX,   DYDZVX, DZDZVX
-  ALLOCATE(dxdxvx(1:nx0_big,1:ny0_big,1:local_Ni))
-  ALLOCATE(dxdyvx(1:nx0_big,1:ny0_big,1:local_Ni))
-  ALLOCATE(dxdzvx(1:nx0_big,1:ny0_big,1:local_Ni))
-  ALLOCATE(dydyvx(1:nx0_big,1:ny0_big,1:local_Ni))
-  ALLOCATE(dydzvx(1:nx0_big,1:ny0_big,1:local_Ni))
-  ALLOCATE(dzdzvx(1:nx0_big,1:ny0_big,1:local_Ni))
-  ! all  second order vy arrays
-  ALLOCATE(dxdxvy(1:nx0_big,1:ny0_big,1:local_Ni))
-  ALLOCATE(dxdyvy(1:nx0_big,1:ny0_big,1:local_Ni))
-  ALLOCATE(dxdzvy(1:nx0_big,1:ny0_big,1:local_Ni))
-  ALLOCATE(dydyvy(1:nx0_big,1:ny0_big,1:local_Ni))
-  ALLOCATE(dydzvy(1:nx0_big,1:ny0_big,1:local_Ni))
-  ALLOCATE(dzdzvy(1:nx0_big,1:ny0_big,1:local_Ni))
-  ! all  second order bz arrays
-  ALLOCATE(dxdxvz(1:nx0_big,1:ny0_big,1:local_Ni))
-  ALLOCATE(dxdyvz(1:nx0_big,1:ny0_big,1:local_Ni))
-  ALLOCATE(dxdzvz(1:nx0_big,1:ny0_big,1:local_Ni))
-  ALLOCATE(dydyvz(1:nx0_big,1:ny0_big,1:local_Ni))
-  ALLOCATE(dydzvz(1:nx0_big,1:ny0_big,1:local_Ni))
-  ALLOCATE(dzdzvz(1:nx0_big,1:ny0_big,1:local_Ni))
-
   ! nonlinearities
   IF (plot_nls.and.(mod(counter,4).eq.0)) THEN
   ALLOCATE(bdv(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
@@ -1289,6 +1247,7 @@ SUBROUTINE ALLOCATIONS
   ALLOCATE(vdv(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
   ALLOCATE(bdb(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
   ALLOCATE(db2(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
+  if (verbose) print *,'alloc ts'
   ENDIF
 
   ! initial arrays
@@ -1298,6 +1257,7 @@ SUBROUTINE ALLOCATIONS
   ALLOCATE(v_inx0(1:nkx0,1:nky0,1:nkz0))
   ALLOCATE(v_iny0(1:nkx0,1:nky0,1:nkz0))
   ALLOCATE(v_inz0(1:nkx0,1:nky0,1:nkz0))
+  if (verbose) print *,'alloc inits'
 
 END SUBROUTINE ALLOCATIONS
 
@@ -1307,26 +1267,8 @@ DEALLOCATE(temp_small)
 DEALLOCATE(temp_smallm)
 if (verbose.and.(mype.eq.0)) print *, 'ts deallocated'
 
-DEALLOCATE(temp_bigx)
-DEALLOCATE(temp_bigbx)
-DEALLOCATE(temp_bigvx)
-DEALLOCATE(temp_bigm)
-if (verbose.and.(mype.eq.0)) print *, 'tbx deallocated'
-DEALLOCATE(temp_bigy)
-DEALLOCATE(temp_bigby)
-DEALLOCATE(temp_bigvy)
-if (verbose.and.(mype.eq.0)) print *, 'tby deallocated'
-DEALLOCATE(temp_bigz)
-DEALLOCATE(temp_bigbz)
-DEALLOCATE(temp_bigvz)
-if (verbose.and.(mype.eq.0)) print *, 'tbz deallocated'
-
-DEALLOCATE(store_bxm)
-DEALLOCATE(store_bym)
-DEALLOCATE(store_bzm)
-DEALLOCATE(store_vxm)
-DEALLOCATE(store_vym)
-DEALLOCATE(store_vzm)
+DEALLOCATE(rhs_out_nlb)
+DEALLOCATE(rhs_out_nlv)
 DEALLOCATE(store_bx)
 DEALLOCATE(store_vx)
 if (verbose.and.(mype.eq.0)) print *, 'stx deallocated'
@@ -1397,28 +1339,7 @@ if (verbose.and.(mype.eq.0)) print *, 'first third deallocated'
   DEALLOCATE(dydybz)
   DEALLOCATE(dydzbz)
   DEALLOCATE(dzdzbz)
-  ! all  second o) DXDZVX,  DYDYVX,   DYDZVX, DZDZVX
-  DEALLOCATE(dxdxvx)
-  DEALLOCATE(dxdyvx)
-  DEALLOCATE(dxdzvx)
-  DEALLOCATE(dydyvx)
-  DEALLOCATE(dydzvx)
-  DEALLOCATE(dzdzvx)
-  ! all  second o)
-  DEALLOCATE(dxdxvy)
-  DEALLOCATE(dxdyvy)
-  DEALLOCATE(dxdzvy)
-  DEALLOCATE(dydyvy)
-  DEALLOCATE(dydzvy)
-  DEALLOCATE(dzdzvy)
-  ! all  second o)
-  DEALLOCATE(dxdxvz)
-  DEALLOCATE(dxdyvz)
-  DEALLOCATE(dxdzvz)
-  DEALLOCATE(dydyvz)
-  DEALLOCATE(dydzvz)
-  DEALLOCATE(dzdzvz)
-  
+
   if (plot_nls.and.(mod(counter,4).eq.3)) then
   DEALLOCATE(bdv)
   DEALLOCATE(vdb)
@@ -1430,6 +1351,8 @@ if (verbose.and.(mype.eq.0)) print *, 'first third deallocated'
   endif
   
   DEALLOCATE(output)
+  DEALLOCATE(arr_specm)
+  DEALLOCATE(arr_spec)
 
   DEALLOCATE(b_inx0)
   DEALLOCATE(b_iny0)

@@ -328,12 +328,12 @@ SUBROUTINE get_rhs(b_in,v_in, rhs_out_b,rhs_out_v,ndt)
   INTEGER :: k
 
   CALL get_rhs_lin(b_in,v_in,rhs_out_b, rhs_out_v,0)
-  IF (verbose.and.(mype.eq.0)) WRITE(*,*) 'Lin Abs Bx kmax',abs(rhs_out_b(nkx0-1,nky0/2,nkz0/2,0))
-  IF (verbose.and.(mype.eq.0)) WRITE(*,*) 'Lin Abs Vx kmax',abs(rhs_out_v(nkx0-1,nky0/2,nkz0/2,0))
+  IF (verbose.and.(mype.eq.0)) WRITE(*,*) 'Lin Max Abs V',maxval(abs(rhs_out_v)),maxloc(abs(rhs_out_v))
+  IF (verbose.and.(mype.eq.0)) WRITE(*,*) 'Lin Max Abs B',maxval(abs(rhs_out_b)),maxloc(abs(rhs_out_b))
   !IF(nonlinear.and..not.linear_nlbox) CALL get_rhs_nl(b_in, v_in,rhs_out_b,rhs_out_v)
   IF(actual_nonlinear) CALL get_rhs_nl(b_in, v_in,rhs_out_b,rhs_out_v,ndt)
-  IF (verbose.and.(mype.eq.0)) WRITE(*,*) 'NL Max Abs B',maxval(abs(rhs_out_v)),maxloc(abs(rhs_out_v))
-  IF (verbose.and.(mype.eq.0)) WRITE(*,*) 'NL Max Abs V',maxval(abs(rhs_out_b)),maxloc(abs(rhs_out_b))
+  IF (verbose.and.(mype.eq.0)) WRITE(*,*) 'NL Max Abs V',maxval(abs(rhs_out_v)),maxloc(abs(rhs_out_v))
+  IF (verbose.and.(mype.eq.0)) WRITE(*,*) 'NL Max Abs B',maxval(abs(rhs_out_b)),maxloc(abs(rhs_out_b))
   IF (.not.(actual_nonlinear)) ndt = dt_max
 
   ! Add forcing
