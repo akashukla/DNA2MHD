@@ -28,6 +28,7 @@ MODULE par_mod
   LOGICAL :: force_kz0eq0=.false.        !Deletes kz=0 modes at each time step
   LOGICAL :: force_ky0eq0=.false.        !Deletes ky=0 modes at each time step
   LOGICAL :: force_kx0eq0=.false.        !Deletes kx=0 modes at each time step
+  LOGICAL :: forceb=.false. ! Whether or not b is forced
   REAL :: kzmin=0.1,kymin=0.1,kxmin=0.1  !minimum k's  (i.e. sets box size)
   REAL :: init_amp_bx=0.01,init_amp_by=0.01,init_amp_bz=0.01, init_amp_vx=0.01, init_amp_vy=0.01, init_amp_vz=0.01
   REAL :: init_kolm = 1.66 !initial scaling exponent of the energy spectrum i.e. vk^2 propto k^(-init_kolm)
@@ -228,6 +229,7 @@ MODULE par_mod
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:) :: phi
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:) :: gpsi ! Magnetic helicity gauge transformation added to Coulomb gauge vector potential
   REAL, ALLOCATABLE, DIMENSION(:,:) :: phi_denom
+  REAL, ALLOCATABLE, DIMENSION(:,:,:) :: kmags
 
   !for parallelization
   !Hermites

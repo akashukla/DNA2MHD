@@ -475,6 +475,8 @@ def plot_bv(lpath,ix,iy,iz,ind,show=True,ask=True):
     ax[1].plot(timev,v[:,ix,iy,iz,ind].imag,label='Im')
     ax[1].set_ylabel('v_%s'%ind_string)
     ax[0].set_xlabel('time')
+    ax[0].set_ylim(-3*np.median(np.abs(b[:,ix,iy,iz,ind])),3*np.median(np.abs(3*b[:,ix,iy,iz,ind])))
+    ax[1].set_ylim(-3*np.median(np.abs(v[:,ix,iy,iz,ind])),3*np.median(np.abs(3*v[:,ix,iy,iz,ind])))
     ax[0].legend()
     ax[1].legend()
     kx,ky,kz=get_grids()
@@ -562,7 +564,7 @@ def plot_vspectrum(lpath,ix,iy,iz,ind,show=True):
     #plt.plot(time,v_k)
     #plt.show()
     sp=fftshift(fft(v_k-np.mean(v_k)))
-    freq = fftshift(fftfreq(time.shape[-1],d=.01))
+    freq = fftshift(fftfreq(time.shape[-1],d=.1))
     omega = 2*np.pi*freq
     peaks,_ = find_peaks(np.abs(sp),threshold=10)
     print(freq[peaks])
@@ -570,6 +572,11 @@ def plot_vspectrum(lpath,ix,iy,iz,ind,show=True):
     omega_plot = omega[(omega>-2*np.pi)&(omega<2*np.pi)]
     sp_plot= sp[(omega>-2*np.pi)&(omega<2*np.pi)]
     plt.plot(omega_plot, np.abs(sp_plot))
+    rews = analytical_omega(lpath,ix,iy,iz)
+    plt.plot([rews[0],rews[0]],[-1,1])
+    plt.plot([rews[1],rews[1]],[-1,1])
+    plt.ylim(-1.2*np.max(np.abs(sp_plot)),1.2*np.max(np.abs(sp_plot)))
+    plt.xlim(0,max(rews)*1.2)
     #plt.plot(peaks, sp[peaks], "x")
     plt.ylabel('|FFT(v_%s)|'%ind_string )
     plt.xlabel('frequency')
@@ -582,7 +589,7 @@ def plot_vspectrum(lpath,ix,iy,iz,ind,show=True):
     if show == True:
         plt.show()
     plt.close()
-    return omega[peaks]
+    return freq[peaks]*2*np.pi
 
 def plot_nls(lpath,ix,iy,iz,ind,show=True,ask=True):
     """This an example method that plots the timetraces of b and v at the specified wavevector (kx[ix],ky[iy],kz[iz]).
@@ -808,8 +815,11 @@ def plot_energy(lpath,ntp,show=True):
 def analytical_omega(lpath,ix,iy,iz):
     read_parameters(lpath)
     kx,ky,kz = get_grids()
-    wp = kz[iz]*(np.sqrt(kx[ix]**2+ky[iy]**2+kz[iz]**2)/2 + np.sqrt(1+ (kx[ix]**2+ky[iy]**2+kz[iz]**2)/4))
-    wm = kz[iz]*(np.sqrt(kx[ix]**2+ky[iy]**2+kz[iz]**2)/2 - np.sqrt(1+ (kx[ix]**2+ky[iy]**2+kz[iz]**2)/4))
+    k = np.sqrt(kx[ix]**2 + ky[iy]**2 + kz[iz]**2)
+    wp = kz[iz] * np.sqrt((1+0.5*k**2) + np.sqrt((1+0.5*k**2)**2 - 1))
+    wm = kz[iz] * np.sqrt((1+0.5*k**2) - np.sqrt((1+0.5*k**2)**2 - 1))
+    #wp = kz[iz]*(-np.sqrt(kx[ix]**2+ky[iy]**2+kz[iz]**2)/2 + np.sqrt(1+ (kx[ix]**2+ky[iy]**2+kz[iz]**2)/4))
+    #wm = kz[iz]*(-np.sqrt(kx[ix]**2+ky[iy]**2+kz[iz]**2)/2 - np.sqrt(1+ (kx[ix]**2+ky[iy]**2+kz[iz]**2)/4))
     return wp,wm
 
 def fit_cexpr(t,A,r,w):

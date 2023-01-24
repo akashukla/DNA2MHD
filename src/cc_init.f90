@@ -159,6 +159,7 @@ SUBROUTINE arrays
   ELSE
     IF(.not.allocated(kzgrid)) ALLOCATE(kzgrid(0:nkz0-1))
   END IF
+  IF(.not.allocated(kmags)) ALLOCATE(kmags(0:nkx0-1,0:nky0-1,0:nkz0-1))
   IF(.not.allocated(gpsi)) ALLOCATE(gpsi(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
   !IF(.not.allocated(herm_grid)) ALLOCATE(herm_grid(0:nv0-1))
   !IF(.not.allocated(hgrid_loc)) ALLOCATE(hgrid_loc(lv1:lv2))
@@ -503,6 +504,7 @@ SUBROUTINE finalize_arrays
   IF(allocated(kxgrid)) DEALLOCATE(kxgrid)
   IF(allocated(kygrid)) DEALLOCATE(kygrid)
   IF(allocated(kzgrid)) DEALLOCATE(kzgrid)
+  IF(allocated(kmags)) DEALLOCATE(kmags)
 !  IF(allocated(herm_grid)) DEALLOCATE(herm_grid)
 !  IF(allocated(hgrid_loc)) DEALLOCATE(hgrid_loc)
 !  IF(allocated(delta_hk)) DEALLOCATE(delta_hk)

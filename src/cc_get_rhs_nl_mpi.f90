@@ -894,6 +894,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   rhs_out_nlb(:,:,:,1) = fft_spec2(store_by) 
   rhs_out_nlb(:,:,:,2) = fft_spec2(store_bz) 
   endif
+  if (nv.eq..true.) rhs_out_nlb = cmplx(0.0,0.0)
   rhs_out_nlv = cmplx(0.0,0.0)
   rhs_out_nlv(:,:,:,0) = fft_spec2(store_vx)
   rhs_out_nlv(:,:,:,1) = fft_spec2(store_vy)
@@ -903,8 +904,12 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   IF(verbose.and.(mype.eq.0)) print *, 'RHS NL PostFFFTs Time:',dum-sttime
 
   !Now fill in appropriate rhs elements
-  if ((mype.eq.0)) print *,'Max NLB',maxval(abs(rhs_out_nlb)),maxloc(abs(rhs_out_nlb))
-  if ((mype.eq.0)) print *,'Max NLV',maxval(abs(rhs_out_nlv)),maxloc(abs(rhs_out_nlv))
+  if ((mype.eq.0)) print *,'Max NLBx',&
+    maxval(abs(rhs_out_nlb(:,:,:,0))/abs(rhs_out_b(:,:,:,0)),((abs(rhs_out_b(:,:,:,0)).gt.10.0**(-7.0)).and.(kmags.gt.1.0))),&
+    maxloc(abs(rhs_out_nlb(:,:,:,0))/abs(rhs_out_b(:,:,:,0)),((abs(rhs_out_b(:,:,:,0)).gt.10.0**(-7.0)).and.(kmags.gt.1.0)))
+  if ((mype.eq.0)) print *,'Max NLVx',&
+    maxval(abs(rhs_out_nlv(:,:,:,0))/abs(rhs_out_v(:,:,:,0)),((abs(rhs_out_v(:,:,:,0)).gt.10.0**(-7.0)).and.(kmags.gt.1.0))),&
+    maxloc(abs(rhs_out_nlv(:,:,:,0))/abs(rhs_out_v(:,:,:,0)),((abs(rhs_out_v(:,:,:,0)).gt.10.0**(-7.0)).and.(kmags.gt.1.0)))
 
   rhs_out_v = rhs_out_v + rhs_out_nlv
   if (nv.eq..false.) rhs_out_b = rhs_out_b + rhs_out_nlb

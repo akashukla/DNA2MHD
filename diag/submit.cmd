@@ -8,5 +8,4 @@
 #SBATCH -A GKIMP # Project name
 
 module load python3
-python3 /work2/04943/akshukla/stampede2/DNA2MHD/diag/dna2mhd_utils_exe.py '/scratch/04943/akshukla/dna2mhd_output_zero_div'
-
+python3 linbenchmark.py

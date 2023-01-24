@@ -3,8 +3,8 @@ nu = 0.00
 omt = 5.000
 omn =    1.000    
 Ti0Te =    1.000 
-eta = 0.0
-vnu = 0.0
+eta = 1.0
+vnu = 1.0
 /
 
 &numerical_parameters
@@ -37,26 +37,26 @@ kzinit_min = 0
 kxinit_max = 64
 kyinit_max = 64
 kzinit_max = 32
-init_amp_bx = 0.1
+init_amp_bx = 1000.0
 init_amp_by = 0.1
 init_amp_bz = 0.1
 init_amp_vx = 0.1
 init_amp_vy = 0.1
 init_amp_vz = 0.0
 init_kolm = 2.0
-force_amp = 0.0
-nkxforce = 2
-nkyforce = 2
-nkzforce = 2
+force_amp = 5.0
+nkxforce = 4
+nkyforce = 4
+nkzforce = 4
 hyp = 1
 /
 
 &diagnostics
-diagdir = '/scratch/08929/echansen/dna2mhdrun306'
+diagdir = '/scratch/08929/echansen/dna2mhdrun310'
 istep_ffm =   20
 istep_energy3d =  500
 istep_energy =  20
-istep_energyspec = 2000
+istep_energyspec = 20
 istep_hermite =  1000
 istep_gout =  1
 istep_gk =    0
@@ -82,9 +82,10 @@ etg_factor  =    0.000
 em_conserve = T
 nuno_closure = T
 rhs_nl_version = 12
-rhs_lin_version = 1
+rhs_lin_version = 12
 dealias_type = 3
 force_turbulence = F
+forceb = F
 plot_nls = T
 hall = 1
 enone = T
@@ -95,8 +96,8 @@ nv = F
 /
 
 &initial_value
-max_itime =  5000
-max_walltime =   14000
-dt_max =   0.01
+max_itime =  6000
+max_walltime =   171800.0
+dt_max =   .1
 max_time =   10000000.0    
 /
