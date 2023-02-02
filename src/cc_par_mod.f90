@@ -132,7 +132,8 @@ MODULE par_mod
   INTEGER :: vdvio = 206
   INTEGER :: bdbio = 207
   INTEGER :: db2io = 208
-  INTEGER :: hall = 0
+  REAL :: hall = 1.0
+  LOGICAL :: guide  = .true.
 
   LOGICAL :: calc_dt=.false.        !Automatic initial time step calculation
   LOGICAL :: dt_slepc=.false.        !Use slepc or lapack

@@ -106,7 +106,12 @@ SUBROUTINE initial_condition(which_init0)
       END DO
       if (nv) b_1(:,:,:,:) = cmplx(0.0,0.0)
       gpsi(:,:,:,:) = cmplx(0.0,0.0)
+
+      ! Rescale forcing amplitude for relevance
       IF (force_turbulence) force_amp = force_amp * abs(b_1(nkxforce,nkyforce,nkzforce,0))
+
+      ! Linear stability maximum time step
+      dt_max = minval([dt_max,2.5/(maxval(kzgrid)*(maxval(kmags)/2 + sqrt(1 + 0.25*maxval(kmags)**2.0)))])
 
 ! Only use default for now
 !  which_init=which_init0 

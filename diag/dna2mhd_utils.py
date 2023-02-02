@@ -12,7 +12,7 @@ import sys
 import scipy.fft
 import scipy.signal
 from scipy.signal import find_peaks
-from scipy.fft import fft,fftfreq,fftshift
+from scipy.fft import fft,fftfreq,fftshift,irfftn
 import scipy.optimize as spo
 
 par={}       #Global Variable to hold parameters once read_parameters is called
@@ -141,14 +141,13 @@ def read_time_step_opt(which_itime,opt,swap_endian=False):
    """Reads a time step from opt_out.dat.  Time step determined by \'which_itime\'"""
    file_name = par['diagdir'][1:-1]+'/'+opt+'_out.dat'
    f = open(file_name,'rb')
-   ntot=par['nkx0']*par['nky0']*par['nkz0']*3#par['nv0']                                                                                                                                                  
+   ntot=par['nkx0']*par['nky0']*par['nkz0']*3#par['nv0']    
    mem_tot=ntot*16
    gt0=np.empty((3,par['nkz0'],par['nky0'],par['nkx0']))
-   f.seek(4+which_itime*(4+mem_tot))
+   f.seek(8+which_itime*(8+mem_tot))
    gt0=np.fromfile(f,dtype='complex128',count=ntot)
    if swap_endian:
        gt0=gt0.newbyteorder()
-   #print sum(gt0)                                                                                                                                                                                        
    f.close()
    return gt0
 
@@ -222,27 +221,27 @@ def get_time_from_optout(opt,swap_endian=False):
    """Returns time array taken from v_out.dat"""
    file_name = par['diagdir'][1:-1]+ '/'+opt+'_out.dat'
    f = open(file_name,'rb')
-   ntot=par['nkx0']*par['nky0']*par['nkz0']*3#par['nv0']                                                                                                                                                  
+   ntot=par['nkx0']*par['nky0']*par['nkz0']*3
    mem_tot=ntot*16
    time=np.empty(0)
    continue_read=1
    i=0
    while (continue_read):
-     f.seek(i*(mem_tot+4))
+     f.seek(i*(mem_tot+8))
      i=i+1
-     inp=np.fromfile(f,dtype='int32',count=1)
+     inp=np.fromfile(f,dtype='float64',count=1)
      if swap_endian:
          inp=inp.newbyteorder()
-     #print inp                                                                                                                                                                                         
+
      if inp==0 or inp:
          time = np.append(time,inp)
      else:
          continue_read=0
    f.close()
    print(time)
-   #  work = input('Proceed? Y/N ')
-   # if work == 'N':
-   #    quit('Wrong itimes')
+   work = input('Proceed? Y/N ')
+   if work == 'N':
+       quit('Wrong times')
    return time
 
 def get_time_from_energyout(swap_endian=False):
@@ -341,22 +340,17 @@ def getopt(lpath,opt):
     """Saves opt_out.dat (located in the directory specified by lpath) into a python-readable format opt_xyz.dat                                                                                              
     which will also be located in the lpath directory.                                                                                                                                                    
     """
-    #lpath='/scratch/04943/akshukla/hammet_dna_output/full/omt%g_nu%1.2f'%(omt,nu)                                                                                                                        
-    #if lpath==None:                                                                                                                                                                                      
-    #    lpath='/scratch/04943/akshukla/dna2mhd_output_0'                                                                                                                                                 
     read_parameters(lpath)
     time = get_time_from_optout(opt)
-    #time=time[:1000]                                                                                                                                                                                     
+
     kx,ky,kz=get_grids()
     i_n=[0,1,2]
     savepath = lpath+'/'+opt+'_xyz.dat'
-    #g=np.zeros((len(time)-1,len(kx),len(ky,),len(kz),len(i_n)), dtype='complex64')                                                                                                                       
-    #print('allocating array')                                                                                                                                                                            
+
     g=np.memmap(savepath,dtype='complex64',mode='w+', shape=(len(time),len(kx),len(ky,),len(kz),len(i_n)) )
     np.save(lpath+'/'+opt+'shape.npy',g.shape)
     np.save(lpath+'/time'+opt+'.npy',time)
-    #g=np.zeros((len(time),len(kx),len(ky,),len(kz),len(i_n)), dtype='complex64')                                                                                                                         
-    #print('starting loop')                                                                                                                                                                               
+
     print(par)
     print('time length = ', len(time))
     for t in range(len(time)):
@@ -365,8 +359,7 @@ def getopt(lpath,opt):
         gt = read_time_step_opt(t,opt)
         gt = np.reshape(gt,(par['nkx0'],par['nky0'],par['nkz0'],3),order='F')
         g[t] = gt
-    #np.save(lpath+'/g_allk_g04',g)                                                                                                                                                                       
-    #print('finished loop')
+
     f = open(lpath+'/dum'+opt+'.txt','w')
     f.write('Finished loop')
     f.close()
@@ -470,17 +463,16 @@ def plot_bv(lpath,ix,iy,iz,ind,show=True,ask=True):
     ax[0].plot(timeb,b[:,ix,iy,iz,ind].real,label='Re')
     ax[0].plot(timeb,b[:,ix,iy,iz,ind].imag,label='Im')
     ax[0].set_ylabel('b_%s'%ind_string)
-    ax[0].set_xlabel('time')
     ax[1].plot(timev,v[:,ix,iy,iz,ind].real,label='Re')
     ax[1].plot(timev,v[:,ix,iy,iz,ind].imag,label='Im')
     ax[1].set_ylabel('v_%s'%ind_string)
-    ax[0].set_xlabel('time')
     ax[0].set_ylim(-3*np.median(np.abs(b[:,ix,iy,iz,ind])),3*np.median(np.abs(3*b[:,ix,iy,iz,ind])))
     ax[1].set_ylim(-3*np.median(np.abs(v[:,ix,iy,iz,ind])),3*np.median(np.abs(3*v[:,ix,iy,iz,ind])))
     ax[0].legend()
     ax[1].legend()
     kx,ky,kz=get_grids()
     fig.suptitle('kx,ky,kz = %1.2f,%1.2f,%1.2f'%(kx[ix],ky[iy],kz[iz]))
+    fig.supxlabel('time (1/wc)')
     if lpath[-1] != '/':
         lpath = lpath + '/'
     if not os.path.exists(lpath + 'bvs/'):
@@ -575,8 +567,10 @@ def plot_vspectrum(lpath,ix,iy,iz,ind,show=True):
     rews = analytical_omega(lpath,ix,iy,iz)
     plt.plot([rews[0],rews[0]],[-1,1])
     plt.plot([rews[1],rews[1]],[-1,1])
+    plt.plot([-rews[0],-rews[0]],[-1,1])
+    plt.plot([-rews[1],-rews[1]],[-1,1])
     plt.ylim(-1.2*np.max(np.abs(sp_plot)),1.2*np.max(np.abs(sp_plot)))
-    plt.xlim(0,max(rews)*1.2)
+    plt.xlim(max(-max(rews)*3,-6.3),min(max(rews)*3,6.3))
     #plt.plot(peaks, sp[peaks], "x")
     plt.ylabel('|FFT(v_%s)|'%ind_string )
     plt.xlabel('frequency')
@@ -597,7 +591,7 @@ ind specifies whether you want the x(0),y(1), or z(2) component."""
     ind_strings= ['x','y','z']
     ind_string=ind_strings[ind]
     read_parameters(lpath)
-    opts = ['bdv','vdb','bdcb','cbdb','vdv','bdb','db2']
+    opts = ['vdb','bdcb','cbdb','vdv','bdb','db2','bdv']
     fmts = {'bdv':'om','vdb':'om','bdcb':'<g','cbdb':'sg','vdv':'Hr',
         'bdb':'xb','db2':'8b'}
  
@@ -611,7 +605,6 @@ ind specifies whether you want the x(0),y(1), or z(2) component."""
         else:
             optlist.append(getopt(lpath,opt))
         t = optlist[i][0]
-        # print(wherenezero(optlist[i][1]))
         opty = np.array(optlist[i][1][:,ix,iy,iz,ind])
         fig,ax = plt.subplots(2)
         ax[0].plot(t,opty.real,fmts[opt],markersize=1)
@@ -822,19 +815,6 @@ def analytical_omega(lpath,ix,iy,iz):
     #wm = kz[iz]*(-np.sqrt(kx[ix]**2+ky[iy]**2+kz[iz]**2)/2 - np.sqrt(1+ (kx[ix]**2+ky[iy]**2+kz[iz]**2)/4))
     return wp,wm
 
-def fit_cexpr(t,A,r,w):
-    return A * np.exp(r*t) * np.cos(w*t)
-
-def fit_cexpi(t,A,r,w):
-    return A * np.exp(r*t) * np.sin(w*t)
-
-def growth_rate(t,y):
-    t = np.array(t)
-    y = np.reshape(y,np.size(y))
-    poptr,pcov = spo.curve_fit(fit_cexpr,t,y.real,p0=[10**3,.01,.6])
-    popti,pcov = spo.curve_fit(fit_cexpi,t,y.imag,p0=[10**3,.01,.6])
-    return (poptr[1],poptr[2], popti[1],popti[2])
-
 def wherenezero(arr):
     zs = []
     sz = np.shape(arr)
@@ -845,3 +825,11 @@ def wherenezero(arr):
                     if np.amax(np.abs(arr)) < 10**(-20):
                         zs.append([i,j,k,l])
     return(zs)
+
+def realfield(lpath,ix,iy,iz,itime):
+    timeb,b = load_b(lpath)
+    b_t = b[itime,:,:,:,:]
+    b_x = irfftn(b_t,axes=[0,1,2])*np.size(b_t)*2/3
+    rb = b_x[ix,iy,iz,:]
+    return(rb)
+    

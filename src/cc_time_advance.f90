@@ -33,8 +33,6 @@ MODULE time_advance
   
 !  COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:,:,:) :: g_2,k1,k2
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:) :: b_2, bk1, bk2, v_2, vk1, vk2
-  INTEGER(kind=4) :: rkstage
-
 
   CONTAINS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
   
@@ -51,7 +49,7 @@ SUBROUTINE iv_solver
 
  IF(mype==0) WRITE(*,*) "max_itime=",max_itime
  IF(mype==0) WRITE(*,*) "max_time=",max_time
- rkstage = 1
+
  DO WHILE(time.lt.max_time.and.itime.lt.max_itime.and.continue_run)
  
    !IF(verbose) WRITE(*,*) "Calling diagnostics",time,itime,mype
@@ -151,7 +149,7 @@ SUBROUTINE get_g_next(b_in, v_in,dt_new)
  IF ((mype.eq.0).and.(plot_nls.and.(mod(itime,istep_energy).eq.0))) THEN
  ionums = [dbio,dvio,bdvio,vdbio,bdcbio,cbdbio,vdvio,bdbio,db2io]
  DO q = 1,9
-    WRITE(ionums(q)) rkstage
+    WRITE(ionums(q)) time
  ENDDO 
  ENDIF
 
@@ -193,35 +191,17 @@ SUBROUTINE get_g_next(b_in, v_in,dt_new)
  bk1=b_in+0.5*dt*bk1
  vk1=v_in+0.5*dt*vk1
  
-! IF (plot_nls.and.(mod(itime,istep_energy).eq.0)) THEN
-! DO q = 1,9
-!    WRITE(ionums(q)) rkstage
-! ENDDO
-! ENDIF
- 
  CALL get_rhs(bk1,vk1,bk2,vk2,dt_new2)
  b_2=b_2+(1.0/3.0)*dt*bk2
  bk2=b_in+0.5*dt*bk2
  v_2=v_2+(1.0/3.0)*dt*vk2
  vk2=v_in+0.5*dt*vk2
 
- !IF (plot_nls.and.(mod(itime,istep_energy).eq.0)) THEN 
- !DO q = 1,9
- !   WRITE(ionums(q)) rkstage
- !ENDDO
- !ENDIF
- 
  CALL get_rhs(bk2,vk2,bk1,vk1,dt_new3)
  b_2=b_2+(1.0/3.0)*dt*bk1
  bk1=b_in+dt*bk1
  v_2=v_2+(1.0/3.0)*dt*vk1
  vk1=v_in+dt*vk1
-
- !IF (plot_nls.and.(mod(itime,istep_energy).eq.0)) THEN
- !DO q = 1,9
- !   WRITE(ionums(q)) rkstage
- !ENDDO
- !ENDIF
 
  CALL get_rhs(bk1,vk1,bk2,vk2,dt_new4)
  b_in=b_2+(1.0/6.0)*dt*bk2
@@ -327,9 +307,9 @@ SUBROUTINE get_rhs(b_in,v_in, rhs_out_b,rhs_out_v,ndt)
 !  COMPLEX, INTENT(out) :: rhs_out(0:nkx0-1,0:nky0-1,lkz1:lkz2,lv1:lv2,lh1:lh2,ls1:ls2)
   INTEGER :: k
 
-  CALL get_rhs_lin(b_in,v_in,rhs_out_b, rhs_out_v,0)
-  IF (verbose.and.(mype.eq.0)) WRITE(*,*) 'Lin Max Abs V',maxval(abs(rhs_out_v)),maxloc(abs(rhs_out_v))
-  IF (verbose.and.(mype.eq.0)) WRITE(*,*) 'Lin Max Abs B',maxval(abs(rhs_out_b)),maxloc(abs(rhs_out_b))
+  IF (guide) CALL get_rhs_lin(b_in,v_in,rhs_out_b, rhs_out_v,0)
+  IF ((guide.and.verbose).and.(mype.eq.0)) WRITE(*,*) 'Lin Max Abs V',maxval(abs(rhs_out_v)),maxloc(abs(rhs_out_v))
+  IF ((guide.and.verbose).and.(mype.eq.0)) WRITE(*,*) 'Lin Max Abs B',maxval(abs(rhs_out_b)),maxloc(abs(rhs_out_b))
   !IF(nonlinear.and..not.linear_nlbox) CALL get_rhs_nl(b_in, v_in,rhs_out_b,rhs_out_v)
   IF(actual_nonlinear) CALL get_rhs_nl(b_in, v_in,rhs_out_b,rhs_out_v,ndt)
   IF (verbose.and.(mype.eq.0)) WRITE(*,*) 'NL Max Abs V',maxval(abs(rhs_out_v)),maxloc(abs(rhs_out_v))
@@ -339,7 +319,6 @@ SUBROUTINE get_rhs(b_in,v_in, rhs_out_b,rhs_out_v,ndt)
   ! Add forcing
   IF(force_turbulence) CALL get_rhs_force(rhs_out_b, rhs_out_v,ndt)
 if (verbose.and.(mype.eq.0)) print *,'RHS found'
-rkstage = rkstage + 1
 
 END SUBROUTINE get_rhs
 

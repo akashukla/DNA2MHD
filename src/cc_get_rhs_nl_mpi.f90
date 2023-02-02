@@ -43,7 +43,7 @@ MODULE nonlinearity
   TYPE(C_PTR) :: cdatai,cdata
   INTEGER(C_INTPTR_T) :: alloc_local,local_N,local_k_offset,alloc_locali,local_Ni,local_k_offseti,i,j,k,l,h
 
-  COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:) ::  store_bx, store_by, store_bz,store_vx, store_vy, store_vz
+  COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:) ::  store_bx, store_by, store_bz,store_vx, store_vy, store_vz,arr_real
   COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:,:) ::  bdv,vdb,bdcb,cbdb,vdv,bdb,db2,rhs_out_nlb,rhs_out_nlv
   COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:) :: arr_spec,arr_specm
 
@@ -135,38 +135,49 @@ SUBROUTINE initialize_fourier_ae_mu0
   IF(mype==0) WRITE(*,*) "hkz_ind,lkz_ind",hkz_ind,lkz_ind
   IF(mype==0) WRITE(*,*) "lkz_big",lkz_big
 
-  if (verbose) print *,'Is local_N local_Ni?',mype,(local_N.eq.local_Ni),local_N,local_Ni
-  if (verbose) print *,'Are offsets 0?',mype,local_k_offset,local_k_offseti
+   print *,'Local N',mype,local_N
+   print *,'Are offsets 0?',mype,local_k_offset,local_k_offseti
 
-IF (.false.) THEN
+IF (.true.) THEN
 ! Practice FFTs
-!  do k = 1, local_N
-!    do j = 1,ny0_big
-!    do i = 1, nx0_big
-!       data(i, j,k) = 1.0/real(i) + 1.0/(real(k+local_k_offset))+1.0/real(j)
-!   end do
-!   end do 
-!  end do
+  do k = 1, local_N
+    do j = 1,ny0_big
+    do i = 1, nx0_big
+       data(i, j,k) = 1.0/real(i) + 1.0/(real(k+local_k_offset))+1.0/real(j)
+   end do
+   end do 
+  end do
  ! print *, 'Pre FFT',data
 !
 !  print *, maxval(abs(data))
-!  call fftw_mpi_execute_dft(plan_r2c, data, data)
-!  print *, 'Through FFFT'
-!  print *, 'Max FFTd data',maxval(abs(data))
-!
-!  do k = 1, local_Ni
-!    do j = 1,ny0_big
-!    do i = 1, nx0_big
-!      datai(i,j,k) = data(i,j,k)
-!   end do
-!   end do
-!  end do
+  call fftw_mpi_execute_dft(plan_r2c, data, data)
+  print *, 'Through FFFT'
+  print *, 'Max FFTd data',maxval(abs(data))
+
+  do k = 1, local_Ni
+    do j = 1,ny0_big
+    do i = 1, nx0_big
+      datai(i,j,k) = data(i,j,k)
+   end do
+   end do
+  end do
 !
 !  print *,maxval(abs(datai))
 
-!  call MPI_BARRIER(MPI_COMM_WORLD,ierr)
-!  call fftw_mpi_execute_dft(plan_c2r,datai,datai)
+  call MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  call fftw_mpi_execute_dft(plan_c2r,datai,datai)
+
+  do k = 1, local_N
+    do j = 1,ny0_big
+    do i = 1, nx0_big
+       data(i, j,k) = 1.0/real(i) + 1.0/(real(k+local_k_offset))+1.0/real(j)
+   end do
+   end do
+  end do
+
+  print *, 'Practice Max Diff',mype,maxval(abs(fft_norm*datai - data))
 !  print *, 'Post IFFT',datai*fft_norm
+  
 !  print *, 'Through IFFT'
 !  call fftw_destroy_plan(plan_c2r)
 !  call fftw_destroy_plan(plan_r2c)
@@ -245,7 +256,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
   CALL MPI_ALLREDUCE(temp_smallm,temp_small,nkx0*nky0*nkz0&                                        
       ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
-!  if (verbose.and.(mype.eq.0)) print *,'Through temp small'
+  if (verbose.and.(mype.eq.0)) print *,'Through temp small'
 
   !Add padding for dealiasing
   CALL torealspace(temp_small,dxdxbx)
@@ -790,8 +801,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
 
   endif
 
-  IF (verbose.and.(mype.eq.0)) CALL cpu_time(dum)
-  IF(verbose.and.(mype.eq.0)) print *, 'RHS NL PostIFFTs Time:',dum-sttime
+!  IF (verbose.and.(mype.eq.0)) CALL cpu_time(dum)
+!  IF(verbose.and.(mype.eq.0)) print *, 'RHS NL PostIFFTs Time:',dum-sttime
 
   ! EQUATION (14) 1=xcomp, 2=ycomp 3=zcomp
   !     eq14x=P1-Q1-R1+S1
@@ -883,10 +894,9 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
 !  CALL MPI_ALLREDUCE(store_vzm,store_vz,nx0_big*ny0_big*local_N&
 !      ,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
 
-  IF (verbose.and.(mype.eq.0)) CALL cpu_time(dum)
-
-  IF(verbose.and.(mype.eq.0)) print *, 'RHS NL PostNLEq Time:',dum-sttime
-  IF(verbose.and.(mype.eq.0)) print *, 'NL BVx Store Values', maxval(abs(store_bx)),maxval(abs(store_vx))
+!  IF (verbose.and.(mype.eq.0)) CALL cpu_time(dum)
+!  IF(verbose.and.(mype.eq.0)) print *, 'RHS NL PostNLEq Time:',dum-sttime
+!  IF(verbose.and.(mype.eq.0)) print *, 'NL BVx Store Values', maxval(abs(store_bx)),maxval(abs(store_vx))
 
   if (nv.eq..false.) then
   rhs_out_nlb = cmplx(0.0,0.0)
@@ -918,7 +928,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
 
   if (calc_dt) CALL next_dt(myndt)
   if (calc_dt) CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-  if (calc_dt) CALL MPI_ALLREDUCE(myndt,ndt,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD,ierr)
+  if (calc_dt) CALL MPI_ALLREDUCE(myndt,ndt,1,MPI_DOUBLE,MPI_MIN,MPI_COMM_WORLD,ierr)
   if (.not.(calc_dt)) ndt = dt_max
   if ((mype.eq.0)) print *, 'next dt calculated ',ndt
 
@@ -1090,7 +1100,7 @@ complex :: arr_specm(0:nkx0-1,0:nky0-1,0:nkz0-1)
   CALL fftw_mpi_execute_dft(plan_r2c,data,data)
   if (verbose.and.(mype.eq.0)) print *, 'Through ffft'
   DO k = 1,local_N
-    if ((k+local_k_offset).le.nkz0) arr_specm(0:nkx0-1,0:nky0-1,local_k_offset+k-1) = data(1:nkx0,1:nky0,local_k_offset+k)
+    if ((k+local_k_offset).le.nkz0) arr_specm(0:nkx0-1,0:nky0-1,local_k_offset+k-1) = data(1:nkx0,1:nky0,k)*fft_norm
   ENDDO
 
   if (verbose.and.(mype.eq.0)) print *, 'Through post assignment'
@@ -1098,9 +1108,8 @@ complex :: arr_specm(0:nkx0-1,0:nky0-1,0:nkz0-1)
   CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
   CALL MPI_ALLREDUCE(arr_specm,arr_spec,nkx0*nky0*nkz0,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
 
-  arr_spec = arr_spec * fft_norm
   if (verbose.and.(mype.eq.0)) print *, 'Through fft_spec2'
-  IF(verbose) print *, mype,'NL FFFT Maxes', maxval(abs(arr_spec)),maxloc(abs(arr_spec))
+ ! IF(verbose) print *, mype,'NL FFFT Maxes', maxval(abs(arr_spec)),maxloc(abs(arr_spec))
 
 END FUNCTION fft_spec2
 
@@ -1146,7 +1155,7 @@ SUBROUTINE torealspace(temp_small,output)
     ENDDO
   ENDDO
 
- IF (verbose.and.(mype.eq.0)) print *, maxval(abs(datai))
+  IF (verbose.and.(mype.eq.0)) print *, maxval(abs(datai))
 
   if (verbose.and.(mype.eq.0)) print *,'Through \"temp big\"'
 
@@ -1154,8 +1163,8 @@ SUBROUTINE torealspace(temp_small,output)
  output = datai
  temp_small = cmplx(0.0,0.0)
 
- IF (verbose) print *, mype,maxval(abs(aimag(output)))
- IF (verbose) print *, mype,maxval(abs(datai)),maxval(abs(output))
+! IF (verbose) print *, mype,maxval(abs(aimag(output)))
+ IF (verbose.and.(mype.eq.0)) print *, mype,maxval(abs(datai)),maxval(abs(output))
 
 END SUBROUTINE torealspace
 
@@ -1168,6 +1177,7 @@ SUBROUTINE ALLOCATIONS
   ALLOCATE(rhs_out_nlb(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
   ALLOCATE(rhs_out_nlv(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
   if (verbose) print *,'alloc rnls'
+  ALLOCATE(arr_real(1:nx0_big,1:ny0_big,1:local_N))
   ALLOCATE(arr_specm(0:nkx0-1,0:nky0-1,0:nkz0-1))
   ALLOCATE(arr_spec(0:nkx0-1,0:nky0-1,0:nkz0-1))
   if (verbose) print *,'alloc arrs'
@@ -1356,6 +1366,7 @@ if (verbose.and.(mype.eq.0)) print *, 'first third deallocated'
   endif
   
   DEALLOCATE(output)
+  DEALLOCATE(arr_real)
   DEALLOCATE(arr_specm)
   DEALLOCATE(arr_spec)
 

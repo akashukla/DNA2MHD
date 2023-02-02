@@ -4267,9 +4267,9 @@ do ind = 0,2
     do j = 0,nky0-1
       do k = lkz1,lkz2
         if ((kzgrid(k)).ne.0) then 
-          if (ind.eq.0) A(i,j,k,ind) = cmplx(0.0,1.0) * (kygrid(j)*b0(i,j,k,2)-kzgrid(k)*b0(i,j,k,1))
-          if (ind.eq.1) A(i,j,k,ind) = cmplx(0.0,1.0) * (kzgrid(k)*b0(i,j,k,0)-kxgrid(i)*b0(i,j,k,2))
-          if (ind.eq.2) A(i,j,k,ind) = cmplx(0.0,1.0) * (kxgrid(i)*b0(i,j,k,1)-kygrid(j)*b0(i,j,k,0))
+          if (ind.eq.0) A(i,j,k,ind) = cmplx(0.0,-1.0) * (kygrid(j)*b0(i,j,k,2)-kzgrid(k)*b0(i,j,k,1))
+          if (ind.eq.1) A(i,j,k,ind) = cmplx(0.0,-1.0) * (kzgrid(k)*b0(i,j,k,0)-kxgrid(i)*b0(i,j,k,2))
+          if (ind.eq.2) A(i,j,k,ind) = cmplx(0.0,-1.0) * (kxgrid(i)*b0(i,j,k,1)-kygrid(j)*b0(i,j,k,0))
           A(i,j,k,ind) = A(i,j,k,ind) / (kxgrid(i)**2 + kygrid(j)**2 + kzgrid(k)**2)
 !          if (verbose) write(*,*) A(i,j,k,ind),gpsi(i,j,k,ind),A(i,j,k,ind)+gpsi(i,j,k,ind) 
 !          A(i,j,k,ind) = A(i,j,k,ind) + gpsi(i,j,k,ind)
