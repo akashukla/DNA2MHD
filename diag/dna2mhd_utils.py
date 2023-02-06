@@ -745,7 +745,7 @@ ind specifies whether you want the x(0),y(1), or z(2) component."""
 
     return 0
 
-def plot_energy(lpath,ntp,show=True):
+def plot_energy(lpath,ntp,show=True,log=False):
     """ Plots Scalars Written in energy_out.dat """
 
     read_parameters(lpath)
@@ -763,17 +763,29 @@ def plot_energy(lpath,ntp,show=True):
         os.mkdir(lpath + '/eplots/')
        
     for i in range(ntp+1):
-        fig,ax = plt.subplots(1)
-        ax.plot(timeen,enval[:,i])
-        ax.set_xlabel('time')
-        ax.set_ylabel(labels[i])
-        fig.suptitle(labels[i])
-        if np.amax(enval) > 10 ** 5:
+        if not log:
+            fig,ax = plt.subplots(1)
+            ax.plot(timeen,enval[:,i])
+            ax.set_xlabel('time (1/wc)')
+            ax.set_ylabel(labels[i])
+            fig.suptitle(labels[i])
+            if np.amax(enval) > 10 ** 5:
+                ax.set_yscale('log')
+            plt.savefig(lpath+'/eplots/'+fnames[i])
+            if show == True:
+                plt.show()
+            plt.close()
+        else:
+            fig,ax = plt.subplots(1)
+            ax.plot(timeen,np.abs(enval[:,i]))
+            ax.set_xlabel('time (1/wc)')
+            ax.set_ylabel(labels[i])
             ax.set_yscale('log')
-        plt.savefig(lpath+'/eplots/'+fnames[i])
-        if show == True:
-            plt.show()
-        plt.close()
+            fig.suptitle(labels[i])
+            plt.savefig(lpath+'/eplots/'+fnames[i])
+            if show == True:
+                plt.show()
+            plt.close()
     
     return timeen,enval
 
@@ -833,3 +845,46 @@ def realfield(lpath,ix,iy,iz,itime):
     rb = b_x[ix,iy,iz,:]
     return(rb)
     
+def plot_bspectrum(lpath,ix,iy,iz,ind,show=True):
+    """                                                                                                                                                                  
+    ix,iy,iz specifies the wavevector                                                                                                                                    
+    ind specifies x/y/z (0/1/2) component                                                                                                                                
+    This is an example method that performs the fft on the real part of b and plots the result.                                                                          
+    It will return an array of the frequencies found.                                                                                                                    
+    *** Right now it seems like freqs need to multiplied by 2*pi to get the right dispersion relation.                                                                   
+        I think this makes sense because w = 2*pi*f                                                                                                                      
+    """
+    ind_strings= ['x','y','z']
+    ind_string=ind_strings[ind]
+    read_parameters(lpath)
+    kx,ky,kz=get_grids()
+    time,b=load_b(lpath)
+    b_k = b[:,ix,iy,iz,ind]
+    sp=fftshift(fft(b_k-np.mean(b_k)))    
+    freq = fftshift(fftfreq(time.shape[-1],d=.1))
+    omega = 2*np.pi*freq
+    peaks,_ = find_peaks(np.abs(sp),threshold=10)
+    print(freq[peaks])
+    print(freq[peaks]*2*np.pi)
+    omega_plot = omega[(omega>-2*np.pi)&(omega<2*np.pi)]
+    sp_plot= sp[(omega>-2*np.pi)&(omega<2*np.pi)]
+    plt.plot(omega_plot, np.abs(sp_plot))
+    rews = analytical_omega(lpath,ix,iy,iz)
+    plt.plot([rews[0],rews[0]],[-1,1])
+    plt.plot([rews[1],rews[1]],[-1,1])
+    plt.plot([-rews[0],-rews[0]],[-1,1])
+    plt.plot([-rews[1],-rews[1]],[-1,1])
+    plt.ylim(-1.2*np.max(np.abs(sp_plot)),1.2*np.max(np.abs(sp_plot)))
+    plt.xlim(max(-max(rews)*3,-6.3),min(max(rews)*3,6.3))
+    plt.ylabel('|FFT(b_%s)|'%ind_string )
+    plt.xlabel('frequency')
+    plt.title('kx,ky,kz = %1.2f,%1.2f,%1.2f'%(kx[ix],ky[iy],kz[iz]))
+    if lpath[-1] != '/':
+        lpath =lpath +'/'
+    if not os.path.exists(lpath + 'bspectra/'):
+        os.mkdir(lpath + 'bspectra/')
+    plt.savefig(lpath+'bspectra/bspectrum_%s_%d_%d_%d'%(ind_string,ix,iy,iz))
+    if show == True:
+        plt.show()
+    plt.close()
+    return freq[peaks]*2*np.pi

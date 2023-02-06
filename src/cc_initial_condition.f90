@@ -50,8 +50,8 @@ SUBROUTINE initial_condition(which_init0)
       END DO
     END DO
   END DO
-  s1 = sum(kmags(0:kxinit_max-1,0:kyinit_max-1,1:kzinit_max-1) ** (-1.0*init_kolm))
-  s2 = sum((divratio(0:kxinit_max-1,0:kyinit_max-1,1:kzinit_max-1) ** 2) * kmags(0:kxinit_max-1,0:kyinit_max-1,1:kzinit_max-1) ** (-1.0 * init_kolm))
+  s1 = 2*sum(kmags(0:kxinit_max-1,0:kyinit_max-1,1:kzinit_max-1) ** (-1.0*init_kolm))
+  s2 = 2*sum((divratio(0:kxinit_max-1,0:kyinit_max-1,1:kzinit_max-1) ** 2) * kmags(0:kxinit_max-1,0:kyinit_max-1,1:kzinit_max-1) ** (-1.0 * init_kolm))
 
   !init_prefactor=0.001
 !Default Initialization

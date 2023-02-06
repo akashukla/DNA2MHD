@@ -4170,7 +4170,7 @@ real :: ham
 !! Computes the Hall MHD Hamiltonian 8 pi^3 (sum(v_k^2 + b_k^2) + 2b_z0)/2 
 
 ham = sum(abs(v_in)**2 + abs(b_in)**2) + 2*real(b_in(0,0,0,2))
-ham = ham * (4*(pi**3))
+ham = ham * (8*(pi**3))
 
 end function hmhdhmtn
 
@@ -4201,7 +4201,7 @@ do i = 0,nkx0-1
     end do 
 end do
 
-res = res*(8 * pi**3)
+res = res*(16 * pi**3)
 
 end function resvischange
 
@@ -4314,7 +4314,7 @@ enddo
 maghel = maghel + real(A0(0,0,0,2))
 if (verbose) write(*,*) 'Coulomb',coulomb,'z Vec Potential',intx,&
     'Transformation',gchange,'Overall Magnetic Helicity',coulomb+gchange
-maghel = coulomb+gchange
+maghel = 2*(coulomb+gchange)
 
 end function mag_helicity
 
@@ -4369,7 +4369,7 @@ do ind = 0,2
 enddo
 
 crosshel = crosshel + 3*real(v0(0,0,0,2))
-crosshel = (2*pi)**3 * crosshel
+crosshel = 2*(2*pi)**3 * crosshel
 
 end function cross_helicity
 

@@ -8,9 +8,9 @@ vnu = 0.0
 /
 
 &numerical_parameters
-kxmin =   0.12
-kymin =   0.12
-kzmin =   0.02
+kxmin =   0.2
+kymin =   0.2
+kzmin =   0.05
 nkx0 =  64
 nky0 =  64
 nkz0 =  32
@@ -52,7 +52,7 @@ hyp = 1
 /
 
 &diagnostics
-diagdir = '/scratch/08929/echansen/dna2mhdrun321'
+diagdir = '/scratch/08929/echansen/dna2mhdrun323'
 istep_ffm =   20
 istep_energy3d =  500
 istep_energy =  5
@@ -73,7 +73,7 @@ output_nlt_n = F
 &flags
 verbose  = F
 nonlinear  = T
-actual_nonlinear = T
+actual_nonlinear = F
 calc_dt  = T
 comp_type = 'IV'
 checkpoint_read = F
@@ -99,6 +99,6 @@ nv = F
 &initial_value
 max_itime =  8000
 max_walltime =   171800.0
-dt_max =   0.1
+dt_max =   0.05
 max_time =   10000000.0    
 /
