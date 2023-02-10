@@ -430,7 +430,7 @@ SUBROUTINE diag
        IF(MOD(itime,istep_energyspec)==0) THEN
          IF(verbose) WRITE(*,*) "Starting energyspec diag.",mype
          WRITE(enspec_handle) time
-         WRITE(enspec_handle) en_spec(v_1,b_1)
+         CALL en_spec(v_1,b_1)
          IF(verbose) WRITE(*,*) "Done with energyspec diag.",mype
        END IF
      END IF
@@ -4373,29 +4373,16 @@ crosshel = 2*(2*pi)**3 * crosshel
 
 end function cross_helicity
 
-function en_spec(v_in,b_in) result(esubk)
+subroutine en_spec(v_in,b_in) 
 
 implicit none
 complex :: v_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
 complex :: b_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
-real :: esubk(0:nkx0-1,0:nky0-1,lkz1:lkz2)
-integer :: i,j,k,ind
 
-esubk = 0.0
-do ind = 0,2
-  do i = 0,nkx0-1
-    do j = 0,nky0-1
-      do k = lkz1,lkz2
-        esubk(i,j,k) = esubk(i,j,k) + abs(v_in(i,j,k,ind))**2 + abs(b_in(i,j,k,ind))**2
-      enddo
-    enddo
-  enddo
-enddo
+WRITE(enspec_handle) (4*pi**3)* (abs(v_in(:,:,:,0))**2 + abs(v_in(:,:,:,1))**2)
+WRITE(enspec_handle) (4*pi**3)* (abs(b_in(:,:,:,0))**2+ abs(b_in(:,:,:,1))**2)
 
-esubk(0,0,0) = esubk(0,0,0) + 2*real(b_in(0,0,0,2))
-esubk = (4 * pi**3) * esubk
-
-end function en_spec
+end subroutine en_spec
 
 END MODULE diagnostics
 

@@ -151,27 +151,27 @@ SUBROUTINE get_rhs_force(rhs_out_b, rhs_out_v, dt)
                 rhs_out_b(i,j,k,0) = rhs_out_b(i,j,k,0) + force_amp*random_normal() + i_complex*force_amp*random_normal()
                 rhs_out_b(i,j,k,1) = rhs_out_b(i,j,k,1) + force_amp*random_normal() + i_complex*force_amp*random_normal()
 
-                rhs_out_b(i,nky0-j,lkz2-k,0) = rhs_out_b(i,nky0-j,lkz2-k,0) + force_amp*random_normal() + i_complex*force_amp*random_normal()
-                rhs_out_b(i,nky0-j,lkz2-k,1) = rhs_out_b(i,nky0-j,lkz2-k,1) + force_amp*random_normal() + i_complex*force_amp*random_normal()
+                rhs_out_b(nkx0-i,nky0-j,k,0) = rhs_out_b(nkx0-i,nky0-j,k,0) + force_amp*random_normal() + i_complex*force_amp*random_normal()
+                rhs_out_b(nkx0-i,nky0-j,k,1) = rhs_out_b(nkx0-i,nky0-j,k,1) + force_amp*random_normal() + i_complex*force_amp*random_normal()
         
                 rhs_out_b(i,nky0-j,k,0) = rhs_out_b(i,nky0-j,k,0) + force_amp*random_normal() + i_complex*force_amp*random_normal()
                 rhs_out_b(i,nky0-j,k,1) = rhs_out_b(i,nky0-j,k,1) + force_amp*random_normal() + i_complex*force_amp*random_normal()
 
-                rhs_out_b(i,j,lkz2-k,0) = rhs_out_b(i,j,lkz2-k,0) + force_amp*random_normal() + i_complex*force_amp*random_normal()
-                rhs_out_b(i,j,lkz2-k,1) = rhs_out_b(i,j,lkz2-k,1) + force_amp*random_normal() + i_complex*force_amp*random_normal()
+                rhs_out_b(nkx0-i,j,k,0) = rhs_out_b(nkx0-i,j,k,0) + force_amp*random_normal() + i_complex*force_amp*random_normal()
+                rhs_out_b(nkx0-i,j,k,1) = rhs_out_b(nkx0-i,j,k,1) + force_amp*random_normal() + i_complex*force_amp*random_normal()
                 ENDIF
 
                 rhs_out_v(i,j,k,0) = rhs_out_v(i,j,k,0) + force_amp*random_normal() + i_complex*force_amp*random_normal()
                 rhs_out_v(i,j,k,1) = rhs_out_v(i,j,k,1) + force_amp*random_normal() + i_complex*force_amp*random_normal()
 
-                rhs_out_v(i,nky0-j,lkz2-k,0) = rhs_out_v(i,nky0-j,lkz2-k,0) + force_amp*random_normal() + i_complex*force_amp*random_normal()
-                rhs_out_v(i,nky0-j,lkz2-k,1) = rhs_out_v(i,nky0-j,lkz2-k,1) + force_amp*random_normal() + i_complex*force_amp*random_normal()
+                rhs_out_v(nkx0-i,nky0-j,k,0) = rhs_out_v(nkx0-i,nky0-j,k,0) + force_amp*random_normal() + i_complex*force_amp*random_normal()
+                rhs_out_v(nkx0-i,nky0-j,k,1) = rhs_out_v(nkx0-i,nky0-j,k,1) + force_amp*random_normal() + i_complex*force_amp*random_normal()
 
                 rhs_out_v(i,nky0-j,k,0) = rhs_out_v(i,nky0-j,k,0) + force_amp*random_normal() + i_complex*force_amp*random_normal()
                 rhs_out_v(i,nky0-j,k,1) = rhs_out_v(i,nky0-j,k,1) + force_amp*random_normal() + i_complex*force_amp*random_normal()
 
-                rhs_out_v(i,j,lkz2-k,0) = rhs_out_v(i,j,lkz2-k,0) + force_amp*random_normal() + i_complex*force_amp*random_normal()
-                rhs_out_v(i,j,lkz2-k,1) = rhs_out_v(i,j,lkz2-k,1) + force_amp*random_normal() + i_complex*force_amp*random_normal()
+                rhs_out_v(nkx0-i,j,k,0) = rhs_out_v(nkx0-i,j,k,0) + force_amp*random_normal() + i_complex*force_amp*random_normal()
+                rhs_out_v(nkx0-i,j,k,1) = rhs_out_v(nkx0-i,j,k,1) + force_amp*random_normal() + i_complex*force_amp*random_normal()
             END DO
           END DO
         END DO

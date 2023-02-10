@@ -256,6 +256,7 @@ MODULE par_mod
   LOGICAL :: nonlinear
   LOGICAL :: actual_nonlinear
   LOGICAL :: force_turbulence
+  LOGICAL :: set_forcing = .true.
   !INTEGER :: which_nonlinear=1
   LOGICAL :: linear_nlbox !Grid, initialization, etc. is the same, but don't USE nonlinearity
 

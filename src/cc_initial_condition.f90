@@ -26,7 +26,7 @@ SUBROUTINE initial_condition(which_init0)
   INTEGER :: i,j,k, l
   REAL :: kfactor,err
   REAL :: divratio(0:nkx0-1,0:nky0-1,1:nkz0-1)
-  REAL :: s1, s2
+  REAL :: s1, s2,s3,s4
   !REAL :: init_prefactor
   COMPLEX :: phase,phaseb,phasev
   REAL :: phase1,phase2,kspect
@@ -52,6 +52,9 @@ SUBROUTINE initial_condition(which_init0)
   END DO
   s1 = 2*sum(kmags(0:kxinit_max-1,0:kyinit_max-1,1:kzinit_max-1) ** (-1.0*init_kolm))
   s2 = 2*sum((divratio(0:kxinit_max-1,0:kyinit_max-1,1:kzinit_max-1) ** 2) * kmags(0:kxinit_max-1,0:kyinit_max-1,1:kzinit_max-1) ** (-1.0 * init_kolm))
+  s3 = 2*sum(kmags(1:nkxforce,1:nkyforce,1:nkzforce) ** (-0.5*init_kolm))  
+  s4 = 2*sum(kmags(0:kxinit_max-1,0:kyinit_max-1,1:kzinit_max-1) ** (2*real(hyp)-1.0*init_kolm))
+
 
   !init_prefactor=0.001
 !Default Initialization
@@ -108,7 +111,10 @@ SUBROUTINE initial_condition(which_init0)
       gpsi(:,:,:,:) = cmplx(0.0,0.0)
 
       ! Rescale forcing amplitude for relevance
-      IF (force_turbulence) force_amp = force_amp * abs(b_1(nkxforce,nkyforce,nkzforce,0))
+      IF ((force_turbulence).and.set_forcing) force_amp = 1.0/(16.0*dt_max)*s4/s3 * vnu
+      IF (forceb) force_amp = force_amp/2.0
+      IF ((verbose.and.(mype.eq.0)).and.(set_forcing)) print *, 'Force Amp',force_amp
+      IF (force_turbulence) force_amp = force_amp * abs(b_1(nkxforce,nkyforce,nkzforce,0)*(kmags(nkxforce,nkyforce,nkzforce)**(init_kolm/2.0)))
 
       ! Linear stability maximum time step
       dt_max = minval([dt_max,2.5/(maxval(kzgrid)*(maxval(kmags)/2 + sqrt(1 + 0.25*maxval(kmags)**2.0)))])

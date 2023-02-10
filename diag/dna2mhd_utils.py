@@ -167,6 +167,22 @@ def read_time_step_energy(which_itime,swap_endian=False):
    f.close()
    return gt0
 
+def read_time_step_energyspec(which_itime,swap_endian=False):
+   """Reads a time step from opt_out.dat.  Time step determined by \'which_itime\'"""
+   file_name = par['diagdir'][1:-1]+'/energyspec_out.dat'
+   f = open(file_name,'rb')
+   gt0=np.empty((1))
+   ntot = par['nkx0']*par['nky0']*par['nkz0']*2
+   mem_tot = (ntot)*8
+   gt0 = np.empty((par['nkx0'],par['nky0'],par['nkz0'],2))
+   f.seek(8+which_itime*(8+mem_tot))
+   gt0=np.fromfile(f,dtype='float64',count=ntot)
+   if swap_endian:
+       gt0=gt0.newbyteorder()
+   #print sum(gt0)                                                                                      \                            
+   f.close()
+   return gt0
+
 def get_time_from_bout(swap_endian=False):
    """Returns time array taken from b_out.dat"""
    file_name = par['diagdir'][1:-1]+ '/b_out.dat'
@@ -271,6 +287,28 @@ def get_time_from_energyout(swap_endian=False):
    f.close()
    return time
 
+def get_time_from_energyspecout(swap_endian=False):
+   """Returns time array taken from v_out.dat"""
+   file_name = par['diagdir'][1:-1]+ '/energyspec_out.dat'
+   f = open(file_name,'rb')
+   ntot=par['nkx0']*par['nky0']*par['nkz0']*2
+   mem_tot=ntot*8
+   time=np.empty(0)
+   continue_read=1
+   i=0
+   while (continue_read):
+     f.seek(i*(mem_tot+8))
+     i=i+1
+     inp=np.fromfile(f,dtype='float64',count=1)
+     if swap_endian:
+         inp=inp.newbyteorder()
+
+     if inp==0 or inp:
+         time = np.append(time,inp)
+     else:
+         continue_read=0
+   f.close()
+   return time
 
 def getb(lpath):
     """Saves b_out.dat (located in the directory specified by lpath) into a python-readable format b_xyz.dat
@@ -367,9 +405,6 @@ def getopt(lpath,opt):
     return time, g
 
 def getenergy(lpath):
-    """Saves opt_out.dat (located in the directory specified by lpath) into a python-readable format opt_xyz.dat                                                                  which will also be located in the lpath directory."""
-    #lpath='/scratch/04943/akshukla/hammet_dna_output/full/omt%g_nu%1.2f'%(omt,nu)                                                                                                #if lpath==None:                                                                                                                                                              #    lpath='/scratch/04943/akshukla/dna2mhd_output_0'                                                                                                                         read_parameters(lpath)
-    
     time = get_time_from_energyout()
     #time=time[:1000] 
 
@@ -402,6 +437,32 @@ def getenergy(lpath):
 
     return time,g
 
+def getenergyspec(lpath):
+    """Saves energyspec_out.dat (located in the directory specified by lpath) into a python-readable format v_xyz.dat                         
+    which will also be located in the lpath directory.                                                                               
+    """
+    read_parameters(lpath)
+    time = get_time_from_energyspecout()
+    kx,ky,kz=get_grids()
+    i_n=[0,1,2]
+    savepath = lpath+'/energyspec_xyz.dat'
+    g=np.memmap(savepath,dtype='float64',mode='w+', shape=(len(time),len(kx),len(ky,),len(kz),2) )
+    np.save(lpath+'/energyspecshape.npy',g.shape)
+    np.save(lpath+'/timeenergyspec.npy',time)
+    print(par)
+    print('time length = ', len(time))
+    for t in range(len(time)):
+        if(t%1000==0):
+            print(str(t))
+        gt = read_time_step_energyspec(t)
+        gt = np.reshape(gt,(par['nkx0'],par['nky0'],par['nkz0'],2),order='F')
+        g[t] = gt
+    f = open(lpath+'/dumenspec.txt','w')
+    f.write('Finished loop')
+    f.close()
+    evk = np.reshape(g[:,:,:,:,0],(len(time),len(kx),len(ky),len(kz)))
+    ebk = np.reshape(g[:,:,:,:,1],(len(time),len(kx),len(ky),len(kz)))
+    return time, evk,ebk
 
 def load_b(lpath):
     """
@@ -448,6 +509,18 @@ def load_energy(lpath):
     time = np.load(lpath+'/timeenergy.npy')
     enload=np.memmap(lpath+'/energy_xyz.dat',dtype='float64',mode='r',shape=tuple(np.load(lpath+'/energyshape.npy')))
     return time, enload
+
+def load_energyspec(lpath):
+    """ This method can only be run after getv has been called at least once to save the v_xyz.dat file_name 
+    This quickly loads the v array which will have indices [time,kx,ky,kz, x/y/z]  """
+    read_parameters(lpath)
+    if lpath==None:
+        lpath='/scratch/04943/akshukla/dna2mhd_output_0'
+    time = np.load(lpath+'/timeenergyspec.npy')
+    g = np.memmap(lpath+'/energyspec_xyz.dat',dtype='float64',mode='r',shape=tuple(np.load(lpath+'/energyspecshape.npy')))
+    evk = np.reshape(g[:,:,:,:,0],(len(time),par['nkx0'],par['nky0'],par['nkz0']))
+    ebk = np.reshape(g[:,:,:,:,1],(len(time),par['nkx0'],par['nky0'],par['nkz0']))
+    return time, evk,ebk
 
 def plot_bv(lpath,ix,iy,iz,ind,show=True,ask=True):
     """
@@ -510,7 +583,6 @@ def plot_bv(lpath,ix,iy,iz,ind,show=True,ask=True):
         plt.show()
     plt.close()
     return timeb,b,timev,v
-
 
 def plot_vreal_spectrum(lpath,ix,iy,iz,ind):
     """
@@ -789,6 +861,87 @@ def plot_energy(lpath,ntp,show=True,log=False):
     
     return timeen,enval
 
+def plot_enspec(lpath,npt=1,zz=-1,show=True,log=False,linplot=False,newload=False):
+    read_parameters(lpath)
+    kx,ky,kz = get_grids()
+
+    if not newload:
+        t,bkt = load_b(lpath)
+        t,vkt = load_v(lpath)
+    else:
+        if os.path.isfile(lpath+'/dumenspec.txt'):
+            t,ekvf,ekbf = load_energyspec(lpath)
+            ekvm = ekvf[:,:,:,1:]
+            ekbm = ekbf[:,:,:,1:]
+        else:
+            t,ekvf,ekbf = getenergyspec(lpath)
+            ekvm = ekvf[:,:,:,1:]
+            ekbm = ekbf[:,:,:,1:]
+
+    fmts = ["ks","mo","b^","g*","r8"]
+    fig,ax = plt.subplots(2)
+    kmag = np.sqrt(np.log(np.tensordot(np.tensordot(np.exp(kx**2),np.exp(ky**2),axes=0),np.exp(kz[1:]**2),axes=0)))
+    if log:
+        kmag = np.log(kmag)
+    j = 0
+    for i in range(0,np.size(t),np.size(t)//npt):
+        if not newload:
+            ekb = 0.5*(np.abs(bkt[i,:,:,1:,0])**2 + np.abs(bkt[i,:,:,1:,1])**2)
+            ekv = 0.5*(np.abs(vkt[i,:,:,1:,0])**2 + np.abs(vkt[i,:,:,1:,1])**2)
+        elif log:
+            ekb = np.log(ekbm[i,:,:,:])
+            ekv = np.log(ekvm[i,:,:,:])
+        else:
+            ekb = ekbm[i,:,:,:]
+            ekv = ekvm[i,:,:,:]
+        if (not newload) and log:
+            ekb[:,:,:] = np.log(ekb[:,:,:])
+            ekv[:,:,:] = np.log(ekv[:,:,:])
+        if (zz == -1):
+            x = np.reshape(kmag[:,:,:],np.size(kmag[:,:,:]))
+            a = np.argsort(x)
+            yb = np.reshape(ekb[:,:,:],np.size(kmag[:,:,:]))
+            yv = np.reshape(ekv[:,:,:],np.size(kmag[:,:,:]))
+        else:
+            x = np.reshape(kmag[:,:,0],np.size(kmag[:,:,0]))
+            a = np.argsort(x)
+            yb = np.reshape(ekb[:,:,zz],np.size(kmag[:,:,0]))
+            yv = np.reshape(ekv[:,:,zz],np.size(kmag[:,:,0]))
+        
+        if linplot:
+            ax[0].plot(1/(x[a]**2),yb[a],fmts[np.mod(i,5)],label=np.format_float_positional(t[i],2),markersize=1/(j+1))
+            ax[1].plot(1/(x[a]**2),yv[a],fmts[np.mod(i,5)],label=np.format_float_positional(t[i],2),markersize=1/(j+1))
+        else:
+            ax[0].plot(x[a],yb[a],fmts[np.mod(j,5)],label=np.format_float_positional(t[i],2),markersize=1/(j+1))
+            ax[1].plot(x[a],yv[a],fmts[np.mod(j,5)],label=np.format_float_positional(t[i],2),markersize=1/(j+1))
+        j = j + 1
+
+    ax[0].legend(loc=1)
+    ax[1].legend(loc=1)
+    if log:
+        label = " Log"
+    else:
+        label = ""
+    if (zz == -1):
+        fig.suptitle("Energy Spectrum")
+        ax[0].set_ylabel("Magnetic Energy Spectrum"+label)
+        ax[1].set_ylabel("Kinetic Energy Spectrum"+label)
+        if linplot:
+            fig.supxlabel("1/k^2")
+        else:
+            fig.supxlabel("k")
+    else:
+        fig.suptitle("Perpendicular Energy Spectrum kz = "+np.format_float_positional(kz[zz],2))
+        ax[0].set_ylabel("Magnetic Energy Spectrum"+label)
+        ax[1].set_ylabel("Kinetic Energy Spectrum"+label)
+        fig.supxlabel("kperp")
+    if not os.path.exists(lpath + '/eplots/'):
+        os.mkdir(lpath + '/eplots/')
+    plt.savefig(lpath+'/eplots/enspec'+str(zz)+'.png')
+    if show == True:
+        plt.show()
+    plt.close()
+    return(0)
 
 #if __name__ == '__main__':
 #    #count = mp.cpu_count()
@@ -838,13 +991,6 @@ def wherenezero(arr):
                         zs.append([i,j,k,l])
     return(zs)
 
-def realfield(lpath,ix,iy,iz,itime):
-    timeb,b = load_b(lpath)
-    b_t = b[itime,:,:,:,:]
-    b_x = irfftn(b_t,axes=[0,1,2])*np.size(b_t)*2/3
-    rb = b_x[ix,iy,iz,:]
-    return(rb)
-    
 def plot_bspectrum(lpath,ix,iy,iz,ind,show=True):
     """                                                                                                                                                                  
     ix,iy,iz specifies the wavevector                                                                                                                                    
