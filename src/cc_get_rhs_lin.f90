@@ -141,9 +141,10 @@ SUBROUTINE get_rhs_force(rhs_out_b, rhs_out_v, dt)
     call random_number(myresample)
 
     CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-    CALL MPI_ALLREDUCE(myresample,resample,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,ierr)
-
+    CALL MPI_ALLREDUCE(myresample,resample,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
+    
     IF(resample.lt.n_mpi_procs*dt) THEN
+!        print *, "Resample value ",resample
         DO i=1,nkxforce
           DO j=1,nkyforce
             DO k=1,nkzforce

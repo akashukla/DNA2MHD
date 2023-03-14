@@ -245,7 +245,7 @@ SUBROUTINE output_parameters
 
   CALL get_io_number
   out_handle=io_number
-  IF (verbose) WRITE(*,*) "Got io number, outhandle is: ", out_handle
+  IF (verbose.and.(mype.eq.0)) WRITE(*,*) "Got io number, outhandle is: ", out_handle
 
   IF(mype==0)  THEN
     IF (verbose) WRITE(*,*) "Mype was 0"

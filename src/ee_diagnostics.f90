@@ -71,6 +71,8 @@ MODULE diagnostics
   LOGICAL :: shells_initialized
   !nlt_triple diagnostics
   REAL, ALLOCATABLE, DIMENSION(:,:,:) :: NLT3
+  COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:) :: AVP
+  COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:) :: WVORT
   INTEGER :: nlt3_handle 
   !NLT Testing
   !REAL, ALLOCATABLE, DIMENSION(:,:,:,:) :: NLT_bak
@@ -141,6 +143,8 @@ SUBROUTINE initialize_diagnostics
     END IF
     energy_last=0.0
     time_last=time
+    ALLOCATE(AVP(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
+    ALLOCATE(WVORT(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
   END IF
   IF(istep_energyspec.gt.0.and.mype==0) THEN
     CALL get_io_number
@@ -243,6 +247,8 @@ SUBROUTINE finalize_diagnostics
 
   IF(istep_energy.gt.0.and.mype==0) THEN
     CLOSE(en_handle)
+    DEALLOCATE(AVP)
+    DEALLOCATE(WVORT)
   END IF
   IF(istep_energyspec.gt.0.and.mype==0) THEN
     CLOSE(enspec_handle)
@@ -396,11 +402,13 @@ SUBROUTINE diag
        IF(MOD(itime,istep_energy)==0) THEN
          IF(verbose.and.(mype.eq.0)) WRITE(*,*) "Starting energy diag.",mype
          WRITE(en_handle) time
-         WRITE(en_handle) hmhdhmtn(v_1,b_1)
-         WRITE(en_handle) mag_helicity(b_1,v_1)
-         WRITE(en_handle) cross_helicity(v_1,b_1)
-         WRITE(en_handle) eta*resvischange(b_1)
-         WRITE(en_handle) vnu*resvischange(v_1)
+         WRITE(en_handle) hmhdhmtn()
+         if (verbose) write(*,*) "Found Hamiltonian",mype
+         WRITE(en_handle) mag_helicity()
+         WRITE(en_handle) cross_helicity()
+         if (verbose) write(*,*) "Found Helicities",mype
+         WRITE(en_handle) eta*resvischange("b")
+         WRITE(en_handle) vnu*resvischange("v")
  
 !!       !!!!!!!!!!!Temporary!!!!!!!!!!!
 !!       !!!!!!!!!!!Temporary!!!!!!!!!!!
@@ -430,7 +438,7 @@ SUBROUTINE diag
        IF(MOD(itime,istep_energyspec)==0) THEN
          IF(verbose) WRITE(*,*) "Starting energyspec diag.",mype
          WRITE(enspec_handle) time
-         CALL en_spec(v_1,b_1)
+         CALL en_spec()
          IF(verbose) WRITE(*,*) "Done with energyspec diag.",mype
        END IF
      END IF
@@ -4160,21 +4168,19 @@ END SUBROUTINE diag
 !! 
 !!  END SUBROUTINE phi_shell_filter3
 
-function hmhdhmtn(v_in,b_in) result(ham)
+function hmhdhmtn result(ham)
 
 implicit none
-complex :: v_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
-complex :: b_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
 real :: ham
 
 !! Computes the Hall MHD Hamiltonian 8 pi^3 (sum(v_k^2 + b_k^2) + 2b_z0)/2 
 
-ham = sum(abs(v_in)**2 + abs(b_in)**2) + 2*real(b_in(0,0,0,2))
+ham = sum(abs(v_1)**2 + abs(b_1)**2) + 2*real(b_1(0,0,0,2))
 ham = ham * (8*(pi**3))
 
 end function hmhdhmtn
 
-function resvischange(arr) result(res)
+function resvischange(arr_label) result(res)
 
 !! Returns the rate of change of the above Hamiltonian 
 !! From including a resistivity term in the induction equation
@@ -4182,9 +4188,8 @@ function resvischange(arr) result(res)
 !! Can also be used to find change due to viscosity nu/(vA^2/omega_i) = 1
 !! with arr taken as v instead of b
 
-
 implicit none
-complex :: arr(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+character(1) :: arr_label 
 integer :: i,j,k,ind
 real :: k2
 real :: res
@@ -4195,7 +4200,8 @@ do i = 0,nkx0-1
         do k = lkz1,lkz2
             k2 = kxgrid(i)**2 + kygrid(j)**2 + kzgrid(k)**2
             do ind = 0,2
-                res = res + (k2**hyp)*abs(arr(i,j,k,ind))**2
+                if (arr_label.eq."v") res = res + (k2**hyp)*abs(v_1(i,j,k,ind))**2
+                if (arr_label.eq."b") res = res + (k2**hyp)*abs(b_1(i,j,k,ind))**2
             end do
         end do 
     end do 
@@ -4251,136 +4257,130 @@ ENDDO
 if (verbose.and.(mype.eq.0)) print *, 'Debug files closed' 
 end subroutine finalize_debug
 
-function vec_potential(b0,v0) result(A)
+subroutine vec_potential
 
 implicit none
-complex :: b0(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
-complex :: v0(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
-complex :: A(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
 integer :: i,j,k,ind
 
 ! Ak = - (curl Bk)/k^2
-A = cmplx(0.0,0.0)
+AVP = cmplx(0.0,0.0)
 
-do ind = 0,2
-  do i = 0,nkx0-1
-    do j = 0,nky0-1
-      do k = lkz1,lkz2
+do i = 0,nkx0-1
+  do j = 0,nky0-1
+    do k = lkz1,lkz2
+      do ind = 0,2
         if ((kzgrid(k)).ne.0) then 
-          if (ind.eq.0) A(i,j,k,ind) = cmplx(0.0,-1.0) * (kygrid(j)*b0(i,j,k,2)-kzgrid(k)*b0(i,j,k,1))
-          if (ind.eq.1) A(i,j,k,ind) = cmplx(0.0,-1.0) * (kzgrid(k)*b0(i,j,k,0)-kxgrid(i)*b0(i,j,k,2))
-          if (ind.eq.2) A(i,j,k,ind) = cmplx(0.0,-1.0) * (kxgrid(i)*b0(i,j,k,1)-kygrid(j)*b0(i,j,k,0))
-          A(i,j,k,ind) = A(i,j,k,ind) / (kxgrid(i)**2 + kygrid(j)**2 + kzgrid(k)**2)
-!          if (verbose) write(*,*) A(i,j,k,ind),gpsi(i,j,k,ind),A(i,j,k,ind)+gpsi(i,j,k,ind) 
-!          A(i,j,k,ind) = A(i,j,k,ind) + gpsi(i,j,k,ind)
+          if (ind.eq.0) AVP(i,j,k,ind) = cmplx(0.0,1.0) * (kygrid(j)*b_1(i,j,k,2)-kzgrid(k)*b_1(i,j,k,1))/(kmags(i,j,k)**2)
+          if (ind.eq.1) AVP(i,j,k,ind) = cmplx(0.0,1.0) * (kzgrid(k)*b_1(i,j,k,0)-kxgrid(i)*b_1(i,j,k,2))/(kmags(i,j,k)**2)
+          if (ind.eq.2) AVP(i,j,k,ind) = cmplx(0.0,1.0) * (kxgrid(i)*b_1(i,j,k,1)-kygrid(j)*b_1(i,j,k,0))/(kmags(i,j,k)**2)
+        ! if (verbose) write(*,*) A(i,j,k,ind),gpsi(i,j,k,ind),A(i,j,k,ind)+gpsi(i,j,k,ind) 
+        ! AVP(i,j,k,ind) = AVP(i,j,k,ind) + gpsi(i,j,k,ind)
         endif
       enddo
     enddo
    enddo
 enddo
 
-! bandage guide field vector potential that used to work
-! A(0,0,0,2) = 0.5 * sum(aimag(b0)**2 +aimag(v0)**2) 
+end subroutine vec_potential
 
-end function vec_potential
-
-function mag_helicity(b0,v0) result(maghel)
+function mag_helicity result(maghel)
 
 implicit none
-complex :: b0(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
-complex :: v0(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
-real :: maghel,coulomb,gchange
-complex :: A0(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+real :: maghel
+
 integer :: i,j,k,ind
-real :: intx
+real :: intx,coulomb,gchange
 
 maghel = 0.0
 coulomb = 0.0
 gchange = 0.0
-A0 = vec_potential(b0,v0)
+CALL vec_potential()
 
-do ind = 0,2
-  do i = 0,nkx0-1
-    do j = 0,nky0-1
-      do k = lkz1,lkz2
-        coulomb = coulomb + (2*pi)**3 * real(conjg(A0(i,j,k,ind))*b0(i,j,k,ind))
-        gchange = gchange + (2*pi)**3 * real(conjg(gpsi(i,j,k,ind))*b0(i,j,k,ind))
-      enddo
-    enddo
-    if (i.ne.0) intx = intx + 1.0/3.0 * (2*pi)**3 * aimag(b0(i,0,0,1)) * (-1)**i * 1/i * 1/(kxmin**2)
-  enddo
-enddo
+!do ind = 0,2
+!  do i = 0,nkx0-1
+!    do j = 0,nky0-1
+!      do k = lkz1,lkz2
+!        coulomb = coulomb + (2*pi)**3 * real(conjg(AVP(i,j,k,ind))*b_1(i,j,k,ind))
+!        gchange = gchange + (2*pi)**3 * real(conjg(gpsi(i,j,k,ind))*b_1(i,j,k,ind))
+!      enddo
+!    enddo
+!    if (i.ne.0) intx = intx + 1.0/3.0 * (2*pi)**3 * aimag(b_1(i,0,0,1)) * (-1)**i * 1/i * 1/(kxmin**2)
+!  enddo
+!enddo
 
-maghel = maghel + real(A0(0,0,0,2))
-if (verbose) write(*,*) 'Coulomb',coulomb,'z Vec Potential',intx,&
-    'Transformation',gchange,'Overall Magnetic Helicity',coulomb+gchange
-maghel = 2*(coulomb+gchange)
+! Simpler Sum
+ maghel = 2.0*sum(real(AVP(:,:,:,:)*conjg(b_1(:,:,:,:))))
+ maghel = maghel + 2.0*real(AVP(0,0,0,2))
+
+! Alternative Expansion
+
+!maghel = 0.0
+!do i = 0,nkx0-1
+!    do j = 0,nky0-1
+!        do k = 0,nkz0-1
+!            maghel = maghel + real(kxgrid(i) * (b_1(i,j,k,1)*conjg(b_1(i,j,k,2)) - b_1(i,j,k,2)*conjg(b_1(i,j,k,1)))/(kmags(i,j,k)**2))
+!            maghel = maghel + real(kygrid(j) * (b_1(i,j,k,2)*conjg(b_1(i,j,k,0)) - b_1(i,j,k,0)*conjg(b_1(i,j,k,2)))/(kmags(i,j,k)**2))
+!            maghel = maghel + real(kzgrid(k) * (b_1(i,j,k,0)*conjg(b_1(i,j,k,1)) - b_1(i,j,k,1)*conjg(b_1(i,j,k,0)))/(kmags(i,j,k)**2))
+!        enddo
+!    enddo
+!enddo
+
+maghel = i_complex * maghel
+
+! if (verbose.and.(mype.eq.0)) write(*,*) 'Coulomb',coulomb,'z Vec Potential',intx,&
+!    'Transformation',gchange,'Overall Magnetic Helicity',coulomb+gchange
+! maghel = 2*(coulomb+gchange)
 
 end function mag_helicity
 
-function vorticity(v0) result(w)
+subroutine vorticity
 
 implicit none
-complex :: v0(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
-complex :: w(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
 integer :: ind,i,j,k
 
-w = cmplx(0.0,0.0)
+WVORT = cmplx(0.0,0.0)
 
 do ind = 0,2
   do i = 0,nkx0-1
     do j = 0,nky0-1
       do k = lkz1,lkz2
-          if (ind.eq.0) w(i,j,k,ind) = kygrid(j) * v0(i,j,k,2) - kzgrid(k) * v0(i,j,k,1)
-          if (ind.eq.1) w(i,j,k,ind) = kzgrid(k) * v0(i,j,k,0) - kxgrid(i) * v0(i,j,k,2)
-          if (ind.eq.2) w(i,j,k,ind) = kxgrid(i) * v0(i,j,k,1) - kygrid(j) * v0(i,j,k,0)
+          if (ind.eq.0) WVORT(i,j,k,ind) = kygrid(j) * v_1(i,j,k,2) - kzgrid(k) * v_1(i,j,k,1)
+          if (ind.eq.1) WVORT(i,j,k,ind) = kzgrid(k) * v_1(i,j,k,0) - kxgrid(i) * v_1(i,j,k,2)
+          if (ind.eq.2) WVORT(i,j,k,ind) = kxgrid(i) * v_1(i,j,k,1) - kygrid(j) * v_1(i,j,k,0)
       enddo
     enddo
    enddo
 enddo
 
-w = cmplx(0.0,1.0) * w
+WVORT = cmplx(0.0,1.0) * WVORT
 
 ! if ((verbose).and.(itime.lt.200)) write(*,*) 'w',w
 
-end function vorticity
+end subroutine vorticity
 
-function cross_helicity(v0,b0) result(crosshel)
+function cross_helicity result(crosshel)
 
 implicit none
-complex :: b0(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
-complex :: v0(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
 real :: crosshel
-complex :: A0(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
-complex :: w0(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
 integer :: i,j,k,ind
 
-w0 = vorticity(v0)
+CALL vec_potential()
+CALL vorticity()
 
-do ind = 0,2
-  do i = 0,nkx0-1
-    do j = 0,nky0-1
-      do k = lkz1,lkz2
-        crosshel = crosshel + 2*real(conjg(b0(i,j,k,ind)) * v0(i,j,k,ind))
-        crosshel = crosshel + real(conjg(v0(i,j,k,ind)) * w0(i,j,k,ind))
-      enddo
-    enddo
-  enddo
-enddo
+crosshel = 0.0
+crosshel = sum(real(AVP*conjg(b_1) + 2*conjg(b_1)*v_1 + conjg(v_1)*WVORT))
 
-crosshel = crosshel + 3*real(v0(0,0,0,2))
+crosshel = crosshel + 3*real(v_1(0,0,0,2)) + real(AVP(0,0,0,2))
 crosshel = 2*(2*pi)**3 * crosshel
 
 end function cross_helicity
 
-subroutine en_spec(v_in,b_in) 
+subroutine en_spec() 
 
 implicit none
-complex :: v_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
-complex :: b_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
 
-WRITE(enspec_handle) (4*pi**3)* (abs(v_in(:,:,:,0))**2 + abs(v_in(:,:,:,1))**2)
-WRITE(enspec_handle) (4*pi**3)* (abs(b_in(:,:,:,0))**2+ abs(b_in(:,:,:,1))**2)
+WRITE(enspec_handle) (4*pi**3)* (abs(v_1(:,:,:,0))**2 + abs(v_1(:,:,:,1))**2)
+WRITE(enspec_handle) (4*pi**3)* (abs(b_1(:,:,:,0))**2+ abs(b_1(:,:,:,1))**2)
 
 end subroutine en_spec
 

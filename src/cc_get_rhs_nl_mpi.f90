@@ -135,10 +135,10 @@ SUBROUTINE initialize_fourier_ae_mu0
   IF(mype==0) WRITE(*,*) "hkz_ind,lkz_ind",hkz_ind,lkz_ind
   IF(mype==0) WRITE(*,*) "lkz_big",lkz_big
 
-   print *,'Local N',mype,local_N
-   print *,'Are offsets 0?',mype,local_k_offset,local_k_offseti
+   ! print *,'Local N',mype,local_N
+   ! print *,'Are offsets 0?',mype,local_k_offset,local_k_offseti
 
-IF (.true.) THEN
+IF (.false.) THEN
 ! Practice FFTs
   do k = 1, local_N
     do j = 1,ny0_big
@@ -1173,24 +1173,24 @@ SUBROUTINE ALLOCATIONS
 ! ALLOCATIONS
   ALLOCATE(temp_small(1:nkx0,1:nky0,1:nkz0))
   ALLOCATE(temp_smallm(1:nkx0,1:nky0,1:nkz0))
-  if (verbose) print *, 'alloc ts'
+  if (verbose.and.(mype.eq.0)) print *, 'alloc ts'
   ALLOCATE(rhs_out_nlb(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
   ALLOCATE(rhs_out_nlv(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-  if (verbose) print *,'alloc rnls'
+  if (verbose.and.(mype.eq.0)) print *,'alloc rnls'
   ALLOCATE(arr_real(1:nx0_big,1:ny0_big,1:local_N))
   ALLOCATE(arr_specm(0:nkx0-1,0:nky0-1,0:nkz0-1))
   ALLOCATE(arr_spec(0:nkx0-1,0:nky0-1,0:nkz0-1))
-  if (verbose) print *,'alloc arrs'
+  if (verbose.and.(mype.eq.0)) print *,'alloc arrs'
   ALLOCATE(store_vx(1:nx0_big,1:ny0_big,1:local_N))
   ALLOCATE(store_vy(1:nx0_big,1:ny0_big,1:local_N))
   ALLOCATE(store_vz(1:nx0_big,1:ny0_big,1:local_N))
   ALLOCATE(store_bx(1:nx0_big,1:ny0_big,1:local_N))
   ALLOCATE(store_by(1:nx0_big,1:ny0_big,1:local_N))
   ALLOCATE(store_bz(1:nx0_big,1:ny0_big,1:local_N))
-  if (verbose) print *,'alloc stores'
+  if (verbose.and.(mype.eq.0)) print *,'alloc stores'
 
   ALLOCATE(output(1:nx0_big,1:ny0_big,1:local_Ni))
-  if (verbose) print *,'alloc outputs'
+  if (verbose.and.(mype.eq.0)) print *,'alloc outputs'
  
 ! All b arrays  
   ALLOCATE(bx(1:nx0_big,1:ny0_big,1:local_Ni))
@@ -1201,7 +1201,7 @@ SUBROUTINE ALLOCATIONS
   ALLOCATE(vx(1:nx0_big,1:ny0_big,1:local_Ni))
   ALLOCATE(vy(1:nx0_big,1:ny0_big,1:local_Ni))
   ALLOCATE(vz(1:nx0_big,1:ny0_big,1:local_Ni))
-  if (verbose) print *,'alloc rawvars'
+  if (verbose.and.(mype.eq.0)) print *,'alloc rawvars'
 ! all first order v arrays  
   !vx                                                                                                                                                                                   
   ALLOCATE(dxvx(1:nx0_big,1:ny0_big,1:local_Ni))
@@ -1228,7 +1228,7 @@ SUBROUTINE ALLOCATIONS
   ALLOCATE(dxbz(1:nx0_big,1:ny0_big,1:local_Ni))
   ALLOCATE(dybz(1:nx0_big,1:ny0_big,1:local_Ni))
   ALLOCATE(dzbz(1:nx0_big,1:ny0_big,1:local_Ni))
-  if (verbose) print *,'alloc derivs'
+  if (verbose.and.(mype.eq.0)) print *,'alloc derivs'
   
 ! all  second order bx arrays  DXDXBX,   DXDYBX,   DXDZBX,  DYDYBX,   DYDZBX, DZDZBX
   ALLOCATE(dxdxbx(1:nx0_big,1:ny0_big,1:local_Ni))
@@ -1251,7 +1251,7 @@ SUBROUTINE ALLOCATIONS
   ALLOCATE(dydybz(1:nx0_big,1:ny0_big,1:local_Ni))
   ALLOCATE(dydzbz(1:nx0_big,1:ny0_big,1:local_Ni))
   ALLOCATE(dzdzbz(1:nx0_big,1:ny0_big,1:local_Ni))
-  if (verbose) print *,'alloc 2derivs'
+  if (verbose.and.(mype.eq.0)) print *,'alloc 2derivs'
     
   ! nonlinearities
   IF (plot_nls.and.(mod(counter,4).eq.0)) THEN
@@ -1262,7 +1262,7 @@ SUBROUTINE ALLOCATIONS
   ALLOCATE(vdv(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
   ALLOCATE(bdb(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
   ALLOCATE(db2(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
-  if (verbose) print *,'alloc ts'
+  if (verbose.and.(mype.eq.0)) print *,'alloc ts'
   ENDIF
 
   ! initial arrays
@@ -1272,7 +1272,7 @@ SUBROUTINE ALLOCATIONS
   ALLOCATE(v_inx0(1:nkx0,1:nky0,1:nkz0))
   ALLOCATE(v_iny0(1:nkx0,1:nky0,1:nkz0))
   ALLOCATE(v_inz0(1:nkx0,1:nky0,1:nkz0))
-  if (verbose) print *,'alloc inits'
+  if (verbose.and.(mype.eq.0)) print *,'alloc inits'
 
 END SUBROUTINE ALLOCATIONS
 

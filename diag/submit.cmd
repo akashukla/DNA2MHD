@@ -8,4 +8,4 @@
 #SBATCH -A GKIMP # Project name
 
 module load python3
-python3 plotting02062023.py
+python3 plotting03062023.py

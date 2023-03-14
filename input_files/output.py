@@ -1,4 +1,4 @@
-fname = 'DNAHD.out10884473'
+fname = 'DNAHD.out11041108'
 
 import numpy as np 
 

@@ -907,7 +907,7 @@ def plot_enspec(lpath,npt=1,zz=-1,show=True,log=False,linplot=False,newload=Fals
             a = np.argsort(x)
             yb = np.reshape(ekb[:,:,zz],np.size(kmag[:,:,0]))
             yv = np.reshape(ekv[:,:,zz],np.size(kmag[:,:,0]))
-        
+
         if linplot:
             ax[0].plot(1/(x[a]**2),yb[a],fmts[np.mod(i,5)],label=np.format_float_positional(t[i],2),markersize=1/(j+1))
             ax[1].plot(1/(x[a]**2),yv[a],fmts[np.mod(i,5)],label=np.format_float_positional(t[i],2),markersize=1/(j+1))
@@ -1034,3 +1034,24 @@ def plot_bspectrum(lpath,ix,iy,iz,ind,show=True):
         plt.show()
     plt.close()
     return freq[peaks]*2*np.pi
+
+def errpct_energy(lpath):
+    read_parameters(lpath)
+    Nx = par['nkx0']
+    Ny = par['nky0']
+    Nz = par['nkz0']
+    p = par['init_kolm']
+    kx = par['kxmin']
+    ky = par['kymin']
+    kz = par['kzmin']
+    E = 0
+    Et = 0
+    for i in range(0,1024):
+        for j in range(0,1024):
+            for k in range(1,1024):
+                E += 1/((kx*i)**2 + (ky*j)**2 + (kz*k)**2)
+                if ((i < Nx//2) and (j < Ny//2)) and (k < Nz):
+                    Et += 1/((kx*i)**2 + (ky*j)**2 + (kz*k)**2)
+        print(i)
+    return (E-Et)/E
+

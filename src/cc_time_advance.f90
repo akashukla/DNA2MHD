@@ -182,6 +182,7 @@ SUBROUTINE get_g_next(b_in, v_in,dt_new)
 !  !g_in=g_2 
 
  !4th order Runge-Kutta
+ if (itime.lt.1)  CALL remove_div(b_in,v_in)
  first_stage=.true.
  CALL get_rhs(b_in, v_in, bk1, vk1,dt_new1)
  b_2=b_in+(1.0/6.0)*dt*bk1
@@ -190,18 +191,21 @@ SUBROUTINE get_g_next(b_in, v_in,dt_new)
  !CALL get_rhs(b_in+0.5*dt*bk1,bk2)
  bk1=b_in+0.5*dt*bk1
  vk1=v_in+0.5*dt*vk1
+ CALL remove_div(bk1,vk1)
  
  CALL get_rhs(bk1,vk1,bk2,vk2,dt_new2)
  b_2=b_2+(1.0/3.0)*dt*bk2
  bk2=b_in+0.5*dt*bk2
  v_2=v_2+(1.0/3.0)*dt*vk2
  vk2=v_in+0.5*dt*vk2
+ CALL remove_div(bk2,vk2)
 
  CALL get_rhs(bk2,vk2,bk1,vk1,dt_new3)
  b_2=b_2+(1.0/3.0)*dt*bk1
  bk1=b_in+dt*bk1
  v_2=v_2+(1.0/3.0)*dt*vk1
  vk1=v_in+dt*vk1
+ CALL remove_div(bk1,vk1)
 
  CALL get_rhs(bk1,vk1,bk2,vk2,dt_new4)
  b_in=b_2+(1.0/6.0)*dt*bk2
@@ -318,6 +322,7 @@ SUBROUTINE get_rhs(b_in,v_in, rhs_out_b,rhs_out_v,ndt)
 
   ! Add forcing
   IF(force_turbulence) CALL get_rhs_force(rhs_out_b, rhs_out_v,ndt)
+
 if (verbose.and.(mype.eq.0)) print *,'RHS found'
 
 END SUBROUTINE get_rhs

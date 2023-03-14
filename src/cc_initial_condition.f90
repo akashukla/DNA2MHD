@@ -23,10 +23,10 @@ SUBROUTINE initial_condition(which_init0)
   USE mtrandom
   IMPLICIT NONE
 
-  INTEGER :: i,j,k, l
+  INTEGER :: i,j,k, l,zst,xst,yst
   REAL :: kfactor,err
   REAL :: divratio(0:nkx0-1,0:nky0-1,1:nkz0-1)
-  REAL :: s1, s2,s3,s4
+  REAL :: s1, s2,s3,s4,s5
   !REAL :: init_prefactor
   COMPLEX :: phase,phaseb,phasev
   REAL :: phase1,phase2,kspect
@@ -42,6 +42,9 @@ SUBROUTINE initial_condition(which_init0)
   b_1(:,:,:,:)=cmplx(0.0,0.0)
   v_1(:,:,:,:)=cmplx(0.0,0.0)
 
+  xst = max(0,kxinit_min)
+  yst = max(0,kyinit_min)
+  zst = max(1,kzinit_min)
   DO i = 0,nkx0-1
     DO j = 0,nky0-1
       DO k = 1,nkz0-1
@@ -50,11 +53,11 @@ SUBROUTINE initial_condition(which_init0)
       END DO
     END DO
   END DO
-  s1 = 2*sum(kmags(0:kxinit_max-1,0:kyinit_max-1,1:kzinit_max-1) ** (-1.0*init_kolm))
-  s2 = 2*sum((divratio(0:kxinit_max-1,0:kyinit_max-1,1:kzinit_max-1) ** 2) * kmags(0:kxinit_max-1,0:kyinit_max-1,1:kzinit_max-1) ** (-1.0 * init_kolm))
+  s1 = 2*sum(kmags(xst:kxinit_max-1,yst:kyinit_max-1,zst:kzinit_max-1) ** (-1.0*init_kolm))
+  s2 = 2*sum((divratio(xst:kxinit_max-1,yst:kyinit_max-1,zst:kzinit_max-1) ** 2) * kmags(0:kxinit_max-1,0:kyinit_max-1,1:kzinit_max-1) ** (-1.0 * init_kolm))
   s3 = 2*sum(kmags(1:nkxforce,1:nkyforce,1:nkzforce) ** (-0.5*init_kolm))  
-  s4 = 2*sum(kmags(0:kxinit_max-1,0:kyinit_max-1,1:kzinit_max-1) ** (2*real(hyp)-1.0*init_kolm))
-
+  s4 = 2*sum(kmags(xst:kxinit_max-1,yst:kyinit_max-1,zst:kzinit_max-1) ** (2*real(hyp)-1.0*init_kolm))
+  s5 = 2*sum((divratio(xst:kxinit_max-1,yst:kyinit_max-1,zst:kzinit_max-1) ** 2) * kmags(0:kxinit_max-1,0:kyinit_max-1,1:kzinit_max-1) ** (2*real(hyp)-1.0*init_kolm))
 
   !init_prefactor=0.001
 !Default Initialization
@@ -64,15 +67,21 @@ SUBROUTINE initial_condition(which_init0)
       rseed(:) = 1
       CALL RANDOM_SEED(PUT=rseed)
       DEALLOCATE(rseed)
- 
-      DO i=0,kxinit_max-1
-       DO j=0,kyinit_max-1
-        DO k=0,kzinit_max-1
-         CALL RANDOM_NUMBER(phase1)
-         CALL RANDOM_NUMBER(phase2)
-         phaseb = cmplx(cos(2*pi*phase1),sin(2*pi*phase1))
-!         if (verbose) write(*,*) phaseb
-         phasev = cmplx(cos(2*pi*phase2),sin(2*pi*phase2))
+
+      ! 03/14/23 Helicity is linearly conserved when a) the initial bk and vk are parallel or b) the waves are out of phase by 90 degrees
+      ! I'm building in both conditions for conservation for now, but this could be changed later
+      ! But should x,y,z all have the same phase?
+
+      DO i=xst,kxinit_max-1
+       DO j=yst,kyinit_max-1
+        DO k=zst,kzinit_max-1
+
+          CALL RANDOM_NUMBER(phase1)
+          ! CALL RANDOM_NUMBER(phase2) 
+          phase2 = phase1 - 1.0/4.0
+          phaseb = cmplx(cos(2*pi*phase1),sin(2*pi*phase1))
+          phasev = cmplx(cos(2*pi*phase2),sin(2*pi*phase2))
+
          !DO l=0,2
          IF(kzgrid(k).eq.zerocmplx) THEN
              b_1(i,j,k,0)=cmplx(0.0,0.0)
@@ -109,12 +118,16 @@ SUBROUTINE initial_condition(which_init0)
       END DO
       if (nv) b_1(:,:,:,:) = cmplx(0.0,0.0)
       gpsi(:,:,:,:) = cmplx(0.0,0.0)
+      print *, "Max BV Cross Product X",maxval(abs(b_1(:,:,:,1)*v_1(:,:,:,2)-b_1(:,:,:,2)*v_1(:,:,:,1))),maxloc(abs(b_1(:,:,:,1)*v_1(:,:,:,2)-b_1(:,:,:,2)*v_1(:,:,:,1)))
+      print *, "Max BV Cross Product Y",maxval(abs(b_1(:,:,:,2)*v_1(:,:,:,0)-b_1(:,:,:,0)*v_1(:,:,:,2))),maxloc(abs(b_1(:,:,:,2)*v_1(:,:,:,0)-b_1(:,:,:,0)*v_1(:,:,:,2)))
+      print *, "Max BV Cross Product Z",maxval(abs(b_1(:,:,:,0)*v_1(:,:,:,1)-b_1(:,:,:,1)*v_1(:,:,:,0))),maxloc(abs(b_1(:,:,:,0)*v_1(:,:,:,1)-b_1(:,:,:,1)*v_1(:,:,:,0)))
 
       ! Rescale forcing amplitude for relevance
-      IF ((force_turbulence).and.set_forcing) force_amp = 1.0/(16.0*dt_max)*s4/s3 * vnu
+      IF ((force_turbulence).and.set_forcing) force_amp = 0.01 / (4.0*dt_max) * ((8.0*s4+4.0*s5) / (16.0*s3)) * vnu
       IF (forceb) force_amp = force_amp/2.0
       IF ((verbose.and.(mype.eq.0)).and.(set_forcing)) print *, 'Force Amp',force_amp
       IF (force_turbulence) force_amp = force_amp * abs(b_1(nkxforce,nkyforce,nkzforce,0)*(kmags(nkxforce,nkyforce,nkzforce)**(init_kolm/2.0)))
+      IF ((verbose.and.(mype.eq.0)).and.(set_forcing)) print *, 'Force Amp',force_amp
 
       ! Linear stability maximum time step
       dt_max = minval([dt_max,2.5/(maxval(kzgrid)*(maxval(kmags)/2 + sqrt(1 + 0.25*maxval(kmags)**2.0)))])
