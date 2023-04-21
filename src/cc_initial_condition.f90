@@ -21,6 +21,7 @@
 SUBROUTINE initial_condition(which_init0)
   USE par_mod
   USE mtrandom
+  USE mpi
   IMPLICIT NONE
 
   INTEGER :: i,j,k, l,zst,xst,yst
@@ -29,11 +30,11 @@ SUBROUTINE initial_condition(which_init0)
   REAL :: s1, s2,s3,s4,s5
   !REAL :: init_prefactor
   COMPLEX :: phase,phaseb,phasev
-  REAL :: phase1,phase2,kspect
+  REAL :: phase1,phase2,kspect,myphase1,myphase2
   CHARACTER(len=40), INTENT(in) :: which_init0
   CHARACTER(len=40) :: which_init
   INTEGER, DIMENSION(:), ALLOCATABLE :: rseed
-  INTEGER :: rseed_size
+  INTEGER :: rseed_size,ierr
   REAL :: zerocmplx
 
   zerocmplx=0.0
@@ -76,9 +77,16 @@ SUBROUTINE initial_condition(which_init0)
        DO j=yst,kyinit_max-1
         DO k=zst,kzinit_max-1
 
-          CALL RANDOM_NUMBER(phase1)
-          ! CALL RANDOM_NUMBER(phase2) 
-          phase2 = phase1 - 1.0/4.0
+          CALL RANDOM_NUMBER(myphase1)
+          CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+          CALL MPI_ALLREDUCE(myphase1,phase1,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
+          if (phdf.le.1.0) phase2 = phase1 + phdf
+          if (phdf.gt.1.0) then 
+          CALL RANDOM_NUMBER(myphase2) 
+          CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+          CALL MPI_ALLREDUCE(myphase2,phase2,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
+          endif
+          ! phase2 = phase1 - 1.0/4.0
           phaseb = cmplx(cos(2*pi*phase1),sin(2*pi*phase1))
           phasev = cmplx(cos(2*pi*phase2),sin(2*pi*phase2))
 
@@ -118,14 +126,22 @@ SUBROUTINE initial_condition(which_init0)
       END DO
       if (nv) b_1(:,:,:,:) = cmplx(0.0,0.0)
       gpsi(:,:,:,:) = cmplx(0.0,0.0)
-      print *, "Max BV Cross Product X",maxval(abs(b_1(:,:,:,1)*v_1(:,:,:,2)-b_1(:,:,:,2)*v_1(:,:,:,1))),maxloc(abs(b_1(:,:,:,1)*v_1(:,:,:,2)-b_1(:,:,:,2)*v_1(:,:,:,1)))
-      print *, "Max BV Cross Product Y",maxval(abs(b_1(:,:,:,2)*v_1(:,:,:,0)-b_1(:,:,:,0)*v_1(:,:,:,2))),maxloc(abs(b_1(:,:,:,2)*v_1(:,:,:,0)-b_1(:,:,:,0)*v_1(:,:,:,2)))
-      print *, "Max BV Cross Product Z",maxval(abs(b_1(:,:,:,0)*v_1(:,:,:,1)-b_1(:,:,:,1)*v_1(:,:,:,0))),maxloc(abs(b_1(:,:,:,0)*v_1(:,:,:,1)-b_1(:,:,:,1)*v_1(:,:,:,0)))
+      print *, "MaxVal b", maxval(abs(b_1))
+!      print *, "Max BV Cross Product X",maxval(abs(b_1(:,:,:,1)*v_1(:,:,:,2)-b_1(:,:,:,2)*v_1(:,:,:,1))),maxloc(abs(b_1(:,:,:,1)*v_1(:,:,:,2)-b_1(:,:,:,2)*v_1(:,:,:,1)))
+!      print *, "Max BV Cross Product Y",maxval(abs(b_1(:,:,:,2)*v_1(:,:,:,0)-b_1(:,:,:,0)*v_1(:,:,:,2))),maxloc(abs(b_1(:,:,:,2)*v_1(:,:,:,0)-b_1(:,:,:,0)*v_1(:,:,:,2)))
+!      print *, "Max BV Cross Product Z",maxval(abs(b_1(:,:,:,0)*v_1(:,:,:,1)-b_1(:,:,:,1)*v_1(:,:,:,0))),maxloc(abs(b_1(:,:,:,0)*v_1(:,:,:,1)-b_1(:,:,:,1)*v_1(:,:,:,0)))
 
-      ! Rescale forcing amplitude for relevance
-      IF ((force_turbulence).and.set_forcing) force_amp = 0.01 / (4.0*dt_max) * ((8.0*s4+4.0*s5) / (16.0*s3)) * vnu
+
+      ! Set dissipation to set relative rate of dissipation at high scales
+
+      vnu = vnu / (maxval(kmags)**(2.0*hyp))
+      eta = eta * vnu
+      if(mype.eq.0) print *, 'Viscosity',vnu
+
+      ! Rescale forcing amplitude for to match dissipation in inertial range
+      IF ((force_turbulence).and.set_forcing) force_amp = vnu * s4 / (4.0 * nkxforce * nkyforce * nkzforce * dt_max)
       IF (forceb) force_amp = force_amp/2.0
-      IF ((verbose.and.(mype.eq.0)).and.(set_forcing)) print *, 'Force Amp',force_amp
+      IF ((mype.eq.0).and.(set_forcing)) print *, 'Force Amp',force_amp
       IF (force_turbulence) force_amp = force_amp * abs(b_1(nkxforce,nkyforce,nkzforce,0)*(kmags(nkxforce,nkyforce,nkzforce)**(init_kolm/2.0)))
       IF ((verbose.and.(mype.eq.0)).and.(set_forcing)) print *, 'Force Amp',force_amp
 

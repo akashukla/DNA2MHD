@@ -837,21 +837,21 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
        - (vx*dxbx+vy*dybx+vz*dzbx)&
        - hall*((bx*dxdybz+by*dydybz+bz*dydzbz&
           -bx*dxdzby-by*dydzby-bz*dzdzby)&
-       + (dybz*dxbx-dzby*dxbx-dxbz*dybx&
+       - (dybz*dxbx-dzby*dxbx-dxbz*dybx&
           +dzbx*dybx+dxby*dzbx-dybx*dzbx))
 
   store_by = (bx*dxvy+by*dyvy+bz*dzvy)&
        - (vx*dxby+vy*dyby+vz*dzby)&
        - hall*((bx*dxdzbx+by*dydzbx+bz*dzdzbx&
           -bx*dxdxbz-by*dxdybz-bz*dxdzbz)&
-       + (dybz*dxby-dzby*dxby-dxbz*dyby&
+       - (dybz*dxby-dzby*dxby-dxbz*dyby&
           +dzbx*dyby+dxby*dzby-dybx*dzby))
 
   store_bz = (bx*dxvz+by*dyvz+bz*dzvz)&
        - (vx*dxbz+vy*dybz+vz*dzbz)&
        - hall*((bx*dxdxby+by*dxdyby+bz*dxdzby&
           -bx*dxdybx-by*dydybx-bz*dydzbx)&
-       + (dybz*dxbz-dzby*dxbz-dxbz*dybz&
+       - (dybz*dxbz-dzby*dxbz-dxbz*dybz&
           +dzbx*dybz+dxby*dzbz-dybx*dzbz))
 
   endif

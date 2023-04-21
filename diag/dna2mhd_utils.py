@@ -628,7 +628,7 @@ def plot_vspectrum(lpath,ix,iy,iz,ind,show=True):
     #plt.plot(time,v_k)
     #plt.show()
     sp=fftshift(fft(v_k-np.mean(v_k)))
-    freq = fftshift(fftfreq(time.shape[-1],d=.1))
+    freq = fftshift(fftfreq(time.shape[-1],d=.01))
     omega = 2*np.pi*freq
     peaks,_ = find_peaks(np.abs(sp),threshold=10)
     print(freq[peaks])
@@ -898,10 +898,10 @@ def plot_enspec(lpath,npt=1,zz=-1,show=True,log=False,linplot=False,newload=Fals
             ekb[:,:,:] = np.log(ekb[:,:,:])
             ekv[:,:,:] = np.log(ekv[:,:,:])
         if (zz == -1):
-            x = np.reshape(kmag[:,:,:],np.size(kmag[:,:,:]))
+            x = np.reshape(kmag[:,:,0],np.size(kmag[:,:,0]))
             a = np.argsort(x)
-            yb = np.reshape(ekb[:,:,:],np.size(kmag[:,:,:]))
-            yv = np.reshape(ekv[:,:,:],np.size(kmag[:,:,:]))
+            yb = np.reshape(ekb[:,:,0],np.size(kmag[:,:,0]))
+            yv = np.reshape(ekv[:,:,0],np.size(kmag[:,:,0]))
         else:
             x = np.reshape(kmag[:,:,0],np.size(kmag[:,:,0]))
             a = np.argsort(x)
@@ -920,16 +920,18 @@ def plot_enspec(lpath,npt=1,zz=-1,show=True,log=False,linplot=False,newload=Fals
     ax[1].legend(loc=1)
     if log:
         label = " Log"
+        ax[0].set_ylim(-30,0)
+        ax[1].set_ylim(-30,0)
     else:
         label = ""
     if (zz == -1):
         fig.suptitle("Energy Spectrum")
-        ax[0].set_ylabel("Magnetic Energy Spectrum"+label)
-        ax[1].set_ylabel("Kinetic Energy Spectrum"+label)
+        ax[0].set_ylabel("Magnetic "+label)
+        ax[1].set_ylabel("Kinetic "+label)
         if linplot:
             fig.supxlabel("1/k^2")
         else:
-            fig.supxlabel("k")
+            fig.supxlabel(label+" k")
     else:
         fig.suptitle("Perpendicular Energy Spectrum kz = "+np.format_float_positional(kz[zz],2))
         ax[0].set_ylabel("Magnetic Energy Spectrum"+label)
@@ -1007,7 +1009,7 @@ def plot_bspectrum(lpath,ix,iy,iz,ind,show=True):
     time,b=load_b(lpath)
     b_k = b[:,ix,iy,iz,ind]
     sp=fftshift(fft(b_k-np.mean(b_k)))    
-    freq = fftshift(fftfreq(time.shape[-1],d=.1))
+    freq = fftshift(fftfreq(time.shape[-1],d=.01))
     omega = 2*np.pi*freq
     peaks,_ = find_peaks(np.abs(sp),threshold=10)
     print(freq[peaks])

@@ -32,6 +32,7 @@ MODULE par_mod
   REAL :: kzmin=0.1,kymin=0.1,kxmin=0.1  !minimum k's  (i.e. sets box size)
   REAL :: init_amp_bx=0.01,init_amp_by=0.01,init_amp_bz=0.01, init_amp_vx=0.01, init_amp_vy=0.01, init_amp_vz=0.01
   REAL :: init_kolm = 1.66 !initial scaling exponent of the energy spectrum i.e. vk^2 propto k^(-init_kolm)
+  REAL :: phdf = 0.25
   INTEGER :: kxinit_min=0,kyinit_min=0,kzinit_min=0  !minimum k's  (i.e. sets box size)
   INTEGER :: kxinit_max=8,kyinit_max=16,kzinit_max=18  !maximum k's  (i.e. sets box size)
   INTEGER :: nkxforce=2,nkyforce=2,nkzforce=2  !ks to force
@@ -313,8 +314,8 @@ MODULE par_mod
 
   ! for checkpoints in io
   INTEGER :: b_out_handle, v_out_handle
-  REAL :: vnu ! Viscosity in units ion skin depth * v_A
-  REAL :: eta ! Resistivity in units B_0 / (n0 * e * c)
+  REAL :: vnu ! Viscosity in units ion skin depth * v_A is vnu/(maxk**(2*hyp))
+  REAL :: eta ! Magnetic Prandtl number, mag diffusion constant eta * vnu
   INTEGER :: hyp
   
 
