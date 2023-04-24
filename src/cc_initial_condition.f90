@@ -29,8 +29,8 @@ SUBROUTINE initial_condition(which_init0)
   REAL :: divratio(0:nkx0-1,0:nky0-1,1:nkz0-1)
   REAL :: s1, s2,s3,s4,s5
   !REAL :: init_prefactor
-  COMPLEX :: phase,phaseb,phasev
-  REAL :: phase1,phase2,kspect,myphase1,myphase2
+  COMPLEX :: phase,phaseb,phasev,phaseby,phasevy
+  REAL :: phase1,phase2,phase1y,phase2y,kspect,myphase1,myphase1y,myphase2,myphase2y
   CHARACTER(len=40), INTENT(in) :: which_init0
   CHARACTER(len=40) :: which_init
   INTEGER, DIMENSION(:), ALLOCATABLE :: rseed
@@ -63,6 +63,7 @@ SUBROUTINE initial_condition(which_init0)
   !init_prefactor=0.001
 !Default Initialization
 !      CALL RANDOM_SEED
+
       CALL RANDOM_SEED(SIZE=rseed_size)
       ALLOCATE(rseed(rseed_size))
       rseed(:) = 1
@@ -74,8 +75,8 @@ SUBROUTINE initial_condition(which_init0)
       ! But should x,y,z all have the same phase?
 
       DO i=xst,kxinit_max-1
-       DO j=yst,kyinit_max-1
-        DO k=zst,kzinit_max-1
+        DO j=yst,kyinit_max-1
+          DO k=zst,kzinit_max-1
 
           CALL RANDOM_NUMBER(myphase1)
           CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
@@ -86,9 +87,24 @@ SUBROUTINE initial_condition(which_init0)
           CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
           CALL MPI_ALLREDUCE(myphase2,phase2,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
           endif
+
+          if (phdfxy.le.1.0) then 
+            phase1y = phase1 + phdfxy
+            phase2y = phase2 + phdfxy
+          else
+            CALL RANDOM_NUMBER(myphase1y)
+            CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+            CALL MPI_ALLREDUCE(myphase1y,phase1y,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
+
+            CALL RANDOM_NUMBER(myphase2y)
+            CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+            CALL MPI_ALLREDUCE(myphase2y,phase2y,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
+          endif 
           ! phase2 = phase1 - 1.0/4.0
           phaseb = cmplx(cos(2*pi*phase1),sin(2*pi*phase1))
           phasev = cmplx(cos(2*pi*phase2),sin(2*pi*phase2))
+          phaseby = cmplx(cos(2*pi*phase1y),sin(2*pi*phase1y))
+          phasevy = cmplx(cos(2*pi*phase2y),sin(2*pi*phase2y))
 
          !DO l=0,2
          IF(kzgrid(k).eq.zerocmplx) THEN
@@ -100,23 +116,23 @@ SUBROUTINE initial_condition(which_init0)
              v_1(i,j,k,2)=cmplx(0.0,0.0)
          ELSE IF (.not.(enone)) THEN
              b_1(i,j,k,0)=init_amp_bx*1.0/sqrt(real(nkx0*nky0*(nkz0-1)))*1/(kmags(i,j,k)**(init_kolm/2.0)) * phaseb
-             b_1(i,j,k,1)=init_amp_by*1.0/sqrt(real(nkx0*nky0*(nkz0-1)))*1/(kmags(i,j,k)**(init_kolm/2.0)) * phaseb
+             b_1(i,j,k,1)=init_amp_by*1.0/sqrt(real(nkx0*nky0*(nkz0-1)))*1/(kmags(i,j,k)**(init_kolm/2.0)) * phaseb*phaseby
              b_1(i,j,k,2) = (-kxgrid(i)*b_1(i,j,k,0)-kygrid(j)*b_1(i,j,k,1))/kzgrid(k)
              !b_1(i,j,k,2)=init_amp_bz
              v_1(i,j,k,0)=init_amp_vx*1.0/sqrt(real(nkx0*nky0*(nkz0-1)))*1/(kmags(i,j,k)**(init_kolm/2.0)) * phasev
-             v_1(i,j,k,1)=init_amp_vy*1.0/sqrt(real(nkx0*nky0*(nkz0-1)))*1/(kmags(i,j,k)**(init_kolm/2.0)) * phasev
+             v_1(i,j,k,1)=init_amp_vy*1.0/sqrt(real(nkx0*nky0*(nkz0-1)))*1/(kmags(i,j,k)**(init_kolm/2.0)) * phasev*phasevy
              !v_1(i,j,k,2)=init_amp_vz
              v_1(i,j,k,2) = (-kxgrid(i)*v_1(i,j,k,0)-kygrid(j)*v_1(i,j,k,1))/kzgrid(k)
          ELSE
              b_1(i,j,k,0)= sqrt(init_amp_bx/(8 * pi**3 * (2*s1 + s2)))/(kmags(i,j,k)**(init_kolm/2.0)) * phaseb
              !0.32/sqrt((2+pi**2 * real(nkx0+nky0)/144.0) * real(nkx0*nky0*(nkz0-1)) * 8 * pi**3)
-             b_1(i,j,k,1)= sqrt(init_amp_bx/(8 * pi**3 * (2*s1 + s2)))/(kmags(i,j,k)**(init_kolm/2.0)) * phaseb
+             b_1(i,j,k,1)= sqrt(init_amp_bx/(8 * pi**3 * (2*s1 + s2)))/(kmags(i,j,k)**(init_kolm/2.0)) * phaseb*phaseby
              !0.32/sqrt((2+pi**2 * real(nkx0+nky0)/144.0) * real(nkx0*nky0*(nkz0-1)) * 8 * pi**3)
              b_1(i,j,k,2) = (-kxgrid(i)*b_1(i,j,k,0)-kygrid(j)*b_1(i,j,k,1))/kzgrid(k)
              !b_1(i,j,k,2)=init_amp_bz              
              v_1(i,j,k,0)= sqrt(init_amp_bx/(8 * pi**3 * (2*s1 + s2)))/(kmags(i,j,k)**(init_kolm/2.0)) * phasev
              !0.32/sqrt((2+pi**2 * real(nkx0+nky0)/144.0) * real(nkx0*nky0*(nkz0-1)) * 8 * pi**3)
-             v_1(i,j,k,1)= sqrt(init_amp_bx/(8 * pi**3 * (2*s1 + s2)))/(kmags(i,j,k)**(init_kolm/2.0)) * phasev
+             v_1(i,j,k,1)= sqrt(init_amp_bx/(8 * pi**3 * (2*s1 + s2)))/(kmags(i,j,k)**(init_kolm/2.0)) * phasev*phasevy
              !0.32/sqrt((2+pi**2 * real(nkx0+nky0)/144.0) * real(nkx0*nky0*(nkz0-1)) * 8 * pi**3)
              !v_1(i,j,k,2)=init_amp_vz 
              v_1(i,j,k,2) = (-kxgrid(i)*v_1(i,j,k,0)-kygrid(j)*v_1(i,j,k,1))/kzgrid(k)

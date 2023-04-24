@@ -45,6 +45,7 @@ init_amp_vy = 0.1
 init_amp_vz = 0.0
 init_kolm = 2.0
 phdf = 0.25
+phdfxy = 0.0
 force_amp = 5.0
 nkxforce = 4
 nkyforce = 4
