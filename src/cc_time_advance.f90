@@ -279,13 +279,20 @@ SUBROUTINE remove_div(b_in,v_in)
                 v_in(i,j,k,1) = v_in(i,j,k,1) - div_v*kygrid(j)/k2
                 v_in(i,j,k,2) = v_in(i,j,k,2) - div_v*kzgrid(k)/k2
 
-                b_in(i,j,k,0) = b_in(i,j,k,0) - div_b*kxgrid(i)/k2
-                b_in(i,j,k,1) = b_in(i,j,k,1) - div_b*kygrid(j)/k2
-                b_in(i,j,k,2) = b_in(i,j,k,2) - div_b*kzgrid(k)/k2
+                ! Constructs the pressure since the above term is - grad p
+                pre(i,j,k) = div_v / k2
 
-                gpsi(i,j,k,0) = gpsi(i,j,k,0) - div_v*kxgrid(i)/k2
-                gpsi(i,j,k,1) = gpsi(i,j,k,1) - div_v*kygrid(j)/k2
-                gpsi(i,j,k,2) = gpsi(i,j,k,2) - div_v*kzgrid(k)/k2
+              ! The b equation is a curl, so we don't need to remove div b
+              !  b_in(i,j,k,0) = b_in(i,j,k,0) - div_b*kxgrid(i)/k2
+              !  b_in(i,j,k,1) = b_in(i,j,k,1) - div_b*kygrid(j)/k2
+              !  b_in(i,j,k,2) = b_in(i,j,k,2) - div_b*kzgrid(k)/k2
+
+              ! Could be used to effect a gauge change such that dA/dt = v x B - curl B x B
+              ! Keeps track of the integral of the pressure
+
+              gpsi(i,j,k,0) = gpsi(i,j,k,0) - div_v*kxgrid(i)/k2
+              gpsi(i,j,k,1) = gpsi(i,j,k,1) - div_v*kygrid(j)/k2
+              gpsi(i,j,k,2) = gpsi(i,j,k,2) - div_v*kzgrid(k)/k2
          ENDIF 
      ENDDO
    ENDDO

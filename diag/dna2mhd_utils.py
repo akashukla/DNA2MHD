@@ -14,6 +14,7 @@ import scipy.signal
 from scipy.signal import find_peaks
 from scipy.fft import fft,fftfreq,fftshift,irfftn
 import scipy.optimize as spo
+import matplotlib.animation as anim
 
 par={}       #Global Variable to hold parameters once read_parameters is called
 namelists={}
@@ -916,8 +917,8 @@ def plot_enspec(lpath,npt=1,zz=-1,show=True,log=False,linplot=False,newload=Fals
             ax[1].plot(x[a],yv[a],fmts[np.mod(j,5)],label=np.format_float_positional(t[i],2),markersize=1/(j+1))
         j = j + 1
 
-    ax[0].legend(loc=1)
-    ax[1].legend(loc=1)
+    ax[0].legend(loc=3)
+    ax[1].legend(loc=3)
     if log:
         label = " Log"
         ax[0].set_ylim(-30,0)
@@ -1057,3 +1058,48 @@ def errpct_energy(lpath):
         print(i)
     return (E-Et)/E
 
+def perpclock(lpath,ix,iy,iz,nt=300,show=True):
+    ind_strings= ['x','y','z']
+    ind_string=ind_strings[ind]
+    read_parameters(lpath)
+    timeb,b=load_b(lpath)
+    timev,v=load_b(lpath)
+    bxn = np.zeros(np.len(timeb),dtype="complex128")
+    byn = np.zeros(np.len(timeb),dtype="complex128")
+    bxn = b[:,ix,iy,iz,0]
+    byn = b[:,ix,iy,iz,1]
+    vxn = np.zeros(np.len(timev),dtype="complex128")
+    vyn = np.zeros(np.len(timev),dtype="complex128")
+    vxn = v[:,ix,iy,iz,0]
+    vyn = v[:,ix,iy,iz,1]
+    clock = anim.PillowWriter(fps=10)
+    clocky,ax = plt.subplots(2)
+    clock.setup(clocky,'perpclock_'+str(ix)+'_'+str(iy)+'_'+str(iz)+'.gif',600)
+    for i in range(0,np.len(bxn),np.len(bxn)//nt):
+        bxnorm = np.abs(bxn[i])
+        bynorm = np.abs(byn[i])
+        vxnorm = np.abs(vxn[i])
+        vynorm = np.abs(vyn[i])
+        ax[0].arrow(0,0,bxn[i].real/bxnorm,bxn[i].imag/bxnorm,label="bx",color="b",width=0.005)
+        ax[0].arrow(0,0,byn[i].real/bynorm,byn[i].imag/bynorm,label="by",color="r",width=0.005)
+        ax[1].arrow(0,0,vxn[i].real/vxnorm,vxn[i].imag/vxnorm,label="vx",color="b",width=0.005)
+        ax[1].arrow(0,0,vyn[i].real/vynorm,vyn[i].imag/vynorm,label="vy",color="r",width=0.005)
+        ax[0].set_xlim(-1,1)
+        ax[1].set_xlim(-1,1)
+        ax[0].set_ylim(-1,1)
+        ax[1].set_ylim(-1,1)
+
+        ax[0].legend()
+        ax[1].legend()
+        
+        plt.clf()
+    kx,ky,kz=get_grids()
+    fig.suptitle('kx,ky,kz = %1.2f,%1.2f,%1.2f'%(kx[ix],ky[iy],kz[iz]))
+    fig.supxlabel('time (1/wc)')
+    if lpath[-1] != '/':
+        lpath = lpath + '/'
+    if not os.path.exists(lpath + 'bvs/'):
+        os.mkdir(lpath + 'bvs/')
+    plt.savefig(lpath+'bvs/bv_%s_%d_%d_%d'%(ind_string,ix,iy,iz))
+    if show == True:
+        plt.show()

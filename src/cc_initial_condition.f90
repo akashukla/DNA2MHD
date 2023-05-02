@@ -142,6 +142,7 @@ SUBROUTINE initial_condition(which_init0)
       END DO
       if (nv) b_1(:,:,:,:) = cmplx(0.0,0.0)
       gpsi(:,:,:,:) = cmplx(0.0,0.0)
+      pre(:,:,:) = cmplx(0.0,0.0)
       print *, "MaxVal b", maxval(abs(b_1))
 !      print *, "Max BV Cross Product X",maxval(abs(b_1(:,:,:,1)*v_1(:,:,:,2)-b_1(:,:,:,2)*v_1(:,:,:,1))),maxloc(abs(b_1(:,:,:,1)*v_1(:,:,:,2)-b_1(:,:,:,2)*v_1(:,:,:,1)))
 !      print *, "Max BV Cross Product Y",maxval(abs(b_1(:,:,:,2)*v_1(:,:,:,0)-b_1(:,:,:,0)*v_1(:,:,:,2))),maxloc(abs(b_1(:,:,:,2)*v_1(:,:,:,0)-b_1(:,:,:,0)*v_1(:,:,:,2)))

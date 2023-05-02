@@ -230,7 +230,9 @@ MODULE par_mod
   REAL, ALLOCATABLE, DIMENSION(:) :: kxgrid,kygrid,kzgrid,herm_grid,hgrid_loc,&
                             hkgrid,vgrid,delta_hk, delta_v
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:) :: phi
+  COMPLEX, ALLOCATABLE, DIMENSION(:,:,:) :: pre ! Pressure Fourier transform
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:) :: gpsi ! Magnetic helicity gauge transformation added to Coulomb gauge vector potential
+
   REAL, ALLOCATABLE, DIMENSION(:,:) :: phi_denom
   REAL, ALLOCATABLE, DIMENSION(:,:,:) :: kmags
 
