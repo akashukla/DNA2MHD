@@ -73,6 +73,8 @@ MODULE diagnostics
   REAL, ALLOCATABLE, DIMENSION(:,:,:) :: NLT3
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:) :: AVP
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:) :: WVORT
+  REAL, ALLOCATABLE, DIMENSION(:,:,:) :: MH
+  REAL, ALLOCATABLE, DIMENSION(:,:,:) :: CH
   INTEGER :: nlt3_handle 
   !NLT Testing
   !REAL, ALLOCATABLE, DIMENSION(:,:,:,:) :: NLT_bak
@@ -145,6 +147,8 @@ SUBROUTINE initialize_diagnostics
     time_last=time
     ALLOCATE(AVP(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
     ALLOCATE(WVORT(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
+    ALLOCATE(MH(0:nkx0-1,0:nky0-1,lkz1:lkz2))
+    ALLOCATE(CH(0:nkx0-1,0:nky0-1,lkz1:lkz2))
   END IF
   IF(istep_energyspec.gt.0.and.mype==0) THEN
     CALL get_io_number
@@ -249,6 +253,8 @@ SUBROUTINE finalize_diagnostics
     CLOSE(en_handle)
     DEALLOCATE(AVP)
     DEALLOCATE(WVORT)
+    DEALLOCATE(CH)
+    DEALLOCATE(MH)
   END IF
   IF(istep_energyspec.gt.0.and.mype==0) THEN
     CLOSE(enspec_handle)
@@ -405,7 +411,11 @@ SUBROUTINE diag
          WRITE(en_handle) hmhdhmtn()
          if (verbose) write(*,*) "Found Hamiltonian",mype
          WRITE(en_handle) mag_helicity()
+         WRITE(en_handle) err_hel1(1.0,.true.,.true.)
+         WRITE(en_handle) bound_hels(.true.)
          WRITE(en_handle) cross_helicity()
+         WRITE(en_handle) err_hel1(1.0,.false.,.true.)
+         WRITE(en_handle) bound_hels(.false.)
          if (verbose) write(*,*) "Found Helicities",mype
          WRITE(en_handle) eta*resvischange("b")
          WRITE(en_handle) vnu*resvischange("v")
@@ -4287,7 +4297,6 @@ function mag_helicity result(maghel)
 
 implicit none
 real :: maghel
-
 integer :: i,j,k,ind
 real :: intx,coulomb,gchange
 
@@ -4309,9 +4318,10 @@ CALL vec_potential()
 !enddo
 
 ! Simpler Sum
- maghel = 2.0*sum(real(AVP(:,:,:,:)*conjg(b_1(:,:,:,:))))
+ maghel = 2.0*sum(real(AVP(:,:,:,:)*conjg(b_1(:,:,:,:))))*((2.0*pi)**3)
  maghel = maghel + 2.0*real(AVP(0,0,0,2))
 
+ 
 ! Alternative Expansion
 
 !maghel = 0.0
@@ -4324,8 +4334,6 @@ CALL vec_potential()
 !        enddo
 !    enddo
 !enddo
-
-maghel = i_complex * maghel
 
 ! if (verbose.and.(mype.eq.0)) write(*,*) 'Coulomb',coulomb,'z Vec Potential',intx,&
 !    'Transformation',gchange,'Overall Magnetic Helicity',coulomb+gchange
@@ -4361,17 +4369,24 @@ end subroutine vorticity
 function cross_helicity result(crosshel)
 
 implicit none
-real :: crosshel
+real :: crosshel,crosshel1,crosshel2
+real :: mh,vb,vw
 integer :: i,j,k,ind
 
 CALL vec_potential()
 CALL vorticity()
 
-crosshel = 0.0
-crosshel = sum(real(AVP*conjg(b_1) + 2*conjg(b_1)*v_1 + conjg(v_1)*WVORT))
+crosshel = 2.0 * (2*pi)**3 * sum(real((AVP+ v_1)*conjg(b_1 + WVORT)))
+if (actual_nonlinear.eq..false.) then
+crosshel1 = crosshel
+mh = 2.0 * (2.0*pi)**3 * sum(real(AVP*conjg(b_1)))
+vb = 2.0 * (2.0*pi)**3 * sum(real(v_1*conjg(b_1)))
+vw = 2.0 * (2.0*pi)**3 * sum(real(v_1*conjg(WVORT)))
+crosshel2 = mh + 2.0 * vb + vw
 
-crosshel = crosshel + 3*real(v_1(0,0,0,2)) + real(AVP(0,0,0,2))
-crosshel = 2*(2*pi)**3 * crosshel
+print *, "Cross Hel Calcs", crosshel1,crosshel2
+print *, "Components", mh,2.0*vb,vw
+endif
 
 end function cross_helicity
 
@@ -4383,6 +4398,77 @@ WRITE(enspec_handle) (4*pi**3)* (abs(v_1(:,:,:,0))**2 + abs(v_1(:,:,:,1))**2)
 WRITE(enspec_handle) (4*pi**3)* (abs(b_1(:,:,:,0))**2+ abs(b_1(:,:,:,1))**2)
 
 end subroutine en_spec
+
+function err_hel1(sf,m,b) result(mherr)
+
+implicit none
+
+REAL :: sf
+LOGICAL :: m
+LOGICAL :: b
+REAL :: mherr
+REAL :: Ck,k2xderiv,kxderiv,k2yderiv,kyderiv,k2zderiv,kzderiv
+REAL :: xcont,ycont,zcont
+INTEGER :: i,j,k,ind
+
+if (.not.b) then
+MH = 2.0*((2.0*pi)**3)*sum(real(AVP(:,:,:,:)*conjg(b_1(:,:,:,:))),4)
+CH = 2.0*((2.0*pi)**3)*sum(real(v_1(:,:,:,:)*conjg(WVORT(:,:,:,:))),4)
+else
+MH = 2.0*((2.0*pi)**3)*sum(abs(b_1)**2,4)/kmags
+CH = 2.0*((2.0*pi)**3)*kmags*sum(abs(v_1)**2,4)
+endif
+mherr = 0.0
+
+do i = 0,nkx0-1
+  do j = 0,nky0-1
+    do k = 1,nkz0-1
+        if (m) Ck = MH(i,j,k)
+        if (.not.b) then
+          if (.not.m) Ck = 0.0
+          k2xderiv = 2.0 * kxgrid(i)/(kmags(i,j,k)**2)*Ck
+          k2yderiv = 2.0 * kygrid(j)/(kmags(i,j,k)**2)*Ck
+          k2zderiv = 2.0 * kzgrid(k)/(kmags(i,j,k)**2)*Ck
+          kxderiv = -2.0*((2.0*pi)**3)*aimag(b_1(i,j,k,1)*conjg(b_1(i,j,k,2))-b_1(i,j,k,2)*conjg(b_1(i,j,k,1)))/(kmags(i,j,k)**2)
+          kyderiv= -2.0*((2.0*pi)**3)*aimag(b_1(i,j,k,2)*conjg(b_1(i,j,k,0))-b_1(i,j,k,0)*conjg(b_1(i,j,k,2)))/(kmags(i,j,k)**2)
+          kzderiv= -2.0*((2.0*pi)**3)*aimag(b_1(i,j,k,0)*conjg(b_1(i,j,k,1))-b_1(i,j,k,1)*conjg(b_1(i,j,k,0)))/(kmags(i,j,k)**2)
+          xcont = (k2xderiv + kxderiv)*sf*kxmin
+          ycont = (k2yderiv + kyderiv)*sf*kymin
+          zcont = (k2zderiv + kzderiv)*sf*kzmin
+          mherr = mherr + xcont**2 + ycont**2 + zcont**2
+        else if (b) then
+          if (.not.m) Ck = CH(i,j,k)
+          k2xderiv = kxgrid(i) / (kmags(i,j,k)**2) * Ck
+          k2yderiv = kygrid(j) / (kmags(i,j,k)**2) * Ck
+          k2zderiv = kzgrid(k) / (kmags(i,j,k)**2) * Ck
+          xcont = k2xderiv*sf*kxmin
+          ycont = k2yderiv*sf*kymin
+          zcont = k2zderiv*sf*kzmin
+          mherr = mherr + xcont**2 + ycont**2 + zcont**2
+        endif
+    enddo
+  enddo
+enddo
+
+mherr = sqrt(mherr)
+
+end function err_hel1
+
+function bound_hels(m) result(bound)
+
+implicit none
+
+LOGICAL :: m
+REAL :: bound
+
+bound = sum(sum(b_1(:,:,1:nkz0-1,:) * conjg(b_1(:,:,1:nkz0-1,:)),4) / kmags(:,:,1:nkz0-1))
+if (m.eq..false.) then 
+  bound = bound + 2.0* sum(sum(v_1(:,:,1:nkz0-1,:) * conjg(v_1(:,:,1:nkz0-1,:)),4) * kmags(:,:,1:nkz0-1))
+  bound = bound + sum(sqrt(sum(abs(v_1)**2,4))*sqrt(sum(abs(b_1)**2,4)))
+endif
+bound = 16.0 * (pi)**3 * bound
+
+end function bound_hels
 
 END MODULE diagnostics
 

@@ -22,20 +22,24 @@ SUBROUTINE initial_condition(which_init0)
   USE par_mod
   USE mtrandom
   USE mpi
+
+  use iso_fortran_env, only: int64
   IMPLICIT NONE
 
-  INTEGER :: i,j,k, l,zst,xst,yst
+  INTEGER :: i,j,k, l,zst,xst,yst,ri
   REAL :: kfactor,err
   REAL :: divratio(0:nkx0-1,0:nky0-1,1:nkz0-1)
   REAL :: s1, s2,s3,s4,s5
   !REAL :: init_prefactor
   COMPLEX :: phase,phaseb,phasev,phaseby,phasevy
-  REAL :: phase1,phase2,phase1y,phase2y,kspect,myphase1,myphase1y,myphase2,myphase2y
+  REAL :: phase1,phase2,phase1y,phase2y,kspect,myphase1,myphase1y,myphase2,myphase2y,showphase
   CHARACTER(len=40), INTENT(in) :: which_init0
   CHARACTER(len=40) :: which_init
+  REAL :: zerocmplx
+
   INTEGER, DIMENSION(:), ALLOCATABLE :: rseed
   INTEGER :: rseed_size,ierr
-  REAL :: zerocmplx
+  INTEGER(int64) :: t 
 
   zerocmplx=0.0
    
@@ -64,9 +68,20 @@ SUBROUTINE initial_condition(which_init0)
 !Default Initialization
 !      CALL RANDOM_SEED
 
+      ! This seeding procedure is inspired by the fortran random_seed example
+      ! Is probably a bit weaker depending on the clock 
+      ! But after 4000 attempts of printing 30 random numbers appeared uniform
+
       CALL RANDOM_SEED(SIZE=rseed_size)
       ALLOCATE(rseed(rseed_size))
-      rseed(:) = 1
+
+      CALL system_clock(t)
+      t = mod(t,4294967297_int64)
+
+      DO ri = 1,rseed_size
+          rseed(ri) = mod(t,4294967297_int64)
+      enddo
+      
       CALL RANDOM_SEED(PUT=rseed)
       DEALLOCATE(rseed)
 
@@ -94,17 +109,28 @@ SUBROUTINE initial_condition(which_init0)
           else
             CALL RANDOM_NUMBER(myphase1y)
             CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-            CALL MPI_ALLREDUCE(myphase1y,phase1y,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
+            CALL MPI_ALLREDUCE(myphase1y,phase1y,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
 
             CALL RANDOM_NUMBER(myphase2y)
             CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-            CALL MPI_ALLREDUCE(myphase2y,phase2y,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
+            CALL MPI_ALLREDUCE(myphase2y,phase2y,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
           endif 
           ! phase2 = phase1 - 1.0/4.0
           phaseb = cmplx(cos(2*pi*phase1),sin(2*pi*phase1))
           phasev = cmplx(cos(2*pi*phase2),sin(2*pi*phase2))
           phaseby = cmplx(cos(2*pi*phase1y),sin(2*pi*phase1y))
           phasevy = cmplx(cos(2*pi*phase2y),sin(2*pi*phase2y))
+
+         if (mype.eq.0) then
+            CALL RANDOM_NUMBER(showphase)
+         if ((max_itime.lt.100).and.(showphase.lt.5/real(nkx0*nky0*nkz0))) then
+            print *, i,j,k
+            print *, phaseb
+            print *, phaseb*phaseby
+            print *, phasev
+            print *, phasev*phasevy
+         endif
+         endif
 
          !DO l=0,2
          IF(kzgrid(k).eq.zerocmplx) THEN

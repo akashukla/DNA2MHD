@@ -157,9 +157,9 @@ def read_time_step_energy(which_itime,swap_endian=False):
    file_name = par['diagdir'][1:-1]+'/energy_out.dat'
    f = open(file_name,'rb')
    gt0=np.empty((1))
-   ntot = 5
+   ntot = 9
    mem_tot = (ntot)*8
-   gt0 = np.empty(5)
+   gt0 = np.empty(9)
    f.seek(8+which_itime*(8+mem_tot))
    gt0=np.fromfile(f,dtype='float64',count=ntot)
    if swap_endian:
@@ -265,7 +265,7 @@ def get_time_from_energyout(swap_endian=False):
    """Returns time array taken from v_out.dat"""
    file_name = par['diagdir'][1:-1]+ '/energy_out.dat'
    f = open(file_name,'rb')
-   ntot=5
+   ntot=9
    mem_tot=ntot*8
    time=np.empty(0)
    continue_read=1
@@ -414,7 +414,7 @@ def getenergy(lpath):
     savepath = lpath+'/energy_xyz.dat'
     #g=np.zeros((len(time)-1,len(kx),len(ky,),len(kz),len(i_n)), dtype='complex64') 
    #print('allocating array') 
-    g=np.memmap(savepath,dtype='float64',mode='w+', shape=(len(time),5))
+    g=np.memmap(savepath,dtype='float64',mode='w+', shape=(len(time),9))
     np.save(lpath+'/energyshape.npy',g.shape)
     np.save(lpath+'/timeenergy.npy',time)
     #g=np.zeros((len(time),len(kx),len(ky,),len(kz),len(i_n)), dtype='complex64')
@@ -426,7 +426,7 @@ def getenergy(lpath):
         if(t%20==0):
             print(str(t))
         gt = read_time_step_energy(t)
-        gt = np.reshape(gt,5,order='F')
+        gt = np.reshape(gt,9,order='F')
         g[t] = gt
     #np.save(lpath+'/g_allk_g04',g)               
 
@@ -818,7 +818,7 @@ ind specifies whether you want the x(0),y(1), or z(2) component."""
 
     return 0
 
-def plot_energy(lpath,ntp,show=True,log=False):
+def plot_energy(lpath,ntp,show=True,log=False,rescale=True):
     """ Plots Scalars Written in energy_out.dat """
 
     read_parameters(lpath)
@@ -829,16 +829,26 @@ def plot_energy(lpath,ntp,show=True,log=False):
 
     shapes = {1:(1,1),2:(2,1),3:(2,2),4:(2,2),5:(2,3),6:(2,3),7:(3,3),8:(3,3),9:(3,3)}
     s = shapes[ntp+1]
-    labels = {0:'Energy',1:'Magnetic Helicity',2:'Cross Helicity',3:'Entropy',4:'Next Param',5:'Next Param',6:'Next Param',7:'Next Param',8:'Next Param'}
-    fnames = {0:'energy',1:'maghcty',2:'crosshcty',3:'entropy',4:'par4',5:'par5',6:'par6',7:'par7',8:'par8'}
+    labels = {0:'Energy',1:'Magnetic Helicity',2:'MH Error',3:'MH Bound',4:'Canonical Helicity',5:'CH Error',6:'CH Bound',7:'Next Param',8:'Next Param',9:'Next Param'}
+    fnames = {0:'energy',1:'maghcty',4:'canhcty'}
     
     if not os.path.exists(lpath + '/eplots/'):
         os.mkdir(lpath + '/eplots/')
-       
-    for i in range(ntp+1):
+    
+    plts = [0,1,4]
+    for i in plts[:ntp+1]:
         if not log:
             fig,ax = plt.subplots(1)
-            ax.plot(timeen,enval[:,i])
+            if i == 1:
+                rr = enval[:,2]
+            elif i == 4:
+                rr  = np.sqrt(enval[:,2]**2 + enval[:,5]**2)
+            if i == 0:
+                ax.plot(timeen,enval[:,i])
+            elif not rescale:
+                ax.errorbar(timeen,enval[:,i],yerr=rr)
+            else:
+                ax.errorbar(timeen,enval[:,i]/enval[0,i+2],yerr=rr/enval[0,i+2])
             ax.set_xlabel('time (1/wc)')
             ax.set_ylabel(labels[i])
             fig.suptitle(labels[i])
@@ -862,7 +872,7 @@ def plot_energy(lpath,ntp,show=True,log=False):
     
     return timeen,enval
 
-def plot_enspec(lpath,npt=1,zz=-1,show=True,log=False,linplot=False,newload=False):
+def plot_enspec(lpath,npt=1,zz=-1,show=True,log=False,linplot=False,newload=False,fullspec=False):
     read_parameters(lpath)
     kx,ky,kz = get_grids()
 
@@ -889,6 +899,9 @@ def plot_enspec(lpath,npt=1,zz=-1,show=True,log=False,linplot=False,newload=Fals
         if not newload:
             ekb = 0.5*(np.abs(bkt[i,:,:,1:,0])**2 + np.abs(bkt[i,:,:,1:,1])**2)
             ekv = 0.5*(np.abs(vkt[i,:,:,1:,0])**2 + np.abs(vkt[i,:,:,1:,1])**2)
+            if fullspec:
+                ekb += 0.5*np.abs(bkt[i,:,:,1:,2])**2
+                ekv += 0.5*np.abs(vkt[i,:,:,1:,2])**2
         elif log:
             ekb = np.log(ekbm[i,:,:,:])
             ekv = np.log(ekvm[i,:,:,:])

@@ -280,7 +280,7 @@ SUBROUTINE remove_div(b_in,v_in)
                 v_in(i,j,k,2) = v_in(i,j,k,2) - div_v*kzgrid(k)/k2
 
                 ! Constructs the pressure since the above term is - grad p
-                pre(i,j,k) = div_v / k2
+                pre(i,j,k) = i_complex * div_v / k2
 
               ! The b equation is a curl, so we don't need to remove div b
               !  b_in(i,j,k,0) = b_in(i,j,k,0) - div_b*kxgrid(i)/k2

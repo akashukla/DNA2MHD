@@ -1,11 +1,10 @@
 import dna2mhd_utils as dn
 import output
 
-lpaths = ["/scratch/08929/echansen/dna2mhdrun374","/scratch/08929/echansen/dna2mhdrun375"]
-fname = {lpaths[0]:"../input_files/DNAHD.out11263842",lpaths[1]:"../input_files/DNAHD.out11263842"}
-
+lpaths = ["/scratch/08929/echansen/dna2mhdrun378"]
+fname = {lpaths[0]:"../input_files/DNAHD.out11320789"}
+inds = output.maxinds(fname["/scratch/08929/echansen/dna2mhdrun378"])
 for lpath in lpaths:
-    inds = output.maxinds(fname[lpath])
     dn.getb(lpath)
     dn.getv(lpath)
     print('Got NL Simulation')
