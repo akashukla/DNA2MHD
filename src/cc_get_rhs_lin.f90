@@ -138,12 +138,10 @@ SUBROUTINE get_rhs_force(rhs_out_b, rhs_out_v, dt)
     COMPLEX, INTENT(out) :: rhs_out_b(0:nkx0-1,0:nky0-1,lkz1:lkz2, 0:2)
     COMPLEX, INTENT(out) :: rhs_out_v(0:nkx0-1,0:nky0-1,lkz1:lkz2, 0:2)
 
-    call random_number(myresample)
+    if (mype.eq.0) call random_number(resample)
+    CALL MPI_BCAST(resample,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
 
-    CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-    CALL MPI_ALLREDUCE(myresample,resample,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
-    
-    IF(resample.lt.n_mpi_procs*dt) THEN
+    IF(resample.lt.dt) THEN
 !        print *, "Resample value ",resample
         DO i=1,nkxforce
           DO j=1,nkyforce

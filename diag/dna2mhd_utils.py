@@ -818,7 +818,7 @@ ind specifies whether you want the x(0),y(1), or z(2) component."""
 
     return 0
 
-def plot_energy(lpath,ntp,show=True,log=False,rescale=True):
+def plot_energy(lpath,ntp,show=True,log=False,rescale=True,xb=1):
     """ Plots Scalars Written in energy_out.dat """
 
     read_parameters(lpath)
@@ -834,7 +834,9 @@ def plot_energy(lpath,ntp,show=True,log=False,rescale=True):
     
     if not os.path.exists(lpath + '/eplots/'):
         os.mkdir(lpath + '/eplots/')
-    
+    xx = len(timeen)
+    timeen = timeen[range(0,xx,xb)]
+    enval = enval[range(0,xx,xb),:]
     plts = [0,1,4]
     for i in plts[:ntp+1]:
         if not log:
@@ -876,18 +878,32 @@ def plot_enspec(lpath,npt=1,zz=-1,show=True,log=False,linplot=False,newload=Fals
     read_parameters(lpath)
     kx,ky,kz = get_grids()
 
-    if not newload:
-        t,bkt = load_b(lpath)
-        t,vkt = load_v(lpath)
+    t,bkt = load_b(lpath)
+    t,vkt = load_v(lpath)
+    if os.path.isfile(lpath+'/dumenspec.txt'):
+        t,ekvf,ekbf = load_energyspec(lpath)
+        ekvm = ekvf[:,:,:,1:]
+        ekbm = ekbf[:,:,:,1:]
     else:
-        if os.path.isfile(lpath+'/dumenspec.txt'):
-            t,ekvf,ekbf = load_energyspec(lpath)
-            ekvm = ekvf[:,:,:,1:]
-            ekbm = ekbf[:,:,:,1:]
-        else:
-            t,ekvf,ekbf = getenergyspec(lpath)
-            ekvm = ekvf[:,:,:,1:]
-            ekbm = ekbf[:,:,:,1:]
+        t,ekvf,ekbf = getenergyspec(lpath)
+        ekvm = ekvf[:,:,:,1:]
+        ekbm = ekbf[:,:,:,1:]
+    
+    # Obtain needed phase information to correct initial spectrum
+    bths = np.arctan2(np.abs(bkt[0,:,:,1:,1]),np.abs(bkt[0,:,:,1:,0]))
+    vths = np.arctan2(np.abs(vkt[0,:,:,1:,1]),np.abs(vkt[0,:,:,1:,0]))
+    bphixs = np.angle(bkt[0,:,:,1:,0])
+    bphiys = np.angle(bkt[0,:,:,1:,1])
+    vpsixs = np.angle(vkt[0,:,:,1:,0])
+    vpsiys = np.angle(vkt[0,:,:,1:,1])
+    badj = np.zeros(np.shape(bkt[0,:,:,1:,0]))
+    vadj = np.zeros(np.shape(vkt[0,:,:,1:,0]))
+    for i in range(0,par['nkx0']):
+        for j in range(0,par['nky0']):
+            for k in range(1,par['nkz0']):
+                badj = 1+(kx[i]**2 * np.cos(bths)**2 + ky[j]**2 * np.sin(bths)**2 + kx[i]*ky[j]*np.sin(2*bths)*np.cos(bphixs-bphiys))/(kz[k]**2)
+                vadj = 1+(kx[i]**2 * np.cos(vths)**2 + ky[j]**2 * np.sin(vths)**2 + kx[i]*ky[j]*np.sin(2*vths)*np.cos(vpsixs-vpsiys))/(kz[k]**2)
+        print(i)
 
     fmts = ["ks","mo","b^","g*","r8"]
     fig,ax = plt.subplots(2)
@@ -897,8 +913,8 @@ def plot_enspec(lpath,npt=1,zz=-1,show=True,log=False,linplot=False,newload=Fals
     j = 0
     for i in range(0,np.size(t),np.size(t)//npt):
         if not newload:
-            ekb = 0.5*(np.abs(bkt[i,:,:,1:,0])**2 + np.abs(bkt[i,:,:,1:,1])**2)
-            ekv = 0.5*(np.abs(vkt[i,:,:,1:,0])**2 + np.abs(vkt[i,:,:,1:,1])**2)
+            ekb = 0.5*(np.abs(bkt[i,:,:,1:,0])**2 + np.abs(bkt[i,:,:,1:,1])**2+np.abs(bkt[i,:,:,1:,2])**2)/badj
+            ekv = 0.5*(np.abs(vkt[i,:,:,1:,0])**2 + np.abs(vkt[i,:,:,1:,1])**2+np.abs(vkt[i,:,:,1:,2])**2)/vadj
             if fullspec:
                 ekb += 0.5*np.abs(bkt[i,:,:,1:,2])**2
                 ekv += 0.5*np.abs(vkt[i,:,:,1:,2])**2

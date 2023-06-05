@@ -4320,7 +4320,6 @@ CALL vec_potential()
 ! Simpler Sum
  maghel = 2.0*sum(real(AVP(:,:,:,:)*conjg(b_1(:,:,:,:))))*((2.0*pi)**3)
  maghel = maghel + 2.0*real(AVP(0,0,0,2))
-
  
 ! Alternative Expansion
 

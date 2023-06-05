@@ -136,6 +136,9 @@ MODULE par_mod
   INTEGER :: db2io = 208
   REAL :: hall = 1.0
   LOGICAL :: guide  = .true.
+  LOGICAL :: uni = .true.
+  LOGICAL :: shear = .false.
+  LOGICAL :: helical = .false.
 
   LOGICAL :: calc_dt=.false.        !Automatic initial time step calculation
   LOGICAL :: dt_slepc=.false.        !Use slepc or lapack
