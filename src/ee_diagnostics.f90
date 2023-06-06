@@ -4291,6 +4291,8 @@ do i = 0,nkx0-1
    enddo
 enddo
 
+if (helical.and.(itime.eq.0)) print *, 'Pred - Exp', maxval(abs(sum((AVP(:,:,1:,:)-b_1(:,:,1:,:))**2,4)/kmags(:,:,1:)))
+
 end subroutine vec_potential
 
 function mag_helicity result(maghel)

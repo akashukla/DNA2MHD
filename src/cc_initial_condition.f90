@@ -211,7 +211,7 @@ SUBROUTINE initial_condition(which_init0)
               b_1(i,j,k,0) = cmplx(b1r,b1i)/(sqrt(2.0) * btmag * kmags(i,j,k)**(init_kolm/2.0))
               b_1(i,j,k,1) = cmplx(b2r,b2i)/(sqrt(2.0) * btmag * kmags(i,j,k)**(init_kolm/2.0))
               b_1(i,j,k,2) = cmplx(b3r,b3i)/(sqrt(2.0) * btmag * kmags(i,j,k)**(init_kolm/2.0))
-              v_1 = b_1
+              v_1(i,j,k,:) = b_1(i,j,k,:)
             ELSE IF (shear) THEN
               b_1(i,j,k,0) = - kygrid(j)/sqrt(kxgrid(i)**2 + kygrid(j)**2) * phaseb * (kmags(i,j,k) **(-init_kolm/2.0))
               b_1(i,j,k,1) = kxgrid(i)/sqrt(kxgrid(i)**2 + kygrid(j)**2) * phaseb * (kmags(i,j,k) **(-init_kolm/2.0))
