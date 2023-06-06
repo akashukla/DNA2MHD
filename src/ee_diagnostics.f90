@@ -4185,7 +4185,9 @@ real :: ham
 
 !! Computes the Hall MHD Hamiltonian 8 pi^3 (sum(v_k^2 + b_k^2) + 2b_z0)/2 
 
-ham = sum(abs(v_1)**2 + abs(b_1)**2) + 2*real(b_1(0,0,0,2))
+call vec_potential()
+
+ham = sum(abs(v_1)**2 + abs(AVP)**2) + 2*real(AVP(0,0,0,2))
 ham = ham * (8*(pi**3))
 
 end function hmhdhmtn
@@ -4280,9 +4282,9 @@ do i = 0,nkx0-1
     do k = lkz1,lkz2
       do ind = 0,2
         if ((kzgrid(k)).ne.0) then 
-          if (ind.eq.0) AVP(i,j,k,ind) = cmplx(0.0,1.0) * (kygrid(j)*b_1(i,j,k,2)-kzgrid(k)*b_1(i,j,k,1))/(kmags(i,j,k)**2)
-          if (ind.eq.1) AVP(i,j,k,ind) = cmplx(0.0,1.0) * (kzgrid(k)*b_1(i,j,k,0)-kxgrid(i)*b_1(i,j,k,2))/(kmags(i,j,k)**2)
-          if (ind.eq.2) AVP(i,j,k,ind) = cmplx(0.0,1.0) * (kxgrid(i)*b_1(i,j,k,1)-kygrid(j)*b_1(i,j,k,0))/(kmags(i,j,k)**2)
+          if (ind.eq.0) AVP(i,j,k,ind) = cmplx(0.0,1.0) * (kygrid(j)*b_1(i,j,k,2)-kzgrid(k)*b_1(i,j,k,1))!/(kmags(i,j,k)**2)
+          if (ind.eq.1) AVP(i,j,k,ind) = cmplx(0.0,1.0) * (kzgrid(k)*b_1(i,j,k,0)-kxgrid(i)*b_1(i,j,k,2))!/(kmags(i,j,k)**2)
+          if (ind.eq.2) AVP(i,j,k,ind) = cmplx(0.0,1.0) * (kxgrid(i)*b_1(i,j,k,1)-kygrid(j)*b_1(i,j,k,0))!/(kmags(i,j,k)**2)
         ! if (verbose) write(*,*) A(i,j,k,ind),gpsi(i,j,k,ind),A(i,j,k,ind)+gpsi(i,j,k,ind) 
         ! AVP(i,j,k,ind) = AVP(i,j,k,ind) + gpsi(i,j,k,ind)
         endif
@@ -4375,11 +4377,11 @@ integer :: i,j,k,ind
 CALL vec_potential()
 CALL vorticity()
 
-crosshel = 2.0 * (2*pi)**3 * sum(real((AVP+ v_1)*conjg(b_1 + WVORT)))
+crosshel = 2.0 * (2*pi)**3 * sum(real((b_1+ v_1)*conjg(AVP + WVORT)))
 if (actual_nonlinear.eq..false.) then
 crosshel1 = crosshel
 mh = 2.0 * (2.0*pi)**3 * sum(real(AVP*conjg(b_1)))
-vb = 2.0 * (2.0*pi)**3 * sum(real(v_1*conjg(b_1)))
+vb = 2.0 * (2.0*pi)**3 * sum(real(v_1*conjg(AVP)))
 vw = 2.0 * (2.0*pi)**3 * sum(real(v_1*conjg(WVORT)))
 crosshel2 = mh + 2.0 * vb + vw
 
@@ -4393,8 +4395,9 @@ subroutine en_spec()
 
 implicit none
 
+call vec_potential 
 WRITE(enspec_handle) (4*pi**3)* (abs(v_1(:,:,:,0))**2 + abs(v_1(:,:,:,1))**2)
-WRITE(enspec_handle) (4*pi**3)* (abs(b_1(:,:,:,0))**2+ abs(b_1(:,:,:,1))**2)
+WRITE(enspec_handle) (4*pi**3)* (abs(AVP(:,:,:,0))**2+ abs(AVP(:,:,:,1))**2)
 
 end subroutine en_spec
 
@@ -4414,7 +4417,7 @@ if (.not.b) then
 MH = 2.0*((2.0*pi)**3)*sum(real(AVP(:,:,:,:)*conjg(b_1(:,:,:,:))),4)
 CH = 2.0*((2.0*pi)**3)*sum(real(v_1(:,:,:,:)*conjg(WVORT(:,:,:,:))),4)
 else
-MH = 2.0*((2.0*pi)**3)*sum(abs(b_1)**2,4)/kmags
+MH = 2.0*((2.0*pi)**3)*sum(abs(AVP)**2,4)/kmags
 CH = 2.0*((2.0*pi)**3)*kmags*sum(abs(v_1)**2,4)
 endif
 mherr = 0.0
@@ -4428,9 +4431,9 @@ do i = 0,nkx0-1
           k2xderiv = 2.0 * kxgrid(i)/(kmags(i,j,k)**2)*Ck
           k2yderiv = 2.0 * kygrid(j)/(kmags(i,j,k)**2)*Ck
           k2zderiv = 2.0 * kzgrid(k)/(kmags(i,j,k)**2)*Ck
-          kxderiv = -2.0*((2.0*pi)**3)*aimag(b_1(i,j,k,1)*conjg(b_1(i,j,k,2))-b_1(i,j,k,2)*conjg(b_1(i,j,k,1)))/(kmags(i,j,k)**2)
-          kyderiv= -2.0*((2.0*pi)**3)*aimag(b_1(i,j,k,2)*conjg(b_1(i,j,k,0))-b_1(i,j,k,0)*conjg(b_1(i,j,k,2)))/(kmags(i,j,k)**2)
-          kzderiv= -2.0*((2.0*pi)**3)*aimag(b_1(i,j,k,0)*conjg(b_1(i,j,k,1))-b_1(i,j,k,1)*conjg(b_1(i,j,k,0)))/(kmags(i,j,k)**2)
+          kxderiv = -2.0*((2.0*pi)**3)*aimag(AVP(i,j,k,1)*conjg(AVP(i,j,k,2))-AVP(i,j,k,2)*conjg(AVP(i,j,k,1)))/(kmags(i,j,k)**2)
+          kyderiv= -2.0*((2.0*pi)**3)*aimag(AVP(i,j,k,2)*conjg(AVP(i,j,k,0))-AVP(i,j,k,0)*conjg(AVP(i,j,k,2)))/(kmags(i,j,k)**2)
+          kzderiv= -2.0*((2.0*pi)**3)*aimag(AVP(i,j,k,0)*conjg(AVP(i,j,k,1))-AVP(i,j,k,1)*conjg(AVP(i,j,k,0)))/(kmags(i,j,k)**2)
           xcont = (k2xderiv + kxderiv)*sf*kxmin
           ycont = (k2yderiv + kyderiv)*sf*kymin
           zcont = (k2zderiv + kzderiv)*sf*kzmin
@@ -4460,10 +4463,10 @@ implicit none
 LOGICAL :: m
 REAL :: bound
 
-bound = sum(sum(b_1(:,:,1:nkz0-1,:) * conjg(b_1(:,:,1:nkz0-1,:)),4) / kmags(:,:,1:nkz0-1))
+bound = sum(sum(AVP(:,:,1:nkz0-1,:) * conjg(AVP(:,:,1:nkz0-1,:)),4) / kmags(:,:,1:nkz0-1))
 if (m.eq..false.) then 
   bound = bound + 2.0* sum(sum(v_1(:,:,1:nkz0-1,:) * conjg(v_1(:,:,1:nkz0-1,:)),4) * kmags(:,:,1:nkz0-1))
-  bound = bound + sum(sqrt(sum(abs(v_1)**2,4))*sqrt(sum(abs(b_1)**2,4)))
+  bound = bound + sum(sqrt(sum(abs(v_1)**2,4))*sqrt(sum(abs(AVP)**2,4)))
 endif
 bound = 16.0 * (pi)**3 * bound
 

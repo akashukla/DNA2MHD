@@ -32,7 +32,7 @@ SUBROUTINE initial_condition(which_init0)
   REAL :: s1, s11,s12,s13,s4
   !REAL :: init_prefactor
   COMPLEX :: phase,phaseb,phasev,phaseby,phasevy
-  REAL :: phase1,phase2,phase1y,phase2y,kspect,myphase1,myphase1y,myphase2,myphase2y,showphase,thb,thv,mythb,mythv,bt1,bt2,bt3,b1r,b2r,b3r,b1i,b2i,b3i,btmag
+  REAL :: phase1,phase2,phase1y,phase2y,kspect,myphase1,myphase1y,myphase2,myphase2y,showphase,thb,thv,mythb,mythv,bt1,bt2,bt3,b1r,b2r,b3r,b1i,b2i,b3i,btmag,kp
   CHARACTER(len=40), INTENT(in) :: which_init0
   CHARACTER(len=40) :: which_init
   REAL :: zerocmplx
@@ -194,8 +194,6 @@ SUBROUTINE initial_condition(which_init0)
               s12 = kygrid(j)**2 * sin(2*pi*thb)**2 + kygrid(j)**2 * sin(2*pi*thv)**2
               s13 = kxgrid(i) * kygrid(j) * (sin(4*pi*thb) * cos(2*pi*phase1y) + sin(4*pi*thv)*cos(2*pi*phase2y))
               s1 = s1 + kmags(i,j,k)**(-1.0*init_kolm) * (2+(s11+s12+s13)/(kzgrid(k)**2))
-            ELSE
-              s1 = s1 + kmags(i,j,k) ** (-1.0*init_kolm)
             ENDIF
             IF (helical) THEN
               bt1 = 2.0*phase1y - 1.0
@@ -208,17 +206,20 @@ SUBROUTINE initial_condition(which_init0)
               b1i = (kygrid(j) * b3r - kzgrid(k) * b2r)/kmags(i,j,k)
               b2i = (kzgrid(k) * b1r - kxgrid(i) * b3r)/kmags(i,j,k)
               b3i = (kxgrid(i) * b2r - kygrid(j) * b1r)/kmags(i,j,k)
-              b_1(i,j,k,0) = cmplx(b1r,b1i)/(sqrt(2.0) * btmag * kmags(i,j,k)**(init_kolm/2.0))
-              b_1(i,j,k,1) = cmplx(b2r,b2i)/(sqrt(2.0) * btmag * kmags(i,j,k)**(init_kolm/2.0))
-              b_1(i,j,k,2) = cmplx(b3r,b3i)/(sqrt(2.0) * btmag * kmags(i,j,k)**(init_kolm/2.0))
-              v_1 = b_1
+              b_1(i,j,k,0) = cmplx(b1r,b1i)/(sqrt(2.0) * btmag * kmags(i,j,k)**(1.0+init_kolm/2.0))
+              b_1(i,j,k,1) = cmplx(b2r,b2i)/(sqrt(2.0) * btmag * kmags(i,j,k)**(1.0+init_kolm/2.0))
+              b_1(i,j,k,2) = cmplx(b3r,b3i)/(sqrt(2.0) * btmag * kmags(i,j,k)**(1.0+init_kolm/2.0))
+              v_1(i,j,k,:) = b_1(i,j,k,:)*kmags(i,j,k)
+              s1 = s1 + kmags(i,j,k) ** (-1.0*init_kolm) + kmags(i,j,k) ** (-1.0*init_kolm)
             ELSE IF (shear) THEN
-              b_1(i,j,k,0) = - kygrid(j)/sqrt(kxgrid(i)**2 + kygrid(j)**2) * phaseb * (kmags(i,j,k) **(-init_kolm/2.0))
-              b_1(i,j,k,1) = kxgrid(i)/sqrt(kxgrid(i)**2 + kygrid(j)**2) * phaseb * (kmags(i,j,k) **(-init_kolm/2.0))
-              b_1(i,j,k,2) = cmplx(0.0,0.0)
+              kp = sqrt(kxgrid(i)**2  + kygrid(j)**2)
+              b_1(i,j,k,0) = kxgrid(i)/sqrt(kxgrid(i)**2 + kygrid(j)**2) * phaseb * (kmags(i,j,k) **(-1.0-init_kolm/2.0))
+              b_1(i,j,k,1) = kygrid(j)/sqrt(kxgrid(i)**2 + kygrid(j)**2) * phaseb * (kmags(i,j,k) **(-1.0-init_kolm/2.0))
+              b_1(i,j,k,2) = phaseb*phaseby * (kmags(i,j,k) **(-1.0-init_kolm/2.0))
               v_1(i,j,k,0) = -kygrid(j)/sqrt(kxgrid(i)**2 + kygrid(j)**2) * phasev * phaseb * (kmags(i,j,k) **(-init_kolm/2.0))
               v_1(i,j,k,1) = kxgrid(i)/sqrt(kxgrid(i)**2 + kygrid(j)**2) * phasev*phaseb * (kmags(i,j,k) **(-init_kolm/2.0))
               v_1(i,j,k,2) = cmplx(0.0,0.0)
+              s1 = s1 + kmags(i,j,k) ** (-1.0*init_kolm) + (kmags(i,j,k) ** (-2.0 - 1.0*init_kolm)) * (kzgrid(k)*kp - kzgrid(k) * kp * 1/phaseby - kzgrid(k) * kp * phaseby + kp**2)
             ELSE
             b_1(i,j,k,0)= phaseb*cos(2*pi*thb)*1/(kmags(i,j,k)**(init_kolm/2.0))
             !0.32/sqrt((2+pi**2 * real(nkx0+nky0)/144.0) * real(nkx0*nky0*(nkz0-1)) * 8 * pi**3)
@@ -264,7 +265,7 @@ SUBROUTINE initial_condition(which_init0)
       IF ((verbose.and.(mype.eq.0)).and.(set_forcing)) print *, 'Force Amp',force_amp
 
       ! Linear stability maximum time step
-      dt_max = minval([dt_max,2.5/(maxval(kzgrid)*(maxval(kmags)/2 + sqrt(1 + 0.25*maxval(kmags)**2.0)))])
+      dt_max = minval([dt_max,2.8/sqrt(-(maxval(kmags)**2+maxval(kzgrid)**2 * (maxval(kmags)**2+1))/2.0 + sqrt(((maxval(kmags)**2+maxval(kzgrid)**2 * (maxval(kmags)**2+1))/2.0)**2 - maxval(kzgrid)**2 * maxval(kmags)**2))])
 
 ! Only use default for now
 !  which_init=which_init0 

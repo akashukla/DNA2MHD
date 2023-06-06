@@ -283,9 +283,9 @@ SUBROUTINE remove_div(b_in,v_in)
                 pre(i,j,k) = i_complex * div_v / k2
 
               ! The b equation is a curl, so we don't need to remove div b
-              !  b_in(i,j,k,0) = b_in(i,j,k,0) - div_b*kxgrid(i)/k2
-              !  b_in(i,j,k,1) = b_in(i,j,k,1) - div_b*kygrid(j)/k2
-              !  b_in(i,j,k,2) = b_in(i,j,k,2) - div_b*kzgrid(k)/k2
+              ! b_in(i,j,k,0) = b_in(i,j,k,0) - div_b*kxgrid(i)/k2
+              ! b_in(i,j,k,1) = b_in(i,j,k,1) - div_b*kygrid(j)/k2
+              ! b_in(i,j,k,2) = b_in(i,j,k,2) - div_b*kzgrid(k)/k2
 
               ! Could be used to effect a gauge change such that dA/dt = v x B - curl B x B
               ! Keeps track of the integral of the pressure

@@ -66,6 +66,7 @@ SUBROUTINE get_rhs_lin1_ae(b_in, v_in, rhs_out_b,rhs_out_v, which_term)
  COMPLEX :: g_closure
  REAL :: L
  REAL :: Larr(0:nkx0-1,0:nky0-1,lkz1:lkz2)
+ COMPLEX :: CCAx,CCAy,CCAz
 
  rhs_out_b=cmplx(0.0,0.0)
  rhs_out_v=cmplx(0.0,0.0)
@@ -74,6 +75,9 @@ SUBROUTINE get_rhs_lin1_ae(b_in, v_in, rhs_out_b,rhs_out_v, which_term)
  DO i=0,nkx0-1
    DO j=0,nky0-1
      DO k=lkz1,lkz2
+        CCAy = -kxgrid(i) * kygrid(j) * b_in(i,j,k,0) - kygrid(j) * kzgrid(k) * b_in(i,j,k,2) + kxgrid(i)**2 * b_in(i,j,k,1) + kzgrid(k)**2 * b_in(i,j,k,1)
+        CCAx = -kxgrid(i) * kygrid(j) * b_in(i,j,k,1) - kxgrid(i) * kzgrid(k) * b_in(i,j,k,2) + kygrid(j)**2 * b_in(i,j,k,0) + kzgrid(k)**2 * b_in(i,j,k,0)
+
         L = kxgrid(i)*kxgrid(i) + kygrid(j)*kygrid(j) + kzgrid(k)*kzgrid(k)
         Larr(i,j,k) = L
      !eqn 14
@@ -81,30 +85,23 @@ SUBROUTINE get_rhs_lin1_ae(b_in, v_in, rhs_out_b,rhs_out_v, which_term)
         !rhs_out_b(i,j,k,1) = i_complex*kzgrid(k)*v_in(i,j,k,1) + i_complex*kzgrid(k)*b_in(i,j,k,0) -i_complex*kxgrid(i)*b_in(i,j,k,2)
         !rhs_out_b(i,j,k,2) = i_complex*kzgrid(k)*v_in(i,j,k,2) + i_complex*kxgrid(i)*b_in(i,j,k,1) -i_complex*kygrid(y)*b_in(i,j,k,0)
 
-        rhs_out_b(i,j,k,0) = i_complex*kzgrid(k)*(v_in(i,j,k,0) & 
-             - hall*(i_complex*kygrid(j)*b_in(i,j,k,2) - i_complex*kzgrid(k)*b_in(i,j,k,1))) - eta*(L**hyp)*b_in(i,j,k,0)
-        rhs_out_b(i,j,k,1) = i_complex*kzgrid(k)*(v_in(i,j,k,1) &
-             - hall*(i_complex*kzgrid(k)*b_in(i,j,k,0) - i_complex*kxgrid(i)*b_in(i,j,k,2))) - eta*(L**hyp)*b_in(i,j,k,1)
-        rhs_out_b(i,j,k,2) = i_complex*kzgrid(k)*(v_in(i,j,k,2) &
-             - hall*(i_complex*kxgrid(i)*b_in(i,j,k,1) - i_complex*kygrid(j)*b_in(i,j,k,0))) - eta*(L**hyp)*b_in(i,j,k,2)
+        ! Add diffusivities later
+
+        rhs_out_b(i,j,k,0) = v_in(i,j,k,1) - CCAy
+        rhs_out_b(i,j,k,1) = - v_in(i,j,k,0) + CCAx
+        rhs_out_b(i,j,k,0) = 0.0
+
         ! if (verbose) print *, 'b lin equation stored'
         ! if (verbose) print *, 'L, eta',L,eta
       !Eqn 15
 if (rhs_lin_version==1) then
-        rhs_out_v(i,j,k,0) = i_complex*kzgrid(k)*b_in(i,j,k,0)-i_complex*kxgrid(i)*b_in(i,j,k,2) - vnu*(L**hyp)*v_in(i,j,k,0)
-        rhs_out_v(i,j,k,1) = i_complex*kzgrid(k)*b_in(i,j,k,1)-i_complex*kygrid(j)*b_in(i,j,k,2) - vnu*(L**hyp)*v_in(i,j,k,1)
+        rhs_out_v(i,j,k,0) = CCAy- vnu*(L**hyp)*v_in(i,j,k,0)
+        rhs_out_v(i,j,k,1) = -CCAx- vnu*(L**hyp)*v_in(i,j,k,1)
         rhs_out_v(i,j,k,2) = - vnu*(L**hyp)*v_in(i,j,k,2)
         ! if (verbose) print *, 'v1 lin equation stored'
         ! if (verbose) print *, 'L, vnu',L,vnu
 endif
-    ! Eq 15 v2 from prerana
-if (rhs_lin_version==12) then
-        rhs_out_v(i,j,k,0) = i_complex*kzgrid(k)*b_in(i,j,k,0) - vnu*(L**hyp)*v_in(i,j,k,0)
-        rhs_out_v(i,j,k,1) = i_complex*kzgrid(k)*b_in(i,j,k,1) - vnu*(L**hyp)*v_in(i,j,k,1)
-        rhs_out_v(i,j,k,2) = i_complex*kzgrid(k)*b_in(i,j,k,2) - vnu*(L**hyp)*v_in(i,j,k,2)
-        ! if (verbose) print *, 'v12 lin equation stored'
-        ! if (verbose) print *, 'L, vnu',L,vnu
-endif
+
      END DO
    END DO
  END DO 
