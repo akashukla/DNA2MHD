@@ -31,9 +31,9 @@ np_kz =    1
 np_hank =    1
 np_spec =    1
 courant =   0.5
-kxinit_min = 0
-kyinit_min = 0
-kzinit_min = 0
+kxinit_min = 1
+kyinit_min = 1
+kzinit_min = 1
 kxinit_max = 64
 kyinit_max = 64
 kzinit_max = 32
@@ -54,7 +54,7 @@ hyp = 2
 /
 
 &diagnostics
-diagdir = '/scratch/08929/echansen/dna2mhdrun383'
+diagdir = '/scratch/08929/echansen/dna2mhdrun393'
 istep_ffm =   20
 istep_energy3d =  500
 istep_energy =  20
@@ -75,7 +75,7 @@ output_nlt_n = F
 &flags
 verbose  = F
 nonlinear  = T
-actual_nonlinear = F
+actual_nonlinear = T
 calc_dt  = T
 comp_type = 'IV'
 checkpoint_read = F
@@ -97,6 +97,7 @@ uni = T
 shear = F
 helical = T
 nv = F
+mhc = T
 /
 
 &eigensolve

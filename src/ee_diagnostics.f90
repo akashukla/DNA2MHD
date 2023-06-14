@@ -408,14 +408,16 @@ SUBROUTINE diag
        IF(MOD(itime,istep_energy)==0) THEN
          IF(verbose.and.(mype.eq.0)) WRITE(*,*) "Starting energy diag.",mype
          WRITE(en_handle) time
-         WRITE(en_handle) hmhdhmtn()
+         WRITE(en_handle) hmhdhmtn(0)
          if (verbose) write(*,*) "Found Hamiltonian",mype
          WRITE(en_handle) mag_helicity()
-         WRITE(en_handle) err_hel1(1.0,.true.,.true.)
+         WRITE(en_handle) err_hel1(1.0,.true.,.true.,.true.)
          WRITE(en_handle) bound_hels(.true.)
          WRITE(en_handle) cross_helicity()
-         WRITE(en_handle) err_hel1(1.0,.false.,.true.)
+         WRITE(en_handle) err_hel1(1.0,.false.,.true.,.true.)
          WRITE(en_handle) bound_hels(.false.)
+         WRITE(en_handle) hmhdhmtn(1)
+         WRITE(en_handle) hmhdhmtn(2)
          if (verbose) write(*,*) "Found Helicities",mype
          WRITE(en_handle) eta*resvischange("b")
          WRITE(en_handle) vnu*resvischange("v")
@@ -4178,14 +4180,17 @@ END SUBROUTINE diag
 !! 
 !!  END SUBROUTINE phi_shell_filter3
 
-function hmhdhmtn result(ham)
+function hmhdhmtn(opt) result(ham)
 
 implicit none
 real :: ham
+integer :: opt 
 
 !! Computes the Hall MHD Hamiltonian 8 pi^3 (sum(v_k^2 + b_k^2) + 2b_z0)/2 
 
-ham = sum(abs(v_1)**2 + abs(b_1)**2) + 2*real(b_1(0,0,0,2))
+if (opt.eq.0) ham = sum(abs(v_1)**2 + abs(b_1)**2) + 2*real(b_1(0,0,0,2))
+if (opt.eq.1) ham = sum(abs(v_1)**2) ! Kinetic
+if (opt.eq.2) ham = sum(abs(b_1)**2) ! Magnetic
 ham = ham * (8*(pi**3))
 
 end function hmhdhmtn
@@ -4320,7 +4325,8 @@ CALL vec_potential()
 !enddo
 
 ! Simpler Sum
- maghel = 2.0*sum(real(AVP(:,:,:,:)*conjg(b_1(:,:,:,:))))*((2.0*pi)**3)
+ maghel = 2.0*sum(real(AVP(:,:,:,:)*conjg(b_1(:,:,:,:))))*((2.0*pi)**3)+mhelcorr
+ if (max_itime.lt.1000.and.(.not.actual_nonlinear)) print *, "Max by at kz=ky=0 ", maxval(abs(b_1(:,0,0,1)))
  maghel = maghel + 2.0*real(AVP(0,0,0,2))
  
 ! Alternative Expansion
@@ -4377,10 +4383,10 @@ integer :: i,j,k,ind
 CALL vec_potential()
 CALL vorticity()
 
-crosshel = 2.0 * (2*pi)**3 * sum(real((AVP+ v_1)*conjg(b_1 + WVORT)))
+crosshel = 2.0 * (2*pi)**3 * sum(real((AVP+ v_1)*conjg(b_1 + WVORT)))+mhelcorr
 if (actual_nonlinear.eq..false.) then
 crosshel1 = crosshel
-mh = 2.0 * (2.0*pi)**3 * sum(real(AVP*conjg(b_1)))
+mh = 2.0 * (2.0*pi)**3 * sum(real(AVP*conjg(b_1)))+mhelcorr
 vb = 2.0 * (2.0*pi)**3 * sum(real(v_1*conjg(b_1)))
 vw = 2.0 * (2.0*pi)**3 * sum(real(v_1*conjg(WVORT)))
 crosshel2 = mh + 2.0 * vb + vw
@@ -4395,18 +4401,19 @@ subroutine en_spec()
 
 implicit none
 
-WRITE(enspec_handle) (4*pi**3)* (abs(v_1(:,:,:,0))**2 + abs(v_1(:,:,:,1))**2)
-WRITE(enspec_handle) (4*pi**3)* (abs(b_1(:,:,:,0))**2+ abs(b_1(:,:,:,1))**2)
+WRITE(enspec_handle) (4*pi**3)* (abs(v_1(:,:,:,0))**2 + abs(v_1(:,:,:,1))**2+abs(v_1(:,:,:,2))**2)
+WRITE(enspec_handle) (4*pi**3)* (abs(b_1(:,:,:,0))**2+ abs(b_1(:,:,:,1))**2+abs(b_1(:,:,:,2))**2)
 
 end subroutine en_spec
 
-function err_hel1(sf,m,b) result(mherr)
+function err_hel1(sf,m,b,num) result(mherr)
 
 implicit none
 
 REAL :: sf
 LOGICAL :: m
 LOGICAL :: b
+LOGICAL :: num
 REAL :: mherr
 REAL :: Ck,k2xderiv,kxderiv,k2yderiv,kyderiv,k2zderiv,kzderiv
 REAL :: xcont,ycont,zcont
@@ -4420,7 +4427,7 @@ MH = 2.0*((2.0*pi)**3)*sum(abs(b_1)**2,4)/kmags
 CH = 2.0*((2.0*pi)**3)*kmags*sum(abs(v_1)**2,4)
 endif
 mherr = 0.0
-
+if (.not.num) then
 do i = 0,nkx0-1
   do j = 0,nky0-1
     do k = 1,nkz0-1
@@ -4450,8 +4457,10 @@ do i = 0,nkx0-1
     enddo
   enddo
 enddo
-
 mherr = sqrt(mherr)
+else
+mherr = 10.0**(-5.0) * mherr
+endif
 
 end function err_hel1
 

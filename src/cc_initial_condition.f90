@@ -212,7 +212,7 @@ SUBROUTINE initial_condition(which_init0)
               b_1(i,j,k,1) = cmplx(b2r,b2i)/(sqrt(2.0) * btmag * kmags(i,j,k)**(init_kolm/2.0))
               b_1(i,j,k,2) = cmplx(b3r,b3i)/(sqrt(2.0) * btmag * kmags(i,j,k)**(init_kolm/2.0))
               v_1(i,j,k,:) = b_1(i,j,k,:)
-            ELSE IF (shear) THEN
+            ELSE IF (shear.and.(max(i,j).ne.0)) THEN
               b_1(i,j,k,0) = - kygrid(j)/sqrt(kxgrid(i)**2 + kygrid(j)**2) * phaseb * (kmags(i,j,k) **(-init_kolm/2.0))
               b_1(i,j,k,1) = kxgrid(i)/sqrt(kxgrid(i)**2 + kygrid(j)**2) * phaseb * (kmags(i,j,k) **(-init_kolm/2.0))
               b_1(i,j,k,2) = cmplx(0.0,0.0)
@@ -265,6 +265,9 @@ SUBROUTINE initial_condition(which_init0)
 
       ! Linear stability maximum time step
       dt_max = minval([dt_max,2.5/(maxval(kzgrid)*(maxval(kmags)/2 + sqrt(1 + 0.25*maxval(kmags)**2.0)))])
+
+      ! Magnetic Helicity Correction
+      mhelcorr = 0.0
 
 ! Only use default for now
 !  which_init=which_init0 

@@ -143,6 +143,7 @@ SUBROUTINE get_g_next(b_in, v_in,dt_new)
  COMPLEX, INTENT(inout) :: v_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
  REAL :: dt_new
  REAL :: dt_new1,dt_new2,dt_new3,dt_new4
+ REAL :: nmhc
  INTEGER :: ionums(9)
  INTEGER :: q
 
@@ -185,6 +186,10 @@ SUBROUTINE get_g_next(b_in, v_in,dt_new)
  if (itime.lt.1)  CALL remove_div(b_in,v_in)
  first_stage=.true.
  CALL get_rhs(b_in, v_in, bk1, vk1,dt_new1)
+ IF (mhc) THEN 
+ CALL getmhcrk(b_in,v_in,nmhc)
+ mhelcorr = mhelcorr - (1.0/6.0)*dt*nmhc
+ ENDIF
  b_2=b_in+(1.0/6.0)*dt*bk1
  v_2=v_in+(1.0/6.0)*dt*vk1
  first_stage=.false.
@@ -194,6 +199,10 @@ SUBROUTINE get_g_next(b_in, v_in,dt_new)
  CALL remove_div(bk1,vk1)
  
  CALL get_rhs(bk1,vk1,bk2,vk2,dt_new2)
+ IF (mhc) THEN
+ CALL getmhcrk(bk1,vk1,nmhc)
+ mhelcorr = mhelcorr-(1.0/3.0)*dt*nmhc
+ ENDIF 
  b_2=b_2+(1.0/3.0)*dt*bk2
  bk2=b_in+0.5*dt*bk2
  v_2=v_2+(1.0/3.0)*dt*vk2
@@ -201,6 +210,10 @@ SUBROUTINE get_g_next(b_in, v_in,dt_new)
  CALL remove_div(bk2,vk2)
 
  CALL get_rhs(bk2,vk2,bk1,vk1,dt_new3)
+ IF (mhc) THEN
+ CALL getmhcrk(bk2,vk2,nmhc)
+ mhelcorr = mhelcorr - (1.0/3.0)*dt*nmhc
+ ENDIF
  b_2=b_2+(1.0/3.0)*dt*bk1
  bk1=b_in+dt*bk1
  v_2=v_2+(1.0/3.0)*dt*vk1
@@ -208,6 +221,10 @@ SUBROUTINE get_g_next(b_in, v_in,dt_new)
  CALL remove_div(bk1,vk1)
 
  CALL get_rhs(bk1,vk1,bk2,vk2,dt_new4)
+ IF (mhc) THEN
+ CALL getmhcrk(bk1,vk1,nmhc)
+ mhelcorr = mhelcorr - (1.0/6.0)*dt*nmhc
+ ENDIF
  b_in=b_2+(1.0/6.0)*dt*bk2
  v_in=v_2+(1.0/6.0)*dt*vk2
 
@@ -528,5 +545,16 @@ ENDIF
 
 END SUBROUTINE rk4_stability
 
+SUBROUTINE getmhcrk(b_in,v_in,nmhc)
+
+ IMPLICIT NONE
+ COMPLEX, INTENT(in) :: b_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+ COMPLEX, INTENT(in) :: v_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+
+ REAL, intent(out) :: nmhc
+
+nmhc = 32.0*(pi**3) * sum(real(b_in(:,:,:,0)*conjg(v_in(:,:,:,1))-b_in(:,:,:,1)*conjg(v_in(:,:,:,0))))
+
+END SUBROUTINE getmhcrk
 
 END MODULE time_advance

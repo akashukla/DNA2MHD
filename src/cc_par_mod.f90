@@ -139,6 +139,7 @@ MODULE par_mod
   LOGICAL :: uni = .true.
   LOGICAL :: shear = .false.
   LOGICAL :: helical = .false.
+  LOGICAL :: mhc = .false.
 
   LOGICAL :: calc_dt=.false.        !Automatic initial time step calculation
   LOGICAL :: dt_slepc=.false.        !Use slepc or lapack
@@ -238,6 +239,7 @@ MODULE par_mod
 
   REAL, ALLOCATABLE, DIMENSION(:,:) :: phi_denom
   REAL, ALLOCATABLE, DIMENSION(:,:,:) :: kmags
+  REAL :: mhelcorr
 
   !for parallelization
   !Hermites
