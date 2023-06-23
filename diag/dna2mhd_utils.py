@@ -157,9 +157,9 @@ def read_time_step_energy(which_itime,swap_endian=False):
    file_name = par['diagdir'][1:-1]+'/energy_out.dat'
    f = open(file_name,'rb')
    gt0=np.empty((1))
-   ntot = 9
+   ntot = 12
    mem_tot = (ntot)*8
-   gt0 = np.empty(9)
+   gt0 = np.empty(ntot)
    f.seek(8+which_itime*(8+mem_tot))
    gt0=np.fromfile(f,dtype='float64',count=ntot)
    if swap_endian:
@@ -265,7 +265,7 @@ def get_time_from_energyout(swap_endian=False):
    """Returns time array taken from v_out.dat"""
    file_name = par['diagdir'][1:-1]+ '/energy_out.dat'
    f = open(file_name,'rb')
-   ntot=9
+   ntot=12
    mem_tot=ntot*8
    time=np.empty(0)
    continue_read=1
@@ -411,10 +411,11 @@ def getenergy(lpath):
 
     kx,ky,kz=get_grids()
     i_n=[0,1,2]
+    ntot = 12
     savepath = lpath+'/energy_xyz.dat'
     #g=np.zeros((len(time)-1,len(kx),len(ky,),len(kz),len(i_n)), dtype='complex64') 
    #print('allocating array') 
-    g=np.memmap(savepath,dtype='float64',mode='w+', shape=(len(time),9))
+    g=np.memmap(savepath,dtype='float64',mode='w+', shape=(len(time),ntot))
     np.save(lpath+'/energyshape.npy',g.shape)
     np.save(lpath+'/timeenergy.npy',time)
     #g=np.zeros((len(time),len(kx),len(ky,),len(kz),len(i_n)), dtype='complex64')
@@ -426,7 +427,7 @@ def getenergy(lpath):
         if(t%20==0):
             print(str(t))
         gt = read_time_step_energy(t)
-        gt = np.reshape(gt,9,order='F')
+        gt = np.reshape(gt,ntot,order='F')
         g[t] = gt
     #np.save(lpath+'/g_allk_g04',g)               
 
@@ -829,23 +830,36 @@ def plot_energy(lpath,ntp,show=True,log=False,rescale=True,xb=1):
 
     shapes = {1:(1,1),2:(2,1),3:(2,2),4:(2,2),5:(2,3),6:(2,3),7:(3,3),8:(3,3),9:(3,3)}
     s = shapes[ntp+1]
-    labels = {0:'Energy',1:'Magnetic Helicity',2:'MH Error',3:'MH Bound',4:'Canonical Helicity',5:'CH Error',6:'CH Bound',7:'Next Param',8:'Next Param',9:'Next Param'}
-    fnames = {0:'energy',1:'maghcty',4:'canhcty'}
+    labels = {0:'Energy',1:'Magnetic Helicity',2:'MH Error',3:'MH Bound',4:'Canonical Helicity',5:'CH Error',6:'CH Bound',7:'Kinetic Energy',8:'Magnetic Energy',9:'Nonlinearity Parameter $\frac{k_\perp v_\lambda}{k_z V_A}$'}
+    fnames = {0:'energy',1:'maghcty',4:'canhcty',7:'spliten',9:'nlp'}
     
     if not os.path.exists(lpath + '/eplots/'):
         os.mkdir(lpath + '/eplots/')
     xx = len(timeen)
     timeen = timeen[range(0,xx,xb)]
     enval = enval[range(0,xx,xb),:]
-    plts = [0,1,4]
+    plts = [0,1,4,7,9]
     for i in plts[:ntp+1]:
-        if not log:
+        if i == 7:
+            fig,ax = plt.subplots(2)
+            ax[0].plot(timeen,enval[:,i])
+            ax[0].set_ylabel(labels[i])
+            ax[1].plot(timeen,enval[:,i+1])
+            ax[1].set_ylabel(labels[i+1])
+            ax[0].set_xlabel('time (1/wc)')
+            ax[1].set_xlabel('time (1/wc)')
+            fig.suptitle('Kinetic and Magnetic Energies')
+            plt.savefig(lpath+'/eplots/'+fnames[i])
+            if show == True:
+                plt.show()
+            plt.close()
+        elif not log:
             fig,ax = plt.subplots(1)
             if i == 1:
                 rr = enval[:,2]
             elif i == 4:
                 rr  = np.sqrt(enval[:,2]**2 + enval[:,5]**2)
-            if i == 0:
+            if i == 0 or i == 9:
                 ax.plot(timeen,enval[:,i])
             elif not rescale:
                 ax.errorbar(timeen,enval[:,i],yerr=rr)
@@ -874,105 +888,141 @@ def plot_energy(lpath,ntp,show=True,log=False,rescale=True,xb=1):
     
     return timeen,enval
 
-def plot_enspec(lpath,npt=1,zz=-1,show=True,log=False,linplot=False,newload=False,fullspec=False):
+def plot_enspec(lpath,npt=1,zz=-1,show=True,log=False,linplot=False,newload=False,fullspec=False,old=True):
     read_parameters(lpath)
     kx,ky,kz = get_grids()
 
-    t,bkt = load_b(lpath)
-    t,vkt = load_v(lpath)
-    if os.path.isfile(lpath+'/dumenspec.txt'):
+    if not old:
+        t,bkt = load_b(lpath)
+        t,vkt = load_v(lpath)
+    elif os.path.isfile(lpath+'/dumenspec.txt'):
         t,ekvf,ekbf = load_energyspec(lpath)
-        ekvm = ekvf[:,:,:,1:]
-        ekbm = ekbf[:,:,:,1:]
+        ekvm = ekvf[:,1:,1:,1:]
+        ekbm = ekbf[:,1:,1:,1:]
+        ekm = ekvm+ekbm
     else:
         t,ekvf,ekbf = getenergyspec(lpath)
-        ekvm = ekvf[:,:,:,1:]
-        ekbm = ekbf[:,:,:,1:]
-    
+        ekvm = ekvf[:,1:,1:,1:]
+        ekbm = ekbf[:,1:,1:,1:]
+        ekm = ekvm+ekbm
     # Obtain needed phase information to correct initial spectrum
-    bths = np.arctan2(np.abs(bkt[0,:,:,1:,1]),np.abs(bkt[0,:,:,1:,0]))
-    vths = np.arctan2(np.abs(vkt[0,:,:,1:,1]),np.abs(vkt[0,:,:,1:,0]))
-    bphixs = np.angle(bkt[0,:,:,1:,0])
-    bphiys = np.angle(bkt[0,:,:,1:,1])
-    vpsixs = np.angle(vkt[0,:,:,1:,0])
-    vpsiys = np.angle(vkt[0,:,:,1:,1])
-    badj = np.zeros(np.shape(bkt[0,:,:,1:,0]))
-    vadj = np.zeros(np.shape(vkt[0,:,:,1:,0]))
-    for i in range(0,par['nkx0']):
-        for j in range(0,par['nky0']):
-            for k in range(1,par['nkz0']):
-                badj = 1+(kx[i]**2 * np.cos(bths)**2 + ky[j]**2 * np.sin(bths)**2 + kx[i]*ky[j]*np.sin(2*bths)*np.cos(bphixs-bphiys))/(kz[k]**2)
-                vadj = 1+(kx[i]**2 * np.cos(vths)**2 + ky[j]**2 * np.sin(vths)**2 + kx[i]*ky[j]*np.sin(2*vths)*np.cos(vpsixs-vpsiys))/(kz[k]**2)
-        print(i)
-
+    if not old:
+        bths = np.arctan2(np.abs(bkt[0,:,:,1:,1]),np.abs(bkt[0,:,:,1:,0]))
+        vths = np.arctan2(np.abs(vkt[0,:,:,1:,1]),np.abs(vkt[0,:,:,1:,0]))
+        bphixs = np.angle(bkt[0,:,:,1:,0])
+        bphiys = np.angle(bkt[0,:,:,1:,1])
+        vpsixs = np.angle(vkt[0,:,:,1:,0])
+        vpsiys = np.angle(vkt[0,:,:,1:,1])
+        badj = np.zeros(np.shape(bkt[0,:,:,1:,0]))
+        vadj = np.zeros(np.shape(vkt[0,:,:,1:,0]))
+        for i in range(0,par['nkx0']):
+            for j in range(0,par['nky0']):
+                for k in range(1,par['nkz0']):
+                    badj = 1+(kx[i]**2 * np.cos(bths)**2 + ky[j]**2 * np.sin(bths)**2 + kx[i]*ky[j]*np.sin(2*bths)*np.cos(bphixs-bphiys))/(kz[k]**2)
+                    vadj = 1+(kx[i]**2 * np.cos(vths)**2 + ky[j]**2 * np.sin(vths)**2 + kx[i]*ky[j]*np.sin(2*vths)*np.cos(vpsixs-vpsiys))/(kz[k]**2)
+            print(i)
     fmts = ["ks","mo","b^","g*","r8"]
-    fig,ax = plt.subplots(2)
-    kmag = np.sqrt(np.log(np.tensordot(np.tensordot(np.exp(kx**2),np.exp(ky**2),axes=0),np.exp(kz[1:]**2),axes=0)))
+    fig1,ax1 = plt.subplots(1)
+    fig2,ax2 = plt.subplots(1)
+    fig3,ax3 = plt.subplots(1)
+    kmag = np.sqrt(np.log(np.tensordot(np.tensordot(np.exp(kx[1:]**2),np.exp(ky[1:]**2),axes=0),np.exp(kz[1:]**2),axes=0)))
     if log:
         kmag = np.log(kmag)
     j = 0
+
     for i in range(0,np.size(t),np.size(t)//npt):
         if not newload:
-            ekb = 0.5*(np.abs(bkt[i,:,:,1:,0])**2 + np.abs(bkt[i,:,:,1:,1])**2+np.abs(bkt[i,:,:,1:,2])**2)/badj
-            ekv = 0.5*(np.abs(vkt[i,:,:,1:,0])**2 + np.abs(vkt[i,:,:,1:,1])**2+np.abs(vkt[i,:,:,1:,2])**2)/vadj
+            ekb = 0.5*(np.abs(bkt[i,1:,1:,1:,0])**2 + np.abs(bkt[i,1:,1:,1:,1])**2+np.abs(bkt[i,1:,1:,1:,2])**2)/badj
+            ekv = 0.5*(np.abs(vkt[i,1:,1:,1:,0])**2 + np.abs(vkt[i,1:,1:,1:,1])**2+np.abs(vkt[i,1:,1:,1:,2])**2)/vadj
             if fullspec:
                 ekb += 0.5*np.abs(bkt[i,:,:,1:,2])**2
                 ekv += 0.5*np.abs(vkt[i,:,:,1:,2])**2
+            ek = ekb+ekv
         elif log:
             ekb = np.log(ekbm[i,:,:,:])
             ekv = np.log(ekvm[i,:,:,:])
+            ek = np.log(ekm[i,:,:,:])
         else:
             ekb = ekbm[i,:,:,:]
             ekv = ekvm[i,:,:,:]
+            ek = ekm[i,:,:,:]
+        print(np.amax(np.abs(ekm[i,:,:,:]-ekm[0,:,:,:])),np.argmax(np.abs(ekm[i,:,:,:]-ekm[0,:,:,:])))
+
         if (not newload) and log:
             ekb[:,:,:] = np.log(ekb[:,:,:])
             ekv[:,:,:] = np.log(ekv[:,:,:])
+            ek = np.log(ek[:,:,:])
         if (zz == -1):
-            x = np.reshape(kmag[:,:,0],np.size(kmag[:,:,0]))
+            x = np.reshape(kmag[:,:,:],np.size(kmag[:,:,:]))
             a = np.argsort(x)
-            yb = np.reshape(ekb[:,:,0],np.size(kmag[:,:,0]))
-            yv = np.reshape(ekv[:,:,0],np.size(kmag[:,:,0]))
+            yb = np.reshape(ekb[:,:,:],np.size(kmag[:,:,:]))
+            yv = np.reshape(ekv[:,:,:],np.size(kmag[:,:,:]))
+            yt = np.reshape(ek[:,:,:],np.size(kmag[:,:,:]))
         else:
-            x = np.reshape(kmag[:,:,0],np.size(kmag[:,:,0]))
+            x = np.reshape(kmag[:,:,zz],np.size(kmag[:,:,zz]))
             a = np.argsort(x)
             yb = np.reshape(ekb[:,:,zz],np.size(kmag[:,:,0]))
             yv = np.reshape(ekv[:,:,zz],np.size(kmag[:,:,0]))
+            yt = np.reshape(ek[:,:,zz],np.size(kmag[:,:,0]))
 
         if linplot:
-            ax[0].plot(1/(x[a]**2),yb[a],fmts[np.mod(i,5)],label=np.format_float_positional(t[i],2),markersize=1/(j+1))
-            ax[1].plot(1/(x[a]**2),yv[a],fmts[np.mod(i,5)],label=np.format_float_positional(t[i],2),markersize=1/(j+1))
+            ax1.plot(1/(x[a]**par["init_kolm"]),yb[a],fmts[np.mod(i,5)],label=np.format_float_positional(t[i],2),markersize=1/(j+1))
+            ax2.plot(1/(x[a]**par["init_kolm"]),yv[a],fmts[np.mod(i,5)],label=np.format_float_positional(t[i],2),markersize=1/(j+1))
+            ax3.plot(1/(x[a]**par["init_kolm"]),yt[a],fmts[np.mod(i,5)],label=np.format_float_positional(t[i],2),markersize=1/(j+1))
         else:
-            ax[0].plot(x[a],yb[a],fmts[np.mod(j,5)],label=np.format_float_positional(t[i],2),markersize=1/(j+1))
-            ax[1].plot(x[a],yv[a],fmts[np.mod(j,5)],label=np.format_float_positional(t[i],2),markersize=1/(j+1))
+            ax1.plot(x[a],yb[a],fmts[np.mod(j,5)],label=np.format_float_positional(t[i],2),markersize=1/(j+1))
+            ax2.plot(x[a],yv[a],fmts[np.mod(j,5)],label=np.format_float_positional(t[i],2),markersize=1/(j+1))
+            ax3.plot(x[a],yt[a],fmts[np.mod(j,5)],label=np.format_float_positional(t[i],2),markersize=1/(j+1))
+        
         j = j + 1
 
-    ax[0].legend(loc=3)
-    ax[1].legend(loc=3)
+    ax1.legend(loc=3)
+    ax2.legend(loc=3)
+    ax3.legend(loc=3)
     if log:
         label = " Log"
-        ax[0].set_ylim(-30,0)
-        ax[1].set_ylim(-30,0)
+        ax1.set_ylim(-30,0)
+        ax2.set_ylim(-30,0)
+        ax3.set_ylim(-30,0)
     else:
         label = ""
     if (zz == -1):
-        fig.suptitle("Energy Spectrum")
-        ax[0].set_ylabel("Magnetic "+label)
-        ax[1].set_ylabel("Kinetic "+label)
+        fig1.suptitle("Energy Spectrum")
+        fig2.suptitle("Energy Spectrum")
+        fig3.suptitle("Energy Spectrum")
+        ax1.set_ylabel("Magnetic"+label)
+        ax2.set_ylabel("Kinetic"+label)
+        ax3.set_ylabel("Total"+label)
         if linplot:
-            fig.supxlabel("1/k^2")
+            fig1.supxlabel("1/k^{}".format(par["init_kolm"]))
+            fig2.supxlabel("1/k^{}".format(par["init_kolm"]))
+            fig3.supxlabel("1/k^{}".format(par["init_kolm"]))
         else:
-            fig.supxlabel(label+" k")
+            fig1.supxlabel(label+" k")
+            fig2.supxlabel(label+" k")
+            fig3.supxlabel(label+" k")
+
     else:
-        fig.suptitle("Perpendicular Energy Spectrum kz = "+np.format_float_positional(kz[zz],2))
-        ax[0].set_ylabel("Magnetic Energy Spectrum"+label)
-        ax[1].set_ylabel("Kinetic Energy Spectrum"+label)
-        fig.supxlabel("kperp")
+        fig1.suptitle("Perpendicular Energy Spectrum kz = "+np.format_float_positional(kz[zz+1],2))
+        fig2.suptitle("Perpendicular Energy Spectrum kz = "+np.format_float_positional(kz[zz+1],2))
+        fig3.suptitle("Perpendicular Energy Spectrum kz = "+np.format_float_positional(kz[zz+1],2))
+        ax1.set_ylabel("Magnetic Energy Spectrum"+label)
+        ax2.set_ylabel("Kinetic Energy Spectrum"+label)
+        ax3.set_ylabel("Total Energy Spectrum"+label)
+        fig1.supxlabel(label+" k")
+        fig2.supxlabel(label+" k")
+        fig3.supxlabel(label+" k")
     if not os.path.exists(lpath + '/eplots/'):
         os.mkdir(lpath + '/eplots/')
-    plt.savefig(lpath+'/eplots/enspec'+str(zz)+'.png')
+    fig1.savefig(lpath+'/eplots/benspec'+str(zz+1)+'.png')
+    fig2.savefig(lpath+'/eplots/venspec'+str(zz+1)+'.png')
+    fig3.savefig(lpath+'/eplots/tenspec'+str(zz+1)+'.png')
     if show == True:
-        plt.show()
-    plt.close()
+        fig1.show()
+        fig2.show()
+        fig3.show()
+    else:
+        plt.close("all")
     return(0)
 
 #if __name__ == '__main__':

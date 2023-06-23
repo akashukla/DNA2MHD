@@ -160,6 +160,8 @@ SUBROUTINE arrays
     IF(.not.allocated(kzgrid)) ALLOCATE(kzgrid(0:nkz0-1))
   END IF
   IF(.not.allocated(kmags)) ALLOCATE(kmags(0:nkx0-1,0:nky0-1,0:nkz0-1))
+  IF(.not.allocated(kperps)) ALLOCATE(kperps(0:nkx0-1,0:nky0-1,0:nkz0-1))
+  IF(.not.allocated(kzs)) ALLOCATE(kzs(0:nkx0-1,0:nky0-1,0:nkz0-1))
   IF(.not.allocated(gpsi)) ALLOCATE(gpsi(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
   IF(.not.allocated(pre)) ALLOCATE(pre(0:nkx0-1,0:nky0-1,0:nkz0-1))
   !IF(.not.allocated(herm_grid)) ALLOCATE(herm_grid(0:nv0-1))

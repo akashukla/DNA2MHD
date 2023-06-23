@@ -95,9 +95,9 @@ SUBROUTINE initialize_fourier_ae_mu0
   ny0_big = 2*nky0
   nz0_big = 4*nkz0
   endif
-  if (dealias_type.eq.4) then 
-  nx0_big=2*nkx0
-  ny0_big=2*nky0
+  if (dealias_type.eq.0) then 
+  nx0_big=nkx0
+  ny0_big=nky0
   nz0_big=2*nkz0
   endif
 
@@ -105,7 +105,6 @@ SUBROUTINE initialize_fourier_ae_mu0
   counter = 0
 
   ! Set Up Modern FFTW Plan
-
 
   alloc_local = fftw_mpi_local_size_3d(nz0_big, ny0_big, nx0_big, MPI_COMM_WORLD, &
     local_N, local_k_offset)
@@ -231,8 +230,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   REAL :: rsnls
 
   IF ((mype.eq.0)) CALL cpu_time(sttime)
-  IF (verbose.and.(mype.eq.0)) CALL cpu_time(dum)
-  IF(verbose.and.(mype.eq.0)) print *, 'RHS NL Start Time:',dum - sttime
+!  IF(verbose.and.(mype.eq.0)) print *, 'RHS NL Start Time:',dum - sttime
   ! I dont want to change g_in, so I copy temporaly to g_in0
   !g_in0 = g_in
 
@@ -242,7 +240,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   v_inx0(1:nkx0,1:nky0,1:nkz0) = v_in(0:nkx0-1,0:nky0-1,0:nkz0-1,0)
   v_iny0(1:nkx0,1:nky0,1:nkz0) = v_in(0:nkx0-1,0:nky0-1,0:nkz0-1,1)
   v_inz0(1:nkx0,1:nky0,1:nkz0) = v_in(0:nkx0-1,0:nky0-1,0:nkz0-1,2)
-  if (verbose.and.(mype.eq.0)) print *,'Through Initialization'
+ ! if (verbose.and.(mype.eq.0)) print *,'Through Initialization'
   
   if (nv.eq..false.) then
 
@@ -910,21 +908,21 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   rhs_out_nlv(:,:,:,1) = fft_spec2(store_vy)
   rhs_out_nlv(:,:,:,2) = fft_spec2(store_vz)
 
-  IF (verbose.and.(mype.eq.0)) CALL cpu_time(dum)
-  IF(verbose.and.(mype.eq.0)) print *, 'RHS NL PostFFFTs Time:',dum-sttime
+ ! IF (verbose.and.(mype.eq.0)) CALL cpu_time(dum)
+ ! IF(verbose.and.(mype.eq.0)) print *, 'RHS NL PostFFFTs Time:',dum-sttime
 
   !Now fill in appropriate rhs elements
   if ((mype.eq.0)) print *,'Max NLBx',&
-    maxval(abs(rhs_out_nlb(:,:,:,0))/abs(rhs_out_b(:,:,:,0)),((abs(rhs_out_b(:,:,:,0)).gt.10.0**(-7.0)).and.(kmags.gt.1.0))),&
-    maxloc(abs(rhs_out_nlb(:,:,:,0))/abs(rhs_out_b(:,:,:,0)),((abs(rhs_out_b(:,:,:,0)).gt.10.0**(-7.0)).and.(kmags.gt.1.0)))
+    maxval(abs(rhs_out_nlb(:,:,:,0))/abs(rhs_out_b(:,:,:,0)),((abs(rhs_out_b(:,:,:,0)).gt.10.0**(-7.0)).and.(kmags.gt.0.5*maxval(kmags)))),&
+    maxloc(abs(rhs_out_nlb(:,:,:,0))/abs(rhs_out_b(:,:,:,0)),((abs(rhs_out_b(:,:,:,0)).gt.10.0**(-7.0)).and.(kmags.gt.0.5*maxval(kmags))))
   if ((mype.eq.0)) print *,'Max NLVx',&
-    maxval(abs(rhs_out_nlv(:,:,:,0))/abs(rhs_out_v(:,:,:,0)),((abs(rhs_out_v(:,:,:,0)).gt.10.0**(-7.0)).and.(kmags.gt.1.0))),&
-    maxloc(abs(rhs_out_nlv(:,:,:,0))/abs(rhs_out_v(:,:,:,0)),((abs(rhs_out_v(:,:,:,0)).gt.10.0**(-7.0)).and.(kmags.gt.1.0)))
+    maxval(abs(rhs_out_nlv(:,:,:,0))/abs(rhs_out_v(:,:,:,0)),((abs(rhs_out_v(:,:,:,0)).gt.10.0**(-7.0)).and.(kmags.gt.0.5*maxval(kmags)))),&
+    maxloc(abs(rhs_out_nlv(:,:,:,0))/abs(rhs_out_v(:,:,:,0)),((abs(rhs_out_v(:,:,:,0)).gt.10.0**(-7.0)).and.(kmags.gt.0.5*maxval(kmags))))
 
   rhs_out_v = rhs_out_v + rhs_out_nlv
   if (nv.eq..false.) rhs_out_b = rhs_out_b + rhs_out_nlb
 
-  if (verbose.and.(mype.eq.0)) print *, 'rhs out v nl found'
+  ! if (verbose.and.(mype.eq.0)) print *, 'rhs out v nl found'
 
   if (calc_dt) CALL next_dt(myndt)
   if (calc_dt) CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
@@ -940,7 +938,7 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
      bdv(:,:,:,0) = rsnls*bdv(:,:,:,0) + (5.0/12.0 - 1.0/6.0 * abs(real(counter) - 1.5)) * fft_spec2(bx*dxvx+by*dyvx+bz*dzvx)
      bdv(:,:,:,1) = rsnls*bdv(:,:,:,1) + (5.0/12.0 - 1.0/6.0 * abs(real(counter) - 1.5)) * fft_spec2(bx*dxvy+by*dyvy+bz*dzvy)
      bdv(:,:,:,2) = rsnls*bdv(:,:,:,2) + (5.0/12.0 - 1.0/6.0 * abs(real(counter) - 1.5)) * fft_spec2(bx*dxvz+by*dyvz+bz*dzvz)
-  if (verbose.and.(mype.eq.0)) print *, 'max val bdv',maxval(abs(bdv))
+  ! if (verbose.and.(mype.eq.0)) print *, 'max val bdv',maxval(abs(bdv))
      ! v.grad b
      vdb(:,:,:,0) = rsnls*vdb(:,:,:,0) + (5.0/12.0 - 1.0/6.0 * abs(real(counter) - 1.5)) * fft_spec2(vx*dxbx+vy*dybx+vz*dzbx)
      vdb(:,:,:,1) = rsnls*vdb(:,:,:,1) + (5.0/12.0 - 1.0/6.0 * abs(real(counter) - 1.5)) * fft_spec2(vx*dxby+vy*dyby+vz*dzby)
@@ -1005,8 +1003,8 @@ SUBROUTINE get_rhs_nl2(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   
   CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
 
-  IF (verbose.and.(mype.eq.0)) CALL cpu_time(dum)
-  IF(verbose.and.(mype.eq.0)) print *, 'RHS NL PostWrite Time:',dum-sttime
+ ! IF (verbose.and.(mype.eq.0)) CALL cpu_time(dum)
+ ! IF(verbose.and.(mype.eq.0)) print *, 'RHS NL PostWrite Time:',dum-sttime
 
   IF ((mype.eq.0)) CALL cpu_time(dum)
   IF ((mype.eq.0)) print *, 'RHS NL Total Time:',dum-sttime
@@ -1089,9 +1087,10 @@ FUNCTION fft_spec2(arr_real) result(arr_spec)
 
 implicit none
 
-complex :: arr_real(1:nx0_big,1:ny0_big,1:local_N)
-complex :: arr_spec(0:nkx0-1,0:nky0-1,0:nkz0-1)
-complex :: arr_specm(0:nkx0-1,0:nky0-1,0:nkz0-1)
+  complex :: arr_real(1:nx0_big,1:ny0_big,1:local_N)
+  complex :: arr_spec(0:nkx0-1,0:nky0-1,0:nkz0-1)
+  complex :: arr_specm(0:nkx0-1,0:nky0-1,0:nkz0-1)
+  INTEGER :: i,j,k
 
   data = cmplx(0.0,0.0)
   arr_specm = cmplx(0.0,0.0)
@@ -1099,15 +1098,36 @@ complex :: arr_specm(0:nkx0-1,0:nky0-1,0:nkz0-1)
   data = arr_real
   CALL fftw_mpi_execute_dft(plan_r2c,data,data)
   if (verbose.and.(mype.eq.0)) print *, 'Through ffft'
+  IF (shifted) THEN
   DO k = 1,local_N
     if ((k+local_k_offset).le.nkz0) arr_specm(0:nkx0-1,0:nky0-1,local_k_offset+k-1) = data(1:nkx0,1:nky0,k)*fft_norm
   ENDDO
+  ELSE
+
+  DO k = 1,local_N
+    DO i = 0,nkx0-1
+      DO j = 0,nky0-1
+        if (((k+local_k_offset).ge.nkz0).and.((k+local_k_offset).lt.2*nkz0)) then
+          if (i > nkx0/2) then
+            if (j.gt.nky0/2) arr_specm(i,j,k+local_k_offset-nkz0-1) = data(nx0_big/2+1-i,ny0_big/2+1-j,k)*fft_norm
+            if (j.le.nky0/2) arr_specm(i,j,k+local_k_offset-nkz0-1) = data(nx0_big/2+1-i,ny0_big/2+1+j,k)*fft_norm
+          else
+            if (j.gt.nky0/2) arr_specm(i,j,k+local_k_offset-nkz0-1) = data(nx0_big/2+1+i,ny0_big/2+1-j,k)*fft_norm
+            if (j.le.nky0/2) arr_specm(i,j,k+local_k_offset-nkz0-1) = data(nx0_big/2+1+i,ny0_big/2+1+j,k)*fft_norm
+          endif
+        endif
+      ENDDO
+    ENDDO
+  ENDDO
+
+  ENDIF
 
   if (verbose.and.(mype.eq.0)) print *, 'Through post assignment'
 
   CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
   CALL MPI_ALLREDUCE(arr_specm,arr_spec,nkx0*nky0*nkz0,MPI_DOUBLE_COMPLEX,MPI_SUM,MPI_COMM_WORLD,ierr)
-
+  arr_spec(nkx0/2,:,:) = cmplx(0.0,0.0)
+  arr_spec(:,nky0/2,:) = cmplx(0.0,0.0)
   if (verbose.and.(mype.eq.0)) print *, 'Through fft_spec2'
  ! IF(verbose) print *, mype,'NL FFFT Maxes', maxval(abs(arr_spec)),maxloc(abs(arr_spec))
 
@@ -1137,34 +1157,54 @@ SUBROUTINE torealspace(temp_small,output)
   COMPLEX(C_DOUBLE_COMPLEX), intent(out) :: output(1:nx0_big,1:ny0_big,1:local_Ni)
   INTEGER(C_INTPTR_T) :: xcind,ycind,zcind
 
- IF (verbose.and.(mype.eq.0)) print *, maxval(abs(temp_small))
+! IF (verbose.and.(mype.eq.0)) print *, maxval(abs(temp_small))
 
   datai = cmplx(0.0,0.0)
   output = cmplx(0.0,0.0)
 
-  DO k = 1,min(local_Ni,nkz0),n_mpi_procs
+  IF (shifted) then
+  DO k = 1,min(local_Ni,2*nkz0),n_mpi_procs
     DO j = 1,nky0
       DO i = 1,nkx0
         if ((k+local_k_offseti).le.nkz0) datai(i,j,k) = temp_small(i,j,k+local_k_offseti)
-        if (dealias_type.eq.3) then 
+        
           if (((k+local_k_offseti).le.2*nkz0).and.((k+local_k_offseti).gt.nkz0+1)) then
             datai(i,j,k) = conjg(temp_small(1+mod(nkx0+1-i,nkx0),1+mod(nky0+1-j,nky0),1+mod(2*nkz0+1-(k+local_k_offseti),2*nkz0)))
           endif
+        
+      ENDDO
+    ENDDO
+  ENDDO
+  ELSE 
+
+  DO k = 1,min(local_Ni,2*nkz0),n_mpi_procs
+    DO j = 1,nky0
+      DO i = 1,nkx0
+
+        if (((k+local_k_offseti).ge.nkz0).and.((k+local_k_offseti).lt.2*nkz0)) datai(i,j,k) = temp_small(i,j,k+local_k_offseti+1-nkz0)
+        ! if (verbose) print *, 'Unadj stored',i,j,k+local_k_offseti
+        if ((k+local_k_offseti).lt.nkz0-1) then
+          datai(i,j,k) = conjg(temp_small(1+mod(nkx0+1-i,nkx0),1+mod(nky0+1-j,nky0),nkz0-(k+local_k_offseti)))
+          ! if (verbose) print *, 'Adj stored',i,j,k+local_k_offseti
         endif
+        
       ENDDO
     ENDDO
   ENDDO
 
-  IF (verbose.and.(mype.eq.0)) print *, maxval(abs(datai))
+  ENDIF
 
-  if (verbose.and.(mype.eq.0)) print *,'Through \"temp big\"'
+
+ ! IF (verbose.and.(mype.eq.0)) print *, maxval(abs(datai))
+
+ ! if (verbose.and.(mype.eq.0)) print *,'Through \"temp big\"'
 
  CALL fftw_mpi_execute_dft(plan_c2r,datai,datai)
  output = datai
  temp_small = cmplx(0.0,0.0)
 
 ! IF (verbose) print *, mype,maxval(abs(aimag(output)))
- IF (verbose.and.(mype.eq.0)) print *, mype,maxval(abs(datai)),maxval(abs(output))
+ IF (verbose.and.(mype.eq.0)) print *, mype,maxval(abs(aimag(datai))),maxval(abs(aimag(output)))
 
 END SUBROUTINE torealspace
 

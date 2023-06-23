@@ -121,6 +121,7 @@ MODULE par_mod
   !INTEGER :: rhs_nl_version=2
   INTEGER :: rhs_nl_version !Akash changed nl_version to 1
   INTEGER :: dealias_type = 3
+  LOGICAL :: shifted = .true.
   ! IO Numbers for Diss/NL term debugging
   LOGICAL :: plot_nls = .false.
   LOGICAL :: enone = .true.
@@ -239,6 +240,8 @@ MODULE par_mod
 
   REAL, ALLOCATABLE, DIMENSION(:,:) :: phi_denom
   REAL, ALLOCATABLE, DIMENSION(:,:,:) :: kmags
+  REAL, ALLOCATABLE, DIMENSION(:,:,:) :: kperps
+  REAL, ALLOCATABLE, DIMENSION(:,:,:) :: kzs
   REAL :: mhelcorr
 
   !for parallelization

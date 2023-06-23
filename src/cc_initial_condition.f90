@@ -55,6 +55,8 @@ SUBROUTINE initial_condition(which_init0)
     DO j = 0,nky0-1
       DO k = 1,nkz0-1
         kmags(i,j,k) = sqrt(kxgrid(i)**2 + kygrid(j)**2 + kzgrid(k)**2)
+        kperps(i,j,k) = sqrt(kxgrid(i)**2 + kygrid(j)**2)
+        kzs(i,j,k) = sqrt(kzgrid(k)**2)
   ! Energy Fixing Redone Later
   !      divratio(i,j,k) = (kxgrid(i)+kygrid(j))/kzgrid(k)
       END DO
@@ -96,6 +98,7 @@ SUBROUTINE initial_condition(which_init0)
       DO i=xst,kxinit_max-1
         DO j=yst,kyinit_max-1
           DO k=zst,kzinit_max-1
+          if (i.ne.nkx0/2.and.j.ne.nky0/2) then
           !!! Uniform distribution
           if (uni) then
           if (mype.eq.0) then
@@ -195,7 +198,7 @@ SUBROUTINE initial_condition(which_init0)
               s13 = kxgrid(i) * kygrid(j) * (sin(4*pi*thb) * cos(2*pi*phase1y) + sin(4*pi*thv)*cos(2*pi*phase2y))
               s1 = s1 + kmags(i,j,k)**(-1.0*init_kolm) * (2+(s11+s12+s13)/(kzgrid(k)**2))
             ELSE
-              s1 = s1 + kmags(i,j,k) ** (-1.0*init_kolm)
+              s1 = s1 + 2.0*kmags(i,j,k) ** (-1.0*init_kolm)
             ENDIF
             IF (helical) THEN
               bt1 = 2.0*phase1y - 1.0
@@ -233,7 +236,7 @@ SUBROUTINE initial_condition(which_init0)
             !v_1(i,j,k,2)=init_amp_vz 
             END IF
          END IF
-        
+        endif
         END DO
        END DO
       END DO
