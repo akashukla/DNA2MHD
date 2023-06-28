@@ -122,6 +122,7 @@ MODULE par_mod
   INTEGER :: rhs_nl_version !Akash changed nl_version to 1
   INTEGER :: dealias_type = 3
   LOGICAL :: shifted = .true.
+  LOGICAL :: splitx = .true.
   ! IO Numbers for Diss/NL term debugging
   LOGICAL :: plot_nls = .false.
   LOGICAL :: enone = .true.
@@ -300,7 +301,9 @@ MODULE par_mod
   INTEGER :: hky_ind !index of highest ky value
   INTEGER :: lky_ind !index of lowest (most negative) ky value
   INTEGER :: hkz_ind !index of highest kx value
+  INTEGER :: lkx_ind ! index of lowest kx value
   INTEGER :: lkz_ind !index of lowest (most negative) kx value
+  INTEGER :: lkx_big !index of most negative kx value in big array
   INTEGER :: lky_big !index of lowest (most negative) ky value in big (for dealiasing) arrays
   INTEGER :: lkz_big !index of lowest (most negative) kx value in big (for dealiasing) arrays
 

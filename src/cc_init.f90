@@ -87,16 +87,26 @@ SUBROUTINE arrays
   !Note the format for the ky/kx indices:
   !Index:	0,    1,      2,. . . .       hky_ind,  nky0/2,  lky_ind, . . . nky0-1
   !ky val:	0.0,  kymin,  2*kymin . . . . kymax,    *,       -kymax, . . .  -kymin
-  hkx_ind=nkx0/2-1     !Index of maximum kx value
+  if (splitx) then
+    hkx_ind = nkx0-1
+    hkz_ind = nkz0/2-1
+    lkz_ind = nkz0-hkz_ind
+  else
+    hkx_ind = nkx0/2-1
+    lkx_ind = nkx0-hkx_ind
+    hkz_ind = nkz0-1
+  endif
+
   hky_ind=nky0/2-1     !Index of maximum (used,i.e. not dummy) ky value 
   lky_ind=nky0-hky_ind !Index of minimum (most negative) ky value
-  IF(nkz0==1) THEN
-    hkz_ind=0
-    lkz_ind=0
-  ELSE
-    hkz_ind=nkz0-1 !Index of maximum (used,i.e. not dummy) kz value
-    lkz_ind=0 !Index of minimum (most negative) kz value
-  END IF
+!  IF(nkz0==1) THEN
+!    hkz_ind=0
+!    lkz_ind=0
+!  ELSE
+!    hkz_ind=nkz0-1 !Index of maximum (used,i.e. not dummy) kz value
+!    lkz_ind=0 !Index of minimum (most negative) kz value
+!  END IF
+  
 
   IF(verbose.and.(mype.eq.0)) THEN
     WRITE(*,*) "hkx_ind",hkx_ind
@@ -179,25 +189,37 @@ SUBROUTINE arrays
 
  
   IF(kmin_eq_0) THEN
+    if (splitx) then
+
+    DO i=0,nkx0-1
+      kxgrid(i)=i*kxmin
+    END DO
+    kxmax=(nkx0-1)*kxmin
+
+    kzgrid(0)=0.0
+    DO i=1,nkz0/2-1
+      kzgrid(i)=i*kzmin
+      kzgrid(nkz0-i)=-i*kzmin
+    END DO
+    kzmax=(nkz0/2-1)*kzmin
+    kzgrid(nkz0/2)=kzmax+kzmin
+
+    else
+
     DO i=0,nkz0-1
       kzgrid(i)=i*kzmin
     END DO 
     kzmax=(nkz0-1)*kzmin
-    !WRITE(*,*) "kx grid:", kxgrid
 
-!    DO i=0,nkx0-1  
-!      kxgrid(i)=i*kxmin   
-!    END DO 
-!    kxmax=(nkx0-1)*kxmin       
-    !WRITE(*,*) "kx grid:", kxgrid
+    kxgrid(0)=0.0
+    DO i=1,nkx0/2-1
+      kxgrid(i)=i*kxmin
+      kxgrid(nkx0-i)=-i*kxmin
+    END DO
+    kxmax=(nkx0/2-1)*kxmin
+    kxgrid(nkx0/2)=kxmax+kxmin 
 
-!    kzgrid(0)=0.0
-!    DO i=1,nkz0/2-1
-!      kzgrid(i)=i*kzmin
-!      kzgrid(nky0-i)=-i*kzmin
-!    END DO
-!    kzmax=(nkz0/2-1)*kzmin
-!    kzgrid(nkz0/2)=kzmax+kzmin  !dummy index 
+    endif
 
     kygrid(0)=0.0
     DO i=1,nky0/2-1
@@ -205,22 +227,8 @@ SUBROUTINE arrays
       kygrid(nky0-i)=-i*kymin
     END DO 
     kymax=(nky0/2-1)*kymin
-    kygrid(nky0/2)=kymax+kymin  !dummy index
-    !WRITE(*,*) "ky grid:", kygrid
+    kygrid(nky0/2)=kymax+kymin
 
-    IF(nkx0.ge.2) THEN
-      kxgrid(0)=0.0
-      DO i=1,nkx0/2-1
-        kxgrid(i)=i*kxmin
-        kxgrid(nkx0-i)=-i*kxmin
-      END DO 
-      kxmax=(nkx0/2-1)*kxmin
-      kxgrid(nkx0/2)=kxmax+kxmin  !dummy index
- !   ELSE
- !     !See Watanabe and Sugama '04
- !     kzgrid=kygrid*kzmin/kymin
- !     kzmax=kymax*kzmin/kymin
-    END IF
   ELSE !.not.kmin_eq_0, i.e. linear
     kxgrid(0)=kxmin
     kxmax=kxmin

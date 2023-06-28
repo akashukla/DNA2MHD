@@ -90,15 +90,11 @@ SUBROUTINE initial_condition(which_init0)
       CALL RANDOM_SEED(PUT=rseed)
       DEALLOCATE(rseed)
 
-      ! 03/14/23 Helicity is linearly conserved when a) the initial bk and vk are parallel or b) the waves are out of phase by 90 degrees
-      ! I'm building in both conditions for conservation for now, but this could be changed later
-      ! But should x,y,z all have the same phase?
-
       if (enone) s1 = 0.0
       DO i=xst,kxinit_max-1
         DO j=yst,kyinit_max-1
           DO k=zst,kzinit_max-1
-          if (i.ne.nkx0/2.and.j.ne.nky0/2) then
+          if (((kxgrid(i).lt.kxmax+kxmin).and.(kygrid(j).lt.kymax+kymin)).and.(kzgrid(k).lt.kzmax+kzmin)) then
           !!! Uniform distribution
           if (uni) then
           if (mype.eq.0) then
@@ -268,6 +264,10 @@ SUBROUTINE initial_condition(which_init0)
 
       ! Linear stability maximum time step
       dt_max = minval([dt_max,2.5/(maxval(kzgrid)*(maxval(kmags)/2 + sqrt(1 + 0.25*maxval(kmags)**2.0)))])
+      if (verbose.and.(mype.eq.0)) then
+        print *, "kzgrid max", maxval(kzgrid)
+        print *, "kmags max", maxval(kmags)
+      endif
 
       ! Magnetic Helicity Correction
       mhelcorr = 0.0

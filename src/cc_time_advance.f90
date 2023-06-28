@@ -63,7 +63,8 @@ SUBROUTINE iv_solver
    CALL get_g_next(b_1, v_1,dt_next)
    dt = minval([dt_next,dt_max])
    itime=itime+1 
-   IF(mype==0.and.verbose) WRITE(*,*) "itime:",itime
+   IF(mype==0.and.verbose) WRITE(*,*) "itime: ",itime
+   IF(mype==0.and.verbose) WRITE(*,*) "dt: ",dt
    time=time+dt
    !IF(mype==0.and.dt_output) WRITE(*,*) "Before adapt: dt_max,dt",dt_max,dt
    !IF(adapt_dt_nl) CALL adapt_dt 
@@ -343,6 +344,7 @@ SUBROUTINE get_rhs(b_in,v_in, rhs_out_b,rhs_out_v,ndt)
   IF (verbose.and.(mype.eq.0)) WRITE(*,*) 'NL Max Abs V',maxval(abs(rhs_out_v)),maxloc(abs(rhs_out_v))
   IF (verbose.and.(mype.eq.0)) WRITE(*,*) 'NL Max Abs B',maxval(abs(rhs_out_b)),maxloc(abs(rhs_out_b))
   IF (.not.(actual_nonlinear)) ndt = dt_max
+  if (verbose.and.(mype.eq.0)) print *, ndt
 
   ! Add forcing
   IF(force_turbulence) CALL get_rhs_force(rhs_out_b, rhs_out_v,ndt)

@@ -4472,9 +4472,9 @@ implicit none
 LOGICAL :: m
 REAL :: bound
 
-bound = sum(sum(b_1(:,:,1:nkz0-1,:) * conjg(b_1(:,:,1:nkz0-1,:)),4) / kmags(:,:,1:nkz0-1))
+bound = sum(sum(b_1(1:nkx0-1,1:nky0-1,1:nkz0-1,:) * conjg(b_1(1:nkx0-1,1:nky0-1,1:nkz0-1,:)),4) / kmags(1:nkx0-1,1:nky0-1,1:nkz0-1))
 if (m.eq..false.) then 
-  bound = bound + 2.0* sum(sum(v_1(:,:,1:nkz0-1,:) * conjg(v_1(:,:,1:nkz0-1,:)),4) * kmags(:,:,1:nkz0-1))
+  bound = bound + 2.0* sum(sum(v_1(1:nkx0-1,1:nky0-1,1:nkz0-1,:) * conjg(v_1(1:nkx0-1,1:nky0-1,1:nkz0-1,:)),4) * kmags(1:nkx0-1,1:nky0-1,1:nkz0-1))
   bound = bound + sum(sqrt(sum(abs(v_1)**2,4))*sqrt(sum(abs(b_1)**2,4)))
 endif
 bound = 16.0 * (pi)**3 * bound
