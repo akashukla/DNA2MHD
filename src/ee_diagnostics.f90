@@ -419,7 +419,6 @@ SUBROUTINE diag
          WRITE(en_handle) hmhdhmtn(1)
          WRITE(en_handle) hmhdhmtn(2)
          if (verbose) write(*,*) "Found Helicities",mype
-         WRITE(en_handle) maxval(kmags/kzs*sqrt(sum(abs(v_1)**2,3)))
          WRITE(en_handle) eta*resvischange("b")
          WRITE(en_handle) vnu*resvischange("v")
          

@@ -54,7 +54,7 @@ hyp = 2
 /
 
 &diagnostics
-diagdir = '/scratch/08929/echansen/dna2mhdrun401'
+diagdir = '/scratch/08929/echansen/dna2mhdrun407'
 istep_ffm =   20
 istep_energy3d =  500
 istep_energy =  20
@@ -107,6 +107,6 @@ mhc = T
 &initial_value
 max_itime = 4000
 max_walltime =   171800.0
-dt_max =   0.1
+dt_max =   0.01
 max_time =   10000000.
 /
