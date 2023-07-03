@@ -418,6 +418,7 @@ SUBROUTINE diag
          WRITE(en_handle) bound_hels(.false.)
          WRITE(en_handle) hmhdhmtn(1)
          WRITE(en_handle) hmhdhmtn(2)
+         WRITE(en_handle) xi(shear)
          if (verbose) write(*,*) "Found Helicities",mype
          WRITE(en_handle) eta*resvischange("b")
          WRITE(en_handle) vnu*resvischange("v")
@@ -4327,7 +4328,7 @@ CALL vec_potential()
 
 ! Simpler Sum
  maghel = 2.0*sum(real(AVP(:,:,:,:)*conjg(b_1(:,:,:,:))))*((2.0*pi)**3)+mhelcorr
- if (max_itime.lt.1000.and.(.not.actual_nonlinear)) print *, "Max by at kz=ky=0 ", maxval(abs(b_1(:,0,0,1)))
+! if (max_itime.lt.1000.and.(.not.actual_nonlinear)) print *, "Max by at kz=ky=0 ", maxval(abs(b_1(:,0,0,1)))
  maghel = maghel + 2.0*real(AVP(0,0,0,2))
  
 ! Alternative Expansion
@@ -4384,7 +4385,7 @@ integer :: i,j,k,ind
 CALL vec_potential()
 CALL vorticity()
 
-crosshel = 2.0 * (2*pi)**3 * sum(real((AVP+ v_1)*conjg(b_1 + WVORT)))+mhelcorr
+crosshel = 2.0 * (2*pi)**3 * (sum(real((AVP+ v_1)*conjg(b_1 + WVORT)))+2*v_1(0,0,0,2))+mhelcorr
 if (actual_nonlinear.eq..false.) then
 crosshel1 = crosshel
 mh = 2.0 * (2.0*pi)**3 * sum(real(AVP*conjg(b_1)))+mhelcorr
@@ -4480,6 +4481,25 @@ endif
 bound = 16.0 * (pi)**3 * bound
 
 end function bound_hels
+
+real function xi(sh)
+
+implicit none
+
+LOGICAL :: sh
+REAL :: ratioarr(1:nkx0-1,1:nky0-1,1:nkz0-1)
+
+xi = maxval(abs(kperps(1:nkx0-1,1:nky0-1,1:nkz0-1)*sqrt(sum(abs(v_1(1:nkx0-1,1:nky0-1,1:nkz0-1,:)**2),4))/kzs(1:nkx0-1,1:nky0-1,1:nkz0-1)))
+if (.not.sh) then
+  ratioarr = kmags(1:nkx0-1,1:nky0-1,1:nkz0-1)*sqrt(sum(abs(v_1(1:nkx0-1,1:nky0-1,1:nkz0-1,:)**2),4))
+  ratioarr = ratioarr / (kzs(1:nkx0-1,1:nky0-1,1:nkz0-1)*(kmags(1:nkx0-1,1:nky0-1,1:nkz0-1)/2 - sqrt(-1 + 0.25*kmags(1:nkx0-1,1:nky0-1,1:nkz0-1)**2)))
+  if (itime.lt.100) print *, "Shear IMHD vs Hall Cyclotron Xi",xi,maxval(abs(ratioarr))
+  xi = maxval(abs(ratioarr))
+endif
+
+end function xi
+
+
 
 END MODULE diagnostics
 

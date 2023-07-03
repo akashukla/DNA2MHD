@@ -157,7 +157,7 @@ def read_time_step_energy(which_itime,swap_endian=False):
    file_name = par['diagdir'][1:-1]+'/energy_out.dat'
    f = open(file_name,'rb')
    gt0=np.empty((1))
-   ntot = 11
+   ntot = 12
    mem_tot = (ntot)*8
    gt0 = np.empty(ntot)
    f.seek(8+which_itime*(8+mem_tot))
@@ -265,7 +265,7 @@ def get_time_from_energyout(swap_endian=False):
    """Returns time array taken from v_out.dat"""
    file_name = par['diagdir'][1:-1]+ '/energy_out.dat'
    f = open(file_name,'rb')
-   ntot=11
+   ntot = 12
    mem_tot=ntot*8
    time=np.empty(0)
    continue_read=1
@@ -411,7 +411,7 @@ def getenergy(lpath):
 
     kx,ky,kz=get_grids()
     i_n=[0,1,2]
-    ntot = 11
+    ntot = 12
     savepath = lpath+'/energy_xyz.dat'
     #g=np.zeros((len(time)-1,len(kx),len(ky,),len(kz),len(i_n)), dtype='complex64') 
    #print('allocating array') 

@@ -95,9 +95,16 @@ SUBROUTINE initialize_fourier_ae_mu0
   !for dealiasing
   if (dealias_type.eq.1) zpad = 2
   if ((dealias_type.eq.3).or.(dealias_type.eq.4)) zpad = dealias_type
-  nx0_big=zpad*nkx0
+
   ny0_big=zpad*nky0/2
-  nz0_big=zpad*nkz0/2
+  if (splitx) then
+  nx0_big = zpad*nkx0
+  nz0_big = zpad*nkz0/2
+  else
+  nx0_big = zpad*nkx0/2
+  nz0_big = zpad*nkz0
+  endif
+
   fft_norm=1.0/(REAL(nx0_big*ny0_big*nz0_big))
   ALLOCATE(plan_r2c)
   ALLOCATE(plan_c2r)
@@ -111,8 +118,10 @@ SUBROUTINE initialize_fourier_ae_mu0
   CALL dfftw_plan_dft_r2c_3d(plan_r2c,nx0_big,ny0_big,nz0_big,&
                              store,temp_big,FFTW_ESTIMATE,FFTW_FORWARD)
   
+
   lky_big=ny0_big-hky_ind !Index of minimum (most negative) FILLED ky value for big arrays
-  lkz_big=nz0_big-hkz_ind !Index of minimum (most negative) FILLED kz value for big arrays 
+  if (.not.splitx) lkx_big = nx0_big-hkx_ind
+  if (splitx) lkz_big=nz0_big-hkz_ind !Index of minimum (most negative) FILLED kz value for big arrays 
 
   IF(mype==0) WRITE(*,*) "Initializing FFT"
   IF(mype==0) WRITE(*,*) "nkx0,nky0,nkz0",nkx0,nky0,nkz0
@@ -456,7 +465,7 @@ endif
   
      ! DzDzVX
   DO k=0,nkz0-1
-        temp_small(:,:,k)=i_complex*kygrid(k)*i_complex*kzgrid(k)*v_inx0(:,:,k)  !two kz grid
+        temp_small(:,:,k)=i_complex*kzgrid(k)*i_complex*kzgrid(k)*v_inx0(:,:,k)  !two kz grid
   END DO
         !Add padding for dealiasing
     temp_big=cmplx(0.0,0.0)
@@ -556,7 +565,7 @@ endif
     
      ! DzDzVY
   DO k=0,nkz0-1
-        temp_small(:,:,k)=i_complex*kygrid(k)*i_complex*kzgrid(k)*v_iny0(:,:,k)  !two kz grid
+        temp_small(:,:,k)=i_complex*kzgrid(k)*i_complex*kzgrid(k)*v_iny0(:,:,k)  !two kz grid
     END DO
         !Add padding for dealiasing
     temp_big=cmplx(0.0,0.0)
@@ -788,7 +797,7 @@ endif
     CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
     dxdxby = store
    
-   !dxdyvy
+   !dxdyby
   DO i=0,nkx0-1
     DO j=0,nky0-1
         temp_small(i,j,:)=i_complex*kxgrid(i)*i_complex*kygrid(j)*b_iny0(i,j,:)
@@ -887,7 +896,7 @@ endif
     CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
     dxdxbz = store
    
-   !dxdyvz
+   !dxdybz
   DO i=0,nkx0-1
     DO j=0,nky0-1
         temp_small(i,j,:)=i_complex*kxgrid(i)*i_complex*kygrid(j)*b_inz0(i,j,:)
@@ -1099,10 +1108,6 @@ CALL dfftw_execute_dft_r2c(plan_r2c,store,temp_big)
 
     if (verbose) print *, 'Bmag gradients dealiased'
 endif
-
-
-
-
 
 !!! TERMS  vx,vy,vz 
 !vx
@@ -1403,7 +1408,7 @@ endif
  
     ! dybz
     DO j=0,nky0-1
-        temp_small(:,j,:)=i_complex*kygrid(j)*v_inz0(:,j,:)
+        temp_small(:,j,:)=i_complex*kygrid(j)*b_inz0(:,j,:)
     END DO
     !Add padding for dealiasing
     temp_big=cmplx(0.0,0.0)
@@ -1462,15 +1467,15 @@ endif
 !Redo with correct order in terms
     store_x = (bx*dxvx+by*dyvx+bz*dzvx) - (vx*dxbx+vy*dybx+vz*dzbx)&
          - hall*((bx*dxdybz+by*dydybz+bz*dydzbz-bx*dxdzby-by*dydzby-bz*dzdzby)&
-         + (dybz*dxbx-dzby*dxbx-dxbz*dybx+dzbx*dybx+dxby*dzbx-dybx*dzbx))
+         - (dybz*dxbx-dzby*dxbx-dxbz*dybx+dzbx*dybx+dxby*dzbx-dybx*dzbx))
 
     store_y = (bx*dxvy+by*dyvy+bz*dzvy) - (vx*dxby+vy*dyby+vz*dzby)&
          - hall*((bx*dxdzbx+by*dydzbx+bz*dzdzbx-bx*dxdxbz-by*dxdybz-bz*dxdzbz)&
-         + (dybz*dxby-dzby*dxby-dxbz*dyby+dzbx*dyby+dxby*dzby-dybx*dzby))
+         - (dybz*dxby-dzby*dxby-dxbz*dyby+dzbx*dyby+dxby*dzby-dybx*dzby))
 
     store_z = (bx*dxvz+by*dyvz+bz*dzvz)- (vx*dxbz+vy*dybz+vz*dzbz)&
          - hall*((bx*dxdxby+by*dxdyby+bz*dxdzby-bx*dxdybx-by*dydybx-bz*dydzbx)&
-         + (dybz*dxbz-dzby*dxbz-dxbz*dybz+dzbx*dybz+dxby*dzbz-dybx*dzbz ))
+         - (dybz*dxbz-dzby*dxbz-dxbz*dybz+dzbx*dybz+dxby*dzbz-dybx*dzbz ))
 
 IF (plot_nls) THEN 
 ! b.grad v 
@@ -1506,6 +1511,19 @@ temp_bigy = temp_big
 store = store_z
 CALL dfftw_execute_dft_r2c(plan_r2c,store,temp_big)
 temp_bigz = temp_big
+
+  if ((mype.eq.0)) print *,'Max NLBx',&
+    maxval(abs(temp_bigx(0:nkx0-1,0:hky_ind,0:hkz_ind)*fft_norm)/abs(rhs_out_b(:,0:hky_ind,0:hkz_ind,0)),((abs(rhs_out_b(:,0:hky_ind,0:hkz_ind,0)).gt.10.0**(-7.0)).and.(kmags.gt.0.5*maxval(kmags)))),&
+    (/0,0,0/) + maxloc(abs(temp_bigx(0:nkx0-1,0:hky_ind,0:hkz_ind)*fft_norm)/abs(rhs_out_b(:,0:hky_ind,0:hkz_ind,0)),((abs(rhs_out_b(:,0:hky_ind,0:hkz_ind,0)).gt.10.0**(-7.0)).and.(kmags.gt.0.5*maxval(kmags))))
+  if ((mype.eq.0)) print *,'Max NLBx',&
+    maxval(abs(temp_bigx(0:nkx0-1,0:hky_ind,lkz_big:nz0_big-1)*fft_norm)/abs(rhs_out_b(:,0:hky_ind,lkz_ind:nkz0-1,0)),((abs(rhs_out_b(:,0:hky_ind,lkz_ind:nkz0-1,0)).gt.10.0**(-7.0)).and.(kmags.gt.0.5*maxval(kmags)))),&
+    (/0,0,lkz_ind/) + maxloc(abs(temp_bigx(0:nkx0-1,0:hky_ind,lkz_big:nz0_big-1)*fft_norm)/abs(rhs_out_b(:,0:hky_ind,lkz_ind:nkz0-1,0)),((abs(rhs_out_b(:,0:hky_ind,lkz_ind:nkz0-1,0)).gt.10.0**(-7.0)).and.(kmags.gt.0.5*maxval(kmags))))
+  if ((mype.eq.0)) print *,'Max NLBx',&
+    maxval(abs(temp_bigx(0:nkx0-1,lky_big:ny0_big-1,lkz_big:nz0_big-1)*fft_norm)/abs(rhs_out_b(:,lky_ind:nky0-1,lkz_ind:nkz0-1,0)),((abs(rhs_out_b(:,lky_ind:nky0-1,lkz_ind:nkz0-1,0)).gt.10.0**(-7.0)).and.(kmags.gt.0.5*maxval(kmags)))),&
+    (/0,lky_ind,lkz_ind/)+maxloc(abs(temp_bigx(0:nkx0-1,lky_big:ny0_big-1,lkz_big:nz0_big-1)*fft_norm)/abs(rhs_out_b(:,lky_ind:nky0-1,lkz_ind:nkz0-1,0)),((abs(rhs_out_b(:,lky_ind:nky0-1,lkz_ind:nkz0-1,0)).gt.10.0**(-7.0)).and.(kmags.gt.0.5*maxval(kmags))))
+  if ((mype.eq.0)) print *,'Max NLBx',&
+    maxval(abs(temp_bigx(0:nkx0-1,lky_big:ny0_big-1,0:hkz_ind)*fft_norm)/abs(rhs_out_b(:,lky_ind:nky0-1,0:hkz_ind,0)),((abs(rhs_out_b(:,lky_ind:nky0-1,0:hkz_ind,0)).gt.10.0**(-7.0)).and.(kmags.gt.0.5*maxval(kmags)))),&
+    (/0,lky_ind,0/)+maxloc(abs(temp_bigx(0:nkx0-1,lky_big:ny0_big-1,0:hkz_ind)*fft_norm)/abs(rhs_out_b(:,lky_ind:nky0-1,0:hkz_ind,0)),((abs(rhs_out_b(:,lky_ind:nky0-1,0:hkz_ind,0)).gt.10.0**(-7.0)).and.(kmags.gt.0.5*maxval(kmags))))
 
 !Now fill in appropriate rhs elements
   DO i=0,nkx0-1
@@ -1619,6 +1637,19 @@ store = store_z
 CALL dfftw_execute_dft_r2c(plan_r2c,store,temp_big)
 temp_bigz = temp_big
 
+  if ((mype.eq.0)) print *,'Max NLVx',&
+    maxval(abs(temp_bigx(0:nkx0-1,0:hky_ind,0:hkz_ind)*fft_norm)/abs(rhs_out_v(:,0:hky_ind,0:hkz_ind,0)),((abs(rhs_out_v(:,0:hky_ind,0:hkz_ind,0)).gt.10.0**(-7.0)).and.(kmags.gt.0.5*maxval(kmags)))),&
+    (/0,0,0/)+maxloc(abs(temp_bigx(0:nkx0-1,0:hky_ind,0:hkz_ind)*fft_norm)/abs(rhs_out_v(:,0:hky_ind,0:hkz_ind,0)),((abs(rhs_out_v(:,0:hky_ind,0:hkz_ind,0)).gt.10.0**(-7.0)).and.(kmags.gt.0.5*maxval(kmags))))
+  if ((mype.eq.0)) print *,'Max NLVx',&
+    maxval(abs(temp_bigx(0:nkx0-1,0:hky_ind,lkz_big:nz0_big-1)*fft_norm)/abs(rhs_out_v(:,0:hky_ind,lkz_ind:nkz0-1,0)),((abs(rhs_out_v(:,0:hky_ind,lkz_ind:nkz0-1,0)).gt.10.0**(-7.0)).and.(kmags.gt.0.5*maxval(kmags)))),&
+    (/0,0,lkz_ind/)+maxloc(abs(temp_bigx(0:nkx0-1,0:hky_ind,lkz_big:nz0_big-1)*fft_norm)/abs(rhs_out_v(:,0:hky_ind,lkz_ind:nkz0-1,0)),((abs(rhs_out_v(:,0:hky_ind,lkz_ind:nkz0-1,0)).gt.10.0**(-7.0)).and.(kmags.gt.0.5*maxval(kmags))))
+  if ((mype.eq.0)) print *,'Max NLVx',&
+    maxval(abs(temp_bigx(0:nkx0-1,lky_big:ny0_big-1,lkz_big:nz0_big-1)*fft_norm)/abs(rhs_out_v(:,lky_ind:nky0-1,lkz_ind:nkz0-1,0)),((abs(rhs_out_v(:,lky_ind:nky0-1,lkz_ind:nkz0-1,0)).gt.10.0**(-7.0)).and.(kmags.gt.0.5*maxval(kmags)))),&
+    (/0,lky_ind,lkz_ind/)+maxloc(abs(temp_bigx(0:nkx0-1,lky_big:ny0_big-1,lkz_big:nz0_big-1)*fft_norm)/abs(rhs_out_v(:,lky_ind:nky0-1,lkz_ind:nkz0-1,0)),((abs(rhs_out_v(:,lky_ind:nky0-1,lkz_ind:nkz0-1,0)).gt.10.0**(-7.0)).and.(kmags.gt.0.5*maxval(kmags))))
+  if ((mype.eq.0)) print *,'Max NLVx',&
+    maxval(abs(temp_bigx(0:nkx0-1,lky_big:ny0_big-1,0:hkz_ind)*fft_norm)/abs(rhs_out_v(:,lky_ind:nky0-1,0:hkz_ind,0)),((abs(rhs_out_v(:,lky_ind:nky0-1,0:hkz_ind,0)).gt.10.0**(-7.0)).and.(kmags.gt.0.5*maxval(kmags)))),&
+    (/0,lky_ind,0/)+maxloc(abs(temp_bigx(0:nkx0-1,lky_big:ny0_big-1,0:hkz_ind)*fft_norm)/abs(rhs_out_v(:,lky_ind:nky0-1,0:hkz_ind,0)),((abs(rhs_out_v(:,lky_ind:nky0-1,0:hkz_ind,0)).gt.10.0**(-7.0)).and.(kmags.gt.0.5*maxval(kmags))))
+
 !Now fill in appropriate rhs elements
   DO i=0,nkx0-1
   !First x component
@@ -1654,7 +1685,8 @@ if (verbose) print *, 'rhs out v nl found'
 
 if (calc_dt) CALL next_dt(ndt)
 if (.not.(calc_dt)) ndt = dt_max
-if (verbose) print *, 'next dt calculated ',ndt
+
+print *, 'next dt calculated ',ndt
 
 DEALLOCATE(temp_small)
 if (verbose) print *, 'ts deallocated'

@@ -11,9 +11,9 @@ vnu = 0.0
 kxmin =   0.2
 kymin =   0.2
 kzmin =   0.05
-nkx0 =  8
-nky0 =  16
-nkz0 =  16
+nkx0 = 32
+nky0 = 64
+nkz0 = 64
 nv0 =   2
 nh0 =    1
 nspec =    1
@@ -30,20 +30,20 @@ np_herm =  1
 np_kz =    1
 np_hank =    1
 np_spec =    1
-courant =   1.0
+courant =   0.5
 kxinit_min = 1
 kyinit_min = 1
 kzinit_min = 1
-kxinit_max = 8
-kyinit_max = 16
-kzinit_max = 16
+kxinit_max = 32
+kyinit_max = 64
+kzinit_max = 64
 init_amp_bx = 0.1
 init_amp_by = 0.1
 init_amp_bz = 0.1
 init_amp_vx = 0.1
 init_amp_vy = 0.1
 init_amp_vz = 0.0
-init_kolm = 0.0
+init_kolm = 2.0
 phdf = 2.0
 phdfxy = 2.0
 force_amp = 0.0
@@ -54,7 +54,7 @@ hyp = 2
 /
 
 &diagnostics
-diagdir = '/scratch/08929/echansen/dna2mhdrun407'
+diagdir = '/scratch/08929/echansen/dna2mhdrun416'
 istep_ffm =   20
 istep_energy3d =  500
 istep_energy =  20
@@ -75,7 +75,7 @@ output_nlt_n = F
 &flags
 verbose  = F
 nonlinear  = T
-actual_nonlinear = F
+actual_nonlinear = T
 calc_dt  = T
 comp_type = 'IV'
 checkpoint_read = F
@@ -88,9 +88,9 @@ rhs_lin_version = 1
 dealias_type = 3
 shifted = F
 splitx = T
-force_turbulence = F
+force_turbulence = T
 forceb = F
-set_forcing = F
+set_forcing = T
 plot_nls = F
 hall = 1.0
 guide = T
@@ -106,8 +106,8 @@ mhc = T
 /
 
 &initial_value
-max_itime = 200
-max_walltime =   171800.0
+max_itime = 20000
+max_walltime =   10000000.0
 dt_max =   0.01
 max_time =   10000000.
 /
