@@ -78,7 +78,7 @@ def get_grids():
     """Returns kx,ky,kz grids in the same form as used in the code \n
     kxgrid = 0, kxmin, . . . kxmax \n
     kygrid = 0, kymin, . . . kymax, kymax+kymin, -kymax, . . . -kymin """
-    if (1==1): #lpath[-4:-1].isnumeric() and int(lpath[-4:-1]) > 280: 
+    if (0==1): #lpath[-4:-1].isnumeric() and int(lpath[-4:-1]) > 280: 
         kzgrid=np.arange(par['nkz0'])
         kzgrid=kzgrid*par['kzmin']
         kygrid=np.empty(par['nky0'])
@@ -888,7 +888,7 @@ def plot_energy(lpath,ntp,show=True,log=False,rescale=True,xb=1):
     
     return timeen,enval
 
-def plot_enspec(lpath,npt=1,zz=-1,show=True,log=False,linplot=False,newload=False,fullspec=False,old=True):
+def plot_enspec(lpath,npt=1,zz=-1,show=True,log=False,linplot=False,newload=False,fullspec=False,old=True,tmaxfac=1):
     read_parameters(lpath)
     kx,ky,kz = get_grids()
 
@@ -928,9 +928,12 @@ def plot_enspec(lpath,npt=1,zz=-1,show=True,log=False,linplot=False,newload=Fals
     kmag = np.sqrt(np.log(np.tensordot(np.tensordot(np.exp(kx[1:]**2),np.exp(ky[1:]**2),axes=0),np.exp(kz[1:]**2),axes=0)))
     if log:
         kmag = np.log(kmag)
-    j = 0
+    j = 4
 
-    for i in range(0,np.size(t),np.size(t)//npt):
+    ttp = np.linspace(0,(np.size(t)-1)/tmaxfac,num=npt)
+    ttp = ttp.astype(int)
+
+    for i in ttp[::-1]:
         if not newload:
             ekb = 0.5*(np.abs(bkt[i,1:,1:,1:,0])**2 + np.abs(bkt[i,1:,1:,1:,1])**2+np.abs(bkt[i,1:,1:,1:,2])**2)/badj
             ekv = 0.5*(np.abs(vkt[i,1:,1:,1:,0])**2 + np.abs(vkt[i,1:,1:,1:,1])**2+np.abs(vkt[i,1:,1:,1:,2])**2)/vadj
@@ -939,9 +942,9 @@ def plot_enspec(lpath,npt=1,zz=-1,show=True,log=False,linplot=False,newload=Fals
                 ekv += 0.5*np.abs(vkt[i,:,:,1:,2])**2
             ek = ekb+ekv
         elif log:
-            ekb = np.log(ekbm[i,:,:,:])
-            ekv = np.log(ekvm[i,:,:,:])
-            ek = np.log(ekm[i,:,:,:])
+            ekb = np.log10(ekbm[i,:,:,:])
+            ekv = np.log10(ekvm[i,:,:,:])
+            ek = np.log10(ekm[i,:,:,:])
         else:
             ekb = ekbm[i,:,:,:]
             ekv = ekvm[i,:,:,:]
@@ -949,15 +952,15 @@ def plot_enspec(lpath,npt=1,zz=-1,show=True,log=False,linplot=False,newload=Fals
         print(np.amax(np.abs(ekm[i,:,:,:]-ekm[0,:,:,:])),np.argmax(np.abs(ekm[i,:,:,:]-ekm[0,:,:,:])))
 
         if (not newload) and log:
-            ekb[:,:,:] = np.log(ekb[:,:,:])
-            ekv[:,:,:] = np.log(ekv[:,:,:])
-            ek = np.log(ek[:,:,:])
+            ekb[:,:,:] = np.log10(ekb[:,:,:])
+            ekv[:,:,:] = np.log10(ekv[:,:,:])
+            ek = np.log10(ek[:,:,:])
         if (zz == -1):
-            x = np.reshape(kmag[:,:,:],np.size(kmag[:,:,:]))
+            x = np.reshape(kmag,np.size(kmag))
             a = np.argsort(x)
-            yb = np.reshape(ekb[:,:,:],np.size(kmag[:,:,:]))
-            yv = np.reshape(ekv[:,:,:],np.size(kmag[:,:,:]))
-            yt = np.reshape(ek[:,:,:],np.size(kmag[:,:,:]))
+            yb = np.reshape(ekb,np.size(kmag))
+            yv = np.reshape(ekv,np.size(kmag))
+            yt = np.reshape(ek,np.size(kmag))
         else:
             x = np.reshape(kmag[:,:,zz],np.size(kmag[:,:,zz]))
             a = np.argsort(x)
@@ -966,24 +969,24 @@ def plot_enspec(lpath,npt=1,zz=-1,show=True,log=False,linplot=False,newload=Fals
             yt = np.reshape(ek[:,:,zz],np.size(kmag[:,:,0]))
 
         if linplot:
-            ax1.plot(1/(x[a]**par["init_kolm"]),yb[a],fmts[np.mod(i,5)],label=np.format_float_positional(t[i],2),markersize=1/(j+1))
-            ax2.plot(1/(x[a]**par["init_kolm"]),yv[a],fmts[np.mod(i,5)],label=np.format_float_positional(t[i],2),markersize=1/(j+1))
-            ax3.plot(1/(x[a]**par["init_kolm"]),yt[a],fmts[np.mod(i,5)],label=np.format_float_positional(t[i],2),markersize=1/(j+1))
+            ax1.plot(1/(x[a]**par["init_kolm"]),yb[a],fmts[np.mod(i,5)],label=np.format_float_positional(t[i],2),markersize=1)
+            ax2.plot(1/(x[a]**par["init_kolm"]),yv[a],fmts[np.mod(i,5)],label=np.format_float_positional(t[i],2),markersize=1)
+            ax3.plot(1/(x[a]**par["init_kolm"]),yt[a],fmts[np.mod(i,5)],label=np.format_float_positional(t[i],2),markersize=1)
         else:
-            ax1.plot(x[a],yb[a],fmts[np.mod(j,5)],label=np.format_float_positional(t[i],2),markersize=1/(j+1))
-            ax2.plot(x[a],yv[a],fmts[np.mod(j,5)],label=np.format_float_positional(t[i],2),markersize=1/(j+1))
-            ax3.plot(x[a],yt[a],fmts[np.mod(j,5)],label=np.format_float_positional(t[i],2),markersize=1/(j+1))
+            ax1.plot(x[a],yb[a],fmts[np.mod(j,5)],label=np.format_float_positional(t[i],2),markersize=1)
+            ax2.plot(x[a],yv[a],fmts[np.mod(j,5)],label=np.format_float_positional(t[i],2),markersize=1)
+            ax3.plot(x[a],yt[a],fmts[np.mod(j,5)],label=np.format_float_positional(t[i],2),markersize=1)
         
-        j = j + 1
+        j = j - 1
 
     ax1.legend(loc=3)
     ax2.legend(loc=3)
     ax3.legend(loc=3)
     if log:
         label = " Log"
-        ax1.set_ylim(-30,0)
-        ax2.set_ylim(-30,0)
-        ax3.set_ylim(-30,0)
+        ax1.set_ylim(-10,0)
+        ax2.set_ylim(-10,0)
+        ax3.set_ylim(-10,0)
     else:
         label = ""
     if (zz == -1):

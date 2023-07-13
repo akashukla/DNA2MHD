@@ -2,16 +2,16 @@ import dna2mhd_utils as dn
 import output
 import numpy as np
 
-lpaths = ["/scratch/08929/echansen/dna2mhdrun395","/scratch/08929/echansen/dna2mhdrun396"]
-fname = {lpaths[0]:"../input_files/DNAHD.out11443230",lpaths[1]:"../input_files/DNAHD.out11443666"}
-
-a = np.random.randint(0,30,size=4)
+lpaths = ["/scratch/08929/echansen/dna2mhdrun413"]
+#fname = {lpaths[0]:"../input_files/DNAHD.out11499571"}
+fname = {lpaths[0]:lpaths[0]+"/DNAHD.out11495564"}
+a = np.random.randint(0,62,size=4)
 
 for lpath in lpaths:
     dn.plot_energy(lpath,3)
     dn.plot_enspec(lpath,4,zz=-1,log=True,newload=True,show=False)
     for zz in a:
-        dn.plot_enspec(lpath,4,zz=zz,log=True,newload=True,show=False)
+        dn.plot_enspec(lpath,5,zz=zz,log=True,newload=True,show=False,tmaxfac=2)
 
 for lpath in lpaths:
 

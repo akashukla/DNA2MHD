@@ -32,7 +32,7 @@ SUBROUTINE initial_condition(which_init0)
   REAL :: s1, s11,s12,s13,s4
   !REAL :: init_prefactor
   COMPLEX :: phase,phaseb,phasev,phaseby,phasevy
-  REAL :: phase1,phase2,phase1y,phase2y,kspect,myphase1,myphase1y,myphase2,myphase2y,showphase,thb,thv,mythb,mythv,bt1,bt2,bt3,b1r,b2r,b3r,b1i,b2i,b3i,btmag
+  REAL :: phase1,phase2,phase1y,phase2y,kspect,myphase1,myphase1y,myphase2,myphase2y,showphase,thb,thv,mythb,mythv,bt1,bt2,bt3,b1r,b2r,b3r,b1i,b2i,b3i,btmag,b1w,b2w,v1w,v2w
   CHARACTER(len=40), INTENT(in) :: which_init0
   CHARACTER(len=40) :: which_init
   REAL :: zerocmplx
@@ -187,7 +187,44 @@ SUBROUTINE initial_condition(which_init0)
              v_1(i,j,k,1)=init_amp_vy*1.0/sqrt(real(nkx0*nky0*(nkz0-1)))*1/(kmags(i,j,k)**(init_kolm/2.0)) * phasev*phasevy*phaseb*sin(2*pi*thv)
              !v_1(i,j,k,2)=init_amp_vz
              v_1(i,j,k,2) = (-kxgrid(i)*v_1(i,j,k,0)-kygrid(j)*v_1(i,j,k,1))/kzgrid(k)
-         ELSE 
+         ELSE IF (beltrami) THEN
+             ! These initial conditions write a Beltrami decomposition for b,v in terms of curl eigenstates (b1r,\pm b1i) as given below
+
+             b1r = -kmags(i,j,k) / (kperps(i,j,k)*sqrt(2.0)) * kygrid(j)
+             b2r = kmags(i,j,k) / (kperps(i,j,k)*sqrt(2.0)) * kxgrid(i)
+             b3r = 0.0
+             b1i = (kygrid(j) * b3r - kzgrid(k) * b2r)/kmags(i,j,k)
+             b2i = (kzgrid(k) * b1r - kxgrid(i) * b3r)/kmags(i,j,k)
+             b3i = (kxgrid(i) * b2r - kygrid(j) * b1r)/kmags(i,j,k)
+             IF (helical) THEN 
+               phaseby = 0.0
+               phasevy = 0.0
+               phasev = phaseb
+             ELSE IF (shear) THEN
+               phaseby = phaseb
+               phasevy = phasev
+             ENDIF
+             if (mype.eq.0) then
+               CALL RANDOM_NUMBER(b1w)
+               CALL RANDOM_NUMBER(b2w)
+               CALL RANDOM_NUMBER(v1w)
+               CALL RANDOM_NUMBER(v2w)
+             endif  
+               CALL MPI_BCAST(b1w,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
+               CALL MPI_BCAST(b2w,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
+               CALL MPI_BCAST(v1w,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
+               CALL MPI_BCAST(v2w,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
+
+             b_1(i,j,k,0) = b1w*phaseb*cmplx(b1r,b1i) + b2w*phaseby*cmplx(b1r,-b1i)
+             b_1(i,j,k,1) = b1w*phaseb*cmplx(b2r,b2i) + b2w*phaseby*cmplx(b2r,-b2i)
+             b_1(i,j,k,2) = b1w*phaseb*cmplx(b3r,b3i) + b2w*phaseby*cmplx(b3r,-b3i) 
+             v_1(i,j,k,0) = v1w*phasev*cmplx(b1r,b1i) + v2w*phasevy*cmplx(b1r,-b1i)
+             v_1(i,j,k,1) = v1w*phasev*cmplx(b2r,b2i) + v2w*phasevy*cmplx(b2r,-b2i)
+             v_1(i,j,k,2) = v1w*phasev*cmplx(b3r,b3i) + v2w*phasevy*cmplx(b3r,-b3i)
+             b_1(i,j,k,:) = b_1(i,j,k,:) / (kmags(i,j,k)**(init_kolm/2.0))
+             v_1(i,j,k,:) = v_1(i,j,k,:) / (kmags(i,j,k)**(init_kolm/2.0))
+             s1 = s1 + (abs(phaseb) * b1w**2 + abs(phasev) * v1w**2 + abs(phaseby) * b2w**2 + abs(phasevy) * v2w**2)*kmags(i,j,k)**(-1.0*init_kolm)
+         ELSE   
             IF (.not.(shear.or.helical)) THEN
               s11 = kxgrid(i)**2 * cos(2*pi*thb)**2 + kxgrid(i)**2 * cos(2*pi*thv)**2
               s12 = kygrid(j)**2 * sin(2*pi*thb)**2 + kygrid(j)**2 * sin(2*pi*thv)**2

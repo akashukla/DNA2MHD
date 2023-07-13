@@ -140,6 +140,7 @@ MODULE par_mod
   LOGICAL :: guide  = .true.
   LOGICAL :: uni = .true.
   LOGICAL :: shear = .false.
+  LOGICAL :: beltrami = .true.
   LOGICAL :: helical = .false.
   LOGICAL :: mhc = .false.
 

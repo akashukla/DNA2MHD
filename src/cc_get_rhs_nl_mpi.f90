@@ -39,8 +39,10 @@ MODULE nonlinearity
   COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:) :: temp_small,temp_smallm
 
   COMPLEX(C_DOUBLE_COMPLEX), DIMENSION(:,:,:), pointer :: data,datai
+  REAL(C_DOUBLE), DIMENSION(:,:,:), pointer :: datar
+
   TYPE(C_PTR) :: plan_c2r,plan_r2c
-  TYPE(C_PTR) :: cdatai,cdata
+  TYPE(C_PTR) :: cdatai,cdata,freal,fcomplex,breal,bcomplex
   INTEGER(C_INTPTR_T) :: alloc_local,local_N,local_k_offset,alloc_locali,local_Ni,local_k_offseti,i,j,k,l,h
 
   COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:) ::  store_bx, store_by, store_bz,store_vx, store_vy, store_vz,arr_real
@@ -88,17 +90,19 @@ SUBROUTINE initialize_fourier_ae_mu0
 
   IMPLICIT NONE
   
-
   ! determine amount of padding for dealiasing
-  if (dealias_type.eq.3) then
+  if (dealias_type.eq.4) then
   nx0_big = 2*nkx0
   ny0_big = 2*nky0
   nz0_big = 4*nkz0
-  endif
-  if (dealias_type.eq.0) then 
+  else if (dealias_type.eq.0) then 
   nx0_big=nkx0
   ny0_big=nky0
   nz0_big=2*nkz0
+  else if (dealias_type.eq.3) then
+  nx0_big = 3*nkx0/2
+  ny0_big = 3*nky0/2
+  nz0_big = 3*nkz0
   endif
 
   fft_norm=1.0/(REAL(nx0_big*ny0_big*nz0_big))
@@ -106,6 +110,7 @@ SUBROUTINE initialize_fourier_ae_mu0
 
   ! Set Up Modern FFTW Plan
 
+  if (dealias_type.ne.3) then
   alloc_local = fftw_mpi_local_size_3d(nz0_big, ny0_big, nx0_big, MPI_COMM_WORLD, &
     local_N, local_k_offset)
   cdata = fftw_alloc_complex(alloc_local)
@@ -113,7 +118,7 @@ SUBROUTINE initialize_fourier_ae_mu0
 !  ALLOCATE(data(1:nx0_big,1:ny0_big,1:local_N))
   ! create MPI plan for in-place forward DFT (note dimension reversal)
   plan_r2c = fftw_mpi_plan_dft_3d(nz0_big,ny0_big,nx0_big, data, data, MPI_COMM_WORLD, &
-    FFTW_FORWARD, FFTW_ESTIMATE)
+    FFTW_FORWARD,FFTW_ESTIMATE)
   ! backward plan
   alloc_locali = fftw_mpi_local_size_3d(nz0_big,ny0_big,nx0_big,MPI_COMM_WORLD, &
        local_Ni,local_k_offseti)
@@ -125,6 +130,26 @@ SUBROUTINE initialize_fourier_ae_mu0
 
   lky_big=ny0_big-hky_ind !Index of minimum (most negative) FILLED ky value for big arrays  
   lkz_big=nz0_big-hkz_ind !Index of minimum (most negative) FILLED kz value for big arrays 
+
+  else
+
+  alloc_local = fftw_mpi_local_size_3d(nz0_big/2+1,ny0_big,nx0_big,MPI_COMM_WORLD, &
+    local_N,local_k_offset)
+  fcomplex = fftw_alloc_complex(alloc_local)
+  freal = fftw_alloc_real(2*alloc_local)
+  call c_f_pointer(fcomplex,datai,[nx0_big,ny0_big,local_N])
+  call c_f_pointer(freal,datar,[nx0_big,ny0_big,local_N])
+
+  plan_r2c = fftw_mpi_plan_dft_r2c_3d(nz0_big,ny0_big,nx0_big, datar, datai, MPI_COMM_WORLD, &
+    FFTW_ESTIMATE)
+  plan_c2r = fftw_mpi_plan_dft_c2r_3d(nz0_big,ny0_big,nx0_big, datai, datar, MPI_COMM_WORLD, &
+    FFTW_ESTIMATE)
+
+  endif
+
+  lky_big=ny0_big-hky_ind !Index of minimum (most negative) FILLED ky value for big arrays
+  if (.not.splitx) lkx_big = nx0_big-hkx_ind
+  if (splitx) lkz_big=nz0_big-hkz_ind !Index of minimum (most negative) FILLED kz value for big arrays
 
   IF(mype==0) WRITE(*,*) "Initializing FFT"
   IF(mype==0) WRITE(*,*) "nkx0,nky0,nkz0",nkx0,nky0,nkz0
@@ -175,15 +200,15 @@ IF (.false.) THEN
   end do
 
   print *, 'Practice Max Diff',mype,maxval(abs(fft_norm*datai - data))
-!  print *, 'Post IFFT',datai*fft_norm
+  print *, 'Post IFFT',datai*fft_norm
   
-!  print *, 'Through IFFT'
-!  call fftw_destroy_plan(plan_c2r)
-!  call fftw_destroy_plan(plan_r2c)
-!  print *, 'Plans Destroyed'
-!  call fftw_free(cdata)
-!  call fftw_free(cdatai)
-!  print *, 'Freed Cdata'
+  print *, 'Through IFFT'
+  call fftw_destroy_plan(plan_c2r)
+  call fftw_destroy_plan(plan_r2c)
+  print *, 'Plans Destroyed'
+  call fftw_free(cdata)
+  call fftw_free(cdatai)
+  print *, 'Freed Cdata'
   call fftw_cleanup()
   print *, "Cleaned First Time"
   ENDIF
@@ -1092,17 +1117,19 @@ implicit none
   complex :: arr_specm(0:nkx0-1,0:nky0-1,0:nkz0-1)
   INTEGER :: i,j,k
 
-  data = cmplx(0.0,0.0)
+  datai = cmplx(0.0,0.0)
   arr_specm = cmplx(0.0,0.0)
 
+  datar = arr_real
   data = arr_real
-  CALL fftw_mpi_execute_dft(plan_r2c,data,data)
+  IF (dealias_type.eq.3) CALL fftw_mpi_execute_dft_r2c(plan_r2c,datar,datai)
+  IF (dealias_type.ne.3) CALL fftw_mpi_execute_dft(plan_r2c,data,data)
   if (verbose.and.(mype.eq.0)) print *, 'Through ffft'
   IF (shifted) THEN
   DO k = 1,local_N
     if ((k+local_k_offset).le.nkz0) arr_specm(0:nkx0-1,0:nky0-1,local_k_offset+k-1) = data(1:nkx0,1:nky0,k)*fft_norm
   ENDDO
-  ELSE
+  ELSE IF (dealias_type.ne.3) THEN
 
   DO k = 1,local_N
     DO i = 0,nkx0-1
@@ -1118,6 +1145,15 @@ implicit none
         endif
       ENDDO
     ENDDO
+  ENDDO
+
+  ELSE
+
+  DO k = 0,local_N-1
+    arr_specm(0:hkx_ind,0:hky_ind,local_k_offset+k)=datar(1:hkx_ind+1,1:hky_ind+1,k)*fft_norm 
+    arr_specm(0:hkx_ind,lky_ind:nky0-1,local_k_offset+k)=datar(1:hkx_ind+1,lky_big+1:ny0_big,k)*fft_norm
+    arr_specm(lkx_ind:nkx0-1,lky_ind:nky0-1,local_k_offset+k)=datar(lkx_big+1:nx0_big,lky_big+1:ny0_big,k)*fft_norm 
+    arr_specm(lkx_ind:nkx0-1,0:hky_ind,local_k_offset+k)=datar(lkx_big+1:nx0_big,1:hky_ind+1,k)*fft_norm 
   ENDDO
 
   ENDIF
@@ -1175,7 +1211,7 @@ SUBROUTINE torealspace(temp_small,output)
       ENDDO
     ENDDO
   ENDDO
-  ELSE 
+  ELSE IF (dealias_type.ne.3) THEN 
 
   DO k = 1,min(local_Ni,2*nkz0),n_mpi_procs
     DO j = 1,nky0
@@ -1192,19 +1228,27 @@ SUBROUTINE torealspace(temp_small,output)
     ENDDO
   ENDDO
 
+  ELSE 
+
+    DO k = 1,local_N
+       datai(1:hkx_ind+1,1:hky_ind+1,k)=temp_small(1:hkx_ind+1,1:hky_ind+1,k+local_k_offset)
+       datai(1:hkx_ind+1,lky_big+1:ny0_big,k)=temp_small(1:hkx_ind+1,lky_ind+1:nky0,k+local_k_offset)
+       datai(lkx_big+1:nx0_big,lky_big+1:ny0_big,k)=temp_small(lkx_ind+1:nkx0,lky_ind+1:nky0,k+local_k_offset)
+       datai(lkx_big+1:nx0_big,1:hky_ind+1,k)=temp_small(lkx_ind+1:nkx0,1:hky_ind+1,k+local_k_offset)
+    ENDDO
+
   ENDIF
 
 
  ! IF (verbose.and.(mype.eq.0)) print *, maxval(abs(datai))
-
  ! if (verbose.and.(mype.eq.0)) print *,'Through \"temp big\"'
 
- CALL fftw_mpi_execute_dft(plan_c2r,datai,datai)
- output = datai
+ IF (dealias_type.ne.3) CALL fftw_mpi_execute_dft(plan_c2r,datai,datai)
+ IF (dealias_type.eq.3) CALL fftw_mpi_execute_dft_c2r(plan_c2r,datai,datar)
  temp_small = cmplx(0.0,0.0)
 
 ! IF (verbose) print *, mype,maxval(abs(aimag(output)))
- IF (verbose.and.(mype.eq.0)) print *, mype,maxval(abs(aimag(datai))),maxval(abs(aimag(output)))
+ IF ((dealias_type.ne.3).and.(verbose.and.(mype.eq.0))) print *, mype,maxval(abs(aimag(datai)))
 
 END SUBROUTINE torealspace
 
