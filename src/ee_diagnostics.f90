@@ -36,7 +36,7 @@ MODULE diagnostics
 
   PRIVATE
 
-  INTEGER :: ffm_handle,omega_handle,glast_handle,ev_handle,en_handle,enspec_handle,&
+  INTEGER :: ffm_handle,omega_handle,glast_handle,ev_handle,en_handle,enspec_handle,xi_handle,&
     herm_handle,eshells_handle,fmom3d_handle,energy3d_handle, gk_nkyout,&
     gknl_nkyout
   INTEGER, ALLOCATABLE, DIMENSION(:) :: gk_indices
@@ -73,6 +73,7 @@ MODULE diagnostics
   REAL, ALLOCATABLE, DIMENSION(:,:,:) :: NLT3
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:) :: AVP
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:) :: WVORT
+  REAL, ALLOCATABLE, DIMENSION(:,:,:) :: xi
   REAL, ALLOCATABLE, DIMENSION(:,:,:) :: MH
   REAL, ALLOCATABLE, DIMENSION(:,:,:) :: CH
   INTEGER :: nlt3_handle 
@@ -153,17 +154,24 @@ SUBROUTINE initialize_diagnostics
   IF(istep_energyspec.gt.0.and.mype==0) THEN
     CALL get_io_number
     enspec_handle=io_number
+    CALL get_io_number
+    xi_handle = io_number
     !OPEN(unit=en_handle,file=trim(diagdir)//'/energy_out.dat',status='unknown')                                                                    
     IF(checkpoint_read) THEN
       INQUIRE(file=trim(diagdir)//'/energyspec_out.dat',exist=file_exists)
+      INQUIRE(file=trim(diagdir)//'/xi_out.dat',exist=file_exists)
       IF(file_exists) THEN
         OPEN(unit=enspec_handle,file=trim(diagdir)//'/energyspec_out.dat',form='unformatted', status='REPLACE',access='stream')
+        OPEN(unit=xi_handle,file=trim(diagdir)//'/xi_out.dat',form='unformatted', status='REPLACE',access='stream')
       ELSE
         OPEN(unit=enspec_handle,file=trim(diagdir)//'/energyspec_out.dat',form='unformatted', status='REPLACE',access='stream')
+        OPEN(unit=xi_handle,file=trim(diagdir)//'/xi_out.dat',form='unformatted', status='REPLACE',access='stream')
       END IF
     ELSE
       OPEN(unit=enspec_handle,file=trim(diagdir)//'/energyspec_out.dat',form='unformatted', status='REPLACE',access='stream')
+      OPEN(unit=xi_handle,file=trim(diagdir)//'/xi_out.dat',form='unformatted', status='REPLACE',access='stream')
     END IF
+    ALLOCATE(xi(1:nkx0-1,1:nky0-1,1:nkz0-1))
   END IF
 
 
@@ -258,6 +266,8 @@ SUBROUTINE finalize_diagnostics
   END IF
   IF(istep_energyspec.gt.0.and.mype==0) THEN
     CLOSE(enspec_handle)
+    CLOSE(xi_handle)
+    DEALLOCATE(xi)
   END IF
   IF(verbose.and.(mype==0)) print *, 'Closed energy handles'
   ! IF(istep_hermite.gt.0.and.mype==0) CLOSE(herm_handle)
@@ -418,7 +428,6 @@ SUBROUTINE diag
          WRITE(en_handle) bound_hels(.false.)
          WRITE(en_handle) hmhdhmtn(1)
          WRITE(en_handle) hmhdhmtn(2)
-         WRITE(en_handle) xi(shear)
          if (verbose) write(*,*) "Found Helicities",mype
          WRITE(en_handle) eta*resvischange("b")
          WRITE(en_handle) vnu*resvischange("v")
@@ -453,6 +462,8 @@ SUBROUTINE diag
          IF(verbose) WRITE(*,*) "Starting energyspec diag.",mype
          WRITE(enspec_handle) time
          CALL en_spec()
+         WRITE(xi_handle) time
+         CALL nlparam(shear)
          IF(verbose) WRITE(*,*) "Done with energyspec diag.",mype
        END IF
      END IF
@@ -4245,7 +4256,6 @@ DO q = 1,9
    IF(checkpoint_read) THEN
       INQUIRE(file=trim(diagdir)//'/'//trim(fnames(q)),exist=file_exists)      
       IF(file_exists) THEN
-
          OPEN(unit=ionums(q),file=trim(diagdir)//'/'//trim(fnames(q)),form='unformatted', status='REPLACE',access='stream')
       ELSE
          OPEN(unit=ionums(q),file=trim(diagdir)//'/'//trim(fnames(q)),form='unformatted', status='REPLACE',access='stream')
@@ -4475,31 +4485,29 @@ REAL :: bound
 
 bound = sum(sum(b_1(1:nkx0-1,1:nky0-1,1:nkz0-1,:) * conjg(b_1(1:nkx0-1,1:nky0-1,1:nkz0-1,:)),4) / kmags(1:nkx0-1,1:nky0-1,1:nkz0-1))
 if (m.eq..false.) then 
-  bound = bound + 2.0* sum(sum(v_1(1:nkx0-1,1:nky0-1,1:nkz0-1,:) * conjg(v_1(1:nkx0-1,1:nky0-1,1:nkz0-1,:)),4) * kmags(1:nkx0-1,1:nky0-1,1:nkz0-1))
-  bound = bound + sum(sqrt(sum(abs(v_1)**2,4))*sqrt(sum(abs(b_1)**2,4)))
+  bound = bound + sum(sum(v_1(1:nkx0-1,1:nky0-1,1:nkz0-1,:) * conjg(v_1(1:nkx0-1,1:nky0-1,1:nkz0-1,:)),4) * kmags(1:nkx0-1,1:nky0-1,1:nkz0-1))
+  bound = bound + 2.0*sum(sqrt(sum(abs(v_1)**2,4))*sqrt(sum(abs(b_1)**2,4)))
 endif
 bound = 16.0 * (pi)**3 * bound
 
 end function bound_hels
 
-real function xi(sh)
+subroutine nlparam(sh)
 
 implicit none
 
 LOGICAL :: sh
 REAL :: ratioarr(1:nkx0-1,1:nky0-1,1:nkz0-1)
 
-xi = maxval(abs(kperps(1:nkx0-1,1:nky0-1,1:nkz0-1)*sqrt(sum(abs(v_1(1:nkx0-1,1:nky0-1,1:nkz0-1,:)**2),4))/kzs(1:nkx0-1,1:nky0-1,1:nkz0-1)))
+xi = abs(kperps(1:nkx0-1,1:nky0-1,1:nkz0-1)*sqrt(sum(abs(v_1(1:nkx0-1,1:nky0-1,1:nkz0-1,:)**2),4))/kzs(1:nkx0-1,1:nky0-1,1:nkz0-1))
 if (.not.sh) then
   ratioarr = kmags(1:nkx0-1,1:nky0-1,1:nkz0-1)*sqrt(sum(abs(v_1(1:nkx0-1,1:nky0-1,1:nkz0-1,:)**2),4))
   ratioarr = ratioarr / (kzs(1:nkx0-1,1:nky0-1,1:nkz0-1)*(kmags(1:nkx0-1,1:nky0-1,1:nkz0-1)/2 - sqrt(-1 + 0.25*kmags(1:nkx0-1,1:nky0-1,1:nkz0-1)**2)))
-  if (itime.lt.100) print *, "Shear IMHD vs Hall Cyclotron Xi",xi,maxval(abs(ratioarr))
-  xi = maxval(abs(ratioarr))
+  if (itime.lt.100) print *, "Shear IMHD vs Hall Cyclotron Xi",maxval(xi),maxval(abs(ratioarr))
+  xi = abs(ratioarr)
 endif
 
-end function xi
-
-
+end subroutine nlparam
 
 END MODULE diagnostics
 

@@ -3,7 +3,7 @@
 #SBATCH -o Save.out%j    # Output and error file name (%j expands to jobID)
 #SBATCH -n 1           # Total number of mpi tasks requested
 #SBATCH -N 1           # Total number of mpi tasks requested
-#SBATCH -p normal   # Queue (partition) name -- normal, development, etc.
+#SBATCH -p skx-normal   # Queue (partition) name -- normal, development, etc.
 #SBATCH -t 5:00:00     # Run time (hh:mm:ss) - 1.5 hours
 #SBATCH -A GKIMP # Project name
 

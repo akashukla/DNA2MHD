@@ -17,6 +17,8 @@
 !!  Module containing the definition of DNA's parameters.
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 MODULE par_mod
+
+  use, intrinsic :: iso_c_binding
   IMPLICIT NONE
 
   !! Input parameters
@@ -142,6 +144,8 @@ MODULE par_mod
   LOGICAL :: shear = .false.
   LOGICAL :: beltrami = .true.
   LOGICAL :: helical = .false.
+  LOGICAL :: walenp = .false.
+  LOGICAL :: walenn = .false.
   LOGICAL :: mhc = .false.
 
   LOGICAL :: calc_dt=.false.        !Automatic initial time step calculation
@@ -233,6 +237,8 @@ MODULE par_mod
   !COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:,:,:) :: g_1
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:) :: b_1
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:) :: v_1
+  INTEGER :: rkstage
+  COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:,:) :: bdv,vdb,cbdb,bdcb,vdv,bdb,db2
   REAL, ALLOCATABLE, DIMENSION(:,:) :: kperp2
   REAL, ALLOCATABLE, DIMENSION(:) :: kxgrid,kygrid,kzgrid,herm_grid,hgrid_loc,&
                             hkgrid,vgrid,delta_hk, delta_v

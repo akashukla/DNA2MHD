@@ -144,6 +144,8 @@ def read_time_step_opt(which_itime,opt,swap_endian=False):
    f = open(file_name,'rb')
    ntot=par['nkx0']*par['nky0']*par['nkz0']*3#par['nv0']    
    mem_tot=ntot*16
+   if opt == 'xi':
+      mem_tot = 8 * (par['nkx0']-1)*(par['nky0']-1)*(par['nkz0']-1)*3
    gt0=np.empty((3,par['nkz0'],par['nky0'],par['nkx0']))
    f.seek(8+which_itime*(8+mem_tot))
    gt0=np.fromfile(f,dtype='complex128',count=ntot)
@@ -157,7 +159,7 @@ def read_time_step_energy(which_itime,swap_endian=False):
    file_name = par['diagdir'][1:-1]+'/energy_out.dat'
    f = open(file_name,'rb')
    gt0=np.empty((1))
-   ntot = 12
+   ntot = 11
    mem_tot = (ntot)*8
    gt0 = np.empty(ntot)
    f.seek(8+which_itime*(8+mem_tot))
@@ -240,6 +242,8 @@ def get_time_from_optout(opt,swap_endian=False):
    f = open(file_name,'rb')
    ntot=par['nkx0']*par['nky0']*par['nkz0']*3
    mem_tot=ntot*16
+   if opt == 'xi':
+       mem_tot =8 * (par['nkx0']-1)*(par['nky0']-1)*(par['nkz0']-1)*3
    time=np.empty(0)
    continue_read=1
    i=0
@@ -265,7 +269,7 @@ def get_time_from_energyout(swap_endian=False):
    """Returns time array taken from v_out.dat"""
    file_name = par['diagdir'][1:-1]+ '/energy_out.dat'
    f = open(file_name,'rb')
-   ntot = 12
+   ntot = 11
    mem_tot=ntot*8
    time=np.empty(0)
    continue_read=1
@@ -411,7 +415,7 @@ def getenergy(lpath):
 
     kx,ky,kz=get_grids()
     i_n=[0,1,2]
-    ntot = 12
+    ntot = 11
     savepath = lpath+'/energy_xyz.dat'
     #g=np.zeros((len(time)-1,len(kx),len(ky,),len(kz),len(i_n)), dtype='complex64') 
    #print('allocating array') 
@@ -1026,7 +1030,7 @@ def plot_enspec(lpath,npt=1,zz=-1,show=True,log=False,linplot=False,newload=Fals
         fig3.show()
     else:
         plt.close("all")
-    return(0)
+    return(t,ekm)
 
 #if __name__ == '__main__':
 #    #count = mp.cpu_count()

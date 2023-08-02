@@ -264,6 +264,11 @@ SUBROUTINE get_g_next(b_in, v_in,dt_new)
  dt_new = minval([dt_new1,dt_new2,dt_new3,dt_new4])
  CALL remove_div(b_in,v_in)
 
+ if ((walenp).or.(walenn)) then
+  if (walenp) print *, maxval(abs(b_in-v_in)),maxloc(abs(b_in-v_in))
+  if (walenn) print *, maxval(abs(b_in+v_in)),maxloc(abs(b_in+v_in))
+ endif
+
  DEALLOCATE(b_2)
  DEALLOCATE(bk1)
  DEALLOCATE(bk2)
