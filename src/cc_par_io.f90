@@ -36,7 +36,7 @@ SUBROUTINE read_parameters
       courant,hyp_conv,num_k_hyp_conv,hyp_conv_ky,hypx_order,hypy_order,hypz_order,&
       kxinit_min, kxinit_max, kyinit_min, kyinit_max, kzinit_min, kzinit_max,&
       init_amp_bx,init_amp_by,init_amp_bz, init_amp_vx, init_amp_vy, init_amp_vz,init_kolm,phdf,phdfxy,hyp, &
-      nkxforce,nkyforce,nkzforce, force_amp
+      nkxforce,nkyforce,nkzforce, force_amp,force_frac
   !,&
       !mu_grid_type, vmax,hyp_nu,fracx, fracy
 
@@ -44,7 +44,7 @@ SUBROUTINE read_parameters
       nu,omt,omn,Ti0Te,eta,vnu
 
   NAMELIST /flags/ &
-      nonlinear, actual_nonlinear, force_turbulence,forceb,set_forcing,test_nl, calc_dt, comp_type,adapt_dt_nl,&
+      nonlinear, actual_nonlinear, force_turbulence,forceb,set_forcing,forcetype,test_nl, calc_dt, comp_type,adapt_dt_nl,&
       linear_nlbox,verbose,checkpoint_read,checkpoint_write,&
       em_conserve,flr_on,force_kz0eq0,force_ky0eq0,force_kx0eq0,flr_version,&
       flr_extra,flr_nonlinear,etg_factor, &!, which_nonlinear,etg_factor
@@ -305,6 +305,7 @@ SUBROUTINE output_parameters
     WRITE(out_handle,"(A,G12.4)") "init_amp_by = ",init_amp_by
     WRITE(out_handle,"(A,G12.4)") "init_amp_vx = ",init_amp_vx
     WRITE(out_handle,"(A,G12.4)") "init_amp_vy = ",init_amp_vy
+    WRITE(out_handle,"(A,G12.4)") "force_frac = ",force_frac
     WRITE(out_handle,"(A,G12.4)") "init_kolm = ",init_kolm
     WRITE(out_handle,"(A,G12.4)") "phdf = ",phdf
     WRITE(out_handle,"(A,G12.4)") "phdfxy = ",phdfxy
@@ -356,6 +357,7 @@ SUBROUTINE output_parameters
     WRITE(out_handle,"(A,L1)") "force_turbulence = ", force_turbulence
     WRITE(out_handle,"(A,L1)") "forceb = ", forceb
     WRITE(out_handle,"(A,L1)") "set_forcing = ", set_forcing
+    WRITE(out_handle,"(A,I2)") "forcetype = ", forcetype
     !WRITE(out_handle,"(A,I4)") "which_nonlinear = ",which_nonlinear
     IF(test_nl) WRITE(out_handle,"(A,L1)") "test_nl  = ", test_nl
     WRITE(out_handle,"(A,L1)") "calc_dt  = ", calc_dt

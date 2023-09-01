@@ -2,9 +2,9 @@ import dna2mhd_utils as dn
 import output
 import numpy as np
 
-lpaths = ["/scratch/08929/echansen/dna2mhdrun419","/scratch/08929/echansen/dna2mhdrun420"]
+lpaths = ["/scratch/08929/echansen/dna2mhdrun429","/scratch/08929/echansen/dna2mhdrun430"]
 #fname = {lpaths[0]:"../input_files/DNAHD.out11499571"}
-fname = {lpaths[0]:lpaths[0]+"/DNAHD.out11523448",lpaths[1]:lpaths[1]+"/DNAHD.out11523449"}
+fname = {lpaths[0]:lpaths[0]+"/DNAHD.out11604700",lpaths[1]:lpaths[1]+"/DNAHD.out11604703"}
 a = np.random.randint(0,62,size=4)
 
 for lpath in lpaths:

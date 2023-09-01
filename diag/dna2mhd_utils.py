@@ -648,7 +648,7 @@ def plot_vspectrum(lpath,ix,iy,iz,ind,show=True):
     plt.plot([-rews[0],-rews[0]],[-1,1])
     plt.plot([-rews[1],-rews[1]],[-1,1])
     plt.ylim(-1.2*np.max(np.abs(sp_plot)),1.2*np.max(np.abs(sp_plot)))
-    plt.xlim(max(-max(rews)*3,-6.3),min(max(rews)*3,6.3))
+    plt.xlim(-6.3,6.3)
     #plt.plot(peaks, sp[peaks], "x")
     plt.ylabel('|FFT(v_%s)|'%ind_string )
     plt.xlabel('frequency')
@@ -1110,7 +1110,7 @@ def plot_bspectrum(lpath,ix,iy,iz,ind,show=True):
     plt.plot([-rews[0],-rews[0]],[-1,1])
     plt.plot([-rews[1],-rews[1]],[-1,1])
     plt.ylim(-1.2*np.max(np.abs(sp_plot)),1.2*np.max(np.abs(sp_plot)))
-    plt.xlim(max(-max(rews)*3,-6.3),min(max(rews)*3,6.3))
+    plt.xlim(-6.3,6.3)
     plt.ylabel('|FFT(b_%s)|'%ind_string )
     plt.xlabel('frequency')
     plt.title('kx,ky,kz = %1.2f,%1.2f,%1.2f'%(kx[ix],ky[iy],kz[iz]))
@@ -1124,68 +1124,54 @@ def plot_bspectrum(lpath,ix,iy,iz,ind,show=True):
     plt.close()
     return freq[peaks]*2*np.pi
 
-def errpct_energy(lpath):
+def plot_profile_enspec(lpath,ix,iy,iz,ind,tbv='t',show=True):
+    ind_strings = ['x','y','z']
+    ind_string = ind_strings[ind]
     read_parameters(lpath)
-    Nx = par['nkx0']
-    Ny = par['nky0']
-    Nz = par['nkz0']
-    p = par['init_kolm']
-    kx = par['kxmin']
-    ky = par['kymin']
-    kz = par['kzmin']
-    E = 0
-    Et = 0
-    for i in range(0,1024):
-        for j in range(0,1024):
-            for k in range(1,1024):
-                E += 1/((kx*i)**2 + (ky*j)**2 + (kz*k)**2)
-                if ((i < Nx//2) and (j < Ny//2)) and (k < Nz):
-                    Et += 1/((kx*i)**2 + (ky*j)**2 + (kz*k)**2)
-        print(i)
-    return (E-Et)/E
-
-def perpclock(lpath,ix,iy,iz,nt=300,show=True):
-    ind_strings= ['x','y','z']
-    ind_string=ind_strings[ind]
-    read_parameters(lpath)
-    timeb,b=load_b(lpath)
-    timev,v=load_b(lpath)
-    bxn = np.zeros(np.len(timeb),dtype="complex128")
-    byn = np.zeros(np.len(timeb),dtype="complex128")
-    bxn = b[:,ix,iy,iz,0]
-    byn = b[:,ix,iy,iz,1]
-    vxn = np.zeros(np.len(timev),dtype="complex128")
-    vyn = np.zeros(np.len(timev),dtype="complex128")
-    vxn = v[:,ix,iy,iz,0]
-    vyn = v[:,ix,iy,iz,1]
-    clock = anim.PillowWriter(fps=10)
-    clocky,ax = plt.subplots(2)
-    clock.setup(clocky,'perpclock_'+str(ix)+'_'+str(iy)+'_'+str(iz)+'.gif',600)
-    for i in range(0,np.len(bxn),np.len(bxn)//nt):
-        bxnorm = np.abs(bxn[i])
-        bynorm = np.abs(byn[i])
-        vxnorm = np.abs(vxn[i])
-        vynorm = np.abs(vyn[i])
-        ax[0].arrow(0,0,bxn[i].real/bxnorm,bxn[i].imag/bxnorm,label="bx",color="b",width=0.005)
-        ax[0].arrow(0,0,byn[i].real/bynorm,byn[i].imag/bynorm,label="by",color="r",width=0.005)
-        ax[1].arrow(0,0,vxn[i].real/vxnorm,vxn[i].imag/vxnorm,label="vx",color="b",width=0.005)
-        ax[1].arrow(0,0,vyn[i].real/vynorm,vyn[i].imag/vynorm,label="vy",color="r",width=0.005)
-        ax[0].set_xlim(-1,1)
-        ax[1].set_xlim(-1,1)
-        ax[0].set_ylim(-1,1)
-        ax[1].set_ylim(-1,1)
-
-        ax[0].legend()
-        ax[1].legend()
-        
-        plt.clf()
-    kx,ky,kz=get_grids()
+    kx,ky,kz = get_grids()
+    time,ebk,evk =load_energyspec(lpath)
+    ebkt = ebk[:,ix,iy,iz]
+    evkt = evk[:,ix,iy,iz]
+    etkt = ebkt + evkt
+    profs = {'t':etkt,'b':ebkt,'v':evkt}
+    labels = {'t':'Total ','b':'Magnetic ','v':'Kinetic '}
+    ekt = profs[tbv]
+    fig,ax = plt.subplots(2)
+    ax[0].plot(time,ekt,label=labels[tbv])
+    ax[0].set_ylabel(labels[t]+'Energy Spectrum')
+    ax[0].set_ylim(0,1.2*np.amax(ekt))
+    ax[0].legend()
+    ts, cts = profile_chartime_numdiv(time,ekt)
+    ax[1].plot(ts,cts,label='Derivative Times')
     fig.suptitle('kx,ky,kz = %1.2f,%1.2f,%1.2f'%(kx[ix],ky[iy],kz[iz]))
     fig.supxlabel('time (1/wc)')
     if lpath[-1] != '/':
         lpath = lpath + '/'
-    if not os.path.exists(lpath + 'bvs/'):
-        os.mkdir(lpath + 'bvs/')
-    plt.savefig(lpath+'bvs/bv_%s_%d_%d_%d'%(ind_string,ix,iy,iz))
+    if not os.path.exists(lpath + 'esps/'):
+        os.mkdir(lpath + 'esps/')
+    plt.savefig(lpath+'esps/esp_%s__%s_%d_%d_%d'%(tbv,ind_string,ix,iy,iz))
     if show == True:
         plt.show()
+    plt.close()
+    return timeb,b,timev,v
+
+def profile_chartime_numdiv(time,ekt):
+    de = ekt[2:]-ekt[:-2]
+    dt = 2*(time[2:]-time[:-2])
+    ee = -ekt[1:-1] + ekt[-1]*np.ones(np.size(ekt[1:-1]))
+    ts = time[1:-1]
+    # print(ee)
+    # print(de/dt)
+    cts = dt * ee/de
+    return ts, cts
+
+def func_exp(x,a,b,tt):
+    return(a + b * np.exp( - x/tt))
+
+def profile_chartime_expfit(time,ekt):
+    tg = -time[-2]/np.log((ekt[-2]-ekt[-1])/(ekt[0]-ekt[-1]))
+    # print(tg)
+    popt,pcov = spo.curve_fit(func_exp,time,ekt,p0=[ekt[-1],-ekt[-1]+ekt[0],tg])
+    return(popt[2])
+
+    

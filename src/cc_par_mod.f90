@@ -39,6 +39,7 @@ MODULE par_mod
   INTEGER :: kxinit_min=0,kyinit_min=0,kzinit_min=0  !minimum k's  (i.e. sets box size)
   INTEGER :: kxinit_max=8,kyinit_max=16,kzinit_max=18  !maximum k's  (i.e. sets box size)
   INTEGER :: nkxforce=2,nkyforce=2,nkzforce=2  !ks to force
+  REAL :: force_frac
   REAL :: force_amp= 0.5
   LOGICAL :: kmin_eq_0=.false.           
   INTEGER :: hypx_order=16                
@@ -276,6 +277,7 @@ MODULE par_mod
   LOGICAL :: nonlinear
   LOGICAL :: actual_nonlinear
   LOGICAL :: force_turbulence
+  INTEGER :: forcetype
   LOGICAL :: set_forcing = .true.
   !INTEGER :: which_nonlinear=1
   LOGICAL :: linear_nlbox !Grid, initialization, etc. is the same, but don't USE nonlinearity

@@ -143,9 +143,11 @@ SUBROUTINE get_rhs_force(rhs_out_b, rhs_out_v, dt)
 
     IF(resample.lt.dt) THEN
 !        print *, "Resample value ",resample
-        DO i=1,nkxforce
-          DO j=1,nkyforce
-            DO k=1,nkzforce
+        DO i=1,nkx0-1
+          DO j=1,nky0-1
+            DO k=1,nkz0-1
+                IF (((kmags(i,j,k).lt.force_frac*maxval(kmags)).and.(forcetype.eq.11))&
+                    .or.((((i.le.nkxforce).and.(j.le.nkyforce)).and.(k.le.nkzforce)).and.(forcetype.eq.12))) THEN
                 IF (forceb) THEN
                 rhs_out_b(i,j,k,0) = rhs_out_b(i,j,k,0) + force_amp*random_normal() + i_complex*force_amp*random_normal()
                 rhs_out_b(i,j,k,1) = rhs_out_b(i,j,k,1) + force_amp*random_normal() + i_complex*force_amp*random_normal()
@@ -171,6 +173,7 @@ SUBROUTINE get_rhs_force(rhs_out_b, rhs_out_v, dt)
 
                 rhs_out_v(nkx0-i,j,k,0) = rhs_out_v(nkx0-i,j,k,0) + force_amp*random_normal() + i_complex*force_amp*random_normal()
                 rhs_out_v(nkx0-i,j,k,1) = rhs_out_v(nkx0-i,j,k,1) + force_amp*random_normal() + i_complex*force_amp*random_normal()
+              ENDIF
             END DO
           END DO
         END DO
