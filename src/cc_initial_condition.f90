@@ -327,7 +327,7 @@ SUBROUTINE initial_condition(which_init0)
       if(mype.eq.0) print *, 'Viscosity',vnu
 
       ! Rescale forcing amplitude for to match dissipation in inertial range
-      IF ((force_turbulence).and.set_forcing) force_amp = vnu * s4 / (4.0 * nkxforce * nkyforce * nkzforce * dt_max)
+      IF ((force_turbulence).and.set_forcing) force_amp = vnu * s4 / (8.0 * nkxforce * nkyforce * nkzforce * dt_max)
       IF (forceb) force_amp = force_amp/2.0
       IF ((mype.eq.0).and.(set_forcing)) print *, 'Force Amp',force_amp
       IF (force_turbulence) force_amp = force_amp * abs(b_1(nkxforce,nkyforce,nkzforce,0)*(kmags(nkxforce,nkyforce,nkzforce)**(init_kolm/2.0)))

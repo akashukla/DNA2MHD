@@ -1342,10 +1342,21 @@ cbdb(:,:,:,1) = cbdb(:,:,:,1) + (-(real(rkstage)**2.0)/12.0 + real(rkstage)/4.0 
 cbdb(:,:,:,2) = cbdb(:,:,:,2) + (-(real(rkstage)**2.0)/12.0 + real(rkstage)/4.0 + 1.0/6.0)*fft_spec(dybz*dxbz-dzby*dxbz-dxbz*dybz+dzbx*dybz+dxby*dzbz-dybx*dzbz)
 
 IF (mod(rkstage,4).eq.3) THEN
-WRITE(bdvio) bdv
-WRITE(vdbio) vdb
-WRITE(bdcbio) bdcb
-WRITE(cbdbio) cbdb
+WRITE(bdvio) bdv(:,:,:,0)
+WRITE(bdvio) bdv(:,:,:,1)
+WRITE(bdvio) bdv(:,:,:,2)
+
+WRITE(vdbio) vdb(:,:,:,0)
+WRITE(vdbio) vdb(:,:,:,1)
+WRITE(vdbio) vdb(:,:,:,2)
+
+WRITE(bdcbio) bdcb(:,:,:,0)
+WRITE(bdcbio) bdcb(:,:,:,1)
+WRITE(bdcbio) bdcb(:,:,:,2)
+
+WRITE(cbdbio) cbdb(:,:,:,0)
+WRITE(cbdbio) cbdb(:,:,:,1)
+WRITE(cbdbio) cbdb(:,:,:,2)
 ENDIF
 
 ENDIF
@@ -1373,7 +1384,7 @@ temp_bigz = temp_big
     maxval(abs(temp_bigx(0:nkx0-1,lky_big:ny0_big-1,lkz_big:nz0_big-1)*fft_norm)/abs(rhs_out_b(:,lky_ind:nky0-1,lkz_ind:nkz0-1,0)),((abs(rhs_out_b(:,lky_ind:nky0-1,lkz_ind:nkz0-1,0)).gt.10.0**(-7.0)))),&
     (/0,lky_ind,lkz_ind/)+maxloc(abs(temp_bigx(0:nkx0-1,lky_big:ny0_big-1,lkz_big:nz0_big-1)*fft_norm)/abs(rhs_out_b(:,lky_ind:nky0-1,lkz_ind:nkz0-1,0)),((abs(rhs_out_b(:,lky_ind:nky0-1,lkz_ind:nkz0-1,0)).gt.10.0**(-7.0))))
   if ((mype.eq.0)) print *,'Max NLBx',&
-    maxval(abs(temp_bigx(0:nkx0-1,lky_big:ny0_big-1,0:hkz_ind)*fft_norm)/abs(rhs_out_b(:,lky_ind:nky0-1,0:hkz_ind,0)),((abs(rhs_out_b(:,lky_ind:nky0-1,0:hkz_ind,0)).gt.10.0**(-7.0)).and.(kmags.gt.0.5*maxval(kmags)))),&
+    maxval(abs(temp_bigx(0:nkx0-1,lky_big:ny0_big-1,0:hkz_ind)*fft_norm)/abs(rhs_out_b(:,lky_ind:nky0-1,0:hkz_ind,0)),((abs(rhs_out_b(:,lky_ind:nky0-1,0:hkz_ind,0)).gt.10.0**(-7.0)))),&
     (/0,lky_ind,0/)+maxloc(abs(temp_bigx(0:nkx0-1,lky_big:ny0_big-1,0:hkz_ind)*fft_norm)/abs(rhs_out_b(:,lky_ind:nky0-1,0:hkz_ind,0)),((abs(rhs_out_b(:,lky_ind:nky0-1,0:hkz_ind,0)).gt.10.0**(-7.0))))
 
 !Now fill in appropriate rhs elements
@@ -1458,6 +1469,8 @@ store_z = -(vx*dxvz+vy*dyvz+vz*dzvz) + (bx*dxbz+by*dybz) - (by*dzby+bx*dzbx)
 
 IF (plot_nls.and.(mod(itime,istep_energy).eq.0)) THEN
 
+! print *, "NL Debug",rkstage
+
 IF (mod(rkstage,4).eq.0) THEN
 vdv = cmplx(0.0,0.0)
 bdb = cmplx(0.0,0.0)
@@ -1480,9 +1493,17 @@ db2(:,:,:,1) = db2(:,:,:,1) + (-(real(rkstage)**2.0)/12.0 + real(rkstage)/4.0 + 
 db2(:,:,:,2) = db2(:,:,:,2) + (-(real(rkstage)**2.0)/12.0 + real(rkstage)/4.0 + 1.0/6.0)*fft_spec(bx*dzbx+by*dzby+bz*dzbz)
 
 IF (mod(rkstage,4).eq.3) THEN
-WRITE(vdvio) vdv
-WRITE(bdbio) bdb
-WRITE(db2io) db2
+WRITE(vdvio) vdv(:,:,:,0)
+WRITE(vdvio) vdv(:,:,:,1)
+WRITE(vdvio) vdv(:,:,:,2)
+
+WRITE(bdbio) bdb(:,:,:,0)
+WRITE(bdbio) bdb(:,:,:,1)
+WRITE(bdbio) bdb(:,:,:,2)
+
+WRITE(db2io) db2(:,:,:,0)
+WRITE(db2io) db2(:,:,:,1)
+WRITE(db2io) db2(:,:,:,2)
 ENDIF
 
 ENDIF
@@ -1622,15 +1643,15 @@ SUBROUTINE ALLOCATIONS
 
   ALLOCATE(temp_small(0:nkx0-1,0:nky0-1,0:nkz0-1))
 
-!  IF (plot_nls) THEN
-!    ALLOCATE(bdv(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-!    ALLOCATE(vdb(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-!    ALLOCATE(bdcb(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-!    ALLOCATE(cbdb(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-!    ALLOCATE(vdv(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-!    ALLOCATE(bdb(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-!    ALLOCATE(db2(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-!  ENDIF
+  IF (plot_nls) THEN
+    ALLOCATE(bdv(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+    ALLOCATE(vdb(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+    ALLOCATE(bdcb(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+    ALLOCATE(cbdb(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+    ALLOCATE(vdv(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+    ALLOCATE(bdb(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+    ALLOCATE(db2(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+  ENDIF
 
   ALLOCATE(temp_bigx(0:nx0_big/2,0:ny0_big-1,0:nz0_big-1))
   ALLOCATE(temp_bigy(0:nx0_big/2,0:ny0_big-1,0:nz0_big-1))
@@ -1752,15 +1773,15 @@ SUBROUTINE DEALLOCATIONS
 DEALLOCATE(temp_small)
 if (verbose) print *, 'ts deallocated'
 
- ! IF (plot_nls) THEN
- !   DEALLOCATE(bdv)
- !   DEALLOCATE(vdb)
- !   DEALLOCATE(bdcb)
- !   DEALLOCATE(cbdb)
- !   DEALLOCATE(vdv)
- !   DEALLOCATE(bdb)
- !   DEALLOCATE(db2)
- ! ENDIF
+IF (plot_nls) THEN
+   DEALLOCATE(bdv)
+   DEALLOCATE(vdb)
+   DEALLOCATE(bdcb)
+   DEALLOCATE(cbdb)
+   DEALLOCATE(vdv)
+   DEALLOCATE(bdb)
+   DEALLOCATE(db2)
+ENDIF
 
 DEALLOCATE(temp_bigx)
 if (verbose) print *, 'tbx deallocated'

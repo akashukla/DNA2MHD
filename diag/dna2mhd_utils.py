@@ -186,7 +186,7 @@ def read_time_step_energyspec(which_itime,swap_endian=False):
    f.close()
    return gt0
 
-def get_time_from_bout(swap_endian=False):
+def get_time_from_bout(swap_endian=False,tmax=2000000):
    """Returns time array taken from b_out.dat"""
    file_name = par['diagdir'][1:-1]+ '/b_out.dat'
    f = open(file_name,'rb')
@@ -202,14 +202,18 @@ def get_time_from_bout(swap_endian=False):
      if swap_endian:
          inp=inp.newbyteorder()
      #print inp
+     
      if inp==0 or inp:
          time = np.append(time,inp)
      else:
          continue_read=0
+     if inp >= tmax:
+         continue_read=0
+     
    f.close()
    return time
 
-def get_time_from_vout(swap_endian=False):
+def get_time_from_vout(swap_endian=False,tmax=2000000):
    """Returns time array taken from v_out.dat"""
    file_name = par['diagdir'][1:-1]+ '/v_out.dat'
    f = open(file_name,'rb')
@@ -229,6 +233,9 @@ def get_time_from_vout(swap_endian=False):
          time = np.append(time,inp)
      else:
          continue_read=0
+     if inp >= tmax:
+         continue_read=0
+
    f.close()
    # print(time)
    # work = input('Proceed? Y/N ')
@@ -236,7 +243,7 @@ def get_time_from_vout(swap_endian=False):
    #    quit('Wrong itimes')
    return time
 
-def get_time_from_optout(opt,swap_endian=False):
+def get_time_from_optout(opt,swap_endian=False,tmax=2000000):
    """Returns time array taken from v_out.dat"""
    file_name = par['diagdir'][1:-1]+ '/'+opt+'_out.dat'
    f = open(file_name,'rb')
@@ -258,14 +265,14 @@ def get_time_from_optout(opt,swap_endian=False):
          time = np.append(time,inp)
      else:
          continue_read=0
+     if inp >= tmax:
+         continue_read=0
    f.close()
    print(time)
-   work = input('Proceed? Y/N ')
-   if work == 'N':
-       quit('Wrong times')
+
    return time
 
-def get_time_from_energyout(swap_endian=False):
+def get_time_from_energyout(swap_endian=False,tmax=2000000):
    """Returns time array taken from v_out.dat"""
    file_name = par['diagdir'][1:-1]+ '/energy_out.dat'
    f = open(file_name,'rb')
@@ -285,6 +292,9 @@ def get_time_from_energyout(swap_endian=False):
          time = np.append(time,inp)
      else:
          continue_read=0
+     if inp >= tmax:
+         continue_read=0
+
    print(time)
    # work = input('Proceed? Y/N ')
    # if work == 'N':
@@ -292,7 +302,7 @@ def get_time_from_energyout(swap_endian=False):
    f.close()
    return time
 
-def get_time_from_energyspecout(swap_endian=False):
+def get_time_from_energyspecout(swap_endian=False,tmax=2000000):
    """Returns time array taken from v_out.dat"""
    file_name = par['diagdir'][1:-1]+ '/energyspec_out.dat'
    f = open(file_name,'rb')
@@ -312,10 +322,13 @@ def get_time_from_energyspecout(swap_endian=False):
          time = np.append(time,inp)
      else:
          continue_read=0
+     if inp >= tmax:
+         continue_read=0
+
    f.close()
    return time
 
-def getb(lpath):
+def getb(lpath,tmax=2000000):
     """Saves b_out.dat (located in the directory specified by lpath) into a python-readable format b_xyz.dat
     which will also be located in the lpath directory.
     """
@@ -323,7 +336,7 @@ def getb(lpath):
     #if lpath==None:
     #    lpath='/scratch/04943/akshukla/dna2mhd_output_0'
     read_parameters(lpath)
-    time = get_time_from_bout()
+    time = get_time_from_bout(tmax=tmax)
     #time=time[:1000]
     kx,ky,kz=get_grids()
     i_n=[0,1,2]
@@ -347,7 +360,7 @@ def getb(lpath):
     #print('finished loop')
     return time, g
 
-def getv(lpath):
+def getv(lpath,tmax=2000000):
     """Saves v_out.dat (located in the directory specified by lpath) into a python-readable format v_xyz.dat
     which will also be located in the lpath directory.
     """
@@ -355,7 +368,7 @@ def getv(lpath):
     #if lpath==None:
     #    lpath='/scratch/04943/akshukla/dna2mhd_output_0'
     read_parameters(lpath)
-    time = get_time_from_vout()
+    time = get_time_from_vout(tmax=tmax)
     #time=time[:1000]
     kx,ky,kz=get_grids()
     i_n=[0,1,2]
@@ -379,12 +392,12 @@ def getv(lpath):
     #print('finished loop')
     return time, g
 
-def getopt(lpath,opt):
+def getopt(lpath,opt,tmax=2000000):
     """Saves opt_out.dat (located in the directory specified by lpath) into a python-readable format opt_xyz.dat                                                                                              
     which will also be located in the lpath directory.                                                                                                                                                    
     """
     read_parameters(lpath)
-    time = get_time_from_optout(opt)
+    time = get_time_from_optout(opt,tmax=tmax)
 
     kx,ky,kz=get_grids()
     i_n=[0,1,2]
@@ -409,8 +422,8 @@ def getopt(lpath,opt):
      
     return time, g
 
-def getenergy(lpath):
-    time = get_time_from_energyout()
+def getenergy(lpath,tmax=2000000):
+    time = get_time_from_energyout(tmax=tmax)
     #time=time[:1000] 
 
     kx,ky,kz=get_grids()
@@ -443,12 +456,12 @@ def getenergy(lpath):
 
     return time,g
 
-def getenergyspec(lpath):
+def getenergyspec(lpath,tmax=2000000):
     """Saves energyspec_out.dat (located in the directory specified by lpath) into a python-readable format v_xyz.dat                         
     which will also be located in the lpath directory.                                                                               
     """
     read_parameters(lpath)
-    time = get_time_from_energyspecout()
+    time = get_time_from_energyspecout(tmax=tmax)
     kx,ky,kz=get_grids()
     i_n=[0,1,2]
     savepath = lpath+'/energyspec_xyz.dat'
@@ -663,7 +676,7 @@ def plot_vspectrum(lpath,ix,iy,iz,ind,show=True):
     plt.close()
     return freq[peaks]*2*np.pi
 
-def plot_nls(lpath,ix,iy,iz,ind,show=True,ask=True):
+def plot_nls(lpath,ix,iy,iz,ind,show=True,ask=True,tmax=2000000):
     """This an example method that plots the timetraces of b and v at the specified wavevector (kx[ix],ky[iy],kz[iz]).
 ind specifies whether you want the x(0),y(1), or z(2) component."""
     ind_strings= ['x','y','z']
@@ -681,7 +694,7 @@ ind specifies whether you want the x(0),y(1), or z(2) component."""
         if os.path.isfile(lpath+'/dum'+opt+'.txt'):
             optlist.append(load_opt(lpath,opt))
         else:
-            optlist.append(getopt(lpath,opt))
+            optlist.append(getopt(lpath,opt,tmax=tmax))
         t = optlist[i][0]
         opty = np.array(optlist[i][1][:,ix,iy,iz,ind])
         fig,ax = plt.subplots(2)
@@ -823,14 +836,14 @@ ind specifies whether you want the x(0),y(1), or z(2) component."""
 
     return 0
 
-def plot_energy(lpath,ntp,show=True,log=False,rescale=True,xb=1):
+def plot_energy(lpath,ntp,show=True,log=False,rescale=True,xb=1,tmax=2000000):
     """ Plots Scalars Written in energy_out.dat """
 
     read_parameters(lpath)
     if os.path.isfile(lpath+'/dumen.txt'):
         timeen,enval = load_energy(lpath)
     else:
-        timeen,enval = getenergy(lpath)
+        timeen,enval = getenergy(lpath,tmax=tmax)
 
     shapes = {1:(1,1),2:(2,1),3:(2,2),4:(2,2),5:(2,3),6:(2,3),7:(3,3),8:(3,3),9:(3,3)}
     s = shapes[ntp+1]
@@ -892,7 +905,7 @@ def plot_energy(lpath,ntp,show=True,log=False,rescale=True,xb=1):
     
     return timeen,enval
 
-def plot_enspec(lpath,npt=1,zz=-1,show=True,log=False,linplot=False,newload=False,fullspec=False,old=True,tmaxfac=1):
+def plot_enspec(lpath,npt=1,zz=-1,show=True,log=False,linplot=False,newload=False,fullspec=False,old=True,tmaxfac=1,tmax=2000000):
     read_parameters(lpath)
     kx,ky,kz = get_grids()
 
@@ -905,7 +918,7 @@ def plot_enspec(lpath,npt=1,zz=-1,show=True,log=False,linplot=False,newload=Fals
         ekbm = ekbf[:,1:,1:,1:]
         ekm = ekvm+ekbm
     else:
-        t,ekvf,ekbf = getenergyspec(lpath)
+        t,ekvf,ekbf = getenergyspec(lpath,tmax=tmax)
         ekvm = ekvf[:,1:,1:,1:]
         ekbm = ekbf[:,1:,1:,1:]
         ekm = ekvm+ekbm
@@ -930,8 +943,6 @@ def plot_enspec(lpath,npt=1,zz=-1,show=True,log=False,linplot=False,newload=Fals
     fig2,ax2 = plt.subplots(1)
     fig3,ax3 = plt.subplots(1)
     kmag = np.sqrt(np.log(np.tensordot(np.tensordot(np.exp(kx[1:]**2),np.exp(ky[1:]**2),axes=0),np.exp(kz[1:]**2),axes=0)))
-    if log:
-        kmag = np.log(kmag)
     j = 4
 
     ttp = np.linspace(0,(np.size(t)-1)/tmaxfac,num=npt)
@@ -945,20 +956,20 @@ def plot_enspec(lpath,npt=1,zz=-1,show=True,log=False,linplot=False,newload=Fals
                 ekb += 0.5*np.abs(bkt[i,:,:,1:,2])**2
                 ekv += 0.5*np.abs(vkt[i,:,:,1:,2])**2
             ek = ekb+ekv
-        elif log:
-            ekb = np.log10(ekbm[i,:,:,:])
-            ekv = np.log10(ekvm[i,:,:,:])
-            ek = np.log10(ekm[i,:,:,:])
+        # elif log:
+        #    ekb = np.log10(ekbm[i,:,:,:])
+        #    ekv = np.log10(ekvm[i,:,:,:])
+        #    ek = np.log10(ekm[i,:,:,:])
         else:
             ekb = ekbm[i,:,:,:]
             ekv = ekvm[i,:,:,:]
             ek = ekm[i,:,:,:]
-        print(np.amax(np.abs(ekm[i,:,:,:]-ekm[0,:,:,:])),np.argmax(np.abs(ekm[i,:,:,:]-ekm[0,:,:,:])))
+        # print(np.amax(np.abs(ekm[i,:,:,:]-ekm[0,:,:,:])),np.argmax(np.abs(ekm[i,:,:,:]-ekm[0,:,:,:])))
 
-        if (not newload) and log:
-            ekb[:,:,:] = np.log10(ekb[:,:,:])
-            ekv[:,:,:] = np.log10(ekv[:,:,:])
-            ek = np.log10(ek[:,:,:])
+        #if (not newload) and log:
+        #    ekb[:,:,:] = np.log10(ekb[:,:,:])
+        #    ekv[:,:,:] = np.log10(ekv[:,:,:])
+        #    ek = np.log10(ek[:,:,:])
         if (zz == -1):
             x = np.reshape(kmag,np.size(kmag))
             a = np.argsort(x)
@@ -986,13 +997,18 @@ def plot_enspec(lpath,npt=1,zz=-1,show=True,log=False,linplot=False,newload=Fals
     ax1.legend(loc=3)
     ax2.legend(loc=3)
     ax3.legend(loc=3)
+    ax1.set_ylim(10**(-10),1)
+    ax2.set_ylim(10**(-10),1)
+    ax3.set_ylim(10**(-10),1)
     if log:
-        label = " Log"
-        ax1.set_ylim(-10,0)
-        ax2.set_ylim(-10,0)
-        ax3.set_ylim(-10,0)
-    else:
-        label = ""
+       ax1.set_yscale("log")
+       ax1.set_xscale("log")
+       ax2.set_yscale("log")
+       ax2.set_xscale("log")
+       ax3.set_yscale("log")
+       ax3.set_xscale("log")
+
+    label=""
     if (zz == -1):
         fig1.suptitle("Energy Spectrum")
         fig2.suptitle("Energy Spectrum")
@@ -1080,7 +1096,7 @@ def wherenezero(arr):
                         zs.append([i,j,k,l])
     return(zs)
 
-def plot_bspectrum(lpath,ix,iy,iz,ind,show=True):
+def plot_bspectrum(lpath,ix,iy,iz,ind,show=True,opt='b'):
     """                                                                                                                                                                  
     ix,iy,iz specifies the wavevector                                                                                                                                    
     ind specifies x/y/z (0/1/2) component                                                                                                                                
@@ -1093,32 +1109,51 @@ def plot_bspectrum(lpath,ix,iy,iz,ind,show=True):
     ind_string=ind_strings[ind]
     read_parameters(lpath)
     kx,ky,kz=get_grids()
-    time,b=load_b(lpath)
-    b_k = b[:,ix,iy,iz,ind]
-    sp=fftshift(fft(b_k-np.mean(b_k)))    
-    freq = fftshift(fftfreq(time.shape[-1],d=.01))
+    print(par['dt_max'])
+    if opt=='b':
+        time,b=load_b(lpath)
+        dt = time[1]-time[0]
+        b_k = b[:,ix,iy,iz,ind]
+        sp=fftshift(fft(b_k-np.mean(b_k)))    
+        freq = fftshift(fftfreq(time.shape[-1],d=dt))
+    elif opt=='v':
+        time,b=load_v(lpath)
+        dt = time[1]-time[0]
+        b_k = b[:,ix,iy,iz,ind]
+        sp=fftshift(fft(b_k-np.mean(b_k)))
+        freq = fftshift(fftfreq(time.shape[-1],d=dt))
+    else:
+        time,b=load_opt(lpath,opt)
+        dt = time[1]-time[0]
+        b_k = b[:,ix,iy,iz,ind]
+        sp=fftshift(fft(b_k-np.mean(b_k)))
+        freq = fftshift(fftfreq(time.shape[-1],d=dt))
     omega = 2*np.pi*freq
-    peaks,_ = find_peaks(np.abs(sp),threshold=10)
+    peaks,_ = find_peaks(np.abs(sp),threshold=1)
     print(freq[peaks])
     print(freq[peaks]*2*np.pi)
     omega_plot = omega[(omega>-2*np.pi)&(omega<2*np.pi)]
     sp_plot= sp[(omega>-2*np.pi)&(omega<2*np.pi)]
-    plt.plot(omega_plot, np.abs(sp_plot))
-    rews = analytical_omega(lpath,ix,iy,iz)
-    plt.plot([rews[0],rews[0]],[-1,1])
-    plt.plot([rews[1],rews[1]],[-1,1])
-    plt.plot([-rews[0],-rews[0]],[-1,1])
-    plt.plot([-rews[1],-rews[1]],[-1,1])
-    plt.ylim(-1.2*np.max(np.abs(sp_plot)),1.2*np.max(np.abs(sp_plot)))
-    plt.xlim(-6.3,6.3)
-    plt.ylabel('|FFT(b_%s)|'%ind_string )
-    plt.xlabel('frequency')
-    plt.title('kx,ky,kz = %1.2f,%1.2f,%1.2f'%(kx[ix],ky[iy],kz[iz]))
+    fig,ax= plt.subplots(1)
+    ax.plot(omega_plot, np.abs(sp_plot))
+    w1,w2 = np.abs(analytical_omega(lpath,ix,iy,iz))
+    print(w1,w2)
+    MM = 1.2*np.max(np.abs(sp_plot))
+    ax.plot([w1,w1],[-MM,MM])
+    ax.plot([w2,w2],[-MM,MM])
+    ax.plot([-w1,-w1],[-MM,MM])
+    ax.plot([-w2,-w2],[-MM,MM])
+    ax.set_ylim(0.0,MM)
+    ax.set_xlim(max(-6.3,-10*w1),min(6.3,10*w1))
+    
+    ax.set_ylabel('|FFT('+opt+'_%s)|'%ind_string )
+    ax.set_xlabel('frequency')
+    fig.suptitle('kx,ky,kz = %1.2f,%1.2f,%1.2f'%(kx[ix],ky[iy],kz[iz]))
     if lpath[-1] != '/':
         lpath =lpath +'/'
-    if not os.path.exists(lpath + 'bspectra/'):
-        os.mkdir(lpath + 'bspectra/')
-    plt.savefig(lpath+'bspectra/bspectrum_%s_%d_%d_%d'%(ind_string,ix,iy,iz))
+    if not os.path.exists(lpath + opt+'spectra/'):
+        os.mkdir(lpath + opt+'spectra/')
+    plt.savefig(lpath+opt+'spectra/'+opt+'spectrum_%s_%d_%d_%d'%(ind_string,ix,iy,iz))
     if show == True:
         plt.show()
     plt.close()
@@ -1138,11 +1173,12 @@ def plot_profile_enspec(lpath,ix,iy,iz,ind,tbv='t',show=True):
     ekt = profs[tbv]
     fig,ax = plt.subplots(2)
     ax[0].plot(time,ekt,label=labels[tbv])
-    ax[0].set_ylabel(labels[t]+'Energy Spectrum')
+    ax[0].set_ylabel(labels[tbv]+'Energy Spectrum')
     ax[0].set_ylim(0,1.2*np.amax(ekt))
     ax[0].legend()
     ts, cts = profile_chartime_numdiv(time,ekt)
     ax[1].plot(ts,cts,label='Derivative Times')
+    print(profile_chartime_expfit(time,ekt))
     fig.suptitle('kx,ky,kz = %1.2f,%1.2f,%1.2f'%(kx[ix],ky[iy],kz[iz]))
     fig.supxlabel('time (1/wc)')
     if lpath[-1] != '/':
@@ -1153,7 +1189,7 @@ def plot_profile_enspec(lpath,ix,iy,iz,ind,tbv='t',show=True):
     if show == True:
         plt.show()
     plt.close()
-    return timeb,b,timev,v
+    return time,ekt
 
 def profile_chartime_numdiv(time,ekt):
     de = ekt[2:]-ekt[:-2]

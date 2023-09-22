@@ -463,7 +463,7 @@ SUBROUTINE diag
          WRITE(enspec_handle) time
          CALL en_spec()
          WRITE(xi_handle) time
-         CALL nlparam(shear)
+         CALL nlparam((hall.eq.0))
          IF(verbose) WRITE(*,*) "Done with energyspec diag.",mype
        END IF
      END IF
@@ -4241,30 +4241,69 @@ end function resvischange
 
 subroutine initialize_debug
 
-INTEGER :: ionums(9)
-! CHARACTER(len=15), DIMENSION(9) :: fnames
-CHARACTER(len=15), DIMENSION(9) :: fnames = [CHARACTER(LEN=15) :: &
-     'dissb_out.dat','dissv_out.dat', 'bdv_out.dat',&
-     'vdb_out.dat','bdcb_out.dat','cbdb_out.dat',&
-     'vdv_out.dat','bdb_out.dat','db2_out.dat']
+    CALL get_io_number
+    dbio = io_number
+    CALL get_io_number
+    dvio = io_number 
+    CALL get_io_number
+    bdvio = io_number
+    CALL get_io_number
+    vdbio = io_number
+    CALL get_io_number
+    bdcbio = io_number
+    CALL get_io_number
+    cbdbio = io_number
+    CALL get_io_number
+    vdvio = io_number
+    CALL get_io_number
+    bdbio = io_number
+    CALL get_io_number
+    db2io = io_number
 
-INTEGER :: q
 
-ionums = [dbio,dvio,bdvio,vdbio,bdcbio,cbdbio,vdvio,bdbio,db2io]
+    IF(checkpoint_read) THEN
+      INQUIRE(file=trim(diagdir)//'/dissb_out.dat',exist=file_exists)
+      INQUIRE(file=trim(diagdir)//'/dissv_out.dat',exist=file_exists)
+      INQUIRE(file=trim(diagdir)//'/bdv_out.dat',exist=file_exists)
+      INQUIRE(file=trim(diagdir)//'/vdb_out.dat',exist=file_exists)
+      INQUIRE(file=trim(diagdir)//'/bdcb_out.dat',exist=file_exists)
+      INQUIRE(file=trim(diagdir)//'/cbdb_out.dat',exist=file_exists)
+      INQUIRE(file=trim(diagdir)//'/vdv_out.dat',exist=file_exists)
+      INQUIRE(file=trim(diagdir)//'/bdb_out.dat',exist=file_exists)
+      INQUIRE(file=trim(diagdir)//'/db2_out.dat',exist=file_exists)
 
-DO q = 1,9
-   IF(checkpoint_read) THEN
-      INQUIRE(file=trim(diagdir)//'/'//trim(fnames(q)),exist=file_exists)      
       IF(file_exists) THEN
-         OPEN(unit=ionums(q),file=trim(diagdir)//'/'//trim(fnames(q)),form='unformatted', status='REPLACE',access='stream')
+        OPEN(unit=dbio,file=trim(diagdir)//'/dissb_out.dat',form='unformatted', status='REPLACE',access='stream')
+        OPEN(unit=dvio,file=trim(diagdir)//'/dissv_out.dat',form='unformatted', status='REPLACE',access='stream')
+        OPEN(unit=bdvio,file=trim(diagdir)//'/bdv_out.dat',form='unformatted', status='REPLACE',access='stream')
+        OPEN(unit=vdbio,file=trim(diagdir)//'/vdb_out.dat',form='unformatted', status='REPLACE',access='stream')
+        OPEN(unit=bdcbio,file=trim(diagdir)//'/bdcb_out.dat',form='unformatted', status='REPLACE',access='stream')
+        OPEN(unit=cbdbio,file=trim(diagdir)//'/cbdb_out.dat',form='unformatted', status='REPLACE',access='stream')
+        OPEN(unit=vdvio,file=trim(diagdir)//'/vdv_out.dat',form='unformatted', status='REPLACE',access='stream')
+        OPEN(unit=bdbio,file=trim(diagdir)//'/bdb_out.dat',form='unformatted', status='REPLACE',access='stream')
+        OPEN(unit=db2io,file=trim(diagdir)//'/db2_out.dat',form='unformatted', status='REPLACE',access='stream')
       ELSE
-         OPEN(unit=ionums(q),file=trim(diagdir)//'/'//trim(fnames(q)),form='unformatted', status='REPLACE',access='stream')
+        OPEN(unit=dbio,file=trim(diagdir)//'/dissb_out.dat',form='unformatted', status='REPLACE',access='stream')
+        OPEN(unit=dvio,file=trim(diagdir)//'/dissv_out.dat',form='unformatted', status='REPLACE',access='stream')
+        OPEN(unit=bdvio,file=trim(diagdir)//'/bdv_out.dat',form='unformatted', status='REPLACE',access='stream')
+        OPEN(unit=vdbio,file=trim(diagdir)//'/vdb_out.dat',form='unformatted', status='REPLACE',access='stream')
+        OPEN(unit=bdcbio,file=trim(diagdir)//'/bdcb_out.dat',form='unformatted', status='REPLACE',access='stream')
+        OPEN(unit=cbdbio,file=trim(diagdir)//'/cbdb_out.dat',form='unformatted', status='REPLACE',access='stream')
+        OPEN(unit=vdvio,file=trim(diagdir)//'/vdv_out.dat',form='unformatted', status='REPLACE',access='stream')
+        OPEN(unit=bdbio,file=trim(diagdir)//'/bdb_out.dat',form='unformatted', status='REPLACE',access='stream')
+        OPEN(unit=db2io,file=trim(diagdir)//'/db2_out.dat',form='unformatted', status='REPLACE',access='stream')
       END IF
-   ELSE
-      OPEN(unit=ionums(q),file=trim(diagdir)//'/'//trim(fnames(q)),form='unformatted', status='REPLACE',access='stream')
-   END IF
-
-ENDDO
+    ELSE
+        OPEN(unit=dbio,file=trim(diagdir)//'/dissb_out.dat',form='unformatted', status='REPLACE',access='stream')
+        OPEN(unit=dvio,file=trim(diagdir)//'/dissv_out.dat',form='unformatted', status='REPLACE',access='stream')
+        OPEN(unit=bdvio,file=trim(diagdir)//'/bdv_out.dat',form='unformatted', status='REPLACE',access='stream')
+        OPEN(unit=vdbio,file=trim(diagdir)//'/vdb_out.dat',form='unformatted', status='REPLACE',access='stream')
+        OPEN(unit=bdcbio,file=trim(diagdir)//'/bdcb_out.dat',form='unformatted', status='REPLACE',access='stream')
+        OPEN(unit=cbdbio,file=trim(diagdir)//'/cbdb_out.dat',form='unformatted', status='REPLACE',access='stream')
+        OPEN(unit=vdvio,file=trim(diagdir)//'/vdv_out.dat',form='unformatted', status='REPLACE',access='stream')
+        OPEN(unit=bdbio,file=trim(diagdir)//'/bdb_out.dat',form='unformatted', status='REPLACE',access='stream')
+        OPEN(unit=db2io,file=trim(diagdir)//'/db2_out.dat',form='unformatted', status='REPLACE',access='stream')
+    END IF
 
 if (verbose) print *, 'Debug files opened'
 
@@ -4272,16 +4311,18 @@ end subroutine initialize_debug
 
 subroutine finalize_debug
 
-INTEGER :: ionums(9)
-INTEGER :: q
-
-ionums = [dbio,dvio,bdvio,vdbio,bdcbio,cbdbio,vdvio,bdbio,db2io]
-
-DO q = 1,9
-CLOSE(ionums(q))
-ENDDO 
+CLOSE(dbio)
+CLOSE(dvio)
+CLOSE(bdvio)
+CLOSE(vdbio)
+CLOSE(bdcbio)
+CLOSE(cbdbio)
+CLOSE(vdvio)
+CLOSE(bdbio)
+CLOSE(db2io)
 
 if (verbose.and.(mype.eq.0)) print *, 'Debug files closed' 
+
 end subroutine finalize_debug
 
 subroutine vec_potential
@@ -4502,10 +4543,12 @@ REAL :: ratioarr(1:nkx0-1,1:nky0-1,1:nkz0-1)
 xi = abs(kperps(1:nkx0-1,1:nky0-1,1:nkz0-1)*sqrt(sum(abs(v_1(1:nkx0-1,1:nky0-1,1:nkz0-1,:)**2),4))/kzs(1:nkx0-1,1:nky0-1,1:nkz0-1))
 if (.not.sh) then
   ratioarr = kmags(1:nkx0-1,1:nky0-1,1:nkz0-1)*sqrt(sum(abs(v_1(1:nkx0-1,1:nky0-1,1:nkz0-1,:)**2),4))
-  ratioarr = ratioarr / (kzs(1:nkx0-1,1:nky0-1,1:nkz0-1)*(kmags(1:nkx0-1,1:nky0-1,1:nkz0-1)/2 - sqrt(-1 + 0.25*kmags(1:nkx0-1,1:nky0-1,1:nkz0-1)**2)))
-  if (itime.lt.100) print *, "Shear IMHD vs Hall Cyclotron Xi",maxval(xi),maxval(abs(ratioarr))
+  ratioarr = ratioarr / (kzs(1:nkx0-1,1:nky0-1,1:nkz0-1)*(kmags(1:nkx0-1,1:nky0-1,1:nkz0-1)/2 + sqrt(-1 + 0.25*kmags(1:nkx0-1,1:nky0-1,1:nkz0-1)**2)))
+  if (itime.lt.100) print *, "Shear IMHD vs Hall Whistler Xi",maxval(xi),maxval(abs(ratioarr))
   xi = abs(ratioarr)
 endif
+
+WRITE(xi_handle) xi
 
 end subroutine nlparam
 

@@ -6,4 +6,6 @@
 #SBATCH -p skx-normal   # Queue (partition) name -- normal, development, etc.
 #SBATCH -t 24:00:00     # Run time (hh:mm:ss) - 1.5 hours
 #SBATCH -A GKIMP # Project name
+
+
 ibrun /work2/08929/echansen/stampede2/DNA2MHD/bin/dna

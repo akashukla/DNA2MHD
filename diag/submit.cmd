@@ -4,8 +4,8 @@
 #SBATCH -n 1           # Total number of mpi tasks requested
 #SBATCH -N 1           # Total number of mpi tasks requested
 #SBATCH -p skx-normal   # Queue (partition) name -- normal, development, etc.
-#SBATCH -t 5:00:00     # Run time (hh:mm:ss) - 1.5 hours
+#SBATCH -t 05:00:00     # Run time (hh:mm:ss) - 1.5 hours
 #SBATCH -A GKIMP # Project name
 
 module load python3
-python3 plotmaker2.py
+python3 plotmaker3.py
