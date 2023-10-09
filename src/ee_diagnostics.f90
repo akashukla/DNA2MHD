@@ -428,6 +428,7 @@ SUBROUTINE diag
          WRITE(en_handle) bound_hels(.false.)
          WRITE(en_handle) hmhdhmtn(1)
          WRITE(en_handle) hmhdhmtn(2)
+         WRITE(en_handle) mhelcorr
          if (verbose) write(*,*) "Found Helicities",mype
          WRITE(en_handle) eta*resvischange("b")
          WRITE(en_handle) vnu*resvischange("v")
@@ -4378,7 +4379,7 @@ CALL vec_potential()
 !enddo
 
 ! Simpler Sum
- maghel = 2.0*sum(real(AVP(:,:,:,:)*conjg(b_1(:,:,:,:))))*((2.0*pi)**3)+mhelcorr
+ maghel = 2.0*sum(real(AVP(:,:,:,:)*conjg(b_1(:,:,:,:))))*((2.0*pi)**3)
 ! if (max_itime.lt.1000.and.(.not.actual_nonlinear)) print *, "Max by at kz=ky=0 ", maxval(abs(b_1(:,0,0,1)))
  maghel = maghel + 2.0*real(AVP(0,0,0,2))
  
@@ -4436,10 +4437,10 @@ integer :: i,j,k,ind
 CALL vec_potential()
 CALL vorticity()
 
-crosshel = 2.0 * (2*pi)**3 * (sum(real((AVP+ v_1)*conjg(b_1 + WVORT)))+2*v_1(0,0,0,2))+mhelcorr
+crosshel = 2.0 * (2*pi)**3 * (sum(real((AVP+ v_1)*conjg(b_1 + WVORT)))+2*v_1(0,0,0,2))
 if (actual_nonlinear.eq..false.) then
 crosshel1 = crosshel
-mh = 2.0 * (2.0*pi)**3 * sum(real(AVP*conjg(b_1)))+mhelcorr
+mh = 2.0 * (2.0*pi)**3 * sum(real(AVP*conjg(b_1)))
 vb = 2.0 * (2.0*pi)**3 * sum(real(v_1*conjg(b_1)))
 vw = 2.0 * (2.0*pi)**3 * sum(real(v_1*conjg(WVORT)))
 crosshel2 = mh + 2.0 * vb + vw

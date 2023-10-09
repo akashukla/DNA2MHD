@@ -1375,17 +1375,17 @@ CALL dfftw_execute_dft_r2c(plan_r2c,store,temp_big)
 temp_bigz = temp_big
 
   if ((mype.eq.0)) print *,'Max NLBx',&
-    maxval(abs(temp_bigx(0:nkx0-1,0:hky_ind,0:hkz_ind)*fft_norm)/abs(rhs_out_b(:,0:hky_ind,0:hkz_ind,0)),((abs(rhs_out_b(:,0:hky_ind,0:hkz_ind,0)).gt.10.0**(-7.0)))),&
-    (/0,0,0/) + maxloc(abs(temp_bigx(0:nkx0-1,0:hky_ind,0:hkz_ind)*fft_norm)/abs(rhs_out_b(:,0:hky_ind,0:hkz_ind,0)),((abs(rhs_out_b(:,0:hky_ind,0:hkz_ind,0)).gt.10.0**(-7.0))))
+    maxval(abs(temp_bigx(1:nkx0-1,1:hky_ind,1:hkz_ind)*fft_norm)/abs(rhs_out_b(1:nkx0-1,1:hky_ind,1:hkz_ind,0)),((abs(rhs_out_b(1:nkx0-1,1:hky_ind,1:hkz_ind,0)).gt.10.0**(-7.0)))),&
+    (/1,1,1/) + maxloc(abs(temp_bigx(1:nkx0-1,1:hky_ind,1:hkz_ind)*fft_norm)/abs(rhs_out_b(1:nkx0-1,1:hky_ind,1:hkz_ind,0)),((abs(rhs_out_b(1:nkx0-1,1:hky_ind,1:hkz_ind,0)).gt.10.0**(-7.0))))
   if ((mype.eq.0)) print *,'Max NLBx',&
-    maxval(abs(temp_bigx(0:nkx0-1,0:hky_ind,lkz_big:nz0_big-1)*fft_norm)/abs(rhs_out_b(:,0:hky_ind,lkz_ind:nkz0-1,0)),((abs(rhs_out_b(:,0:hky_ind,lkz_ind:nkz0-1,0)).gt.10.0**(-7.0)))),&
-    (/0,0,lkz_ind/) + maxloc(abs(temp_bigx(0:nkx0-1,0:hky_ind,lkz_big:nz0_big-1)*fft_norm)/abs(rhs_out_b(:,0:hky_ind,lkz_ind:nkz0-1,0)),((abs(rhs_out_b(:,0:hky_ind,lkz_ind:nkz0-1,0)).gt.10.0**(-7.0))))
+    maxval(abs(temp_bigx(1:nkx0-1,1:hky_ind,lkz_big:nz0_big-1)*fft_norm)/abs(rhs_out_b(1:nkx0-1,1:hky_ind,lkz_ind:nkz0-1,0)),((abs(rhs_out_b(1:nkx0-1,1:hky_ind,lkz_ind:nkz0-1,0)).gt.10.0**(-7.0)))),&
+    (/1,1,lkz_ind/) + maxloc(abs(temp_bigx(1:nkx0-1,1:hky_ind,lkz_big:nz0_big-1)*fft_norm)/abs(rhs_out_b(1:nkx0-1,1:hky_ind,lkz_ind:nkz0-1,0)),((abs(rhs_out_b(1:nkx0-1,1:hky_ind,lkz_ind:nkz0-1,0)).gt.10.0**(-7.0))))
   if ((mype.eq.0)) print *,'Max NLBx',&
-    maxval(abs(temp_bigx(0:nkx0-1,lky_big:ny0_big-1,lkz_big:nz0_big-1)*fft_norm)/abs(rhs_out_b(:,lky_ind:nky0-1,lkz_ind:nkz0-1,0)),((abs(rhs_out_b(:,lky_ind:nky0-1,lkz_ind:nkz0-1,0)).gt.10.0**(-7.0)))),&
-    (/0,lky_ind,lkz_ind/)+maxloc(abs(temp_bigx(0:nkx0-1,lky_big:ny0_big-1,lkz_big:nz0_big-1)*fft_norm)/abs(rhs_out_b(:,lky_ind:nky0-1,lkz_ind:nkz0-1,0)),((abs(rhs_out_b(:,lky_ind:nky0-1,lkz_ind:nkz0-1,0)).gt.10.0**(-7.0))))
+    maxval(abs(temp_bigx(1:nkx0-1,lky_big:ny0_big-1,lkz_big:nz0_big-1)*fft_norm)/abs(rhs_out_b(1:nkx0-1,lky_ind:nky0-1,lkz_ind:nkz0-1,0)),((abs(rhs_out_b(1:nkx0-1,lky_ind:nky0-1,lkz_ind:nkz0-1,0)).gt.10.0**(-7.0)))),&
+    (/1,lky_ind,lkz_ind/)+maxloc(abs(temp_bigx(1:nkx0-1,lky_big:ny0_big-1,lkz_big:nz0_big-1)*fft_norm)/abs(rhs_out_b(1:nkx0-1,lky_ind:nky0-1,lkz_ind:nkz0-1,0)),((abs(rhs_out_b(1:nkx0-1,lky_ind:nky0-1,lkz_ind:nkz0-1,0)).gt.10.0**(-7.0))))
   if ((mype.eq.0)) print *,'Max NLBx',&
-    maxval(abs(temp_bigx(0:nkx0-1,lky_big:ny0_big-1,0:hkz_ind)*fft_norm)/abs(rhs_out_b(:,lky_ind:nky0-1,0:hkz_ind,0)),((abs(rhs_out_b(:,lky_ind:nky0-1,0:hkz_ind,0)).gt.10.0**(-7.0)))),&
-    (/0,lky_ind,0/)+maxloc(abs(temp_bigx(0:nkx0-1,lky_big:ny0_big-1,0:hkz_ind)*fft_norm)/abs(rhs_out_b(:,lky_ind:nky0-1,0:hkz_ind,0)),((abs(rhs_out_b(:,lky_ind:nky0-1,0:hkz_ind,0)).gt.10.0**(-7.0))))
+    maxval(abs(temp_bigx(1:nkx0-1,lky_big:ny0_big-1,1:hkz_ind)*fft_norm)/abs(rhs_out_b(1:nkx0-1,lky_ind:nky0-1,1:hkz_ind,0)),((abs(rhs_out_b(1:nkx0-1,lky_ind:nky0-1,1:hkz_ind,0)).gt.10.0**(-7.0)))),&
+    (/1,lky_ind,1/)+maxloc(abs(temp_bigx(1:nkx0-1,lky_big:ny0_big-1,1:hkz_ind)*fft_norm)/abs(rhs_out_b(1:nkx0-1,lky_ind:nky0-1,1:hkz_ind,0)),((abs(rhs_out_b(1:nkx0-1,lky_ind:nky0-1,1:hkz_ind,0)).gt.10.0**(-7.0))))
 
 !Now fill in appropriate rhs elements
   DO i=0,nkx0-1
@@ -1524,17 +1524,17 @@ CALL dfftw_execute_dft_r2c(plan_r2c,store,temp_big)
 temp_bigz = temp_big
 
   if ((mype.eq.0)) print *,'Max NLVx',&
-    maxval(abs(temp_bigx(0:nkx0-1,0:hky_ind,0:hkz_ind)*fft_norm)/abs(rhs_out_v(:,0:hky_ind,0:hkz_ind,0)),((abs(rhs_out_v(:,0:hky_ind,0:hkz_ind,0)).gt.10.0**(-7.0)))),&
-    (/0,0,0/)+maxloc(abs(temp_bigx(0:nkx0-1,0:hky_ind,0:hkz_ind)*fft_norm)/abs(rhs_out_v(:,0:hky_ind,0:hkz_ind,0)),((abs(rhs_out_v(:,0:hky_ind,0:hkz_ind,0)).gt.10.0**(-7.0))))
+    maxval(abs(temp_bigx(1:nkx0-1,1:hky_ind,1:hkz_ind)*fft_norm)/abs(rhs_out_v(1:nkx0-1,1:hky_ind,1:hkz_ind,0)),((abs(rhs_out_v(1:nkx0-1,1:hky_ind,1:hkz_ind,0)).gt.10.0**(-7.0)))),&
+    (/1,1,1/) + maxloc(abs(temp_bigx(1:nkx0-1,1:hky_ind,1:hkz_ind)*fft_norm)/abs(rhs_out_v(1:nkx0-1,1:hky_ind,1:hkz_ind,0)),((abs(rhs_out_v(1:nkx0-1,1:hky_ind,1:hkz_ind,0)).gt.10.0**(-7.0))))
   if ((mype.eq.0)) print *,'Max NLVx',&
-    maxval(abs(temp_bigx(0:nkx0-1,0:hky_ind,lkz_big:nz0_big-1)*fft_norm)/abs(rhs_out_v(:,0:hky_ind,lkz_ind:nkz0-1,0)),((abs(rhs_out_v(:,0:hky_ind,lkz_ind:nkz0-1,0)).gt.10.0**(-7.0)))),&
-    (/0,0,lkz_ind/)+maxloc(abs(temp_bigx(0:nkx0-1,0:hky_ind,lkz_big:nz0_big-1)*fft_norm)/abs(rhs_out_v(:,0:hky_ind,lkz_ind:nkz0-1,0)),((abs(rhs_out_v(:,0:hky_ind,lkz_ind:nkz0-1,0)).gt.10.0**(-7.0))))
+    maxval(abs(temp_bigx(1:nkx0-1,1:hky_ind,lkz_big:nz0_big-1)*fft_norm)/abs(rhs_out_v(1:nkx0-1,1:hky_ind,lkz_ind:nkz0-1,0)),((abs(rhs_out_v(1:nkx0-1,1:hky_ind,lkz_ind:nkz0-1,0)).gt.10.0**(-7.0)))),&
+    (/1,1,lkz_ind/) + maxloc(abs(temp_bigx(1:nkx0-1,1:hky_ind,lkz_big:nz0_big-1)*fft_norm)/abs(rhs_out_v(1:nkx0-1,1:hky_ind,lkz_ind:nkz0-1,0)),((abs(rhs_out_v(1:nkx0-1,1:hky_ind,lkz_ind:nkz0-1,0)).gt.10.0**(-7.0))))
   if ((mype.eq.0)) print *,'Max NLVx',&
-    maxval(abs(temp_bigx(0:nkx0-1,lky_big:ny0_big-1,lkz_big:nz0_big-1)*fft_norm)/abs(rhs_out_v(:,lky_ind:nky0-1,lkz_ind:nkz0-1,0)),((abs(rhs_out_v(:,lky_ind:nky0-1,lkz_ind:nkz0-1,0)).gt.10.0**(-7.0)))),&
-    (/0,lky_ind,lkz_ind/)+maxloc(abs(temp_bigx(0:nkx0-1,lky_big:ny0_big-1,lkz_big:nz0_big-1)*fft_norm)/abs(rhs_out_v(:,lky_ind:nky0-1,lkz_ind:nkz0-1,0)),((abs(rhs_out_v(:,lky_ind:nky0-1,lkz_ind:nkz0-1,0)).gt.10.0**(-7.0))))
+    maxval(abs(temp_bigx(1:nkx0-1,lky_big:ny0_big-1,lkz_big:nz0_big-1)*fft_norm)/abs(rhs_out_v(1:nkx0-1,lky_ind:nky0-1,lkz_ind:nkz0-1,0)),((abs(rhs_out_v(1:nkx0-1,lky_ind:nky0-1,lkz_ind:nkz0-1,0)).gt.10.0**(-7.0)))),&
+    (/1,lky_ind,lkz_ind/)+maxloc(abs(temp_bigx(1:nkx0-1,lky_big:ny0_big-1,lkz_big:nz0_big-1)*fft_norm)/abs(rhs_out_v(1:nkx0-1,lky_ind:nky0-1,lkz_ind:nkz0-1,0)),((abs(rhs_out_v(1:nkx0-1,lky_ind:nky0-1,lkz_ind:nkz0-1,0)).gt.10.0**(-7.0))))
   if ((mype.eq.0)) print *,'Max NLVx',&
-    maxval(abs(temp_bigx(0:nkx0-1,lky_big:ny0_big-1,0:hkz_ind)*fft_norm)/abs(rhs_out_v(:,lky_ind:nky0-1,0:hkz_ind,0)),((abs(rhs_out_v(:,lky_ind:nky0-1,0:hkz_ind,0)).gt.10.0**(-7.0)))),&
-    (/0,lky_ind,0/)+maxloc(abs(temp_bigx(0:nkx0-1,lky_big:ny0_big-1,0:hkz_ind)*fft_norm)/abs(rhs_out_v(:,lky_ind:nky0-1,0:hkz_ind,0)),((abs(rhs_out_v(:,lky_ind:nky0-1,0:hkz_ind,0)).gt.10.0**(-7.0))))
+    maxval(abs(temp_bigx(1:nkx0-1,lky_big:ny0_big-1,1:hkz_ind)*fft_norm)/abs(rhs_out_v(1:nkx0-1,lky_ind:nky0-1,1:hkz_ind,0)),((abs(rhs_out_v(1:nkx0-1,lky_ind:nky0-1,1:hkz_ind,0)).gt.10.0**(-7.0)))),&
+    (/1,lky_ind,1/)+maxloc(abs(temp_bigx(1:nkx0-1,lky_big:ny0_big-1,1:hkz_ind)*fft_norm)/abs(rhs_out_v(1:nkx0-1,lky_ind:nky0-1,1:hkz_ind,0)),((abs(rhs_out_v(1:nkx0-1,lky_ind:nky0-1,1:hkz_ind,0)).gt.10.0**(-7.0))))
 
 !Now fill in appropriate rhs elements
   DO i=0,nkx0-1

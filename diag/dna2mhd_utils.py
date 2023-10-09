@@ -155,11 +155,11 @@ def read_time_step_opt(which_itime,opt,swap_endian=False):
    return gt0
 
 def read_time_step_energy(which_itime,swap_endian=False):
-   """Reads a time step from opt_out.dat.  Time step determined by \'which_itime\'"""
+   """Reads a time step from energy_out.dat.  Time step determined by \'which_itime\'"""
    file_name = par['diagdir'][1:-1]+'/energy_out.dat'
    f = open(file_name,'rb')
    gt0=np.empty((1))
-   ntot = 11
+   ntot = 12
    mem_tot = (ntot)*8
    gt0 = np.empty(ntot)
    f.seek(8+which_itime*(8+mem_tot))
@@ -171,7 +171,7 @@ def read_time_step_energy(which_itime,swap_endian=False):
    return gt0
 
 def read_time_step_energyspec(which_itime,swap_endian=False):
-   """Reads a time step from opt_out.dat.  Time step determined by \'which_itime\'"""
+   """Reads a time step from energyspec_out.dat.  Time step determined by \'which_itime\'"""
    file_name = par['diagdir'][1:-1]+'/energyspec_out.dat'
    f = open(file_name,'rb')
    gt0=np.empty((1))
@@ -183,6 +183,22 @@ def read_time_step_energyspec(which_itime,swap_endian=False):
    if swap_endian:
        gt0=gt0.newbyteorder()
    #print sum(gt0)                                                                                      \                            
+   f.close()
+   return gt0
+
+def read_time_step_xi(which_itime,swap_endian=False):
+   """Reads a time step from xi_out.dat.  Time step determined by \'which_itime\'"""
+   file_name = par['diagdir'][1:-1]+'/xi_out.dat'
+   f = open(file_name,'rb')
+   gt0=np.empty((1))
+   ntot = (par['nkx0']-1)*(par['nky0']-1)*(par['nkz0']-1)
+   mem_tot = (ntot)*8
+   gt0 = np.empty((par['nkx0']-1,par['nky0']-1,par['nkz0']-1))
+   f.seek(8+which_itime*(8+mem_tot))
+   gt0=np.fromfile(f,dtype='float64',count=ntot)
+   if swap_endian:
+       gt0=gt0.newbyteorder()
+   #print sum(gt0)                                                                                      \                                                                                                                                                                                                                      
    f.close()
    return gt0
 
@@ -276,7 +292,7 @@ def get_time_from_energyout(swap_endian=False,tmax=2000000):
    """Returns time array taken from v_out.dat"""
    file_name = par['diagdir'][1:-1]+ '/energy_out.dat'
    f = open(file_name,'rb')
-   ntot = 11
+   ntot = 12
    mem_tot=ntot*8
    time=np.empty(0)
    continue_read=1
@@ -307,6 +323,32 @@ def get_time_from_energyspecout(swap_endian=False,tmax=2000000):
    file_name = par['diagdir'][1:-1]+ '/energyspec_out.dat'
    f = open(file_name,'rb')
    ntot=par['nkx0']*par['nky0']*par['nkz0']*2
+   mem_tot=ntot*8
+   time=np.empty(0)
+   continue_read=1
+   i=0
+   while (continue_read):
+     f.seek(i*(mem_tot+8))
+     i=i+1
+     inp=np.fromfile(f,dtype='float64',count=1)
+     if swap_endian:
+         inp=inp.newbyteorder()
+
+     if inp==0 or inp:
+         time = np.append(time,inp)
+     else:
+         continue_read=0
+     if inp >= tmax:
+         continue_read=0
+
+   f.close()
+   return time
+
+def get_time_from_xiout(swap_endian=False,tmax=2000000):
+   """Returns time array taken from v_out.dat"""
+   file_name = par['diagdir'][1:-1]+ '/xi_out.dat'
+   f = open(file_name,'rb')
+   ntot=(par['nkx0']-1)*(par['nky0']-1)*(par['nkz0']-1)
    mem_tot=ntot*8
    time=np.empty(0)
    continue_read=1
@@ -428,7 +470,7 @@ def getenergy(lpath,tmax=2000000):
 
     kx,ky,kz=get_grids()
     i_n=[0,1,2]
-    ntot = 11
+    ntot = 12
     savepath = lpath+'/energy_xyz.dat'
     #g=np.zeros((len(time)-1,len(kx),len(ky,),len(kz),len(i_n)), dtype='complex64') 
    #print('allocating array') 
@@ -482,6 +524,31 @@ def getenergyspec(lpath,tmax=2000000):
     evk = np.reshape(g[:,:,:,:,0],(len(time),len(kx),len(ky),len(kz)))
     ebk = np.reshape(g[:,:,:,:,1],(len(time),len(kx),len(ky),len(kz)))
     return time, evk,ebk
+
+def getxi(lpath,tmax=2000000):
+    """Saves xi_out.dat (located in the directory specified by lpath) into a python-readable format v_xyz.dat                                                                                                                                                                                                          
+    which will also be located in the lpath directory.                                                                                                                                                                                                                                                                         
+    """
+    read_parameters(lpath)
+    time = get_time_from_xiout(tmax=tmax)
+    kx,ky,kz=get_grids()
+    i_n=[0,1,2]
+    savepath = lpath+'/xi_xyz.dat'
+    g=np.memmap(savepath,dtype='float64',mode='w+', shape=(len(time),len(kx)-1,len(ky)-1,len(kz)-1) )
+    np.save(lpath+'/xishape.npy',g.shape)
+    np.save(lpath+'/timexi.npy',time)
+    print(par)
+    print('time length = ', len(time))
+    for t in range(len(time)):
+        if(t%1000==0):
+            print(str(t))
+        gt = read_time_step_xi(t)
+        gt = np.reshape(gt,(par['nkx0']-1,par['nky0']-1,par['nkz0']-1),order='F')
+        g[t] = gt
+    f = open(lpath+'/dumxi.txt','w')
+    f.write('Finished loop')
+    f.close()
+    return time, g
 
 def load_b(lpath):
     """
@@ -540,6 +607,16 @@ def load_energyspec(lpath):
     evk = np.reshape(g[:,:,:,:,0],(len(time),par['nkx0'],par['nky0'],par['nkz0']))
     ebk = np.reshape(g[:,:,:,:,1],(len(time),par['nkx0'],par['nky0'],par['nkz0']))
     return time, evk,ebk
+
+def load_xi(lpath):
+    """  This method can only be run after getv has been called at least once to save the v_xyz.dat file_name                                                                                                                                                                                                                  
+    This quickly loads the v array which will have indices [time,kx,ky,kz, x/y/z]"""
+    read_parameters(lpath)
+    if lpath==None:
+        lpath='/scratch/04943/akshukla/dna2mhd_output_0'
+    time = np.load(lpath+'/timexi.npy')
+    xi=np.memmap(lpath+'/xi_xyz.dat',dtype='float64',mode='r',shape=tuple(np.load(lpath+'/xishape.npy')))
+    return time, xi
 
 def plot_bv(lpath,ix,iy,iz,ind,show=True,ask=True):
     """
@@ -847,7 +924,7 @@ def plot_energy(lpath,ntp,show=True,log=False,rescale=True,xb=1,tmax=2000000):
 
     shapes = {1:(1,1),2:(2,1),3:(2,2),4:(2,2),5:(2,3),6:(2,3),7:(3,3),8:(3,3),9:(3,3)}
     s = shapes[ntp+1]
-    labels = {0:'Energy',1:'Magnetic Helicity',2:'MH Error',3:'MH Bound',4:'Canonical Helicity',5:'CH Error',6:'CH Bound',7:'Kinetic Energy',8:'Magnetic Energy',9:'Nonlinearity Parameter $\frac{k_\perp v_\lambda}{k_z V_A}$'}
+    labels = {0:'Energy',1:'Magnetic Helicity',2:'MH Error',3:'MH Bound',4:'Canonical Helicity',5:'CH Error',6:'CH Bound',7:'Kinetic Energy',8:'Magnetic Energy',9:'MH Corr'}
     fnames = {0:'energy',1:'maghcty',4:'canhcty',7:'spliten',9:'nlp'}
     
     if not os.path.exists(lpath + '/eplots/'):
@@ -872,16 +949,18 @@ def plot_energy(lpath,ntp,show=True,log=False,rescale=True,xb=1,tmax=2000000):
             plt.close()
         elif not log:
             fig,ax = plt.subplots(1)
-            if i == 1:
-                rr = enval[:,2]
-            elif i == 4:
-                rr  = np.sqrt(enval[:,2]**2 + enval[:,5]**2)
+
+#            if i == 1:
+#                rr = enval[:,2]
+#            elif i == 4:
+#                rr  = np.sqrt(enval[:,2]**2 + enval[:,5]**2)
             if i == 0 or i == 9:
                 ax.plot(timeen,enval[:,i])
-            elif not rescale:
-                ax.errorbar(timeen,enval[:,i],yerr=rr)
             else:
-                ax.errorbar(timeen,enval[:,i]/enval[0,i+2],yerr=rr/enval[0,i+2])
+                ax.plot(timeen,enval[:,i]/enval[0,i+2],'r',label="Original")
+                if par['mhc']:
+                    ax.plot(timeen,(enval[:,i]+enval[:,9])/enval[0,i+2],'b',label="Transformed")
+                    ax.legend()
             ax.set_xlabel('time (1/wc)')
             ax.set_ylabel(labels[i])
             fig.suptitle(labels[i])
@@ -1159,9 +1238,7 @@ def plot_bspectrum(lpath,ix,iy,iz,ind,show=True,opt='b'):
     plt.close()
     return freq[peaks]*2*np.pi
 
-def plot_profile_enspec(lpath,ix,iy,iz,ind,tbv='t',show=True):
-    ind_strings = ['x','y','z']
-    ind_string = ind_strings[ind]
+def plot_profile_enspec(lpath,ix,iy,iz,tbv='t',show=True):
     read_parameters(lpath)
     kx,ky,kz = get_grids()
     time,ebk,evk =load_energyspec(lpath)
@@ -1172,24 +1249,53 @@ def plot_profile_enspec(lpath,ix,iy,iz,ind,tbv='t',show=True):
     labels = {'t':'Total ','b':'Magnetic ','v':'Kinetic '}
     ekt = profs[tbv]
     fig,ax = plt.subplots(2)
-    ax[0].plot(time,ekt,label=labels[tbv])
+    ax[0].plot(time,ekt,'b',label=labels[tbv])
     ax[0].set_ylabel(labels[tbv]+'Energy Spectrum')
     ax[0].set_ylim(0,1.2*np.amax(ekt))
     ax[0].legend()
     ts, cts = profile_chartime_numdiv(time,ekt)
     ax[1].plot(ts,cts,label='Derivative Times')
-    print(profile_chartime_expfit(time,ekt))
+    popt,pcov = profile_chartime_expfit(time,ekt)
+    yy = func_exp(time,*popt)
+    ax[0].plot(time,yy,'r',label="Exponential Fit")
     fig.suptitle('kx,ky,kz = %1.2f,%1.2f,%1.2f'%(kx[ix],ky[iy],kz[iz]))
     fig.supxlabel('time (1/wc)')
     if lpath[-1] != '/':
         lpath = lpath + '/'
     if not os.path.exists(lpath + 'esps/'):
         os.mkdir(lpath + 'esps/')
-    plt.savefig(lpath+'esps/esp_%s__%s_%d_%d_%d'%(tbv,ind_string,ix,iy,iz))
+    plt.savefig(lpath+'esps/esp_%s_%d_%d_%d'%(tbv,ix,iy,iz))
     if show == True:
         plt.show()
     plt.close()
     return time,ekt
+
+def plot_profile_xi(lpath,ix,iy,iz,tbv='t',show=True,newload=False):
+    read_parameters(lpath)
+    kx,ky,kz = get_grids()
+    if newload==False:
+        wp,wm = analytical_omega(lpath,ix,iy,iz)
+    time,xik =load_xi(lpath)
+    xikt = xik[:,ix-1,iy-1,iz-1]
+    fig,ax = plt.subplots(1)
+    ax.plot(time,xikt,'ks',label='Alfven Whistler',markersize=1)
+    ax.plot(time,xikt*wp,'rs',label='MHD',markersize=1)
+    ax.plot(time,xikt*wp/wm,'bs',label='Alfven Cyclotron',markersize=1)
+    ax.set_ylabel('Nonlinearity Parameter')
+    ax.set_ylim(10**(-4),10)
+    ax.set_yscale('log')
+    ax.legend()
+    fig.suptitle('kx,ky,kz = %1.2f,%1.2f,%1.2f'%(kx[ix],ky[iy],kz[iz]))
+    fig.supxlabel('time (1/wc)')
+    if lpath[-1] != '/':
+        lpath = lpath + '/'
+    if not os.path.exists(lpath + 'xis/'):
+        os.mkdir(lpath + 'xis/')
+    plt.savefig(lpath+'xis/xi_%s_%d_%d_%d'%(tbv,ix,iy,iz))
+    if show == True:
+        plt.show()
+    plt.close()
+    return time,xikt
 
 def profile_chartime_numdiv(time,ekt):
     de = ekt[2:]-ekt[:-2]
@@ -1198,8 +1304,9 @@ def profile_chartime_numdiv(time,ekt):
     ts = time[1:-1]
     # print(ee)
     # print(de/dt)
-    cts = dt * ee/de
-    return ts, cts
+    cts = np.abs(dt * ee/de)
+    mask = np.argwhere(cts >= 5* np.median(cts))
+    return ts[mask], cts[mask]
 
 def func_exp(x,a,b,tt):
     return(a + b * np.exp( - x/tt))
@@ -1208,6 +1315,94 @@ def profile_chartime_expfit(time,ekt):
     tg = -time[-2]/np.log((ekt[-2]-ekt[-1])/(ekt[0]-ekt[-1]))
     # print(tg)
     popt,pcov = spo.curve_fit(func_exp,time,ekt,p0=[ekt[-1],-ekt[-1]+ekt[0],tg])
-    return(popt[2])
+    return(popt,pcov)
 
     
+def plot_xispec(lpath,npt=1,zz=-1,show=True,log=True,tmaxfac=1,tmax=2000000,tt=1,newload=False):
+    read_parameters(lpath)
+    kx,ky,kz = get_grids()
+
+    if os.path.isfile(lpath+'/dumxi.txt'):
+        t,xik = load_xi(lpath)
+    else:
+        t,xik = getxi(lpath,tmax=tmax)
+    
+    fmts = ["k","m","b","g","r"]
+    fig1,ax1 = plt.subplots(1)
+    kmag = np.sqrt(np.log(np.tensordot(np.tensordot(np.exp(kx[1:]**2),np.exp(ky[1:]**2),axes=0),np.exp(kz[1:]**2),axes=0)))
+    j = 0
+
+    ttp = np.linspace(0,(np.size(t)-1)/tmaxfac,num=npt)
+    ttp = ttp.astype(int)
+
+    if newload==False:
+        kxx,kyy,kzz = np.meshgrid(ky[1:],kx[1:],kz[1:])
+        wp = kzz * np.sqrt((1+0.5*kmag**2) + np.sqrt((1+0.5*kmag**2)**2 - 1))
+        wm = kzz * np.sqrt((1+0.5*kmag**2) - np.sqrt((1+0.5*kmag**2)**2 - 1))
+    for i in ttp[tt-1:tt]:
+        xit = xik[i,:,:,:]
+        if (zz < 1):
+            x = np.reshape(kmag,np.size(kmag))
+            a = np.argsort(x)
+            y = np.reshape(xit,np.size(kmag))
+            if newload==False:
+                wpp = np.reshape(wp,np.size(kmag))
+                wmm = np.reshape(wm,np.size(kmag))
+        else:
+            x = np.reshape(kmag[:,:,zz],np.size(kmag[:,:,zz]))
+            a = np.argsort(x)
+            y = np.reshape(xit[:,:,zz],np.size(kmag[:,:,0]))
+            if newload==False:
+                wpp = np.reshape(wp[:,:,zz],np.size(kmag[:,:,0]))
+                wmm = np.reshape(wm[:,:,zz],np.size(kmag[:,:,0]))
+
+        ax1.plot(x[a],y[a],"ks",label="Alfven Whister "+np.format_float_positional(t[i],2),markersize=1)
+        ax1.plot(x[a],y[a]*wpp/wmm,"bs",label="Alfven Cyclotron "+np.format_float_positional(t[i],2),markersize=1)
+        ax1.plot(x[a],y[a]*wpp,"rs",label="MHD "+np.format_float_positional(t[i],2),markersize=1)
+        print(np.argmax(y[a]*wpp/wmm))
+        j = j - 1
+
+    ax1.legend()
+    ax1.set_ylim(10**(-4),10)
+
+    if log:
+       ax1.set_yscale("log")
+       ax1.set_xscale("log")
+
+    label=""
+    if (zz < 1):
+        fig1.suptitle("Nonlinearity Parameter Spectrum")
+        ax1.set_ylabel("Nonlinearity Parameter")
+        fig1.supxlabel("k")
+    else:
+        fig1.suptitle("Nonlinearity Parameter Spectrum kz = {}".format(np.format_float_positional(kz[zz],2)))
+        ax1.set_ylabel("Nonlinearity Parameter")
+        fig1.supxlabel("k")
+
+    if not os.path.exists(lpath + '/xis/'):
+        os.mkdir(lpath + '/xis/')
+    fig1.savefig(lpath+'/xis/xispec'+str(max(zz,0))+'.png')
+    if show == True:
+        fig1.show()
+    else:
+        plt.close("all")
+
+    return(t,xik)
+
+def integrate_spectrum_3d(spec,lpath):
+    read_parameters(lpath)
+    kx,ky,kz = get_grids()
+    kygrid,kxgrid = np.meshgrid(kx,ky)
+    kpgrid = np.sqrt(kxgrid**2 + kygrid**2)
+    kps = np.flatten(kpgrid)
+    kperps = np.unique(kps)
+
+    spec2d = np.zeros([np.size(kperps),np.size(kz)])
+    for j in np.arange(np.size(kz)):
+        for i in np.arange(np.size(kperps)):
+            w = np.argwhere(kpgrid==kperps[i])
+            spec2d[i,j] = kperps[i]*np.sum(spec[w,j])
+
+    spec1d = np.sum(spec2d,axis=1)
+    return(spec1d)
+

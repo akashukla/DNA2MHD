@@ -309,6 +309,7 @@ SUBROUTINE output_parameters
     WRITE(out_handle,"(A,G12.4)") "init_kolm = ",init_kolm
     WRITE(out_handle,"(A,G12.4)") "phdf = ",phdf
     WRITE(out_handle,"(A,G12.4)") "phdfxy = ",phdfxy
+    WRITE(out_handle,"(A,G12.4)") "hyp = ",hyp
     WRITE(out_handle,"(A)")    "/"
     WRITE(out_handle,"(A)")    ""
 
