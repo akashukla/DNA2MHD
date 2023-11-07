@@ -334,7 +334,7 @@ SUBROUTINE initial_condition(which_init0)
       IF ((verbose.and.(mype.eq.0)).and.(set_forcing)) print *, 'Force Amp',force_amp
 
       ! Linear stability maximum time step
-      dt_max = minval([dt_max,2.5/(maxval(kzgrid)*(maxval(kmags)/2 + sqrt(1 + 0.25*maxval(kmags)**2.0)))])
+      dt_max = minval([dt_max,2.8/(maxval(kzgrid)*(maxval(kmags)/2 + sqrt(1 + 0.25*maxval(kmags)**2.0)))])
       if (verbose.and.(mype.eq.0)) then
         print *, "kzgrid max", maxval(kzgrid)
         print *, "kmags max", maxval(kmags)

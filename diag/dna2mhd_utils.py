@@ -940,8 +940,8 @@ def plot_energy(lpath,ntp,show=True,log=False,rescale=True,xb=1,tmax=2000000):
             ax[0].set_ylabel(labels[i])
             ax[1].plot(timeen,enval[:,i+1])
             ax[1].set_ylabel(labels[i+1])
-            ax[0].set_xlabel('time (1/wc)')
-            ax[1].set_xlabel('time (1/wc)')
+            ax[0].set_xlabel('Time (1/$\omega_c$)')
+            ax[1].set_xlabel('Time (1/$\omega_c$)')
             fig.suptitle('Kinetic and Magnetic Energies')
             plt.savefig(lpath+'/eplots/'+fnames[i])
             if show == True:
@@ -961,7 +961,7 @@ def plot_energy(lpath,ntp,show=True,log=False,rescale=True,xb=1,tmax=2000000):
                 if par['mhc']:
                     ax.plot(timeen,(enval[:,i]+enval[:,9])/enval[0,i+2],'b',label="Transformed")
                     ax.legend()
-            ax.set_xlabel('time (1/wc)')
+            ax.set_xlabel('Time (1/$\omega_c$)')
             ax.set_ylabel(labels[i])
             fig.suptitle(labels[i])
             if np.amax(enval) > 10 ** 5:
@@ -973,7 +973,7 @@ def plot_energy(lpath,ntp,show=True,log=False,rescale=True,xb=1,tmax=2000000):
         else:
             fig,ax = plt.subplots(1)
             ax.plot(timeen,np.abs(enval[:,i]))
-            ax.set_xlabel('time (1/wc)')
+            ax.set_xlabel('Time (1/$\omega_c$)')
             ax.set_ylabel(labels[i])
             ax.set_yscale('log')
             fig.suptitle(labels[i])
@@ -1017,7 +1017,7 @@ def plot_enspec(lpath,npt=1,zz=-1,show=True,log=False,linplot=False,newload=Fals
                     badj = 1+(kx[i]**2 * np.cos(bths)**2 + ky[j]**2 * np.sin(bths)**2 + kx[i]*ky[j]*np.sin(2*bths)*np.cos(bphixs-bphiys))/(kz[k]**2)
                     vadj = 1+(kx[i]**2 * np.cos(vths)**2 + ky[j]**2 * np.sin(vths)**2 + kx[i]*ky[j]*np.sin(2*vths)*np.cos(vpsixs-vpsiys))/(kz[k]**2)
             print(i)
-    fmts = ["ks","mo","b^","g*","r8"]
+    fmts = ["r8","ks","ro","b^","m*"]
     fig1,ax1 = plt.subplots(1)
     fig2,ax2 = plt.subplots(1)
     fig3,ax3 = plt.subplots(1)
@@ -1067,9 +1067,9 @@ def plot_enspec(lpath,npt=1,zz=-1,show=True,log=False,linplot=False,newload=Fals
             ax2.plot(1/(x[a]**par["init_kolm"]),yv[a],fmts[np.mod(i,5)],label=np.format_float_positional(t[i],2),markersize=1)
             ax3.plot(1/(x[a]**par["init_kolm"]),yt[a],fmts[np.mod(i,5)],label=np.format_float_positional(t[i],2),markersize=1)
         else:
-            ax1.plot(x[a],yb[a],fmts[np.mod(j,5)],label=np.format_float_positional(t[i],2),markersize=1)
-            ax2.plot(x[a],yv[a],fmts[np.mod(j,5)],label=np.format_float_positional(t[i],2),markersize=1)
-            ax3.plot(x[a],yt[a],fmts[np.mod(j,5)],label=np.format_float_positional(t[i],2),markersize=1)
+            ax1.plot(x[a],yb[a],fmts[np.mod(j,5)],label=np.format_float_positional(t[i],2)+" $\omega_c^{-1}$",markersize=1)
+            ax2.plot(x[a],yv[a],fmts[np.mod(j,5)],label=np.format_float_positional(t[i],2)+" $\omega_c^{-1}$",markersize=1)
+            ax3.plot(x[a],yt[a],fmts[np.mod(j,5)],label=np.format_float_positional(t[i],2)+" $\omega_c^{-1}$",markersize=1)
         
         j = j - 1
 
@@ -1087,11 +1087,11 @@ def plot_enspec(lpath,npt=1,zz=-1,show=True,log=False,linplot=False,newload=Fals
        ax3.set_yscale("log")
        ax3.set_xscale("log")
 
-    label=""
+    label=" Energy Spectrum"
     if (zz == -1):
-        fig1.suptitle("Energy Spectrum")
-        fig2.suptitle("Energy Spectrum")
-        fig3.suptitle("Energy Spectrum")
+        fig1.suptitle("3D Energy Spectrum")
+        fig2.suptitle("3D Energy Spectrum")
+        fig3.suptitle("3D Energy Spectrum")
         ax1.set_ylabel("Magnetic"+label)
         ax2.set_ylabel("Kinetic"+label)
         ax3.set_ylabel("Total"+label)
@@ -1100,9 +1100,9 @@ def plot_enspec(lpath,npt=1,zz=-1,show=True,log=False,linplot=False,newload=Fals
             fig2.supxlabel("1/k^{}".format(par["init_kolm"]))
             fig3.supxlabel("1/k^{}".format(par["init_kolm"]))
         else:
-            fig1.supxlabel(label+" k")
-            fig2.supxlabel(label+" k")
-            fig3.supxlabel(label+" k")
+            fig1.supxlabel("|k| ($d_i^{-1}$)")
+            fig2.supxlabel("|k| ($d_i^{-1}$)")
+            fig3.supxlabel("|k| ($d_i^{-1}$)")
 
     else:
         fig1.suptitle("Perpendicular Energy Spectrum kz = "+np.format_float_positional(kz[zz+1],2))
@@ -1125,6 +1125,26 @@ def plot_enspec(lpath,npt=1,zz=-1,show=True,log=False,linplot=False,newload=Fals
         fig3.show()
     else:
         plt.close("all")
+    
+    tt = np.arange(np.size(t))
+    sts = ["ks","ro","b^","m*"]
+    ttplot = np.floor(np.linspace(0,tt[-1],4)).astype("int")
+    fig,ax = plt.subplots(1)
+    for i in range(4):
+        kperps,ekti = integrated_spectrum_1d(ekm[ttplot[i],:,:,:],lpath)
+        ax.plot(kperps,ekti,sts[i],label=np.format_float_positional(t[ttplot[i]],2))
+    fig.suptitle("Integrated Total Energy Spectrum")
+    ax.set_ylabel("Total Energy Spectrum")
+    ax.set_xlabel("$k_{\perp}$")
+    ax.set_yscale("log")
+    ax.set_xscale("log")
+    ax.legend()
+    fig.savefig(lpath+'/eplots/t1denspec.png')
+    if show == True:
+        plt.show()
+    else:
+        plt.close()
+
     return(t,ekm)
 
 #if __name__ == '__main__':
@@ -1238,7 +1258,7 @@ def plot_bspectrum(lpath,ix,iy,iz,ind,show=True,opt='b'):
     plt.close()
     return freq[peaks]*2*np.pi
 
-def plot_profile_enspec(lpath,ix,iy,iz,tbv='t',show=True):
+def plot_profile_enspec(lpath,ix,iy,iz,tbv='t',show=True,navg=20):
     read_parameters(lpath)
     kx,ky,kz = get_grids()
     time,ebk,evk =load_energyspec(lpath)
@@ -1248,18 +1268,29 @@ def plot_profile_enspec(lpath,ix,iy,iz,tbv='t',show=True):
     profs = {'t':etkt,'b':ebkt,'v':evkt}
     labels = {'t':'Total ','b':'Magnetic ','v':'Kinetic '}
     ekt = profs[tbv]
-    fig,ax = plt.subplots(2)
-    ax[0].plot(time,ekt,'b',label=labels[tbv])
-    ax[0].set_ylabel(labels[tbv]+'Energy Spectrum')
-    ax[0].set_ylim(0,1.2*np.amax(ekt))
-    ax[0].legend()
-    ts, cts = profile_chartime_numdiv(time,ekt)
-    ax[1].plot(ts,cts,label='Derivative Times')
-    popt,pcov = profile_chartime_expfit(time,ekt)
-    yy = func_exp(time,*popt)
-    ax[0].plot(time,yy,'r',label="Exponential Fit")
-    fig.suptitle('kx,ky,kz = %1.2f,%1.2f,%1.2f'%(kx[ix],ky[iy],kz[iz]))
-    fig.supxlabel('time (1/wc)')
+    sampled_profile = np.array([])
+    tt = time[np.arange(0,np.size(time),navg)]
+    mover = 0
+    while mover < np.size(time):
+        sampled_profile = np.append(sampled_profile,np.mean(ekt[mover:mover+navg]))
+        mover += navg
+    fig,ax = plt.subplots(1)
+    ax.plot(time,ekt,'k:',label='Full Profile')
+    ax.plot(tt,sampled_profile,'bs',label='Averaged')
+    ax.set_ylabel(labels[tbv]+'Energy Spectrum')
+    ax.set_ylim(0,1.2*np.amax(ekt))
+    ts, cts = profile_chartime_numdiv(tt,sampled_profile)
+    fig2,ax2 = plt.subplots(1)
+    ax2.plot(ts,cts,label='Derivative Times')
+    popt,pcov = profile_chartime_expfit(tt,sampled_profile)
+    yy = func_exp(tt,*popt)
+    ax.plot(tt,yy,'r',label="Exponential Fit Rate "+np.format_float_positional(np.abs(popt[1]),2))
+    ax.legend()
+    ax2.set_ylabel("Derivative Times")
+    fig.suptitle('$ k_x, k_y, k_z$ = %1.2f,%1.2f,%1.2f ($d_i^{-1}$)'%(kx[ix],ky[iy],kz[iz]))
+    fig2.suptitle('$ k_x, k_y, k_z$ = %1.2f,%1.2f,%1.2f ($d_i^{-1}$)'%(kx[ix],ky[iy],kz[iz]))
+    fig.supxlabel('Time ($\omega_c^{-1}$)')
+    fig2.supxlabel('Time ($\omega_c^{-1}$)')
     if lpath[-1] != '/':
         lpath = lpath + '/'
     if not os.path.exists(lpath + 'esps/'):
@@ -1268,7 +1299,7 @@ def plot_profile_enspec(lpath,ix,iy,iz,tbv='t',show=True):
     if show == True:
         plt.show()
     plt.close()
-    return time,ekt
+    return tt,sampled_profile
 
 def plot_profile_xi(lpath,ix,iy,iz,tbv='t',show=True,newload=False):
     read_parameters(lpath)
@@ -1304,17 +1335,16 @@ def profile_chartime_numdiv(time,ekt):
     ts = time[1:-1]
     # print(ee)
     # print(de/dt)
-    cts = np.abs(dt * ee/de)
-    mask = np.argwhere(cts >= 5* np.median(cts))
-    return ts[mask], cts[mask]
+    cts = np.abs(1/ee * de/dt)
+    return ts, cts
 
-def func_exp(x,a,b,tt):
-    return(a + b * np.exp( - x/tt))
+def func_exp(x,b,w):
+    return( b * np.exp( -w*x))
 
 def profile_chartime_expfit(time,ekt):
-    tg = -time[-2]/np.log((ekt[-2]-ekt[-1])/(ekt[0]-ekt[-1]))
+    tg = -np.log(ekt[-1]/ekt[0])/(time[-1]-time[0])
     # print(tg)
-    popt,pcov = spo.curve_fit(func_exp,time,ekt,p0=[ekt[-1],-ekt[-1]+ekt[0],tg])
+    popt,pcov = spo.curve_fit(func_exp,time,ekt,p0=[ekt[0],tg],method='dogbox')
     return(popt,pcov)
 
     
@@ -1387,22 +1417,99 @@ def plot_xispec(lpath,npt=1,zz=-1,show=True,log=True,tmaxfac=1,tmax=2000000,tt=1
     else:
         plt.close("all")
 
+#    kperps,xit1 = integrated_spectrum_1d(xik[-1,:,:,:],lpath)
+#
+#    fig,ax = plt.subplots(1)
+#    ax.plot(kperps,xit1)
+#    fig.suptitle("Integrated Nonlinearity Parameter Spectrum")
+#    ax.set_ylabel("Nonlinearity Spectrum")
+#    ax.set_xlabel("$k_{\perp}$")
+#    ax.set_yscale("log")
+#    ax.set_xscale("log")
+#    fig.savefig(lpath+'/xis/t1dxispec.png')
+#    if show == True:
+#        plt.show()
+#    else:
+#        plt.close()
+#
     return(t,xik)
 
-def integrate_spectrum_3d(spec,lpath):
+def integrated_spectrum_1d(spec,lpath,v1=False,v2=True):
     read_parameters(lpath)
     kx,ky,kz = get_grids()
-    kygrid,kxgrid = np.meshgrid(kx,ky)
+    kxx = kx[1:]
+    kyy = ky[1:]
+    kzz = kz[1:]
+    kygrid,kxgrid = np.meshgrid(kyy,kxx)
     kpgrid = np.sqrt(kxgrid**2 + kygrid**2)
-    kps = np.flatten(kpgrid)
+    kps = kpgrid.flatten()
     kperps = np.unique(kps)
 
-    spec2d = np.zeros([np.size(kperps),np.size(kz)])
-    for j in np.arange(np.size(kz)):
-        for i in np.arange(np.size(kperps)):
-            w = np.argwhere(kpgrid==kperps[i])
-            spec2d[i,j] = kperps[i]*np.sum(spec[w,j])
+    if v1:
+        spec2d = np.zeros([np.size(kperps),np.size(kzz)])
+        for j in np.arange(np.size(kzz)):
+            for i in np.arange(np.size(kperps)):
+                specperp = spec[:,:,j]
+                w = np.argwhere(kpgrid==kperps[i])
+                spec2d[i,j] = kperps[i]*np.sum(specperp[w])
+        spec1d = np.sum(spec2d,axis=1)
 
-    spec1d = np.sum(spec2d,axis=1)
-    return(spec1d)
+    elif v2:
+        specperp = np.sum(spec,axis=2)
+        a = np.argsort(kps)
+        kps_sorted = kps[a]
+        spiral = specperp.flatten()[a]
 
+        cumulative_sum = []
+        kperps = np.linspace(2*kx[1],np.amax(kperps),num=int(np.amax(kperps)//(2*kx[1])))
+
+        for ring in kperps:
+            test = np.nonzero(kps_sorted < ring)
+            cumulative_sum.append(np.sum(spiral[test]))
+
+        spec1d = np.array(cumulative_sum[1:]) - np.array(cumulative_sum[:-1])
+
+    return(kperps[:-1],spec1d)
+
+def nlparam(lpath,tt):
+
+    read_parameters(lpath)
+    kx,ky,kz = get_grids()    
+    if os.path.isfile(lpath+'/dumenspec.txt'):
+        t,ekvf,ekbf = load_energyspec(lpath)
+        ekvm = ekvf[:,1:,1:,1:]
+        ekbm = ekbf[:,1:,1:,1:]
+        ekm = ekvm+ekbm
+    else:
+        t,ekvf,ekbf = getenergyspec(lpath,tmax=tmax)
+        ekvm = ekvf[:,1:,1:,1:]
+        ekbm = ekbf[:,1:,1:,1:]
+        ekm = ekvm+ekbm
+
+    kyy,kxx,kzz = np.meshgrid(ky[1:],kx[1:],kz[1:])
+    kmags = np.sqrt(kxx**2 +kyy**2 + kzz**2)
+    kperps = np.sqrt(kxx**2 + kyy**2)
+    
+    sq = np.sqrt(1+kmags**2 / 4)
+    whist = kzz * (kmags/2 + sq)
+    cyclo = kzz * (sq - kmags/2)
+    mhd = kzz
+
+    rmse = np.sqrt(2*ekm[tt,:,:,:])
+    xi_mhd = rmse*kperps/mhd
+    xi_whist = rmse*kperps/whist
+    xi_cyclo = rmse*kperps/cyclo
+
+    plt.plot(kmags.flatten(),xi_cyclo.flatten(),'bs',label="Cyclotron",markersize=1)
+    plt.plot(kmags.flatten(),xi_mhd.flatten(),'ks',label="MHD",markersize=1)
+    plt.plot(kmags.flatten(),xi_whist.flatten(),'rs',label="Whister",markersize=1)
+    plt.ylabel("Nonlinearity Parameter")
+    plt.xlabel("|k| ($d_i^{-1}$)")
+    plt.title("3D Nonlinearity Parameter Spectrum t = "+np.format_float_positional(t[tt],1)+" ($\omega_c^{-1}$)")
+    plt.ylim(10**(-5),10**1)
+    plt.yscale("log")
+    plt.xscale("log")
+    plt.legend()
+    plt.show()
+
+    return(kperps,xi_cyclo,xi_mhd,xi_whist)
