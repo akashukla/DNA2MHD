@@ -36,7 +36,7 @@ MODULE diagnostics
 
   PRIVATE
 
-  INTEGER :: ffm_handle,omega_handle,glast_handle,ev_handle,en_handle,enspec_handle,xi_handle,&
+  INTEGER :: ffm_handle,omega_handle,glast_handle,ev_handle,en_handle,enspec_handle,xi_handle,mode_handle,&
     herm_handle,eshells_handle,fmom3d_handle,energy3d_handle, gk_nkyout,&
     gknl_nkyout
   INTEGER, ALLOCATABLE, DIMENSION(:) :: gk_indices
@@ -73,6 +73,7 @@ MODULE diagnostics
   REAL, ALLOCATABLE, DIMENSION(:,:,:) :: NLT3
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:) :: AVP
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:) :: WVORT
+  COMPLEX, ALLOCATABLE, DIMENSION(:,:,:) :: LW,LC,RW,RC
   REAL, ALLOCATABLE, DIMENSION(:,:,:) :: xi
   REAL, ALLOCATABLE, DIMENSION(:,:,:) :: MH
   REAL, ALLOCATABLE, DIMENSION(:,:,:) :: CH
@@ -156,22 +157,32 @@ SUBROUTINE initialize_diagnostics
     enspec_handle=io_number
     CALL get_io_number
     xi_handle = io_number
+    CALL get_io_number
+    mode_handle = io_number
     !OPEN(unit=en_handle,file=trim(diagdir)//'/energy_out.dat',status='unknown')                                                                    
     IF(checkpoint_read) THEN
       INQUIRE(file=trim(diagdir)//'/energyspec_out.dat',exist=file_exists)
       INQUIRE(file=trim(diagdir)//'/xi_out.dat',exist=file_exists)
+      INQUIRE(file=trim(diagdir)//'/modespec_out.dat',exist=file_exists)
       IF(file_exists) THEN
         OPEN(unit=enspec_handle,file=trim(diagdir)//'/energyspec_out.dat',form='unformatted', status='REPLACE',access='stream')
         OPEN(unit=xi_handle,file=trim(diagdir)//'/xi_out.dat',form='unformatted', status='REPLACE',access='stream')
+        OPEN(unit=mode_handle,file=trim(diagdir)//'/mode_out.dat',form='unformatted', status='REPLACE',access='stream')
       ELSE
         OPEN(unit=enspec_handle,file=trim(diagdir)//'/energyspec_out.dat',form='unformatted', status='REPLACE',access='stream')
         OPEN(unit=xi_handle,file=trim(diagdir)//'/xi_out.dat',form='unformatted', status='REPLACE',access='stream')
+        OPEN(unit=mode_handle,file=trim(diagdir)//'/mode_out.dat',form='unformatted', status='REPLACE',access='stream')
       END IF
     ELSE
       OPEN(unit=enspec_handle,file=trim(diagdir)//'/energyspec_out.dat',form='unformatted', status='REPLACE',access='stream')
       OPEN(unit=xi_handle,file=trim(diagdir)//'/xi_out.dat',form='unformatted', status='REPLACE',access='stream')
+      OPEN(unit=mode_handle,file=trim(diagdir)//'/mode_out.dat',form='unformatted', status='REPLACE',access='stream')
     END IF
     ALLOCATE(xi(1:nkx0-1,1:nky0-1,1:nkz0-1))
+    ALLOCATE(LW(0:nkx0-1,0:nky0-1,0:nkz0-1))
+    ALLOCATE(LC(0:nkx0-1,0:nky0-1,0:nkz0-1))
+    ALLOCATE(RW(0:nkx0-1,0:nky0-1,0:nkz0-1))
+    ALLOCATE(RC(0:nkx0-1,0:nky0-1,0:nkz0-1))
   END IF
 
 
@@ -267,7 +278,12 @@ SUBROUTINE finalize_diagnostics
   IF(istep_energyspec.gt.0.and.mype==0) THEN
     CLOSE(enspec_handle)
     CLOSE(xi_handle)
+    CLOSE(mode_handle)
     DEALLOCATE(xi)
+    DEALLOCATE(LW)
+    DEALLOCATE(LC)
+    DEALLOCATE(RW)
+    DEALLOCATE(RC)
   END IF
   IF(verbose.and.(mype==0)) print *, 'Closed energy handles'
   ! IF(istep_hermite.gt.0.and.mype==0) CLOSE(herm_handle)
@@ -465,6 +481,8 @@ SUBROUTINE diag
          CALL en_spec()
          WRITE(xi_handle) time
          CALL nlparam((hall.eq.0))
+         WRITE(mode_handle) time
+         CALL mode_spec()
          IF(verbose) WRITE(*,*) "Done with energyspec diag.",mype
        END IF
      END IF
@@ -4455,8 +4473,8 @@ subroutine en_spec()
 
 implicit none
 
-WRITE(enspec_handle) (4*pi**3)* (abs(v_1(:,:,:,0))**2 + abs(v_1(:,:,:,1))**2+abs(v_1(:,:,:,2))**2)
-WRITE(enspec_handle) (4*pi**3)* (abs(b_1(:,:,:,0))**2+ abs(b_1(:,:,:,1))**2+abs(b_1(:,:,:,2))**2)
+WRITE(enspec_handle) (8*pi**3)* (abs(v_1(:,:,:,0))**2 + abs(v_1(:,:,:,1))**2+abs(v_1(:,:,:,2))**2)
+WRITE(enspec_handle) (8*pi**3)* (abs(b_1(:,:,:,0))**2+ abs(b_1(:,:,:,1))**2+abs(b_1(:,:,:,2))**2)
 
 end subroutine en_spec
 
@@ -4552,6 +4570,38 @@ endif
 WRITE(xi_handle) xi
 
 end subroutine nlparam
+
+subroutine mode_spec
+
+  implicit none
+  integer :: i,j,k
+  
+  do i = 0, nkx0-1
+     do j = 0, nky0-1
+        do k = 0, nkz0-1
+           LW(i,j,k) = sum(conjg(pcurleig(i,j,k,:))*(alpha_leftwhist(i,j,k)*b_1(i,j,k,:)+v_1(i,j,k,:))/sqrt(alpha_leftwhist(i,j,k)**2+1))
+           LC(i,j,k) = sum(conjg(pcurleig(i,j,k,:))*(alpha_leftcyclo(i,j,k)*b_1(i,j,k,:)+v_1(i,j,k,:))/sqrt(alpha_leftcyclo(i,j,k)**2+1))
+           RW(i,j,k) = sum(pcurleig(i,j,k,:)*(-alpha_leftwhist(i,j,k)*b_1(i,j,k,:)+v_1(i,j,k,:))/sqrt(alpha_leftwhist(i,j,k)**2+1))
+           RC(i,j,k) = sum(pcurleig(i,j,k,:)*(-alpha_leftcyclo(i,j,k)*b_1(i,j,k,:)+v_1(i,j,k,:))/sqrt(alpha_leftcyclo(i,j,k)**2+1))
+           if (verbose.and.(itime.lt.100)) print *, i,j,k, LW(i,j,k),LC(i,j,k),RW(i,j,k),RC(i,j,k)
+        enddo
+     enddo
+  enddo
+
+  if (itime.lt.100) then
+     print *, "Max LW ", sum(0.5*abs(LW)**2)*(16.0*pi**3)
+     print *, "Max LC ", sum(0.5*abs(LC)**2)*(16.0*pi**3)
+     print *, "Max RW ", sum(0.5*abs(RW)**2)*(16.0*pi**3)
+     print *, "Max RC ", sum(0.5*abs(RC)**2)*(16.0*pi**3)
+  endif
+     
+  WRITE(mode_handle) 0.5 * abs(LW)**2 * (16.0*pi**3)
+  WRITE(mode_handle) 0.5 * abs(LC)**2 * (16.0*pi**3)
+  WRITE(mode_handle) 0.5 * abs(RW)**2 * (16.0*pi**3)
+  WRITE(mode_handle) 0.5 * abs(RC)**2 * (16.0*pi**3)
+
+end subroutine mode_spec
+
 
 END MODULE diagnostics
 

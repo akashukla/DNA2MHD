@@ -3,8 +3,10 @@
 #SBATCH -o DNAHD.out%j    # Output and error file name (%j expands to jobID)
 #SBATCH -n 1          # Total number of mpi tasks requested
 #SBATCH -N 1           # Total number of mpi tasks requested
-#SBATCH -p icx-normal   # Queue (partition) name -- normal, development, etc.
+#SBATCH -p normal   # Queue (partition) name -- normal, development, etc.
+#SBATCH --mail-type=all    # Send email at begin and end of job
 #SBATCH -t 30:00:00     # Run time (hh:mm:ss) - 1.5 hours
-#SBATCH -A GKIMP # Project name
+#SBATCH -A PHY23037 # Project name
+#SBATCH --mail-user=echansen@tacc.utexas.edu
 
-ibrun /work2/08929/echansen/stampede2/DNA2MHD/bin/dna
+ibrun /work2/08929/echansen/ls6/DNA2MHD/bin/dna

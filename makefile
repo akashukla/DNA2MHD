@@ -13,8 +13,8 @@ default	: all
 
 #####  CHOSSE THE DESIRED COMPUTER HOST 
 ###############################################################################
-#  HOST = ls5
-  HOST = stampede2
+  HOST = ls6
+#  HOST = stampede2
 #  HOST = edison
 #  HOST = hopper
 # HOST = bob
@@ -52,7 +52,7 @@ default	: all
 CHDIR_SHELL := $(SHELL)
 define chdir
    $(eval _D=$(firstword $(1) $(@D)))
-   $(info $(MAKE): cd $(_D)) $(eval SHELL = cd $(_D); $(CHDIR_SHELL))
+   $(info $(MAKE): cd $(_D)) cd $(_D)
 endef
 
 BASEDIR = $(dir $(CURDIR)/)
@@ -79,7 +79,8 @@ F90SRC = cc_comm.f90 \
 		 cc_par_mod.f90 \
 		 cc_time_advance.f90 \
 		 ee_diagnostics.f90 \
-		 cc_random.f90
+		 cc_random.f90\
+		 ee_mtrandom.f90
 #		 cc_calc_dt.f90 \
 #		 ee_diagnostics.f90 \
 		 ee_eigen_direct.f90 \
@@ -93,7 +94,7 @@ F90SRC = cc_comm.f90 \
 #/work2/04943/akshukla/stampede2/DNA2MHD/src/cc_calc_dt.f90  		  ee_petsc_aux.F90 \
 #  		  ee_slepc_aux.F90
 #endif
-		  
+
 F90OBJ  = $(F90SRC:.f90=.o)
 F90OBJ2 = $(F90SRC2:.F90=.o)
 OBJLIST = $(F90OBJ) $(F90OBJ2)
@@ -150,15 +151,10 @@ directory:
 	@echo  !!!!!!!!!!!!!!!!!!!!!! INITIAL DIRECTORY: $(shell pwd)
 	test -d $(BINDIR) || mkdir -p $(BINDIR)
 	test -d $(OBJDIR) || mkdir -p $(OBJDIR)
-	$(call chdir,$(OBJDIR))
 	@echo  !!!!!!!!!!!!!!!!!!!!!! COMPILING DIRECTORY: $(shell pwd)	
 
 %.o: $(SRCDIR)/%.f90
 	$(FC) $(FFLAGS) $(PREPROC) $(INCPATHS) -c -o $@ $< 
-
-%.o: $(SRCDIR)/%.F90
-	$(FC) $(FFLAGS) $(PREPROC) $(INCPATHS) -c -o $@ $< 
-
 
 #####  MAKING THE CLEANING TOOLS 
 ###############################################################################

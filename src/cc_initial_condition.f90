@@ -32,6 +32,7 @@ SUBROUTINE initial_condition(which_init0)
   REAL :: s1, s11,s12,s13,s4
   !REAL :: init_prefactor
   COMPLEX :: phase,phaseb,phasev,phaseby,phasevy
+  COMPLEX :: LW1, LC1, RW1, RC1
   REAL :: phase1,phase2,phase1y,phase2y,kspect,myphase1,myphase1y,myphase2,myphase2y,showphase,thb,thv,mythb,mythv,bt1,bt2,bt3,b1r,b2r,b3r,b1i,b2i,b3i,btmag,b1w,b2w,v1w,v2w
   CHARACTER(len=40), INTENT(in) :: which_init0
   CHARACTER(len=40) :: which_init
@@ -53,15 +54,49 @@ SUBROUTINE initial_condition(which_init0)
 
   DO i = 0,nkx0-1
     DO j = 0,nky0-1
-      DO k = 1,nkz0-1
+      DO k = 0,nkz0-1
         kmags(i,j,k) = sqrt(kxgrid(i)**2 + kygrid(j)**2 + kzgrid(k)**2)
         kperps(i,j,k) = sqrt(kxgrid(i)**2 + kygrid(j)**2)
-        kzs(i,j,k) = sqrt(kzgrid(k)**2)
+        kzs(i,j,k) = kzgrid(k)
   ! Energy Fixing Redone Later
   !      divratio(i,j,k) = (kxgrid(i)+kygrid(j))/kzgrid(k)
       END DO
     END DO
-  END DO
+ END DO
+
+ IF (init_wave) THEN
+
+    ALLOCATE(alpha_leftwhist(0:nkx0-1,0:nky0-1,0:nkz0-1))
+    ALLOCATE(alpha_leftcyclo(0:nkx0-1,0:nky0-1,0:nkz0-1))
+
+    alpha_leftwhist = -kmags/2.0 - sqrt(1.0 + ((kmags**2.0) / 4.0))
+    alpha_leftcyclo = -kmags/2.0 + sqrt(1.0 + ((kmags**2.0) / 4.0))
+
+ ENDIF
+
+ DO i = 0,nkx0-1
+    DO j = 0,nky0-1
+       DO k = 0,nkz0-1
+          IF ((kmags(i,j,k).ne.0).and.(kperps(i,j,k).ne.0)) THEN
+             b1r = -1.0 / (kperps(i,j,k)*sqrt(2.0)) * kygrid(j)
+             b2r = 1.0 / (kperps(i,j,k)*sqrt(2.0)) * kxgrid(i)
+             b3r = 0.0
+             b1i = (kygrid(j) * b3r - kzgrid(k) * b2r)/kmags(i,j,k)
+             b2i = (kzgrid(k) * b1r - kxgrid(i) * b3r)/kmags(i,j,k)
+             b3i = (kxgrid(i) * b2r - kygrid(j) * b1r)/kmags(i,j,k)
+             pcurleig(i,j,k,0) = cmplx(b1r,b1i)
+             pcurleig(i,j,k,1) = cmplx(b2r,b2i)
+             pcurleig(i,j,k,2) = cmplx(b3r,b3i)
+          ELSE
+             pcurleig(i,j,k,:) = cmplx(0.0,0.0)
+          ENDIF
+          if (verbose) print *, i,j,k,sum(abs(pcurleig(i,j,k,:))**2)
+       ENDDO
+    ENDDO
+ ENDDO
+
+ if (verbose) print *, en_leftwhist, en_leftcyclo, en_rightwhist, en_rightcyclo
+ 
   ! s1 = 2*sum(kmags(xst:kxinit_max-1,yst:kyinit_max-1,zst:kzinit_max-1) ** (-1.0*init_kolm))
   ! s2 = 2*sum((divratio(xst:kxinit_max-1,yst:kyinit_max-1,zst:kzinit_max-1) ** 2) * kmags(0:kxinit_max-1,0:kyinit_max-1,1:kzinit_max-1) ** (-1.0 * init_kolm))
   ! s3 = 2*sum(kmags(1:nkxforce,1:nkyforce,1:nkzforce) ** (-0.5*init_kolm))  
@@ -95,215 +130,226 @@ SUBROUTINE initial_condition(which_init0)
         DO j=yst,kyinit_max-1
           DO k=zst,kzinit_max-1
 
-          if (((kxgrid(i).lt.kxmax+kxmin).and.(kygrid(j).lt.kymax+kymin)).and.(kzgrid(k).lt.kzmax+kzmin)) then
+             if (((kxgrid(i).lt.kxmax+kxmin).and.(kygrid(j).lt.kymax+kymin)).and.(kzgrid(k).lt.kzmax+kzmin)) then
+                
           !!! Uniform distribution
-          if (uni) then
-          if (mype.eq.0) then
-            CALL RANDOM_NUMBER(phase1)
-            if (phdf.le.1.0) phase2 = phase1 + phdf
-            if (phdf.gt.1.0) CALL RANDOM_NUMBER(phase2)
-            if (phdfxy.le.1.0) then
-              phase1y = phase1+phdfxy
-              phase2y = phase2+phdfxy
-            else
-              CALL RANDOM_NUMBER(phase1y)
-              CALL RANDOM_NUMBER(phase2y)
-            endif
-          CALL RANDOM_NUMBER(thb)
-          CALL RANDOM_NUMBER(thv)
-          endif
+                if (uni) then
+                   if (mype.eq.0) then
+                      CALL RANDOM_NUMBER(phase1)
+                      if (phdf.le.1.0) phase2 = phase1 + phdf
+                      if (phdf.gt.1.0) CALL RANDOM_NUMBER(phase2)
+                      if (phdfxy.le.1.0) then
+                         phase1y = phase1+phdfxy
+                         phase2y = phase2+phdfxy
+                      else
+                         CALL RANDOM_NUMBER(phase1y)
+                         CALL RANDOM_NUMBER(phase2y)
+                      endif
+                      CALL RANDOM_NUMBER(thb)
+                      CALL RANDOM_NUMBER(thv)
+                   endif
 
-          CALL MPI_BCAST(phase1,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
-          CALL MPI_BCAST(phase2,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
-          CALL MPI_BCAST(phase1y,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
-          CALL MPI_BCAST(phase2y,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
-          CALL MPI_BCAST(thb,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
-          CALL MPI_BCAST(thv,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
+                   CALL MPI_BCAST(phase1,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
+                   CALL MPI_BCAST(phase2,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
+                   CALL MPI_BCAST(phase1y,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
+                   CALL MPI_BCAST(phase2y,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
+                   CALL MPI_BCAST(thb,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
+                   CALL MPI_BCAST(thv,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
 
           !!! Triangular distribution 
           
-          else 
+                else 
 
-          CALL RANDOM_NUMBER(myphase1)
-          CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-          CALL MPI_ALLREDUCE(myphase1,phase1,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
-          if (phdf.le.1.0) phase2 = phase1 + phdf
-          if (phdf.gt.1.0) then 
-          CALL RANDOM_NUMBER(myphase2) 
-          CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-          CALL MPI_ALLREDUCE(myphase2,phase2,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
-          endif
+                   CALL RANDOM_NUMBER(myphase1)
+                   CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+                   CALL MPI_ALLREDUCE(myphase1,phase1,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
+                   if (phdf.le.1.0) phase2 = phase1 + phdf
+                   if (phdf.gt.1.0) then 
+                      CALL RANDOM_NUMBER(myphase2) 
+                      CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+                      CALL MPI_ALLREDUCE(myphase2,phase2,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
+                   endif
 
-          if (phdfxy.le.1.0) then 
-            phase1y = phase1 + phdfxy
-            phase2y = phase2 + phdfxy
-          else
-            CALL RANDOM_NUMBER(myphase1y)
-            CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-            CALL MPI_ALLREDUCE(myphase1y,phase1y,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
+                   if (phdfxy.le.1.0) then 
+                      phase1y = phase1 + phdfxy
+                      phase2y = phase2 + phdfxy
+                   else
+                      CALL RANDOM_NUMBER(myphase1y)
+                      CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+                      CALL MPI_ALLREDUCE(myphase1y,phase1y,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
 
-            CALL RANDOM_NUMBER(myphase2y)
-            CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-            CALL MPI_ALLREDUCE(myphase2y,phase2y,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
-          endif 
-            CALL RANDOM_NUMBER(mythb)
-            CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-            CALL MPI_ALLREDUCE(mythb,thb,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
+                      CALL RANDOM_NUMBER(myphase2y)
+                      CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+                      CALL MPI_ALLREDUCE(myphase2y,phase2y,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
+                   endif
+                   CALL RANDOM_NUMBER(mythb)
+                   CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+                   CALL MPI_ALLREDUCE(mythb,thb,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
 
-            CALL RANDOM_NUMBER(mythv)
-            CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-            CALL MPI_ALLREDUCE(mythv,thv,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
-          endif
+                   CALL RANDOM_NUMBER(mythv)
+                   CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+                   CALL MPI_ALLREDUCE(mythv,thv,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
+                endif
 
           ! phase2 = phase1 - 1.0/4.0
-          phaseb = cmplx(cos(2*pi*phase1),sin(2*pi*phase1))
-          phasev = cmplx(cos(2*pi*phase2),sin(2*pi*phase2))
-          phaseby = cmplx(cos(2*pi*phase1y),sin(2*pi*phase1y))
-          phasevy = cmplx(cos(2*pi*phase2y),sin(2*pi*phase2y))
+                phaseb = cmplx(cos(2*pi*phase1),sin(2*pi*phase1))
+                phasev = cmplx(cos(2*pi*phase2),sin(2*pi*phase2))
+                phaseby = cmplx(cos(2*pi*phase1y),sin(2*pi*phase1y))
+                phasevy = cmplx(cos(2*pi*phase2y),sin(2*pi*phase2y))
 
-         if (mype.eq.0) then
-            CALL RANDOM_NUMBER(showphase)
-            if ((max_itime.lt.100).and.(showphase.lt.10.0/real(nkx0*nky0*nkz0))) then
-            print *, i,j,k
-            print *, phase1y
-            print *, phase2
-            print *, phase2y
-            endif
-         endif
+                if (mype.eq.0) then
+                   CALL RANDOM_NUMBER(showphase)
+                   if ((max_itime.lt.100).and.(showphase.lt.10.0/real(nkx0*nky0*nkz0))) then
+                      print *, i,j,k
+                      print *, phase1y
+                      print *, phase2
+                      print *, phase2y
+                   endif
+                endif
 
-         !DO l=0,2
-         IF(kzgrid(k).eq.zerocmplx) THEN
-             b_1(i,j,k,0)=cmplx(0.0,0.0)
-             b_1(i,j,k,1)=cmplx(0.0,0.0)
-             b_1(i,j,k,2)=cmplx(0.0,0.0)
-             v_1(i,j,k,0)=cmplx(0.0,0.0)
-             v_1(i,j,k,1)=cmplx(0.0,0.0)
-             v_1(i,j,k,2)=cmplx(0.0,0.0)
-         ELSE IF (.not.(enone)) THEN
-             b_1(i,j,k,0)=init_amp_bx*1.0/sqrt(real(nkx0*nky0*(nkz0-1)))*1/(kmags(i,j,k)**(init_kolm/2.0)) * phaseb*cos(2*pi*thb)
-             b_1(i,j,k,1)=init_amp_by*1.0/sqrt(real(nkx0*nky0*(nkz0-1)))*1/(kmags(i,j,k)**(init_kolm/2.0)) * phaseb*phaseby*sin(2*pi*thb)
-             b_1(i,j,k,2) = (-kxgrid(i)*b_1(i,j,k,0)-kygrid(j)*b_1(i,j,k,1))/kzgrid(k)
-             !b_1(i,j,k,2)=init_amp_bz
-             v_1(i,j,k,0)=init_amp_vx*1.0/sqrt(real(nkx0*nky0*(nkz0-1)))*1/(kmags(i,j,k)**(init_kolm/2.0)) * phasev*phaseb*cos(2*pi*thv)
-             v_1(i,j,k,1)=init_amp_vy*1.0/sqrt(real(nkx0*nky0*(nkz0-1)))*1/(kmags(i,j,k)**(init_kolm/2.0)) * phasev*phasevy*phaseb*sin(2*pi*thv)
-             !v_1(i,j,k,2)=init_amp_vz
-             v_1(i,j,k,2) = (-kxgrid(i)*v_1(i,j,k,0)-kygrid(j)*v_1(i,j,k,1))/kzgrid(k)
-         ELSE IF (beltrami) THEN
-             ! These initial conditions write a Beltrami decomposition for b,v in terms of curl eigenstates (b1r,\pm b1i) as given below
+                !DO l=0,2
 
-             b1r = -1 / (kperps(i,j,k)*sqrt(2.0)) * kygrid(j)
-             b2r = 1 / (kperps(i,j,k)*sqrt(2.0)) * kxgrid(i)
-             b3r = 0.0
-             b1i = (kygrid(j) * b3r - kzgrid(k) * b2r)/kmags(i,j,k)
-             b2i = (kzgrid(k) * b1r - kxgrid(i) * b3r)/kmags(i,j,k)
-             b3i = (kxgrid(i) * b2r - kygrid(j) * b1r)/kmags(i,j,k)
+                IF(kzgrid(k).eq.zerocmplx) THEN
+                   b_1(i,j,k,0)=cmplx(0.0,0.0)
+                   b_1(i,j,k,1)=cmplx(0.0,0.0)
+                   b_1(i,j,k,2)=cmplx(0.0,0.0)
+                   v_1(i,j,k,0)=cmplx(0.0,0.0)
+                   v_1(i,j,k,1)=cmplx(0.0,0.0)
+                   v_1(i,j,k,2)=cmplx(0.0,0.0)
+                ELSE IF (.not.(enone)) THEN
+                   b_1(i,j,k,0)=init_amp_bx*1.0/sqrt(real(nkx0*nky0*(nkz0-1)))*1/(kmags(i,j,k)**(init_kolm/2.0)) * phaseb*cos(2*pi*thb)
+                   b_1(i,j,k,1)=init_amp_by*1.0/sqrt(real(nkx0*nky0*(nkz0-1)))*1/(kmags(i,j,k)**(init_kolm/2.0)) * phaseb*phaseby*sin(2*pi*thb)
+                   b_1(i,j,k,2) = (-kxgrid(i)*b_1(i,j,k,0)-kygrid(j)*b_1(i,j,k,1))/kzgrid(k)
+                   !b_1(i,j,k,2)=init_amp_bz
+                   v_1(i,j,k,0)=init_amp_vx*1.0/sqrt(real(nkx0*nky0*(nkz0-1)))*1/(kmags(i,j,k)**(init_kolm/2.0)) * phasev*phaseb*cos(2*pi*thv)
+                   v_1(i,j,k,1)=init_amp_vy*1.0/sqrt(real(nkx0*nky0*(nkz0-1)))*1/(kmags(i,j,k)**(init_kolm/2.0)) * phasev*phasevy*phaseb*sin(2*pi*thv)
+                   !v_1(i,j,k,2)=init_amp_vz
+                   v_1(i,j,k,2) = (-kxgrid(i)*v_1(i,j,k,0)-kygrid(j)*v_1(i,j,k,1))/kzgrid(k)
+                ELSE IF (beltrami) THEN
+                   ! These initial conditions write a Beltrami decomposition for b,v in terms of curl eigenstates (b1r,\pm b1i) as given below
 
-             if (mype.eq.0) then
-               CALL RANDOM_NUMBER(b1w)
-               CALL RANDOM_NUMBER(b2w)
-               CALL RANDOM_NUMBER(v1w)
-               CALL RANDOM_NUMBER(v2w)
-             endif  
-               CALL MPI_BCAST(b1w,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
-               CALL MPI_BCAST(b2w,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
-               CALL MPI_BCAST(v1w,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
-               CALL MPI_BCAST(v2w,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
+                   if (mype.eq.0) then
+                      CALL RANDOM_NUMBER(b1w)
+                      CALL RANDOM_NUMBER(b2w)
+                      CALL RANDOM_NUMBER(v1w)
+                      CALL RANDOM_NUMBER(v2w)
+                   endif
+                   CALL MPI_BCAST(b1w,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
+                   CALL MPI_BCAST(b2w,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
+                   CALL MPI_BCAST(v1w,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
+                   CALL MPI_BCAST(v2w,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
 
-             IF (helical) THEN
-               b2w = 0.0
-               v2w = 0.0
-               phasev = phaseb
-               v1w = b1w
-             ELSE IF (shear) THEN
-               phaseby = phaseb
-               phasevy = phasev
-               b1w = b2w
-               v1w = v2w
-             ELSE IF ((walenp).or.(walenn)) THEN
-               if (walenp) then
-                 phasev = phaseb
-                 phasevy = phaseby
-               else 
-                 phasev = -phaseb
-                 phasevy = -phaseby
-               endif
-               v1w = b1w
-               v2w = b2w
-             ENDIF
+                   IF (helical) THEN
+                      b2w = 0.0
+                      v2w = 0.0
+                      phasev = phaseb
+                      v1w = b1w
+                   ELSE IF (shear) THEN
+                      phaseby = phaseb
+                      phasevy = phasev
+                      b1w = b2w
+                      v1w = v2w
+                   ELSE IF ((walenp).or.(walenn)) THEN
+                      if (walenp) then
+                         phasev = phaseb
+                         phasevy = phaseby
+                      else 
+                         phasev = -phaseb
+                         phasevy = -phaseby
+                      endif
+                      v1w = b1w
+                      v2w = b2w
+             
+                   ENDIF
 
-             b_1(i,j,k,0) = (b1w*phaseb*cmplx(b1r,b1i) + b2w*phaseby*cmplx(b1r,-b1i))/sqrt(b1w**2+b2w**2)
-             b_1(i,j,k,1) = (b1w*phaseb*cmplx(b2r,b2i) + b2w*phaseby*cmplx(b2r,-b2i))/sqrt(b1w**2+b2w**2)
-             b_1(i,j,k,2) = (b1w*phaseb*cmplx(b3r,b3i) + b2w*phaseby*cmplx(b3r,-b3i))/sqrt(b1w**2+b2w**2)
+                   b_1(i,j,k,0) = (b1w*phaseb*pcurleig(i,j,k,0) + b2w*phaseby*conjg(pcurleig(i,j,k,0)))/sqrt(b1w**2+b2w**2)
+                   b_1(i,j,k,1) = (b1w*phaseb*pcurleig(i,j,k,1) + b2w*phaseby*conjg(pcurleig(i,j,k,1)))/sqrt(b1w**2+b2w**2)
+                   b_1(i,j,k,2) = (b1w*phaseb*pcurleig(i,j,k,2) + b2w*phaseby*conjg(pcurleig(i,j,k,2)))/sqrt(b1w**2+b2w**2)
 
-             v_1(i,j,k,0) = (v1w*phasev*cmplx(b1r,b1i) + v2w*phasevy*cmplx(b1r,-b1i))/sqrt(v1w**2+v2w**2)
-             v_1(i,j,k,1) = (v1w*phasev*cmplx(b2r,b2i) + v2w*phasevy*cmplx(b2r,-b2i))/sqrt(v1w**2+v2w**2)
-             v_1(i,j,k,2) = (v1w*phasev*cmplx(b3r,b3i) + v2w*phasevy*cmplx(b3r,-b3i))/sqrt(v1w**2+v2w**2)
+                   v_1(i,j,k,0) = (v1w*phasev*pcurleig(i,j,k,0) + v2w*phasevy*conjg(pcurleig(i,j,k,0)))/sqrt(v1w**2+v2w**2)
+                   v_1(i,j,k,1) = (v1w*phasev*pcurleig(i,j,k,1) + v2w*phasevy*conjg(pcurleig(i,j,k,1)))/sqrt(v1w**2+v2w**2)
+                   v_1(i,j,k,2) = (v1w*phasev*pcurleig(i,j,k,2) + v2w*phasevy*conjg(pcurleig(i,j,k,2)))/sqrt(v1w**2+v2w**2)
 
-             b_1(i,j,k,:) = b_1(i,j,k,:) / (kmags(i,j,k)**(init_kolm/2.0))
-             v_1(i,j,k,:) = v_1(i,j,k,:) / (kmags(i,j,k)**(init_kolm/2.0))
+                   b_1(i,j,k,:) = b_1(i,j,k,:) / (kmags(i,j,k)**(init_kolm/2.0))
+                   v_1(i,j,k,:) = v_1(i,j,k,:) / (kmags(i,j,k)**(init_kolm/2.0))
 
-         ELSE   
+                ELSE IF (init_wave) THEN
 
-            IF ((walenp).or.(walenn)) THEN
-                 if (walenp) phasev = 1.0
-                 if (walenn) phasev = -1.0
-                 phasevy =phaseby
-                 thv = thb
-            ENDIF
+                   LW1 = sqrt(en_leftwhist) * phaseb/sqrt(1 + alpha_leftwhist(i,j,k)**2)
+                   LC1 = sqrt(en_leftcyclo) * phasev/sqrt(1 + alpha_leftcyclo(i,j,k)**2)
+                   RW1 = sqrt(en_rightwhist) * phaseby/sqrt(1 + alpha_leftwhist(i,j,k)**2)
+                   RC1 = sqrt(en_rightcyclo) * phasevy/sqrt(1 + alpha_leftcyclo(i,j,k)**2)
 
-            IF (.not.(shear.or.helical)) THEN
-              s11 = kxgrid(i)**2 * cos(2*pi*thb)**2 + kxgrid(i)**2 * cos(2*pi*thv)**2
-              s12 = kygrid(j)**2 * sin(2*pi*thb)**2 + kygrid(j)**2 * sin(2*pi*thv)**2
-              s13 = kxgrid(i) * kygrid(j) * (sin(4*pi*thb) * cos(2*pi*phase1y) + sin(4*pi*thv)*cos(2*pi*phase2y))
-              s1 = s1 + kmags(i,j,k)**(-1.0*init_kolm) * (2+(s11+s12+s13)/(kzgrid(k)**2))
-            ELSE
-              s1 = s1 + 2.0*kmags(i,j,k) ** (-1.0*init_kolm)
-            ENDIF
+                   b_1(i,j,k,:) = (LW1 * alpha_leftwhist(i,j,k) + LC1 * alpha_leftcyclo(i,j,k)) * pcurleig(i,j,k,:)&
+                        - (RW1 * alpha_leftwhist(i,j,k) + RC1 * alpha_leftcyclo(i,j,k))*conjg(pcurleig(i,j,k,:))
 
-            IF (helical) THEN
-              bt1 = 2.0*phase1y - 1.0
-              bt2 = 2.0*phase2 - 1.0
-              bt3 = 2.0*phase2y - 1.0
-              b1r = bt1 - (kxgrid(i) * bt1 + kygrid(j) * bt2 + kzgrid(k) * bt3)/(kmags(i,j,k)**2) * kxgrid(i)
-              b2r = bt2 - (kxgrid(i) * bt1 + kygrid(j) * bt2 + kzgrid(k) * bt3)/(kmags(i,j,k)**2) * kygrid(j)
-              b3r = bt3 - (kxgrid(i) * bt1 + kygrid(j) * bt2 + kzgrid(k) * bt3)/(kmags(i,j,k)**2) * kzgrid(k)
-              btmag = sqrt(b1r**2 + b2r**2 + b3r**2)
-              b1i = (kygrid(j) * b3r - kzgrid(k) * b2r)/kmags(i,j,k)
-              b2i = (kzgrid(k) * b1r - kxgrid(i) * b3r)/kmags(i,j,k)
-              b3i = (kxgrid(i) * b2r - kygrid(j) * b1r)/kmags(i,j,k)
-              b_1(i,j,k,0) = cmplx(b1r,b1i)/(sqrt(2.0) * btmag * kmags(i,j,k)**(init_kolm/2.0))
-              b_1(i,j,k,1) = cmplx(b2r,b2i)/(sqrt(2.0) * btmag * kmags(i,j,k)**(init_kolm/2.0))
-              b_1(i,j,k,2) = cmplx(b3r,b3i)/(sqrt(2.0) * btmag * kmags(i,j,k)**(init_kolm/2.0))
-              v_1(i,j,k,:) = b_1(i,j,k,:)
-            ELSE IF (shear.and.(max(i,j).ne.0)) THEN
-              b_1(i,j,k,0) = - kygrid(j)/sqrt(kxgrid(i)**2 + kygrid(j)**2) * phaseb * (kmags(i,j,k) **(-init_kolm/2.0))
-              b_1(i,j,k,1) = kxgrid(i)/sqrt(kxgrid(i)**2 + kygrid(j)**2) * phaseb * (kmags(i,j,k) **(-init_kolm/2.0))
-              b_1(i,j,k,2) = cmplx(0.0,0.0)
-              v_1(i,j,k,0) = -kygrid(j)/sqrt(kxgrid(i)**2 + kygrid(j)**2) * phasev * phaseb * (kmags(i,j,k) **(-init_kolm/2.0))
-              v_1(i,j,k,1) = kxgrid(i)/sqrt(kxgrid(i)**2 + kygrid(j)**2) * phasev*phaseb * (kmags(i,j,k) **(-init_kolm/2.0))
-              v_1(i,j,k,2) = cmplx(0.0,0.0)
-            ELSE
-            b_1(i,j,k,0)= phaseb*cos(2*pi*thb)*1/(kmags(i,j,k)**(init_kolm/2.0))
-            !0.32/sqrt((2+pi**2 * real(nkx0+nky0)/144.0) * real(nkx0*nky0*(nkz0-1)) * 8 * pi**3)
-            b_1(i,j,k,1)= phaseb*phaseby*sin(2*pi*thb)*1/(kmags(i,j,k)**(init_kolm/2.0))
-            !0.32/sqrt((2+pi**2 * real(nkx0+nky0)/144.0) * real(nkx0*nky0*(nkz0-1)) * 8 * pi**3)
-            b_1(i,j,k,2) = (-kxgrid(i)*b_1(i,j,k,0)-kygrid(j)*b_1(i,j,k,1))/kzgrid(k)
-            !b_1(i,j,k,2)=init_amp_bz              
-            v_1(i,j,k,0)= phasev*phaseb*cos(2*pi*thv)*1/(kmags(i,j,k)**(init_kolm/2.0))
-            !0.32/sqrt((2+pi**2 * real(nkx0+nky0)/144.0) * real(nkx0*nky0*(nkz0-1)) * 8 * pi**3)
-            v_1(i,j,k,1)= phasev*phasevy*phaseb*sin(2*pi*thv)*1/(kmags(i,j,k)**(init_kolm/2.0))
-            !0.32/sqrt((2+pi**2 * real(nkx0+nky0)/144.0) * real(nkx0*nky0*(nkz0-1)) * 8 * pi**3)
-            !v_1(i,j,k,2)=init_amp_vz 
-            v_1(i,j,k,2) = (-kxgrid(i)*v_1(i,j,k,0)-kygrid(j)*v_1(i,j,k,1))/kzgrid(k)
-            END IF
+                   v_1(i,j,k,:) = (LW1 + LC1) * pcurleig(i,j,k,:) + (RW1 + RC1)*conjg(pcurleig(i,j,k,:))
+
+                   b_1(i,j,k,:) = b_1(i,j,k,:) / (sqrt(en_leftwhist + en_leftcyclo + en_rightwhist + en_rightcyclo) * kmags(i,j,k)**(init_kolm/2.0))
+                   v_1(i,j,k,:) = v_1(i,j,k,:) / (sqrt(en_leftwhist + en_leftcyclo + en_rightwhist + en_rightcyclo) * kmags(i,j,k)**(init_kolm/2.0))
+
+                ELSE   
+
+                   IF ((walenp).or.(walenn)) THEN
+                      if (walenp) phasev = 1.0
+                      if (walenn) phasev = -1.0
+                      phasevy =phaseby
+                      thv = thb
+                   ENDIF
+
+                   IF (.not.(shear.or.helical)) THEN
+                      s11 = kxgrid(i)**2 * cos(2*pi*thb)**2 + kxgrid(i)**2 * cos(2*pi*thv)**2
+                      s12 = kygrid(j)**2 * sin(2*pi*thb)**2 + kygrid(j)**2 * sin(2*pi*thv)**2
+                      s13 = kxgrid(i) * kygrid(j) * (sin(4*pi*thb) * cos(2*pi*phase1y) + sin(4*pi*thv)*cos(2*pi*phase2y))
+                      s1 = s1 + kmags(i,j,k)**(-1.0*init_kolm) * (2+(s11+s12+s13)/(kzgrid(k)**2))
+                   ELSE
+                      s1 = s1 + 2.0*kmags(i,j,k) ** (-1.0*init_kolm)
+                   ENDIF
+
+                   IF (helical) THEN
+                      bt1 = 2.0*phase1y - 1.0
+                      bt2 = 2.0*phase2 - 1.0
+                      bt3 = 2.0*phase2y - 1.0
+                      b1r = bt1 - (kxgrid(i) * bt1 + kygrid(j) * bt2 + kzgrid(k) * bt3)/(kmags(i,j,k)**2) * kxgrid(i)
+                      b2r = bt2 - (kxgrid(i) * bt1 + kygrid(j) * bt2 + kzgrid(k) * bt3)/(kmags(i,j,k)**2) * kygrid(j)
+                      b3r = bt3 - (kxgrid(i) * bt1 + kygrid(j) * bt2 + kzgrid(k) * bt3)/(kmags(i,j,k)**2) * kzgrid(k)
+                      btmag = sqrt(b1r**2 + b2r**2 + b3r**2)
+                      b1i = (kygrid(j) * b3r - kzgrid(k) * b2r)/kmags(i,j,k)
+                      b2i = (kzgrid(k) * b1r - kxgrid(i) * b3r)/kmags(i,j,k)
+                      b3i = (kxgrid(i) * b2r - kygrid(j) * b1r)/kmags(i,j,k)
+                      b_1(i,j,k,0) = cmplx(b1r,b1i)/(sqrt(2.0) * btmag * kmags(i,j,k)**(init_kolm/2.0))
+                      b_1(i,j,k,1) = cmplx(b2r,b2i)/(sqrt(2.0) * btmag * kmags(i,j,k)**(init_kolm/2.0))
+                      b_1(i,j,k,2) = cmplx(b3r,b3i)/(sqrt(2.0) * btmag * kmags(i,j,k)**(init_kolm/2.0))
+                      v_1(i,j,k,:) = b_1(i,j,k,:)
+                   ELSE IF (shear.and.(max(i,j).ne.0)) THEN
+                      b_1(i,j,k,0) = - kygrid(j)/sqrt(kxgrid(i)**2 + kygrid(j)**2) * phaseb * (kmags(i,j,k) **(-init_kolm/2.0))
+                      b_1(i,j,k,1) = kxgrid(i)/sqrt(kxgrid(i)**2 + kygrid(j)**2) * phaseb * (kmags(i,j,k) **(-init_kolm/2.0))
+                      b_1(i,j,k,2) = cmplx(0.0,0.0)
+                      v_1(i,j,k,0) = -kygrid(j)/sqrt(kxgrid(i)**2 + kygrid(j)**2) * phasev * phaseb * (kmags(i,j,k) **(-init_kolm/2.0))
+                      v_1(i,j,k,1) = kxgrid(i)/sqrt(kxgrid(i)**2 + kygrid(j)**2) * phasev*phaseb * (kmags(i,j,k) **(-init_kolm/2.0))
+                      v_1(i,j,k,2) = cmplx(0.0,0.0)
+                   ELSE
+                      b_1(i,j,k,0)= phaseb*cos(2*pi*thb)*1/(kmags(i,j,k)**(init_kolm/2.0))
+                      !0.32/sqrt((2+pi**2 * real(nkx0+nky0)/144.0) * real(nkx0*nky0*(nkz0-1)) * 8 * pi**3)
+                      b_1(i,j,k,1)= phaseb*phaseby*sin(2*pi*thb)*1/(kmags(i,j,k)**(init_kolm/2.0))
+                      !0.32/sqrt((2+pi**2 * real(nkx0+nky0)/144.0) * real(nkx0*nky0*(nkz0-1)) * 8 * pi**3)
+                      b_1(i,j,k,2) = (-kxgrid(i)*b_1(i,j,k,0)-kygrid(j)*b_1(i,j,k,1))/kzgrid(k)
+                      !b_1(i,j,k,2)=init_amp_bz              
+                      v_1(i,j,k,0)= phasev*phaseb*cos(2*pi*thv)*1/(kmags(i,j,k)**(init_kolm/2.0))
+                      !0.32/sqrt((2+pi**2 * real(nkx0+nky0)/144.0) * real(nkx0*nky0*(nkz0-1)) * 8 * pi**3)
+                      v_1(i,j,k,1)= phasev*phasevy*phaseb*sin(2*pi*thv)*1/(kmags(i,j,k)**(init_kolm/2.0))
+                      !0.32/sqrt((2+pi**2 * real(nkx0+nky0)/144.0) * real(nkx0*nky0*(nkz0-1)) * 8 * pi**3)
+                      !v_1(i,j,k,2)=init_amp_vz 
+                      v_1(i,j,k,2) = (-kxgrid(i)*v_1(i,j,k,0)-kygrid(j)*v_1(i,j,k,1))/kzgrid(k)
+                   END IF
      
-         END IF
+                END IF
 
-        endif
+             endif
 
-        END DO
+          END DO
        END DO
-      END DO
+    END DO
 
       if (enone) then
         s1 = sum(abs(b_1)**2+abs(v_1)**2)

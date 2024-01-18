@@ -52,7 +52,8 @@ SUBROUTINE read_parameters
       perf_test_par, version_flag, hankel, dt_slepc, nuno_closure,mu_integrated,&
       GyroLES, Gyroherm, Gyroz, Corr, &
       plot_nls,dbio,dvio,bdvio,vdbio,bdcbio,cbdbio,vdvio,bdbio,db2io,&
-      hall,guide,enone,nv,uni,beltrami,helical,shear,walenp,walenn,mhc
+      hall,guide,enone,nv,uni,beltrami,helical,shear,walenp,walenn,mhc,&
+      init_wave,en_leftwhist,en_leftcyclo,en_rightwhist,en_rightcyclo
  
   NAMELIST /eigensolve/ &
       left_vec,right_vec,ev_slepc, kxmax0, kymax0, kzmax0, kscan,n_ev,&
@@ -421,6 +422,11 @@ SUBROUTINE output_parameters
     WRITE(out_handle,"(A,I4)") "nv = ",nv
     WRITE(out_handle,"(A)")    "/"
     WRITE(out_handle,"(A)")    ""
+    WRITE(out_handle,"(A,L1)") "init_wave = ",init_wave
+    WRITE(out_handle,"(A,G12.4)") "en_leftwhist = ",en_leftwhist
+    WRITE(out_handle,"(A,G12.4)") "en_leftcyclo = ",en_leftcyclo
+    WRITE(out_handle,"(A,G12.4)") "en_rightwhist = ",en_rightwhist
+    WRITE(out_handle,"(A,G12.4)") "en_rightcyclo = ",en_rightcyclo
 
 
     IF (verbose) WRITE(*,*) "Eigensolve "

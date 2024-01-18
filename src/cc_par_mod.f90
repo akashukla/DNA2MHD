@@ -148,7 +148,12 @@ MODULE par_mod
   LOGICAL :: walenp = .false.
   LOGICAL :: walenn = .false.
   LOGICAL :: mhc = .false.
-
+  LOGICAL :: init_wave = .false.
+  REAL :: en_leftwhist = 1.0
+  REAL :: en_leftcyclo = 0.0
+  REAL :: en_rightwhist = 0.0
+  REAL :: en_rightcyclo = 0.0
+  
   LOGICAL :: calc_dt=.false.        !Automatic initial time step calculation
   LOGICAL :: dt_slepc=.false.        !Use slepc or lapack
 !  LOGICAL :: adapt_dt_nl=.true.     !Adapt time step in nonlinear sims
@@ -251,6 +256,10 @@ MODULE par_mod
   REAL, ALLOCATABLE, DIMENSION(:,:,:) :: kmags
   REAL, ALLOCATABLE, DIMENSION(:,:,:) :: kperps
   REAL, ALLOCATABLE, DIMENSION(:,:,:) :: kzs
+  REAL, ALLOCATABLE, DIMENSION(:,:,:) :: alpha_leftwhist
+  REAL, ALLOCATABLE, DIMENSION(:,:,:) :: alpha_leftcyclo
+  COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:) :: pcurleig
+  
   REAL :: mhelcorr
 
   !for parallelization

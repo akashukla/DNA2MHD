@@ -55,7 +55,7 @@ hyp = 2
 /
 
 &diagnostics
-diagdir = '/scratch/08929/echansen/dna2mhdrun447'
+diagdir = '/scratch/08929/echansen/dna2mhdrun450'
 istep_ffm =   20
 istep_energy3d =  500
 istep_energy =  20
@@ -94,24 +94,29 @@ forceb = F
 forcetype = 11
 set_forcing = F
 plot_nls = T
-hall = 0.0
+hall = 1.0
 guide = T
 enone = T
 uni = T
 shear = F
-beltrami = T
-helical = T
+beltrami = F
+helical = F
 walenp = F
 walenn = F
 nv = F
 mhc = T
+init_wave = T
+en_leftwhist = 1.0
+en_leftcyclo = 0.0
+en_rightwhist = 0.0
+en_rightcyclo = 0.0
 /
 
 &eigensolve
 /
 
 &initial_value
-max_itime = 12000
+max_itime = 8000
 max_walltime =   10000000.0
 dt_max =   0.01
 max_time =   10000000.
