@@ -33,7 +33,7 @@ MODULE time_advance
   
 !  COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:,:,:) :: g_2,k1,k2
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:) :: b_2, bk1, bk2, v_2, vk1, vk2
-  COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:) :: b_3,v_3,bk3,bk4,bk5,bk6,bk7,bk8,bk9,bk10,bk11,bk12,bk13,vk3,vk4,vk5,vk6,vk7,vk8,vk9,vk10,vk11,vk12
+  COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:) :: bk3,bk4,bk5,bk6,bk7,bk8,bk9,bk10,bk11,bk12,bk13,vk3,vk4,vk5,vk6,vk7,vk8,vk9,vk10,vk11,vk12,vk13,b_3,v_3
 
   CONTAINS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
   
@@ -43,7 +43,10 @@ MODULE time_advance
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 SUBROUTINE iv_solver
 
- REAL :: dt_next
+  REAL :: dt_next
+  INTEGER :: ionums(9)
+  INTEGER :: q
+  
  IF(.not.checkpoint_read) dt=dt_max
  !itime=0
  !time=0.0
@@ -51,6 +54,9 @@ SUBROUTINE iv_solver
  IF(mype==0) WRITE(*,*) "max_itime=",max_itime
  IF(mype==0) WRITE(*,*) "max_time=",max_time
 
+ CALL remove_div(b_1,v_1)
+ CALL ALLOCATE_STEPS
+ 
  DO WHILE(time.lt.max_time.and.itime.lt.max_itime.and.continue_run)
  
    !IF(verbose) WRITE(*,*) "Calling diagnostics",time,itime,mype
@@ -61,8 +67,20 @@ SUBROUTINE iv_solver
    IF(verbose.and.(mype.eq.0)) WRITE(*,*) "iv_solver: before get_g_next dt=",dt
    !CALL save_b(b_1)
    !CALL save_time(itime)
-   CALL get_g_next(b_1, v_1,dt_next)
-   dt = minval([dt_next,dt_max])
+   IF ((mype.eq.0).and.(plot_nls.and.(mod(itime,istep_energy).eq.0))) THEN
+      ionums = [dbio,dvio,bdvio,vdbio,bdcbio,cbdbio,vdvio,bdbio,db2io]
+      DO q = 1,9
+         WRITE(ionums(q)) time
+      ENDDO
+   ENDIF
+
+   IF (dp547) THEN
+      CALL dorpi547M(b_1,v_1)
+   ELSE
+      CALL get_g_next(b_1, v_1,dt_next)
+      dt = minval([dt_next,dt_max])
+   ENDIF
+   
    itime=itime+1 
    IF(mype==0.and.verbose) WRITE(*,*) "itime: ",itime
    IF(mype==0.and.verbose) WRITE(*,*) "dt: ",dt
@@ -80,7 +98,10 @@ SUBROUTINE iv_solver
      continue_run=.false.
    ENDIF
   !END IF
- END DO
+END DO
+
+CALL DEALLOCATE_STEPS
+
  write(*,*) 'Simulation Time: ',current_wallclock
  IF(verbose.and.(mype.eq.0)) WRITE(*,*) "time,itime,mype",time,itime,mype
 
@@ -146,23 +167,6 @@ SUBROUTINE get_g_next(b_in, v_in,dt_new)
  REAL :: dt_new
  REAL :: dt_new1,dt_new2,dt_new3,dt_new4
  REAL :: nmhc
- INTEGER :: ionums(9)
- INTEGER :: q
-
- IF ((mype.eq.0).and.(plot_nls.and.(mod(itime,istep_energy).eq.0))) THEN
- ionums = [dbio,dvio,bdvio,vdbio,bdcbio,cbdbio,vdvio,bdbio,db2io]
- DO q = 1,9
-    WRITE(ionums(q)) time
- ENDDO 
- ENDIF
-
- ALLOCATE(b_2(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
- ALLOCATE(bk1(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
- ALLOCATE(bk2(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
-
- ALLOCATE(v_2(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
- ALLOCATE(vk1(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
- ALLOCATE(vk2(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
 
 !  !4th order Runge-Kutta
 !  first_stage=.true.
@@ -185,50 +189,35 @@ SUBROUTINE get_g_next(b_in, v_in,dt_new)
 !  !g_in=g_2 
 
  !4th order Runge-Kutta
- if (itime.lt.1)  CALL remove_div(b_in,v_in)
+
  first_stage=.true.
- CALL get_rhs(b_in, v_in, bk1, vk1,dt_new1)
- IF (mhc) THEN 
- CALL getmhcrk(b_in,v_in,nmhc)
- mhelcorr = mhelcorr - (1.0/6.0)*dt*nmhc
- ENDIF
+ CALL get_rhs(b_in, v_in, bk1, vk1,nmhc,dt_new1)
  b_2=b_in+(1.0/6.0)*dt*bk1
  v_2=v_in+(1.0/6.0)*dt*vk1
+ IF (mhc) mhelcorr = mhelcorr + (1.0/6.0)*dt*nmhc
  first_stage=.false.
  !CALL get_rhs(b_in+0.5*dt*bk1,bk2)
  bk1=b_in+0.5*dt*bk1
  vk1=v_in+0.5*dt*vk1
- CALL remove_div(bk1,vk1)
  
- CALL get_rhs(bk1,vk1,bk2,vk2,dt_new2)
- IF (mhc) THEN
- CALL getmhcrk(bk1,vk1,nmhc)
- mhelcorr = mhelcorr-(1.0/3.0)*dt*nmhc
- ENDIF 
+ CALL get_rhs(bk1,vk1,bk2,vk2,nmhc,dt_new2)
  b_2=b_2+(1.0/3.0)*dt*bk2
  bk2=b_in+0.5*dt*bk2
  v_2=v_2+(1.0/3.0)*dt*vk2
  vk2=v_in+0.5*dt*vk2
- CALL remove_div(bk2,vk2)
+ mhelcorr = mhelcorr + (1.0/3.0) *dt * nmhc
 
- CALL get_rhs(bk2,vk2,bk1,vk1,dt_new3)
- IF (mhc) THEN
- CALL getmhcrk(bk2,vk2,nmhc)
- mhelcorr = mhelcorr - (1.0/3.0)*dt*nmhc
- ENDIF
+ CALL get_rhs(bk2,vk2,bk1,vk1,nmhc,dt_new3)
  b_2=b_2+(1.0/3.0)*dt*bk1
  bk1=b_in+dt*bk1
  v_2=v_2+(1.0/3.0)*dt*vk1
  vk1=v_in+dt*vk1
- CALL remove_div(bk1,vk1)
+ mhelcorr = mhelcorr + (1.0/3.0)*dt*nmhc
 
- CALL get_rhs(bk1,vk1,bk2,vk2,dt_new4)
- IF (mhc) THEN
- CALL getmhcrk(bk1,vk1,nmhc)
- mhelcorr = mhelcorr - (1.0/6.0)*dt*nmhc
- ENDIF
+ CALL get_rhs(bk1,vk1,bk2,vk2,nmhc,dt_new4)
  b_in=b_2+(1.0/6.0)*dt*bk2
  v_in=v_2+(1.0/6.0)*dt*vk2
+ mhelcorr = mhelcorr + (1.0/6.0)*dt*nmhc
 
  !!4th order Runge-Kutta
  !first_stage=.true.
@@ -263,19 +252,11 @@ SUBROUTINE get_g_next(b_in, v_in,dt_new)
 !  v_in(0,0,:,:)=cmplx(0.0,0.0)
 
  dt_new = minval([dt_new1,dt_new2,dt_new3,dt_new4])
- CALL remove_div(b_in,v_in)
 
  if ((walenp).or.(walenn)) then
   if (walenp) print *, maxval(abs(b_in-v_in)),maxloc(abs(b_in-v_in))
   if (walenn) print *, maxval(abs(b_in+v_in)),maxloc(abs(b_in+v_in))
  endif
-
- DEALLOCATE(b_2)
- DEALLOCATE(bk1)
- DEALLOCATE(bk2)
- DEALLOCATE(v_2)
- DEALLOCATE(vk1)
- DEALLOCATE(vk2)
 
 END SUBROUTINE get_g_next
 
@@ -307,9 +288,9 @@ SUBROUTINE remove_div(b_in,v_in)
                 pre(i,j,k) = i_complex * div_v / k2
 
               ! The b equation is a curl, so we don't need to remove div b
-              !  b_in(i,j,k,0) = b_in(i,j,k,0) - div_b*kxgrid(i)/k2
-              !  b_in(i,j,k,1) = b_in(i,j,k,1) - div_b*kygrid(j)/k2
-              !  b_in(i,j,k,2) = b_in(i,j,k,2) - div_b*kzgrid(k)/k2
+                b_in(i,j,k,0) = b_in(i,j,k,0) - div_b*kxgrid(i)/k2
+                b_in(i,j,k,1) = b_in(i,j,k,1) - div_b*kygrid(j)/k2
+                b_in(i,j,k,2) = b_in(i,j,k,2) - div_b*kzgrid(k)/k2
 
               ! Could be used to effect a gauge change such that dA/dt = v x B - curl B x B
               ! Keeps track of the integral of the pressure
@@ -329,13 +310,14 @@ END SUBROUTINE remove_div
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!                                    get_rhs                                !!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-SUBROUTINE get_rhs(b_in,v_in, rhs_out_b,rhs_out_v,ndt)
+SUBROUTINE get_rhs(b_in,v_in, rhs_out_b,rhs_out_v,nmhc,ndt)
 
  COMPLEX, INTENT(in) :: b_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
  COMPLEX, INTENT(in) :: v_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
 
  COMPLEX, INTENT(out) :: rhs_out_b(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
  COMPLEX, INTENT(out) :: rhs_out_v(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+ REAL, INTENT(out) :: nmhc
  REAL :: ndt
 
 !  COMPLEX, INTENT(in) :: g_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,lv1:lv2,lh1:lh2,ls1:ls2)
@@ -351,6 +333,11 @@ SUBROUTINE get_rhs(b_in,v_in, rhs_out_b,rhs_out_v,ndt)
   IF (verbose.and.(mype.eq.0)) WRITE(*,*) 'NL Max Abs B',maxval(abs(rhs_out_b)),maxloc(abs(rhs_out_b))
   IF (.not.(actual_nonlinear)) ndt = dt_max
   if (verbose.and.(mype.eq.0)) print *, ndt
+
+  CALL remove_div(rhs_out_b,rhs_out_v)
+
+  nmhc = 0.0
+  IF (mhc) CALL getmhcrk(b_in,v_in,nmhc)
 
   ! Add forcing
   IF(force_turbulence) CALL get_rhs_force(rhs_out_b, rhs_out_v,ndt)
@@ -561,8 +548,216 @@ SUBROUTINE getmhcrk(b_in,v_in,nmhc)
 
  REAL, intent(out) :: nmhc
 
-nmhc = 32.0*(pi**3) * sum(real(b_in(:,:,:,0)*conjg(v_in(:,:,:,1))-b_in(:,:,:,1)*conjg(v_in(:,:,:,0))))
+nmhc = - 32.0*(pi**3) * sum(real(b_in(:,:,:,0)*conjg(v_in(:,:,:,1))-b_in(:,:,:,1)*conjg(v_in(:,:,:,0))))
 
 END SUBROUTINE getmhcrk
+
+SUBROUTINE dorpi547M(b_in,v_in)
+
+  !! Integrating using adaptive DORPI 547M algorithm outlined in
+  !! Dormand Prince A family of embedded Runge-Kutta formulae 1980
+  !! https://doi.org/10.1016/0771-050X(80)90013-3
+  !! Butcher tableau for reference
+  !! 0    | 
+  !! 1/5  | 1/5
+  !! 3/10 | 3/40       9/40
+  !! 4/5  | 44/45      -56/15      32/9
+  !! 8/9  | 19372/6561 -25360/2187 64448/6561  -212/729
+  !! 1    | 9017/3168  -355/33     46732/5247  49/176     -5103/18656
+  !! 1    | 35/384     0           500/1113    125/192    -2187/6784      11/84
+  !! _____________
+  !!      | 35/384     0           500/1113    125/192    -2187/6784      11/84
+  !!      | 5179/57600 0           7571/16695  393/640     -92097/339200  187/2100  1/40
+  
+  IMPLICIT NONE
+
+  COMPLEX, INTENT(INOUT) :: b_in(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2)
+  COMPLEX, INTENT(INOUT) :: v_in(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2)
+  REAL :: dt_new1,dt_new2,dt_new3,dt_new4,dt_new5,dt_new6,dt_new7
+  REAL :: nmhc1,nmhc2,nmhc3,nmhc4,nmhc5,nmhc6,nmhc7,next_corr
+  LOGICAL :: trap = .true.
+  
+  dt = dt_max
+
+  ! print *, "dt start", dt
+  ! print *, "dt_max", dt_max
+  !! First step
+
+  trap = .true.
+  
+  do while (trap)
+
+
+     ! Use First Same As Last property to save time for higher steps 
+
+     if (itime.eq.0) CALL get_rhs(b_in,v_in,bk1,vk1,nmhc1,dt_new1)
+
+     
+     !! Second step
+     CALL get_rhs(b_in+dt*bk1*1.0/5.0,&
+          v_in+dt*vk1*1.0/5.0,bk2,vk2,nmhc2,dt_new2)
+  
+     !! Third step
+     CALL get_rhs(b_in+dt*(3.0*bk1/40.0+9.0*bk2/40.0),&
+          v_in+dt*(3.0*vk1/40.0+9.0*vk2/40.0),bk3,vk3,nmhc3,dt_new3)
+
+     !! Fourth step
+     CALL get_rhs(b_in+dt*(44.0/45.0*bk1-56.0/15.0*bk2+32.0/9.0*bk3),&
+          v_in+dt*(44.0/45.0*vk1-56.0/15.0*vk2+32.0/9.0*vk3),bk4,vk4,nmhc4,dt_new4)
+
+     !! Fifth step
+     CALL get_rhs(b_in+dt*(19372.0/6561.0*bk1-25360.0/2187.0*bk2+64448.0/6561.0*bk3-212.0/729.0*bk4),&
+          v_in+dt*(19372.0/6561.0*vk1-25360.0/2187.0*vk2+64448.0/6561.0*vk3-212.0/729.0*vk4),&
+          bk5,vk5,nmhc5,dt_new5)
+
+     !! Sixth step
+     CALL get_rhs(b_in+dt*(9017.0/3168.0*bk1 - 355.0/33.0*bk2 + 46732.0/5247.0*bk3 &
+          + 49.0/176.0*bk4-5103.0/18656.0*bk5),&
+          v_in+dt*(9017.0/3168.0*vk1 - 355.0/33.0*vk2 + 46732.0/5247.0*vk3	&
+       + 49.0/176.0*vk4-5103.0/18656.0*vk5),bk6,vk6,nmhc6,dt_new6)
+
+     b_2 = b_in + dt*(35.0/384.0*bk1+500.0/1113.0*bk3+125.0/192.0*bk4&
+          -2187.0/6784.0*bk5+11.0/84.0*bk6)
+     v_2 = v_in + dt*(35.0/384.0*vk1+500.0/1113.0*vk3+125.0/192.0*vk4&
+          -2187.0/6784.0*vk5+11.0/84.0*vk6)
+     next_corr = dt*(35.0/384.0*nmhc1+500.0/1113.0*nmhc3+125.0/192.0*nmhc4&
+          -2187.0/6784.0*nmhc5+11.0/84.0*nmhc6)
+     
+     !! Seventh step
+     CALL get_rhs(b_2,v_2,bk7,vk7,nmhc7,dt_new7)
+
+     b_3 = b_in + dt*(5179.0/57600.0*bk1+7571.0/16695.0*bk3+393.0/640.0*bk4&
+          -92097.0/339200.0*bk5+187.0/2100.0*bk6+bk7/40.0)
+     v_3 = v_in + dt*(5179.0/57600.0*vk1+7571.0/16695.0*vk3+393.0/640.0*vk4&
+          -92097.0/339200.0*vk5+187.0/2100.0*vk6+vk7/40.0)
+
+     trap = ((maxval(abs((b_3-b_2)/b_2),abs(b_2).gt.10**(-10.0)).gt.10**(-3.0)).or.&
+          (maxval(abs((v_3-v_2)/v_2),abs(v_2).gt.10**(-10.0)).gt.10**(-3.0)))
+     if ((itime.lt.1)) dt = minval([dt_new1,dt_new2,dt_new3,dt_new4,dt_new5,dt_new6,dt_new7,dt])
+     if ((itime.gt.1)) dt = minval([dt_new2,dt_new3,dt_new4,dt_new5,dt_new6,dt_new7,dt])
+     if (trap) dt = 0.9 * dt
+     
+     if (verbose) then
+        print *, "Trap",trap
+        print *, "RATIOS",(maxval(abs((b_3-b_2)/b_2),abs(b_2).gt.10**(-10.0))),maxval(abs((v_3-v_2)/v_2),abs(v_2).gt.10**(-10.0))
+        print *, "dt",dt
+        print *, "itime",itime
+     endif
+     
+
+  enddo
+
+  b_in = b_2
+  v_in = v_2
+  mhelcorr = mhelcorr + next_corr
+
+  bk1 = bk7
+  vk1 = vk7
+  nmhc1 = nmhc7
+
+END SUBROUTINE dorpi547M
+
+SUBROUTINE ALLOCATE_STEPS
+
+  IMPLICIT NONE
+
+  ALLOCATE(b_2(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+  ALLOCATE(v_2(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+
+  ALLOCATE(b_3(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+  ALLOCATE(v_3(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+  
+  ALLOCATE(bk1(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+  ALLOCATE(vk1(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+
+  ALLOCATE(bk2(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+  ALLOCATE(vk2(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+
+  ALLOCATE(bk3(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+  ALLOCATE(vk3(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+
+  ALLOCATE(bk4(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+  ALLOCATE(vk4(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+
+  ALLOCATE(bk5(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+  ALLOCATE(vk5(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+
+  ALLOCATE(bk6(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+  ALLOCATE(vk6(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+
+  ALLOCATE(bk7(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+  ALLOCATE(vk7(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+
+  ALLOCATE(bk8(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+  ALLOCATE(vk8(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+
+  ALLOCATE(bk9(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+  ALLOCATE(vk9(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+
+  ALLOCATE(bk10(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+  ALLOCATE(vk10(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+
+  ALLOCATE(bk11(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+  ALLOCATE(vk11(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+
+  ALLOCATE(bk12(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+  ALLOCATE(vk12(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+
+  ALLOCATE(bk13(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+  ALLOCATE(vk13(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+
+END SUBROUTINE ALLOCATE_STEPS
+
+SUBROUTINE DEALLOCATE_STEPS
+
+  IMPLICIT NONE
+
+  DEALLOCATE(b_2)
+  DEALLOCATE(v_2)
+
+  DEALLOCATE(b_3)
+  DEALLOCATE(v_3)
+
+  DEALLOCATE(bk1)
+  DEALLOCATE(vk1)
+
+  DEALLOCATE(bk2)
+  DEALLOCATE(vk2)
+
+  DEALLOCATE(bk3)
+  DEALLOCATE(vk3)
+
+  DEALLOCATE(bk4)
+  DEALLOCATE(vk4)
+
+  DEALLOCATE(bk5)
+  DEALLOCATE(vk5)
+
+  DEALLOCATE(bk6)
+  DEALLOCATE(vk6)
+
+  DEALLOCATE(bk7)
+  DEALLOCATE(vk7)
+
+  DEALLOCATE(bk8)
+  DEALLOCATE(vk8)
+
+  DEALLOCATE(bk9)
+  DEALLOCATE(vk9)
+
+  DEALLOCATE(bk10)
+  DEALLOCATE(vk10)
+
+  DEALLOCATE(bk11)
+  DEALLOCATE(vk11)
+
+  DEALLOCATE(bk12)
+  DEALLOCATE(vk12)
+
+  DEALLOCATE(bk13)
+  DEALLOCATE(vk13)
+  
+END SUBROUTINE DEALLOCATE_STEPS
+
 
 END MODULE time_advance

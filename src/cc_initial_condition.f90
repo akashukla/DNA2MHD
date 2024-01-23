@@ -50,7 +50,7 @@ SUBROUTINE initial_condition(which_init0)
 
   xst = max(0,kxinit_min)
   yst = max(0,kyinit_min)
-  zst = max(1,kzinit_min)
+  zst = max(0,kzinit_min)
 
   DO i = 0,nkx0-1
     DO j = 0,nky0-1
@@ -90,12 +90,12 @@ SUBROUTINE initial_condition(which_init0)
           ELSE
              pcurleig(i,j,k,:) = cmplx(0.0,0.0)
           ENDIF
-          if (verbose) print *, i,j,k,sum(abs(pcurleig(i,j,k,:))**2)
+          ! if (verbose) print *, i,j,k,sum(abs(pcurleig(i,j,k,:))**2)
        ENDDO
     ENDDO
  ENDDO
 
- if (verbose) print *, en_leftwhist, en_leftcyclo, en_rightwhist, en_rightcyclo
+ ! if (verbose) print *, en_leftwhist, en_leftcyclo, en_rightwhist, en_rightcyclo
  
   ! s1 = 2*sum(kmags(xst:kxinit_max-1,yst:kyinit_max-1,zst:kzinit_max-1) ** (-1.0*init_kolm))
   ! s2 = 2*sum((divratio(xst:kxinit_max-1,yst:kyinit_max-1,zst:kzinit_max-1) ** 2) * kmags(0:kxinit_max-1,0:kyinit_max-1,1:kzinit_max-1) ** (-1.0 * init_kolm))
@@ -130,7 +130,7 @@ SUBROUTINE initial_condition(which_init0)
         DO j=yst,kyinit_max-1
           DO k=zst,kzinit_max-1
 
-             if (((kxgrid(i).lt.kxmax+kxmin).and.(kygrid(j).lt.kymax+kymin)).and.(kzgrid(k).lt.kzmax+kzmin)) then
+             if ((((kxgrid(i).lt.kxmax+kxmin).and.(kygrid(j).lt.kymax+kymin)).and.(kzgrid(k).lt.kzmax+kzmin)).and.(kmags(i,j,k).ne.0)) then
                 
           !!! Uniform distribution
                 if (uni) then

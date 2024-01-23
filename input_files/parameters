@@ -55,7 +55,7 @@ hyp = 2
 /
 
 &diagnostics
-diagdir = '/scratch/08929/echansen/dna2mhdrun450'
+diagdir = '/scratch/08929/echansen/dna2mhdrun458'
 istep_ffm =   20
 istep_energy3d =  500
 istep_energy =  20
@@ -85,6 +85,7 @@ etg_factor  =    0.000
 em_conserve = T
 nuno_closure = T
 rhs_nl_version = 12
+dp547 = F
 rhs_lin_version = 1
 dealias_type = 3
 shifted = F
@@ -106,8 +107,8 @@ walenn = F
 nv = F
 mhc = T
 init_wave = T
-en_leftwhist = 1.0
-en_leftcyclo = 0.0
+en_leftwhist = 0.0
+en_leftcyclo = 1.0
 en_rightwhist = 0.0
 en_rightcyclo = 0.0
 /
@@ -116,7 +117,7 @@ en_rightcyclo = 0.0
 /
 
 &initial_value
-max_itime = 8000
+max_itime = 12000
 max_walltime =   10000000.0
 dt_max =   0.01
 max_time =   10000000.

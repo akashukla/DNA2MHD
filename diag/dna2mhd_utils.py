@@ -170,14 +170,21 @@ def read_time_step_energy(which_itime,swap_endian=False):
    f.close()
    return gt0
 
-def read_time_step_energyspec(which_itime,swap_endian=False):
+def read_time_step_energyspec(which_itime,swap_endian=False,mode=False):
    """Reads a time step from energyspec_out.dat.  Time step determined by \'which_itime\'"""
    file_name = par['diagdir'][1:-1]+'/energyspec_out.dat'
+   if mode:
+       file_name = par['diagdir'][1:-1]+'/mode_out.dat'
    f = open(file_name,'rb')
    gt0=np.empty((1))
    ntot = par['nkx0']*par['nky0']*par['nkz0']*2
+   if mode:
+       ntot *= 2
    mem_tot = (ntot)*8
-   gt0 = np.empty((par['nkx0'],par['nky0'],par['nkz0'],2))
+   if not mode:
+       gt0 = np.empty((par['nkx0'],par['nky0'],par['nkz0'],2))
+   else:
+       gt0 = np.empty((par['nkx0'],par['nky0'],par['nkz0'],4))
    f.seek(8+which_itime*(8+mem_tot))
    gt0=np.fromfile(f,dtype='float64',count=ntot)
    if swap_endian:
@@ -318,11 +325,15 @@ def get_time_from_energyout(swap_endian=False,tmax=2000000):
    f.close()
    return time
 
-def get_time_from_energyspecout(swap_endian=False,tmax=2000000):
+def get_time_from_energyspecout(swap_endian=False,tmax=2000000,mode=False):
    """Returns time array taken from v_out.dat"""
    file_name = par['diagdir'][1:-1]+ '/energyspec_out.dat'
+   if mode:
+       file_name = par['diagdir'][1:-1]+'/mode_out.dat'
    f = open(file_name,'rb')
    ntot=par['nkx0']*par['nky0']*par['nkz0']*2
+   if mode:
+       ntot *= 2
    mem_tot=ntot*8
    time=np.empty(0)
    continue_read=1
@@ -498,32 +509,53 @@ def getenergy(lpath,tmax=2000000):
 
     return time,g
 
-def getenergyspec(lpath,tmax=2000000):
+def getenergyspec(lpath,tmax=2000000,mode=False):
     """Saves energyspec_out.dat (located in the directory specified by lpath) into a python-readable format v_xyz.dat                         
     which will also be located in the lpath directory.                                                                               
     """
     read_parameters(lpath)
-    time = get_time_from_energyspecout(tmax=tmax)
+    time = get_time_from_energyspecout(tmax=tmax,mode=mode)
     kx,ky,kz=get_grids()
     i_n=[0,1,2]
-    savepath = lpath+'/energyspec_xyz.dat'
-    g=np.memmap(savepath,dtype='float64',mode='w+', shape=(len(time),len(kx),len(ky,),len(kz),2) )
-    np.save(lpath+'/energyspecshape.npy',g.shape)
-    np.save(lpath+'/timeenergyspec.npy',time)
+
+    if mode:
+        savepath = lpath+'/modespec_xyz.dat'
+        g=np.memmap(savepath,dtype='float64',mode='w+', shape=(len(time),len(kx),len(ky,),len(kz),4) )
+        np.save(lpath+'/modespecshape.npy',g.shape)
+        np.save(lpath+'/timemodespec.npy',time)
+    else:
+        savepath = lpath+'/energyspec_xyz.dat'
+        g=np.memmap(savepath,dtype='float64',mode='w+', shape=(len(time),len(kx),len(ky,),len(kz),2) )
+        np.save(lpath+'/energyspecshape.npy',g.shape)
+        np.save(lpath+'/timeenergyspec.npy',time)        
     print(par)
     print('time length = ', len(time))
     for t in range(len(time)):
-        if(t%1000==0):
+        if(t%1==0):
             print(str(t))
-        gt = read_time_step_energyspec(t)
-        gt = np.reshape(gt,(par['nkx0'],par['nky0'],par['nkz0'],2),order='F')
-        g[t] = gt
-    f = open(lpath+'/dumenspec.txt','w')
-    f.write('Finished loop')
-    f.close()
-    evk = np.reshape(g[:,:,:,:,0],(len(time),len(kx),len(ky),len(kz)))
-    ebk = np.reshape(g[:,:,:,:,1],(len(time),len(kx),len(ky),len(kz)))
-    return time, evk,ebk
+        gt = read_time_step_energyspec(t,mode=mode)
+        if not mode:
+            gt = np.reshape(gt,(par['nkx0'],par['nky0'],par['nkz0'],2),order='F')
+            g[t] = gt
+        else:
+            gt = np.reshape(gt,(par['nkx0'],par['nky0'],par['nkz0'],4),order='F')
+            g[t] = gt
+    if not mode:
+        f = open(lpath+'/dumenspec.txt','w')
+        f.write('Finished loop')
+        f.close()
+        evk = np.reshape(g[:,:,:,:,0],(len(time),len(kx),len(ky),len(kz)))
+        ebk = np.reshape(g[:,:,:,:,1],(len(time),len(kx),len(ky),len(kz)))
+        return time, evk,ebk
+    else:
+        f = open(lpath+'/dummodespec.txt','w')
+        f.write('Finished loop')
+        f.close()
+        lwk = np.reshape(g[:,:,:,:,0],(len(time),len(kx),len(ky),len(kz)))
+        lck = np.reshape(g[:,:,:,:,1],(len(time),len(kx),len(ky),len(kz)))
+        rwk = np.reshape(g[:,:,:,:,2],(len(time),len(kx),len(ky),len(kz)))
+        rck = np.reshape(g[:,:,:,:,3],(len(time),len(kx),len(ky),len(kz)))
+        return time, lwk,lck,rwk,rck
 
 def getxi(lpath,tmax=2000000):
     """Saves xi_out.dat (located in the directory specified by lpath) into a python-readable format v_xyz.dat                                                                                                                                                                                                          
@@ -596,17 +628,26 @@ def load_energy(lpath):
     enload=np.memmap(lpath+'/energy_xyz.dat',dtype='float64',mode='r',shape=tuple(np.load(lpath+'/energyshape.npy')))
     return time, enload
 
-def load_energyspec(lpath):
+def load_energyspec(lpath,mode=False):
     """ This method can only be run after getv has been called at least once to save the v_xyz.dat file_name 
     This quickly loads the v array which will have indices [time,kx,ky,kz, x/y/z]  """
     read_parameters(lpath)
     if lpath==None:
         lpath='/scratch/04943/akshukla/dna2mhd_output_0'
-    time = np.load(lpath+'/timeenergyspec.npy')
-    g = np.memmap(lpath+'/energyspec_xyz.dat',dtype='float64',mode='r',shape=tuple(np.load(lpath+'/energyspecshape.npy')))
-    evk = np.reshape(g[:,:,:,:,0],(len(time),par['nkx0'],par['nky0'],par['nkz0']))
-    ebk = np.reshape(g[:,:,:,:,1],(len(time),par['nkx0'],par['nky0'],par['nkz0']))
-    return time, evk,ebk
+    if not mode:
+        time = np.load(lpath+'/timeenergyspec.npy')
+        g = np.memmap(lpath+'/energyspec_xyz.dat',dtype='float64',mode='r',shape=tuple(np.load(lpath+'/energyspecshape.npy')))
+        evk = np.reshape(g[:,:,:,:,0],(len(time),par['nkx0'],par['nky0'],par['nkz0']))
+        ebk = np.reshape(g[:,:,:,:,1],(len(time),par['nkx0'],par['nky0'],par['nkz0']))
+        return time,evk,ebk
+    else:
+        time = np.load(lpath+'/timemodespec.npy')
+        g = np.memmap(lpath+'/modespec_xyz.dat',dtype='float64',mode='r',shape=tuple(np.load(lpath+'/modespecshape.npy')))
+        lwk = np.reshape(g[:,:,:,:,0],(len(time),par['nkx0'],par['nky0'],par['nkz0']))
+        lck = np.reshape(g[:,:,:,:,1],(len(time),par['nkx0'],par['nky0'],par['nkz0']))
+        rwk = np.reshape(g[:,:,:,:,2],(len(time),par['nkx0'],par['nky0'],par['nkz0']))
+        rck = np.reshape(g[:,:,:,:,3],(len(time),par['nkx0'],par['nky0'],par['nkz0']))
+        return time,lwk,lck,rwk,rck
 
 def load_xi(lpath):
     """  This method can only be run after getv has been called at least once to save the v_xyz.dat file_name                                                                                                                                                                                                                  
@@ -1513,3 +1554,70 @@ def nlparam(lpath,tt):
     plt.show()
 
     return(kperps,xi_cyclo,xi_mhd,xi_whist)
+
+def mode_break(lpath,show=False,tmax=200000):
+
+    read_parameters(lpath)
+    kx,ky,kz = get_grids()
+
+    if os.path.isfile(lpath+'/dummodespec.txt'):
+        t,lwk,lck,rwk,rck = load_energyspec(lpath,mode=True)
+        lwkm = lwk[:,1:,1:,1:]
+        lckm = lck[:,1:,1:,1:]
+        rwkm = rwk[:,1:,1:,1:]
+        rckm = rck[:,1:,1:,1:]
+    else:
+        t,lwk,lck,rwk,rck = getenergyspec(lpath,tmax=tmax,mode=True)
+        lwkm = lwk[:,1:,1:,1:]
+        lckm = lck[:,1:,1:,1:]
+        rwkm = rwk[:,1:,1:,1:]
+        rckm = rck[:,1:,1:,1:]
+
+    print(t)
+    fmts = ['rs','bs','r8','b8']
+    labels = ['+ Helicity Whistler','+ Helicity Cyclotron','- Helicity Whistler','- Helicity Cyclotron']
+
+    mode_ks = np.stack((lwkm,lckm,rwkm,rckm))
+    mode_profs = np.sum(mode_ks,axis=(2,3,4))
+    plt.figure(1)
+    for i in range(4):
+        plt.plot(t,mode_profs[i,:],fmts[i],label=labels[i],markersize=1)
+    plt.xlabel('Time ($\omega_c^{-1}$)')
+    plt.ylabel('Mode Energy')
+    plt.title('Energy Spread in Hall MHD Modes vs Time')
+    plt.yscale('log')
+    plt.ylim(10**(-10),10**1)
+    plt.legend()
+
+    if not os.path.exists(lpath+'/eplots/'):
+        os.mkdir(lpath+'/eplots/')
+    plt.savefig(lpath+'/eplots/modeev.png')
+    if show == True:
+        plt.show()
+    plt.close()
+
+    # Other plots: 1D spectra
+
+    fig,ax = plt.subplots(2)
+
+    for i in range(4):
+        kperps,spec1di = integrated_spectrum_1d(mode_ks[i,0,:,:,:],lpath)
+        kperps,spec1df = integrated_spectrum_1d(mode_ks[i,-1,:,:,:],lpath)
+        ax[0].plot(kperps,spec1di,fmts[i],label=labels[i],markersize=1)
+        ax[1].plot(kperps,spec1df,fmts[i],label=labels[i],markersize=1)
+    ax[0].set_ylabel("Initial")
+    ax[1].set_ylabel("Final")
+    ax[1].set_xlabel("$k_\perp$ ($d_i^{-1}$)")
+    ax[0].set_yscale("log")
+    ax[1].set_yscale("log")
+    ax[0].set_xscale("log")
+    ax[1].set_xscale("log")
+    ax[0].set_ylim(10**(-10),10**1)
+    ax[1].set_ylim(10**(-10),10**1)
+    ax[0].legend()
+    ax[1].legend()
+    fig.suptitle("Mode Energy Spectra at t = %.2f and t = %.2f " % (t[0],t[-1]))
+    fig.savefig(lpath+"/eplots/modespec.png")
+    if show == True:
+        plt.show()
+    plt.close()

@@ -42,7 +42,8 @@ SUBROUTINE get_rhs_lin(b_in, v_in, rhs_out_b, rhs_out_v, which_term)
 
  IF ((rhs_lin_version==1).or.(rhs_lin_version==12)) THEN
    !If works for mu integrated as well for hankel/vperp version
-   CALL get_rhs_lin1_ae(b_in, v_in, rhs_out_b, rhs_out_v, which_term)
+    if (verbose) print *, "enter lin rhs"
+    CALL get_rhs_lin1_ae(b_in, v_in, rhs_out_b, rhs_out_v, which_term)
  ELSE IF(rhs_lin_version==2) THEN
    !CALL get_rhs_lin2(g_in,g_bounds,phi_in,rhs_out,which_term)
    STOP 'get_rhs_lin2 needs to be benchmarked and updated to 6D g.'

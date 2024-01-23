@@ -202,27 +202,28 @@ END FUNCTION tshftl
 
 end module mtrandom
 
-#if 0
+!if 0
 ! this main() outputs first 1000 generated numbers
-PROGRAM main
-USE mtrandom
-IMPLICIT NONE
 
-INTEGER, PARAMETER :: no = 1000
-INTEGER            :: j, k
-REAL (dp)          :: r(0:7)
-
+!PROGRAM mainrandom
+!USE mtrandom
+!IMPLICIT NONE
+!
+!INTEGER, PARAMETER :: no = 1000
+!INTEGER            :: j, k
+!REAL (dp)          :: r(0:7)
+!
 !      call sgrnd(4357)
 !                         any nonzero integer can be used as a seed
-DO  j=0,no-1
-  r(MOD(j,8)) = grnd()
-  IF(MOD(j,8) == 7) THEN
-    WRITE(*, '(8(f8.6, '' ''))') r(0:7)
-  ELSE IF(j == no-1) THEN
-    WRITE(*, '(8(f8.6, '' ''))') (r(k),k=0,MOD(no-1,8))
-  END IF
-END DO
-
-STOP
-END PROGRAM main
-#endif
+!DO  j=0,no-1
+!  r(MOD(j,8)) = grnd()
+!  IF(MOD(j,8) == 7) THEN
+!    WRITE(*, '(8(f8.6, '' ''))') r(0:7)
+!  ELSE IF(j == no-1) THEN
+!    WRITE(*, '(8(f8.6, '' ''))') (r(k),k=0,MOD(no-1,8))
+!  END IF
+!END DO
+!
+!STOP
+!END PROGRAM mainrandom
+! #endif

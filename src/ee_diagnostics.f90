@@ -4583,7 +4583,7 @@ subroutine mode_spec
            LC(i,j,k) = sum(conjg(pcurleig(i,j,k,:))*(alpha_leftcyclo(i,j,k)*b_1(i,j,k,:)+v_1(i,j,k,:))/sqrt(alpha_leftcyclo(i,j,k)**2+1))
            RW(i,j,k) = sum(pcurleig(i,j,k,:)*(-alpha_leftwhist(i,j,k)*b_1(i,j,k,:)+v_1(i,j,k,:))/sqrt(alpha_leftwhist(i,j,k)**2+1))
            RC(i,j,k) = sum(pcurleig(i,j,k,:)*(-alpha_leftcyclo(i,j,k)*b_1(i,j,k,:)+v_1(i,j,k,:))/sqrt(alpha_leftcyclo(i,j,k)**2+1))
-           if (verbose.and.(itime.lt.100)) print *, i,j,k, LW(i,j,k),LC(i,j,k),RW(i,j,k),RC(i,j,k)
+           ! if (verbose.and.(itime.lt.100)) print *, i,j,k, LW(i,j,k),LC(i,j,k),RW(i,j,k),RC(i,j,k)
         enddo
      enddo
   enddo

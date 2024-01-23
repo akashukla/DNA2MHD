@@ -59,7 +59,7 @@ BASEDIR = $(dir $(CURDIR)/)
 HOSTDIR = $(BASEDIR)host
 SRCDIR  = $(BASEDIR)src
 OBJDIR  = $(BASEDIR)obj
-BINDIR  = $(BASEDIR)bin
+BINDIR  = $(BASEDIR)bin2
 
 
 #####  REDING THE LIBRARYS ANS COMPILERS OPTIONS DEPENDING ON THE HOST  
@@ -97,8 +97,18 @@ F90SRC = cc_comm.f90 \
 
 F90OBJ  = $(F90SRC:.f90=.o)
 F90OBJ2 = $(F90SRC2:.F90=.o)
-OBJLIST = $(F90OBJ) $(F90OBJ2)
-
+OBJLIST = $(OBJDIR)/cc_comm.o \
+                 $(OBJDIR)/cc_get_rhs_lin.o \
+                 $(OBJDIR)/cc_get_rhs_nl_old2.o \
+                 $(OBJDIR)/cc_init.o \
+                 $(OBJDIR)/cc_initial_condition.o \
+                 $(OBJDIR)/cc_par_io.o \
+                 $(OBJDIR)/cc_main.o \
+                 $(OBJDIR)/cc_par_mod.o \
+                 $(OBJDIR)/cc_time_advance.o \
+                 $(OBJDIR)/ee_diagnostics.o \
+                 $(OBJDIR)/cc_random.o \
+                 $(OBJDIR)/ee_mtrandom.o
 
 ##### THE DEPENDENCIES                                                
 ###############################################################################
@@ -112,25 +122,25 @@ OBJLIST = $(F90OBJ) $(F90OBJ2)
 #cc_calc_dt.o:	cc_par_mod.o  cc_get_rhs_nl_old2.o #ee_eigen_direct.o
 #endif
 
-cc_comm.o:	cc_par_mod.o
+$(OBJDIR)/cc_comm.o:	$(OBJDIR)/cc_par_mod.o
 #cc_field_solver.o:	cc_par_mod.o cc_flr.o cc_aux_func.o cc_hk.o
 #cc_flr.o:	cc_par_mod.o cc_aux_func.o
 #cc_hk.o:	cc_par_mod.o cc_aux_func.o cc_comm.o
-cc_get_rhs_lin.o:	cc_par_mod.o cc_random.o #cc_flr.o cc_hk.o
-cc_get_rhs_nl_old2.o:	cc_par_mod.o #cc_field_solver.o
-cc_init.o:	cc_par_mod.o ee_diagnostics.o #cc_calc_dt.o #ee_diagnostics.o \
+$(OBJDIR)/cc_get_rhs_lin.o:	$(OBJDIR)/cc_par_mod.o $(OBJDIR)/cc_random.o #cc_flr.o cc_hk.o
+$(OBJDIR)/cc_get_rhs_nl_old2.o:	$(OBJDIR)/cc_par_mod.o #cc_field_solver.o
+$(OBJDIR)/cc_init.o:	$(OBJDIR)/cc_par_mod.o $(OBJDIR)/ee_diagnostics.o #cc_calc_dt.o #ee_diagnostics.o \
                     #cc_hk.o cc_gaussquadrature.o #cc_field_solver.o cc_flr.o 
-cc_initial_condition.o:	cc_par_mod.o cc_par_io.o ee_mtrandom.o
-cc_par_io.o:	cc_par_mod.o #cc_gaussquadrature.o
+$(OBJDIR)/cc_initial_condition.o:	$(OBJDIR)/cc_par_mod.o $(OBJDIR)/cc_par_io.o $(OBJDIR)/ee_mtrandom.o
+$(OBJDIR)/cc_par_io.o:	$(OBJDIR)/cc_par_mod.o #cc_gaussquadrature.o
 #cc_gaussquadrature.o:	cc_par_mod.o
-cc_time_advance.o:	cc_par_mod.o cc_get_rhs_lin.o cc_get_rhs_nl_old2.o ee_diagnostics.o 
+$(OBJDIR)/cc_time_advance.o:	$(OBJDIR)/cc_par_mod.o $(OBJDIR)/cc_get_rhs_lin.o $(OBJDIR)/cc_get_rhs_nl_old2.o $(OBJDIR)/ee_diagnostics.o 
 
-cc_main.o:			cc_par_mod.o cc_comm.o cc_init.o \
-				cc_par_io.o cc_time_advance.o  \
-				cc_get_rhs_nl_old2.o ee_diagnostics.o  #cc_hk.o cc_flr.o  ee_diagnostics.o `ee_performance.o  ee_triple_transfers.o
+$(OBJDIR)/cc_main.o:			$(OBJDIR)/cc_par_mod.o $(OBJDIR)/cc_comm.o $(OBJDIR)/cc_init.o \
+				$(OBJDIR)/cc_par_io.o $(OBJDIR)/cc_time_advance.o  \
+				$(OBJDIR)/cc_get_rhs_nl_old2.o $(OBJDIR)/ee_diagnostics.o  #cc_hk.o cc_flr.o  ee_diagnostics.o `ee_performance.o  ee_triple_transfers.o
 
-ee_diagnostics.o:	cc_par_mod.o cc_get_rhs_lin.o cc_get_rhs_nl_old2.o \
-				cc_par_io.o #cc_flr.o cc_hk.o ee_Gyro_LES.o #cc_field_solver.o 
+$(OBJDIR)/ee_diagnostics.o:	$(OBJDIR)/cc_par_mod.o $(OBJDIR)/cc_get_rhs_lin.o $(OBJDIR)/cc_get_rhs_nl_old2.o \
+				$(OBJDIR)/cc_par_io.o #cc_flr.o cc_hk.o ee_Gyro_LES.o #cc_field_solver.o 
 #ee_eigen_direct.o:	cc_par_mod.o cc_get_rhs_lin.o #cc_field_solver.o
 #ee_performance.o:	cc_par_mod.o cc_get_rhs_lin.o cc_get_rhs_nl_old2.o \
 				cc_time_advance.o #cc_field_solver.o 
@@ -144,7 +154,7 @@ ee_diagnostics.o:	cc_par_mod.o cc_get_rhs_lin.o cc_get_rhs_nl_old2.o \
 all: $(EXEC) 
 
 $(EXEC): directory $(OBJLIST) 
-	$(LD) $(LDFLAGS) $(PREPROC) -o $(BINDIR)/$(EXEC) $(OBJLIST) $(LIBS)
+	$(LD) $(LDLAGS) $(PREPROC) -o $(BINDIR)/$(EXEC) $(OBJLIST) $(LIBS)
 	@echo !!!!!!!!!!!!!!!!!!!!!! SUCCESS.
 
 directory:
@@ -153,8 +163,8 @@ directory:
 	test -d $(OBJDIR) || mkdir -p $(OBJDIR)
 	@echo  !!!!!!!!!!!!!!!!!!!!!! COMPILING DIRECTORY: $(shell pwd)	
 
-%.o: $(SRCDIR)/%.f90
-	$(FC) $(FFLAGS) $(PREPROC) $(INCPATHS) -c -o $@ $< 
+$(OBJDIR)/%.o: $(SRCDIR)/%.f90
+	cd $(OBJDIR) && $(FC) $(FFLAGS) $(PREPROC) $(INCPATHS) -c -o $@ $<
 
 #####  MAKING THE CLEANING TOOLS 
 ###############################################################################
