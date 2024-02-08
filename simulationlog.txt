@@ -1,0 +1,24 @@
+Simulation 458/459:
+DNA2MHD cyclotron wave simulations with RK4 vs DORPI
+Energy conserved only slightly better with RK4 (~1 difference in error)
+
+02/06/24
+
+Allowed mode decomposiition for all initial condition simulations
+
+Simulation 460/461:
+Helical Navier Stokes simulation with DORPI vs RK4
+Energy conserved only slightly better with RK4 (~1 difference in error)
+
+02/07/24
+
+Wrote linear harmonic oscillator simulation
+
+Simulation 462/463:
+Helical 3ND harmonic oscillator simulation with DORPI vs RK4, 1200 its
+Energy conserved about 20-30x better with DORPI
+
+Simulation 464/465:
+DNA2MHD cyclotron linear HMHD wave simulations with DORPI vs RK4, 12000 its
+Energy conserved about 20-30x better with DORPI
+

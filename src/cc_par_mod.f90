@@ -131,6 +131,7 @@ MODULE par_mod
   LOGICAL :: plot_nls = .false.
   LOGICAL :: enone = .true.
   LOGICAL :: nv = .false.
+  LOGICAL :: test_ho = .false.
   INTEGER :: dbio = 200 
   INTEGER :: dvio = 201
   INTEGER :: bdvio = 202

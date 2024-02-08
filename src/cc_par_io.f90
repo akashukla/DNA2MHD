@@ -52,7 +52,7 @@ SUBROUTINE read_parameters
       perf_test_par, version_flag, hankel, dt_slepc, nuno_closure,mu_integrated,&
       GyroLES, Gyroherm, Gyroz, Corr, &
       plot_nls,dbio,dvio,bdvio,vdbio,bdcbio,cbdbio,vdvio,bdbio,db2io,&
-      hall,guide,enone,nv,uni,beltrami,helical,shear,walenp,walenn,mhc,&
+      hall,guide,enone,nv,test_ho,uni,beltrami,helical,shear,walenp,walenn,mhc,&
       init_wave,en_leftwhist,en_leftcyclo,en_rightwhist,en_rightcyclo
  
   NAMELIST /eigensolve/ &
@@ -421,6 +421,7 @@ SUBROUTINE output_parameters
     WRITE(out_handle,"(A,L1)") "mhc = ",mhc
     WRITE(out_handle,"(A,L1)") "shear = ",shear
     WRITE(out_handle,"(A,I4)") "nv = ",nv
+    WRITE(out_handle,"(A,I4)") "test_ho = ",test_ho
     WRITE(out_handle,"(A)")    "/"
     WRITE(out_handle,"(A)")    ""
     WRITE(out_handle,"(A,L1)") "init_wave = ",init_wave

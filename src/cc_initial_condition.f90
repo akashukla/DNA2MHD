@@ -64,15 +64,11 @@ SUBROUTINE initial_condition(which_init0)
     END DO
  END DO
 
- IF (init_wave) THEN
+ ALLOCATE(alpha_leftwhist(0:nkx0-1,0:nky0-1,0:nkz0-1))
+ ALLOCATE(alpha_leftcyclo(0:nkx0-1,0:nky0-1,0:nkz0-1))
 
-    ALLOCATE(alpha_leftwhist(0:nkx0-1,0:nky0-1,0:nkz0-1))
-    ALLOCATE(alpha_leftcyclo(0:nkx0-1,0:nky0-1,0:nkz0-1))
-
-    alpha_leftwhist = -kmags/2.0 - sqrt(1.0 + ((kmags**2.0) / 4.0))
-    alpha_leftcyclo = -kmags/2.0 + sqrt(1.0 + ((kmags**2.0) / 4.0))
-
- ENDIF
+ alpha_leftwhist = -kmags/2.0 - sqrt(1.0 + ((kmags**2.0) / 4.0))
+ alpha_leftcyclo = -kmags/2.0 + sqrt(1.0 + ((kmags**2.0) / 4.0))
 
  DO i = 0,nkx0-1
     DO j = 0,nky0-1
@@ -380,7 +376,7 @@ SUBROUTINE initial_condition(which_init0)
       IF ((verbose.and.(mype.eq.0)).and.(set_forcing)) print *, 'Force Amp',force_amp
 
       ! Linear stability maximum time step
-      dt_max = minval([dt_max,2.8/(maxval(kzgrid)*(maxval(kmags)/2 + sqrt(1 + 0.25*maxval(kmags)**2.0)))])
+      if (.not.test_ho) dt_max = minval([dt_max,2.8/(maxval(kzgrid)*(maxval(kmags)/2 + sqrt(1 + 0.25*maxval(kmags)**2.0)))])
       if (verbose.and.(mype.eq.0)) then
         print *, "kzgrid max", maxval(kzgrid)
         print *, "kmags max", maxval(kmags)

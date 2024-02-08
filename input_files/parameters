@@ -31,9 +31,9 @@ np_kz =    1
 np_hank =    1
 np_spec =    1
 courant =   0.5
-kxinit_min = 1
-kyinit_min = 1
-kzinit_min = 1
+kxinit_min = 0
+kyinit_min = 0
+kzinit_min = 0
 kxinit_max = 32
 kyinit_max = 64
 kzinit_max = 64
@@ -55,7 +55,7 @@ hyp = 2
 /
 
 &diagnostics
-diagdir = '/scratch/08929/echansen/dna2mhdrun458'
+diagdir = '/scratch/08929/echansen/dna2mhdrun466'
 istep_ffm =   20
 istep_energy3d =  500
 istep_energy =  20
@@ -74,7 +74,7 @@ output_nlt_n = F
 /
 
 &flags
-verbose  = F
+verbose  = T
 nonlinear  = T
 actual_nonlinear = T
 calc_dt  = T
@@ -85,7 +85,7 @@ etg_factor  =    0.000
 em_conserve = T
 nuno_closure = T
 rhs_nl_version = 12
-dp547 = F
+dp547 = T
 rhs_lin_version = 1
 dealias_type = 3
 shifted = F
@@ -105,6 +105,7 @@ helical = F
 walenp = F
 walenn = F
 nv = F
+test_ho = F
 mhc = T
 init_wave = T
 en_leftwhist = 0.0

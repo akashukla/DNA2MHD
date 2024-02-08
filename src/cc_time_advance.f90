@@ -205,19 +205,19 @@ SUBROUTINE get_g_next(b_in, v_in,dt_new)
  bk2=b_in+0.5*dt*bk2
  v_2=v_2+(1.0/3.0)*dt*vk2
  vk2=v_in+0.5*dt*vk2
- mhelcorr = mhelcorr + (1.0/3.0) *dt * nmhc
+ IF (mhc) mhelcorr = mhelcorr + (1.0/3.0) *dt * nmhc
 
  CALL get_rhs(bk2,vk2,bk1,vk1,nmhc,dt_new3)
  b_2=b_2+(1.0/3.0)*dt*bk1
  bk1=b_in+dt*bk1
  v_2=v_2+(1.0/3.0)*dt*vk1
  vk1=v_in+dt*vk1
- mhelcorr = mhelcorr + (1.0/3.0)*dt*nmhc
+ IF (mhc) mhelcorr = mhelcorr + (1.0/3.0)*dt*nmhc
 
  CALL get_rhs(bk1,vk1,bk2,vk2,nmhc,dt_new4)
  b_in=b_2+(1.0/6.0)*dt*bk2
  v_in=v_2+(1.0/6.0)*dt*vk2
- mhelcorr = mhelcorr + (1.0/6.0)*dt*nmhc
+ IF (mhc) mhelcorr = mhelcorr + (1.0/6.0)*dt*nmhc
 
  !!4th order Runge-Kutta
  !first_stage=.true.
@@ -324,25 +324,32 @@ SUBROUTINE get_rhs(b_in,v_in, rhs_out_b,rhs_out_v,nmhc,ndt)
 !  COMPLEX, INTENT(out) :: rhs_out(0:nkx0-1,0:nky0-1,lkz1:lkz2,lv1:lv2,lh1:lh2,ls1:ls2)
   INTEGER :: k
 
-  IF (guide) CALL get_rhs_lin(b_in,v_in,rhs_out_b, rhs_out_v,0)
-  IF ((guide.and.verbose).and.(mype.eq.0)) WRITE(*,*) 'Lin Max Abs V',maxval(abs(rhs_out_v)),maxloc(abs(rhs_out_v))
-  IF ((guide.and.verbose).and.(mype.eq.0)) WRITE(*,*) 'Lin Max Abs B',maxval(abs(rhs_out_b)),maxloc(abs(rhs_out_b))
-  !IF(nonlinear.and..not.linear_nlbox) CALL get_rhs_nl(b_in, v_in,rhs_out_b,rhs_out_v)
-  IF(actual_nonlinear) CALL get_rhs_nl(b_in, v_in,rhs_out_b,rhs_out_v,ndt)
-  IF (verbose.and.(mype.eq.0)) WRITE(*,*) 'NL Max Abs V',maxval(abs(rhs_out_v)),maxloc(abs(rhs_out_v))
-  IF (verbose.and.(mype.eq.0)) WRITE(*,*) 'NL Max Abs B',maxval(abs(rhs_out_b)),maxloc(abs(rhs_out_b))
-  IF (.not.(actual_nonlinear)) ndt = dt_max
-  if (verbose.and.(mype.eq.0)) print *, ndt
+  IF (test_ho) THEN
+     CALL get_rhs_test(b_in,v_in,rhs_out_b,rhs_out_v)
+     ndt = dt_max
+  ELSE
+     
+     IF (guide) CALL get_rhs_lin(b_in,v_in,rhs_out_b, rhs_out_v,0)
+     IF ((guide.and.verbose).and.(mype.eq.0)) WRITE(*,*) 'Lin Max Abs V',maxval(abs(rhs_out_v)),maxloc(abs(rhs_out_v))
+     IF ((guide.and.verbose).and.(mype.eq.0)) WRITE(*,*) 'Lin Max Abs B',maxval(abs(rhs_out_b)),maxloc(abs(rhs_out_b))
+     !IF(nonlinear.and..not.linear_nlbox) CALL get_rhs_nl(b_in, v_in,rhs_out_b,rhs_out_v)
+     IF(actual_nonlinear) CALL get_rhs_nl(b_in, v_in,rhs_out_b,rhs_out_v,ndt)
+     IF (verbose.and.(mype.eq.0)) WRITE(*,*) 'NL Max Abs V',maxval(abs(rhs_out_v)),maxloc(abs(rhs_out_v))
+     IF (verbose.and.(mype.eq.0)) WRITE(*,*) 'NL Max Abs B',maxval(abs(rhs_out_b)),maxloc(abs(rhs_out_b))
+     IF (.not.(actual_nonlinear)) ndt = dt_max
+     if (verbose.and.(mype.eq.0)) print *, ndt
 
-  CALL remove_div(rhs_out_b,rhs_out_v)
+     CALL remove_div(rhs_out_b,rhs_out_v)
 
-  nmhc = 0.0
-  IF (mhc) CALL getmhcrk(b_in,v_in,nmhc)
+     nmhc = 0.0
+     IF (mhc) CALL getmhcrk(b_in,v_in,nmhc)
 
   ! Add forcing
-  IF(force_turbulence) CALL get_rhs_force(rhs_out_b, rhs_out_v,ndt)
+     IF(force_turbulence) CALL get_rhs_force(rhs_out_b, rhs_out_v,ndt)
 
-if (verbose.and.(mype.eq.0)) print *,'RHS found'
+     if (verbose.and.(mype.eq.0)) print *,'RHS found'
+  ENDIF
+  
 
 END SUBROUTINE get_rhs
 
@@ -588,10 +595,10 @@ SUBROUTINE dorpi547M(b_in,v_in)
   do while (trap)
 
 
-     ! Use First Same As Last property to save time for higher steps 
-
+     ! Use First Same As Last property to save time for higher steps
      if (itime.eq.0) CALL get_rhs(b_in,v_in,bk1,vk1,nmhc1,dt_new1)
-
+     IF (mhc.and.(itime.ne.0)) CALL getmhcrk(b_in,v_in,nmhc1)
+     ! CALL get_rhs(b_in,v_in,bk1,vk1,nmhc1,dt_new1) 
      
      !! Second step
      CALL get_rhs(b_in+dt*bk1*1.0/5.0,&
@@ -644,7 +651,6 @@ SUBROUTINE dorpi547M(b_in,v_in)
         print *, "itime",itime
      endif
      
-
   enddo
 
   b_in = b_2
@@ -653,7 +659,6 @@ SUBROUTINE dorpi547M(b_in,v_in)
 
   bk1 = bk7
   vk1 = vk7
-  nmhc1 = nmhc7
 
 END SUBROUTINE dorpi547M
 

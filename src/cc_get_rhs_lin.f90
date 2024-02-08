@@ -181,4 +181,20 @@ SUBROUTINE get_rhs_force(rhs_out_b, rhs_out_v, dt)
     ENDIF
 END SUBROUTINE get_rhs_force
 
+SUBROUTINE get_rhs_test(b_in,v_in,rhs_out_b,rhs_out_v)
+
+  IMPLICIT NONE
+
+  COMPLEX,INTENT(in) :: b_in(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2)
+  COMPLEX,INTENT(in) :: v_in(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2)
+  COMPLEX,INTENT(out) :: rhs_out_b(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2)
+  COMPLEX,INTENT(out) :: rhs_out_v(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2)
+
+
+  rhs_out_b = v_in
+  rhs_out_v = - b_in
+
+END SUBROUTINE get_rhs_test
+
 END MODULE linear_rhs
+
