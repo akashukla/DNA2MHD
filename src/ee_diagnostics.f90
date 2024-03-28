@@ -448,6 +448,7 @@ SUBROUTINE diag
          if (verbose) write(*,*) "Found Helicities",mype
          WRITE(en_handle) eta*resvischange("b")
          WRITE(en_handle) vnu*resvischange("v")
+         if (track_divs) CALL divs
          
  
 !!       !!!!!!!!!!!Temporary!!!!!!!!!!!
@@ -4225,6 +4226,9 @@ if (opt.eq.1) ham = sum(abs(v_1)**2) ! Kinetic
 if (opt.eq.2) ham = sum(abs(b_1)**2) ! Magnetic
 ham = ham * (8*(pi**3))
 
+if (debug_energy.and.(opt.eq.0)) print *, "Pressure Contribution to Change",precorr
+if (debug_energy.and.(opt.eq.0)) print *, "vdv Contribution to Change",vdvcorr
+
 end function hmhdhmtn
 
 function resvischange(arr_label) result(res)
@@ -4543,10 +4547,10 @@ implicit none
 LOGICAL :: m
 REAL :: bound
 
-bound = sum(sum(b_1(1:nkx0-1,1:nky0-1,1:nkz0-1,:) * conjg(b_1(1:nkx0-1,1:nky0-1,1:nkz0-1,:)),4) / kmags(1:nkx0-1,1:nky0-1,1:nkz0-1))
+bound = sum(sum(b_1*conjg(b_1),4)/kmags,mask=(kmags.gt.0))
 if (m.eq..false.) then 
-  bound = bound + sum(sum(v_1(1:nkx0-1,1:nky0-1,1:nkz0-1,:) * conjg(v_1(1:nkx0-1,1:nky0-1,1:nkz0-1,:)),4) * kmags(1:nkx0-1,1:nky0-1,1:nkz0-1))
-  bound = bound + 2.0*sum(sqrt(sum(abs(v_1)**2,4))*sqrt(sum(abs(b_1)**2,4)))
+  bound = bound + sum(sum(v_1*conjg(v_1),4)*kmags,mask=(kmags.gt.0))
+  bound = bound + 2.0*sum(sqrt(sum(abs(v_1)**2,4))*sqrt(sum(abs(b_1)**2,4)),mask=(kmags.gt.0))
 endif
 bound = 16.0 * (pi)**3 * bound
 
@@ -4602,6 +4606,25 @@ subroutine mode_spec
 
 end subroutine mode_spec
 
+subroutine divs
+
+  implicit none
+  complex :: divv(0:nkx0-1,0:nky0-1,0:nkz0-1),divb(0:nkx0-1,0:nky0-1,0:nkz0-1)
+  integer :: i,j,k
+
+  do i = 0,nkx0-1
+     do j = 0,nky0-1
+        do k = 0,nkz0-1
+           divv = kxgrid(i) * v_1(i,j,k,0) + kygrid(j) * v_1(i,j,k,1) + kzgrid(k) * v_1(i,j,k,2)
+           divb = kxgrid(i) * b_1(i,j,k,0) + kygrid(j) * b_1(i,j,k,1) +	kzgrid(k) * b_1(i,j,k,2)
+        enddo
+     enddo
+  enddo
+
+  print *, "Max Abs Div v " ,maxval(abs(divv))
+  print *, "Max Abs Div b " ,maxval(abs(divb))
+
+end subroutine divs  
 
 END MODULE diagnostics
 

@@ -1621,3 +1621,127 @@ def mode_break(lpath,show=False,tmax=200000):
     if show == True:
         plt.show()
     plt.close()
+    return (t,lwkm,lckm,rwkm,rckm)
+
+def steadystate(lpath,graph=True):
+    '''
+    Return an Linf metric of the final relative change in the recorded spectrum
+    '''
+
+    if os.path.isfile(lpath+'/dumenspec.txt'):
+        t,ekvf,ekbf = load_energyspec(lpath)
+        ekvm = ekvf[:,1:,1:,1:]
+        ekbm = ekbf[:,1:,1:,1:]
+        ekm = ekvm+ekbm
+    else:
+        t,ekvf,ekbf = getenergyspec(lpath,tmax=tmax)
+        ekvm = ekvf[:,1:,1:,1:]
+        ekbm = ekbf[:,1:,1:,1:]
+        ekm = ekvm+ekbm
+
+    tspectrum = ekm
+    prev = tspectrum[:-1,:,:,:]
+    current = tspectrum[1:,:,:,:]
+
+    ignore = np.nonzero(tspectrum[:-1,:,:,:])
+    prev[ignore] = 1.0
+    current[ignore] = 0.0
+
+    met = np.abs(current/prev - 1.0)
+    
+    answer = np.amax(met,axis=(1,2,3))
+
+    if graph:
+        plt.plot(t[1:],answer,"b*")
+        plt.xlabel("Time ($\omega_c^{-1}$)")
+        plt.ylabel("Max Relative Change in Energy Spectrum")
+        plt.title("Evolution of Relative Energy Spectrum Change")
+        plt.savefig(lpath+"/eplots/steadystate.png")
+
+    return(answer[-1])
+
+def planeplotter(lpath,t,normvec=2,planenum=0,show=False):
+    """
+    Plots b and v fields in a specified plane normal to the x, y, or z directions
+    Arguments:
+    lpath - file of run to show
+    t - time point to consider
+    normvec - number (x 0, y 1, z 2) of the normal vector to the plane 
+    planenum - grid point along normvec direction to show a plane for
+    Example: normvec = 2, planenum = 0 will plot the bv fields in the plane z = 0
+    """
+    read_parameters(lpath)
+    kx,ky,kz = get_grids()
+
+    xx = np
+    if os.path.isfile(lpath+'/v_xyz.dat'):
+        time,b = load_b(lpath)
+        time,v = load_v(lpath)
+    else:
+        time,b = getb(lpath)
+        time,v = getv(lpath)
+
+    # get real fields
+    # note that irfftn assumes the last dimension is the one to be doubled, opposite of the current splitx and FFTW 90
+    # so we need to transpose
+
+    bt = b[t,:,:,:,:]
+    vt = v[t,:,:,:,:]
+    bint = np.transpose(bt,axes=(2,1,0,3))
+    vint = np.transpose(vt,axes=(2,1,0,3))
+    brealint = irfftn(bint,s=[par['nkz0'],par['nky0'],2*par['nkx0']],axes=(0,1,2))
+    vrealint = irfftn(vint,s=[par['nkz0'],par['nky0'],2*par['nkx0']],axes=(0,1,2))
+    br = np.transpose(brealint,axes=(2,1,0,3))
+    vr = np.transpose(vrealint,axes=(2,1,0,3))
+
+    bplane = np.take(br,indices=planenum,axis=normvec)
+    vplane = np.take(vr,indices=planenum,axis=normvec)
+
+    xs = np.pi / par['nkx0'] * np.arange(2*par['nkx0']) / par['kxmin']
+    ys = 2*np.pi / par['nky0'] * np.arange(par['nky0']) / par['kymin']
+    zs = 2*np.pi / par['nkz0'] * np.arange(par['nkz0']) / par['kzmin']
+
+    print(np.size(xs))
+    print(np.size(ys))
+    
+    inds = ['x','y','z']
+
+    ii = np.mod(normvec+1,3)
+    jj = np.mod(normvec+2,3)
+
+    ggrid = {0:xs,1:ys,2:zs}
+    print("xgrid ",np.size(ggrid[0]))
+    print("ygrid ",np.size(ggrid[1]))
+
+    if t == -1:
+        ts = 'fin'
+    else:
+        ts = str(t)
+    
+    plt.figure()
+    plt.streamplot(ggrid[ii],ggrid[jj],bplane[:,:,ii],bplane[:,:,jj],broken_streamlines=False)
+    plt.xlabel(inds[ii]+" ($d_i$)")
+    plt.ylabel(inds[jj]+" ($d_i$)")
+    plt.xlim(0,ggrid[ii][0]+ggrid[ii][-1])
+    plt.ylim(0,ggrid[jj][0]+ggrid[jj][-1])
+    plt.title('Magnetic Field Lines Time '+time[t])
+    if lpath[-1] != '/':
+        lpath = lpath + '/'
+    if not os.path.exists(lpath + 'bvs/'):
+        os.mkdir(lpath + 'bvs/')        
+    plt.savefig(lpath+'bvs/bfield'+ts+'.png')
+    if show:
+        plt.show()
+
+    plt.figure()
+    plt.streamplot(ggrid[ii],ggrid[jj],vplane[:,:,ii],vplane[:,:,jj],broken_streamlines=False)
+    plt.xlabel(inds[ii]+" ($d_i$)")
+    plt.ylabel(inds[jj]+" ($d_i$)")
+    plt.title('Velocity Field Lines Time '+time[t])
+    if not os.path.exists(lpath + 'bvs/'):
+        os.mkdir(lpath + 'bvs/')
+    plt.savefig(lpath+'bvs/vfield'+ts+'.png')
+    if show:
+        plt.show()
+
+    return ggrid[ii],ggrid[jj],bplane,vplane

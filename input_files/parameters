@@ -8,9 +8,9 @@ vnu = 0.0
 /
 
 &numerical_parameters
-kxmin =   0.5
-kymin =   0.5
-kzmin =   0.1
+kxmin =   2.0
+kymin =   2.0
+kzmin =   0.5
 nkx0 = 32
 nky0 = 64
 nkz0 = 64
@@ -55,7 +55,7 @@ hyp = 2
 /
 
 &diagnostics
-diagdir = '/scratch/08929/echansen/dna2mhdrun466'
+diagdir = '/scratch/08929/echansen/dna2mhdrun496'
 istep_ffm =   20
 istep_energy3d =  500
 istep_energy =  20
@@ -74,7 +74,7 @@ output_nlt_n = F
 /
 
 &flags
-verbose  = T
+verbose  = F
 nonlinear  = T
 actual_nonlinear = T
 calc_dt  = T
@@ -85,9 +85,9 @@ etg_factor  =    0.000
 em_conserve = T
 nuno_closure = T
 rhs_nl_version = 12
-dp547 = T
+dp547 = F
 rhs_lin_version = 1
-dealias_type = 3
+dealias_type = 4
 shifted = F
 splitx = T
 force_turbulence = F
@@ -99,15 +99,17 @@ hall = 1.0
 guide = T
 enone = T
 uni = T
-shear = F
-beltrami = F
+shear = T
+beltrami = T
 helical = F
 walenp = F
 walenn = F
-nv = F
+nv = T
 test_ho = F
+bc_norm = F
+track_divs = T
 mhc = T
-init_wave = T
+init_wave = F
 en_leftwhist = 0.0
 en_leftcyclo = 1.0
 en_rightwhist = 0.0
@@ -118,7 +120,7 @@ en_rightcyclo = 0.0
 /
 
 &initial_value
-max_itime = 12000
+max_itime = 101
 max_walltime =   10000000.0
 dt_max =   0.01
 max_time =   10000000.

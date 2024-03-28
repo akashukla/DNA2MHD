@@ -145,12 +145,16 @@ MODULE par_mod
   LOGICAL :: guide  = .true.
   LOGICAL :: uni = .true.
   LOGICAL :: shear = .false.
-  LOGICAL :: beltrami = .true.
+  LOGICAL :: beltrami = .false.
   LOGICAL :: helical = .false.
   LOGICAL :: walenp = .false.
   LOGICAL :: walenn = .false.
   LOGICAL :: mhc = .false.
   LOGICAL :: init_wave = .false.
+  LOGICAL :: bc_norm = .false.
+  LOGICAL :: track_divs = .true.
+  LOGICAL :: debug_energy = .true.
+  
   REAL :: en_leftwhist = 1.0
   REAL :: en_leftcyclo = 0.0
   REAL :: en_rightwhist = 0.0
@@ -263,6 +267,8 @@ MODULE par_mod
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:) :: pcurleig
   
   REAL :: mhelcorr
+  REAL :: precorr,preendiv
+  REAL :: vdvcorr,vdvendiv
 
   !for parallelization
   !Hermites

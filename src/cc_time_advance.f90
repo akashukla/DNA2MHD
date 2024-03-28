@@ -195,6 +195,8 @@ SUBROUTINE get_g_next(b_in, v_in,dt_new)
  b_2=b_in+(1.0/6.0)*dt*bk1
  v_2=v_in+(1.0/6.0)*dt*vk1
  IF (mhc) mhelcorr = mhelcorr + (1.0/6.0)*dt*nmhc
+ IF (debug_energy) precorr = precorr + (1.0/6.0)*dt*preendiv
+ IF (debug_energy) vdvcorr = vdvcorr + (1.0/6.0)*dt*vdvendiv
  first_stage=.false.
  !CALL get_rhs(b_in+0.5*dt*bk1,bk2)
  bk1=b_in+0.5*dt*bk1
@@ -206,6 +208,8 @@ SUBROUTINE get_g_next(b_in, v_in,dt_new)
  v_2=v_2+(1.0/3.0)*dt*vk2
  vk2=v_in+0.5*dt*vk2
  IF (mhc) mhelcorr = mhelcorr + (1.0/3.0) *dt * nmhc
+ IF (debug_energy) precorr = precorr + (1.0/3.0)*dt*preendiv
+ IF (debug_energy) vdvcorr = vdvcorr + (1.0/3.0)*dt*vdvendiv
 
  CALL get_rhs(bk2,vk2,bk1,vk1,nmhc,dt_new3)
  b_2=b_2+(1.0/3.0)*dt*bk1
@@ -213,11 +217,15 @@ SUBROUTINE get_g_next(b_in, v_in,dt_new)
  v_2=v_2+(1.0/3.0)*dt*vk1
  vk1=v_in+dt*vk1
  IF (mhc) mhelcorr = mhelcorr + (1.0/3.0)*dt*nmhc
+ IF (debug_energy) precorr = precorr + (1.0/3.0)*dt*preendiv
+ IF (debug_energy) vdvcorr = vdvcorr + (1.0/3.0)*dt*vdvendiv
 
  CALL get_rhs(bk1,vk1,bk2,vk2,nmhc,dt_new4)
  b_in=b_2+(1.0/6.0)*dt*bk2
  v_in=v_2+(1.0/6.0)*dt*vk2
  IF (mhc) mhelcorr = mhelcorr + (1.0/6.0)*dt*nmhc
+ IF (debug_energy) precorr = precorr + (1.0/6.0)*dt*preendiv
+ IF (debug_energy) vdvcorr = vdvcorr + (1.0/6.0)*dt*vdvendiv
 
  !!4th order Runge-Kutta
  !first_stage=.true.
@@ -272,6 +280,7 @@ SUBROUTINE remove_div(b_in,v_in)
  div_b = 0.0 +i_complex*0.0
  k2=0.0
  zero=0.0
+ if (debug_energy) preendiv = 0.0
 
  DO i=0,nkx0-1
    DO j=0,nky0-1
@@ -298,7 +307,9 @@ SUBROUTINE remove_div(b_in,v_in)
               gpsi(i,j,k,0) = gpsi(i,j,k,0) - div_v*kxgrid(i)/k2
               gpsi(i,j,k,1) = gpsi(i,j,k,1) - div_v*kygrid(j)/k2
               gpsi(i,j,k,2) = gpsi(i,j,k,2) - div_v*kzgrid(k)/k2
-         ENDIF 
+              if (debug_energy) preendiv = preendiv - 16*(pi**3)*real(div_v/k2 * (kxgrid(i)*v_in(i,j,k,0)&
+                   +kygrid(j)*v_in(i,j,k,1)+kzgrid(k)*v_in(i,j,k,2)))
+           ENDIF
      ENDDO
    ENDDO
  ENDDO 
@@ -582,6 +593,8 @@ SUBROUTINE dorpi547M(b_in,v_in)
   COMPLEX, INTENT(INOUT) :: v_in(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2)
   REAL :: dt_new1,dt_new2,dt_new3,dt_new4,dt_new5,dt_new6,dt_new7
   REAL :: nmhc1,nmhc2,nmhc3,nmhc4,nmhc5,nmhc6,nmhc7,next_corr
+  REAL :: enpre1,enpre2,enpre3,enpre4,enpre5,enpre6,next_enpre
+  REAL :: envdv1,envdv2,envdv3,envdv4,envdv5,envdv6,next_envdv
   LOGICAL :: trap = .true.
   
   dt = dt_max
@@ -597,38 +610,70 @@ SUBROUTINE dorpi547M(b_in,v_in)
 
      ! Use First Same As Last property to save time for higher steps
      if (itime.eq.0) CALL get_rhs(b_in,v_in,bk1,vk1,nmhc1,dt_new1)
-     IF (mhc.and.(itime.ne.0)) CALL getmhcrk(b_in,v_in,nmhc1)
+     IF (mhc.and.(itime.ne.0)) THEN
+        CALL getmhcrk(b_in,v_in,nmhc1)
+        if (debug_energy) then
+           enpre1 = preendiv
+           envdv1 = vdvendiv
+        endif
+     ENDIF
      ! CALL get_rhs(b_in,v_in,bk1,vk1,nmhc1,dt_new1) 
      
      !! Second step
      CALL get_rhs(b_in+dt*bk1*1.0/5.0,&
           v_in+dt*vk1*1.0/5.0,bk2,vk2,nmhc2,dt_new2)
-  
+     if (debug_energy) then
+        enpre2 = preendiv
+        envdv2 = vdvendiv
+     endif
+     
      !! Third step
      CALL get_rhs(b_in+dt*(3.0*bk1/40.0+9.0*bk2/40.0),&
           v_in+dt*(3.0*vk1/40.0+9.0*vk2/40.0),bk3,vk3,nmhc3,dt_new3)
-
+     if (debug_energy) then
+        enpre3 = preendiv
+        envdv3 = vdvendiv
+     endif
+     
      !! Fourth step
      CALL get_rhs(b_in+dt*(44.0/45.0*bk1-56.0/15.0*bk2+32.0/9.0*bk3),&
           v_in+dt*(44.0/45.0*vk1-56.0/15.0*vk2+32.0/9.0*vk3),bk4,vk4,nmhc4,dt_new4)
-
+     if (debug_energy) then
+        enpre4 = preendiv
+        envdv4 = vdvendiv
+     endif
+     
      !! Fifth step
      CALL get_rhs(b_in+dt*(19372.0/6561.0*bk1-25360.0/2187.0*bk2+64448.0/6561.0*bk3-212.0/729.0*bk4),&
           v_in+dt*(19372.0/6561.0*vk1-25360.0/2187.0*vk2+64448.0/6561.0*vk3-212.0/729.0*vk4),&
           bk5,vk5,nmhc5,dt_new5)
-
+     if (debug_energy) then
+        enpre5 = preendiv
+        envdv5 = vdvendiv
+     endif
+     
      !! Sixth step
      CALL get_rhs(b_in+dt*(9017.0/3168.0*bk1 - 355.0/33.0*bk2 + 46732.0/5247.0*bk3 &
           + 49.0/176.0*bk4-5103.0/18656.0*bk5),&
           v_in+dt*(9017.0/3168.0*vk1 - 355.0/33.0*vk2 + 46732.0/5247.0*vk3	&
        + 49.0/176.0*vk4-5103.0/18656.0*vk5),bk6,vk6,nmhc6,dt_new6)
-
+     if (debug_energy) then
+        enpre6 = preendiv
+        envdv6 = vdvendiv
+     endif
+     
      b_2 = b_in + dt*(35.0/384.0*bk1+500.0/1113.0*bk3+125.0/192.0*bk4&
           -2187.0/6784.0*bk5+11.0/84.0*bk6)
      v_2 = v_in + dt*(35.0/384.0*vk1+500.0/1113.0*vk3+125.0/192.0*vk4&
           -2187.0/6784.0*vk5+11.0/84.0*vk6)
      next_corr = dt*(35.0/384.0*nmhc1+500.0/1113.0*nmhc3+125.0/192.0*nmhc4&
           -2187.0/6784.0*nmhc5+11.0/84.0*nmhc6)
+     if (debug_energy) then
+        next_enpre = dt*(35.0/384.0*enpre1+500.0/1113.0*enpre3+125.0/192.0*enpre4&
+          -2187.0/6784.0*enpre5+11.0/84.0*enpre6)
+        next_envdv = dt*(35.0/384.0*envdv1+500.0/1113.0*envdv3+125.0/192.0*envdv4&
+          -2187.0/6784.0*envdv5+11.0/84.0*envdv6)
+     endif
      
      !! Seventh step
      CALL get_rhs(b_2,v_2,bk7,vk7,nmhc7,dt_new7)

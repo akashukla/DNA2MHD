@@ -53,7 +53,7 @@ SUBROUTINE read_parameters
       GyroLES, Gyroherm, Gyroz, Corr, &
       plot_nls,dbio,dvio,bdvio,vdbio,bdcbio,cbdbio,vdvio,bdbio,db2io,&
       hall,guide,enone,nv,test_ho,uni,beltrami,helical,shear,walenp,walenn,mhc,&
-      init_wave,en_leftwhist,en_leftcyclo,en_rightwhist,en_rightcyclo
+      init_wave,bc_norm,track_divs,en_leftwhist,en_leftcyclo,en_rightwhist,en_rightcyclo
  
   NAMELIST /eigensolve/ &
       left_vec,right_vec,ev_slepc, kxmax0, kymax0, kzmax0, kscan,n_ev,&
@@ -425,6 +425,8 @@ SUBROUTINE output_parameters
     WRITE(out_handle,"(A)")    "/"
     WRITE(out_handle,"(A)")    ""
     WRITE(out_handle,"(A,L1)") "init_wave = ",init_wave
+    WRITE(out_handle,"(A,L1)") "bc_norm = ",bc_norm
+    WRITE(out_handle,"(A,L1)") "track_divs = ",track_divs
     WRITE(out_handle,"(A,G12.4)") "en_leftwhist = ",en_leftwhist
     WRITE(out_handle,"(A,G12.4)") "en_leftcyclo = ",en_leftcyclo
     WRITE(out_handle,"(A,G12.4)") "en_rightwhist = ",en_rightwhist

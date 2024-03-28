@@ -235,6 +235,8 @@ SUBROUTINE initial_condition(which_init0)
                    CALL MPI_BCAST(v1w,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
                    CALL MPI_BCAST(v2w,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
 
+                   if (bc_norm) shear=.true.
+                   
                    IF (helical) THEN
                       b2w = 0.0
                       v2w = 0.0
@@ -275,6 +277,13 @@ SUBROUTINE initial_condition(which_init0)
                    LC1 = sqrt(en_leftcyclo) * phasev/sqrt(1 + alpha_leftcyclo(i,j,k)**2)
                    RW1 = sqrt(en_rightwhist) * phaseby/sqrt(1 + alpha_leftwhist(i,j,k)**2)
                    RC1 = sqrt(en_rightcyclo) * phasevy/sqrt(1 + alpha_leftcyclo(i,j,k)**2)
+
+                   ! Given a normal boundary condition choice v = 1/kp k  x z
+                   ! This condition sets left-right branch modes equal amplitude and maintains above condition
+                   if (bc_norm) then
+                      RW1 = LW1
+                      RC1 = LC1
+                   endif
 
                    b_1(i,j,k,:) = (LW1 * alpha_leftwhist(i,j,k) + LC1 * alpha_leftcyclo(i,j,k)) * pcurleig(i,j,k,:)&
                         - (RW1 * alpha_leftwhist(i,j,k) + RC1 * alpha_leftcyclo(i,j,k))*conjg(pcurleig(i,j,k,:))
@@ -341,22 +350,42 @@ SUBROUTINE initial_condition(which_init0)
      
                 END IF
 
+
+
+
+                
+                ! Ensure reality constraints arent violated at i = 0
+                if (i.eq.0) then
+                   b_1(0,mod(nky0-j,nky0),mod(nkz0-k,nkz0),:) = conjg(b_1(0,j,k,:))
+                   v_1(0,mod(nky0-j,nky0),mod(nkz0-k,nkz0),:) = conjg(b_1(0,j,k,:))
+                endif
+
+                ! makes sure that other modes at the same magnitude of k allow v parallel to box face
+                if (bc_norm) then
+                   v_1(i,mod(nky0-j,nky0),k,1) = -(v_1(i,j,k,1))
+                   v_1(i,j,mod(nkz0-k,nkz0),2) = -(v_1(i,j,k,2))
+                   v_1(i,mod(nky0-j,nky0),mod(nkz0-k,nkz0),0) = -conjg(v_1(i,j,k,0))
+                   b_1(i,mod(nky0-j,nky0),k,1) = -(b_1(i,j,k,1))
+                   b_1(i,j,mod(nkz0-k,nkz0),2) = -(b_1(i,j,k,2))
+                   b_1(i,mod(nky0-j,nky0),mod(nkz0-k,nkz0),0) = -conjg(b_1(i,j,k,0))
+                endif
+                
              endif
 
           END DO
        END DO
     END DO
 
-      if (enone) then
-        s1 = sum(abs(b_1)**2+abs(v_1)**2)
-        b_1 = b_1 * sqrt(init_amp_bx / (8.0 * pi**3 * s1))
-        v_1 = v_1 * sqrt(init_amp_bx / (8.0 * pi**3 * s1))
-      endif
+    if (nv) b_1(:,:,:,:) = cmplx(0.0,0.0)
+    if (enone) then
+       s1 = sum(abs(b_1)**2+abs(v_1)**2)
+       b_1 = b_1 * sqrt(init_amp_bx / (8.0 * pi**3 * s1))
+       v_1 = v_1 * sqrt(init_amp_bx / (8.0 * pi**3 * s1))
+    endif
      
-       if (nv) b_1(:,:,:,:) = cmplx(0.0,0.0)
-      gpsi(:,:,:,:) = cmplx(0.0,0.0)
-      pre(:,:,:) = cmplx(0.0,0.0)
-      print *, "MaxVal b", maxval(abs(b_1))
+    gpsi(:,:,:,:) = cmplx(0.0,0.0)
+    pre(:,:,:) = cmplx(0.0,0.0)
+    print *, "MaxVal b", maxval(abs(b_1))
 !      print *, "Max BV Cross Product X",maxval(abs(b_1(:,:,:,1)*v_1(:,:,:,2)-b_1(:,:,:,2)*v_1(:,:,:,1))),maxloc(abs(b_1(:,:,:,1)*v_1(:,:,:,2)-b_1(:,:,:,2)*v_1(:,:,:,1)))
 !      print *, "Max BV Cross Product Y",maxval(abs(b_1(:,:,:,2)*v_1(:,:,:,0)-b_1(:,:,:,0)*v_1(:,:,:,2))),maxloc(abs(b_1(:,:,:,2)*v_1(:,:,:,0)-b_1(:,:,:,0)*v_1(:,:,:,2)))
 !      print *, "Max BV Cross Product Z",maxval(abs(b_1(:,:,:,0)*v_1(:,:,:,1)-b_1(:,:,:,1)*v_1(:,:,:,0))),maxloc(abs(b_1(:,:,:,0)*v_1(:,:,:,1)-b_1(:,:,:,1)*v_1(:,:,:,0)))
@@ -364,23 +393,23 @@ SUBROUTINE initial_condition(which_init0)
 
       ! Set dissipation to set relative rate of dissipation at high scales
 
-      vnu = vnu / (maxval(kmags)**(2.0*hyp))
-      eta = eta * vnu
-      if(mype.eq.0) print *, 'Viscosity',vnu
+    vnu = vnu / (maxval(kmags)**(2.0*hyp))
+    eta = eta * vnu
+    if(mype.eq.0) print *, 'Viscosity',vnu
 
       ! Rescale forcing amplitude for to match dissipation in inertial range
-      IF ((force_turbulence).and.set_forcing) force_amp = vnu * s4 / (8.0 * nkxforce * nkyforce * nkzforce * dt_max)
-      IF (forceb) force_amp = force_amp/2.0
-      IF ((mype.eq.0).and.(set_forcing)) print *, 'Force Amp',force_amp
-      IF (force_turbulence) force_amp = force_amp * abs(b_1(nkxforce,nkyforce,nkzforce,0)*(kmags(nkxforce,nkyforce,nkzforce)**(init_kolm/2.0)))
-      IF ((verbose.and.(mype.eq.0)).and.(set_forcing)) print *, 'Force Amp',force_amp
+    IF ((force_turbulence).and.set_forcing) force_amp = vnu * s4 / (8.0 * nkxforce * nkyforce * nkzforce * dt_max)
+    IF (forceb) force_amp = force_amp/2.0
+    IF ((mype.eq.0).and.(set_forcing)) print *, 'Force Amp',force_amp
+    IF (force_turbulence) force_amp = force_amp * abs(b_1(nkxforce,nkyforce,nkzforce,0)*(kmags(nkxforce,nkyforce,nkzforce)**(init_kolm/2.0)))
+    IF ((verbose.and.(mype.eq.0)).and.(set_forcing)) print *, 'Force Amp',force_amp
 
       ! Linear stability maximum time step
-      if (.not.test_ho) dt_max = minval([dt_max,2.8/(maxval(kzgrid)*(maxval(kmags)/2 + sqrt(1 + 0.25*maxval(kmags)**2.0)))])
-      if (verbose.and.(mype.eq.0)) then
-        print *, "kzgrid max", maxval(kzgrid)
-        print *, "kmags max", maxval(kmags)
-      endif
+    if (.not.test_ho) dt_max = minval([dt_max,2.8/(maxval(kzgrid)*(maxval(kmags)/2 + sqrt(1 + 0.25*maxval(kmags)**2.0)))])
+    if (verbose.and.(mype.eq.0)) then
+       print *, "kzgrid max", maxval(kzgrid)
+       print *, "kmags max", maxval(kmags)
+    endif
 
       ! Magnetic Helicity Correction
       mhelcorr = 0.0

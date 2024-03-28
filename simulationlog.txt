@@ -22,3 +22,38 @@ Simulation 464/465:
 DNA2MHD cyclotron linear HMHD wave simulations with DORPI vs RK4, 12000 its
 Energy conserved about 20-30x better with DORPI
 
+02/12/24
+
+Wrote in condition to set - modes equal to conjugates for kx = 0 (ensure reality)
+Thinking about adding in ics to set v weakly equal to zero or weakly normal to the boundaries, but not sure if that would hold for later times
+
+Simulation 467:
+DORPI nonlinear DNA2MHD simulation at dt = 0.001 to compare energy conservation against 458
+Full cyclotron initial condition
+Error ratios dropped by a factor of 10^7-8 from what I recall
+Does the smaller dt affect energy conservation though - if it doesn't, there could be a gauge or boundary issue
+
+Simulation 470:
+DORPI nonlinear DNA2MHD simulation to test energy conservation with parallel to edge boundary condition imposed
+Parallel boundary condition didn't work
+Energy not conserved
+
+Simulations 471+472:
+With 128 modes in each direction instead of 64
+Larger overall mode in 471
+
+Simulations 473+474:
+256 modes in perpendicular directions, 32 in z direction
+Energy conservation got worse, about the same for RK4 and DP
+Was this just due to decreasing max kz?
+
+Simulations 485+486:
+64^3 modes with 2x padding in all directions and a centered convolution
+testing if "centered convolution" had lower energy growth and fixed the issue
+or if the preliminary testing (20 its) was right in that the energy growth was more
+485 DORPI + 486 RK4 - test if converge right with this and if growth worse
+Gain about 0.01 energy for both cases - not converging right
+
+Simulations 487+488:
+64^3 modes with 2x padding in all directions, uncentered convolution
+testing if only 3/2 padding wasn't enough

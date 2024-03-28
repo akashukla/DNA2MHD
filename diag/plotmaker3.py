@@ -2,9 +2,9 @@ import dna2mhd_utils as dn
 from output2 import maxinds
 import numpy as np
 
-lpaths = ["/scratch/08929/echansen/dna2mhdrun452","/scratch/08929/echansen/dna2mhdrun453"]
+lpaths = ["/scratch/08929/echansen/dna2mhdrun487"]
+#lpaths = ["/scratch/08929/echansen/dna2mhdrun452","/scratch/08929/echansen/dna2mhdrun453"]
 
-fname = {lpaths[0]:lpaths[0]+"/DNAHD.out1467543",lpaths[1]:lpaths[1]+"/DNAHD.out1472208"}
 a = np.random.randint(0,63,size=4)
 
 for lpath in lpaths:
@@ -15,8 +15,11 @@ for lpath in lpaths:
     for zz in a:
         dn.plot_enspec(lpath,5,zz=zz,log=True,newload=True,show=False,tmaxfac=2)
         dn.plot_xispec(lpath,5,zz=zz,log=True,show=False,tmaxfac=2)
+    dn.planeplotter(lpath,0,show=False)
+    dn.planeplotter(lpath,-1,show=False)
 
 x = """
+fname = {lpaths[0]:lpaths[0]+"/DNAHD.out1467543",lpaths[1]:lpaths[1]+"/DNAHD.out1472208"}
 opts = ['b','v','bdv','vdb','cbdb','bdcb','vdv','bdb']
 
 for lpath in lpaths:
