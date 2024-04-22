@@ -95,7 +95,6 @@ SUBROUTINE initialize_fourier_ae_mu0
   !for dealiasing
   if (dealias_type.eq.1) zpad = 2
   if (((dealias_type.eq.3).or.(dealias_type.eq.4)).or.((dealias_type.eq.6).or.(dealias_type.eq.8))) zpad = dealias_type
-  if (dealias_type.eq.41) zpad = 4
 
   ny0_big=zpad*nky0/2
   if (splitx) then
@@ -119,18 +118,6 @@ SUBROUTINE initialize_fourier_ae_mu0
   CALL dfftw_plan_dft_r2c_3d(plan_r2c,nx0_big,ny0_big,nz0_big,&
        store,temp_big,FFTW_ESTIMATE,FFTW_FORWARD)
 
-  if (dealias_type.eq.41) then ! for uncentered convolution - irrelevant
-     ALLOCATE(n1(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-     do i = 0,nx0_big-1
-        do j = 0,ny0_big-1
-           do k = 0,nz0_big-1
-              n1(i,j,k) = (-1.0)**(i+j+k)
-           enddo
-        enddo
-     enddo
-  endif
-  
-
   lky_big=ny0_big-hky_ind !Index of minimum (most negative) FILLED ky value for big arrays
   if (.not.splitx) lkx_big = nx0_big-hkx_ind
   if (splitx) lkz_big=nz0_big-hkz_ind !Index of minimum (most negative) FILLED kz value for big arrays 
@@ -144,6 +131,8 @@ SUBROUTINE initialize_fourier_ae_mu0
   IF(mype==0) WRITE(*,*) "lkz_big",lkz_big
 
   CALL ALLOCATIONS
+
+  IF (verbose) CALL DEALIASINGTEST
   rkstage = 0
 
   !CALL dfftw_execute_dft_c2r(plan_c2r,tcomp,treal)
@@ -1394,18 +1383,15 @@ ENDIF
 
 !inverse FFT to get back to Fourier
 
-if (dealias_type.ne.41) store = store_x
-if (dealias_type.eq.41) store = store_x * n1
+store = store_x
 CALL dfftw_execute_dft_r2c(plan_r2c,store,temp_big)
 temp_bigx = temp_big
 
-if (dealias_type.ne.41) store = store_y
-if (dealias_type.eq.41) store =	store_y * n1
+store = store_y
 CALL dfftw_execute_dft_r2c(plan_r2c,store,temp_big)
 temp_bigy = temp_big
 
-if (dealias_type.ne.41) store = store_z
-if (dealias_type.eq.41) store =	store_z * n1
+store = store_z
 CALL dfftw_execute_dft_r2c(plan_r2c,store,temp_big)
 temp_bigz = temp_big
 
@@ -1423,73 +1409,36 @@ temp_bigz = temp_big
     (/1,lky_ind,1/)+maxloc(abs(temp_bigx(1:nkx0-1,lky_big:ny0_big-1,1:hkz_ind)*fft_norm)/abs(rhs_out_b(1:nkx0-1,lky_ind:nky0-1,1:hkz_ind,0)),((abs(rhs_out_b(1:nkx0-1,lky_ind:nky0-1,1:hkz_ind,0)).gt.10.0**(-7.0))))
 
   !Now fill in appropriate rhs elements
-     if (dealias_type.ne.41) then
-         DO i=0,nkx0-1
-  !First x component
-            rhs_out_b(i,0:hky_ind,0:hkz_ind,0)=rhs_out_b(i,0:hky_ind,0:hkz_ind,0)+&           !kz positive, ky positive
-                                       temp_bigx(i,0:hky_ind,0:hkz_ind)*fft_norm
-            rhs_out_b(i,0:hky_ind,lkz_ind:nkz0-1,0)=rhs_out_b(i,0:hky_ind,lkz_ind:nkz0-1,0)+& !kz negative, ky positive
-                                       temp_bigx(i,0:hky_ind,lkz_big:nz0_big-1)*fft_norm
-            rhs_out_b(i,lky_ind:nky0-1,lkz_ind:nkz0-1,0)=rhs_out_b(i,lky_ind:nky0-1,lkz_ind:nkz0-1,0)+& !kz negative, ky negative
-                                       temp_bigx(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)*fft_norm
-            rhs_out_b(i,lky_ind:nky0-1,0:hkz_ind,0)=rhs_out_b(i,lky_ind:nky0-1,0:hkz_ind,0)+& !kz positive, ky negative
-                                       temp_bigx(i,lky_big:ny0_big-1,0:hkz_ind)*fft_norm
-  !y component
-            rhs_out_b(i,0:hky_ind,0:hkz_ind,1)=rhs_out_b(i,0:hky_ind,0:hkz_ind,1)+&           !kz positive, ky positive
-                                       temp_bigy(i,0:hky_ind,0:hkz_ind)*fft_norm
-            rhs_out_b(i,0:hky_ind,lkz_ind:nkz0-1,1)=rhs_out_b(i,0:hky_ind,lkz_ind:nkz0-1,1)+& !kz negative, ky positive
-                                       temp_bigy(i,0:hky_ind,lkz_big:nz0_big-1)*fft_norm
-            rhs_out_b(i,lky_ind:nky0-1,lkz_ind:nkz0-1,1)=rhs_out_b(i,lky_ind:nky0-1,lkz_ind:nkz0-1,1)+& !kz negative, ky negative
-                                       temp_bigy(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)*fft_norm
-            rhs_out_b(i,lky_ind:nky0-1,0:hkz_ind,1)=rhs_out_b(i,lky_ind:nky0-1,0:hkz_ind,1)+& !kz positive, ky negative
-                                       temp_bigy(i,lky_big:ny0_big-1,0:hkz_ind)*fft_norm
-  !z component
-            rhs_out_b(i,0:hky_ind,0:hkz_ind,2)=rhs_out_b(i,0:hky_ind,0:hkz_ind,2)+&           !kz positive, ky positive
-                                       temp_bigz(i,0:hky_ind,0:hkz_ind)*fft_norm
-            rhs_out_b(i,0:hky_ind,lkz_ind:nkz0-1,2)=rhs_out_b(i,0:hky_ind,lkz_ind:nkz0-1,2)+& !kz negative, ky positive
-                                       temp_bigz(i,0:hky_ind,lkz_big:nz0_big-1)*fft_norm
-            rhs_out_b(i,lky_ind:nky0-1,lkz_ind:nkz0-1,2)=rhs_out_b(i,lky_ind:nky0-1,lkz_ind:nkz0-1,2)+& !kz negative, ky negative
-                                       temp_bigz(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)*fft_norm
-            rhs_out_b(i,lky_ind:nky0-1,0:hkz_ind,2)=rhs_out_b(i,lky_ind:nky0-1,0:hkz_ind,2)+& !kz positive, ky negative
-                                       temp_bigz(i,lky_big:ny0_big-1,0:hkz_ind)*fft_norm
-         END DO!i loop
-      else ! for uncentered convolution - ignore
-
-         temp_bigxnc = decenter(temp_bigx)
-         temp_bigync = decenter(temp_bigy)
-         temp_bigznc = decenter(temp_bigz)
-         
-         do i = 0,nkx0-1
-            rhs_out_b(i,0:hky_ind,0:hkz_ind,0) = rhs_out_b(i,0:hky_ind,0:hkz_ind,0)&
-                 +temp_bigxnc(i,0:hky_ind,0:hkz_ind)*fft_norm
-            rhs_out_b(i,0:hky_ind,lkz_ind:nkz0-1,0) = rhs_out_b(i,0:hky_ind,lkz_ind:nkz0-1,0)&
-                 +temp_bigxnc(i,0:hky_ind,lkz_ind:nkz0-1)*fft_norm
-            rhs_out_b(i,lky_ind:nky0-1,lkz_ind:nkz0-1,0) = rhs_out_b(i,lky_ind:nky0-1,lkz_ind:nkz0-1,0)&
-                 +temp_bigxnc(i,lky_ind:nky0-1,lkz_ind:nkz0-1)*fft_norm
-            rhs_out_b(i,lky_ind:nky0-1,0:hkz_ind,0) = rhs_out_b(i,lky_ind:nky0-1,0:hkz_ind,0)&
-                 +temp_bigxnc(i,lky_ind:nky0-1,0:hkz_ind)*fft_norm
-
-            rhs_out_b(i,0:hky_ind,0:hkz_ind,1) = rhs_out_b(i,0:hky_ind,0:hkz_ind,1)&
-                 +temp_bigync(i,0:hky_ind,0:hkz_ind)*fft_norm
-            rhs_out_b(i,0:hky_ind,lkz_ind:nkz0-1,1) = rhs_out_b(i,0:hky_ind,lkz_ind:nkz0-1,1)&
-                 +temp_bigync(i,0:hky_ind,lkz_ind:nkz0-1)*fft_norm
-            rhs_out_b(i,lky_ind:nky0-1,lkz_ind:nkz0-1,1) = rhs_out_b(i,lky_ind:nky0-1,lkz_ind:nkz0-1,1)&
-                 +temp_bigync(i,lky_ind:nky0-1,lkz_ind:nkz0-1)*fft_norm
-            rhs_out_b(i,lky_ind:nky0-1,0:hkz_ind,1) = rhs_out_b(i,lky_ind:nky0-1,0:hkz_ind,1)&
-                 +temp_bigync(i,lky_ind:nky0-1,0:hkz_ind)*fft_norm
-
-            rhs_out_b(i,0:hky_ind,0:hkz_ind,2) = rhs_out_b(i,0:hky_ind,0:hkz_ind,2)&
-                 +temp_bigznc(i,0:hky_ind,0:hkz_ind)*fft_norm
-            rhs_out_b(i,0:hky_ind,lkz_ind:nkz0-1,2) = rhs_out_b(i,0:hky_ind,lkz_ind:nkz0-1,2)&
-                 +temp_bigznc(i,0:hky_ind,lkz_ind:nkz0-1)*fft_norm
-            rhs_out_b(i,lky_ind:nky0-1,lkz_ind:nkz0-1,2) = rhs_out_b(i,lky_ind:nky0-1,lkz_ind:nkz0-1,2)&
-                 +temp_bigznc(i,lky_ind:nky0-1,lkz_ind:nkz0-1)*fft_norm
-            rhs_out_b(i,lky_ind:nky0-1,0:hkz_ind,2) = rhs_out_b(i,lky_ind:nky0-1,0:hkz_ind,2)&
-                 + temp_bigznc(i,lky_ind:nky0-1,0:hkz_ind)*fft_norm
-
-         END DO!i loop
-      endif
-
+  DO i=0,nkx0-1
+     !First x component
+     rhs_out_b(i,0:hky_ind,0:hkz_ind,0)=rhs_out_b(i,0:hky_ind,0:hkz_ind,0)+&           !kz positive, ky positive
+          temp_bigx(i,0:hky_ind,0:hkz_ind)*fft_norm
+     rhs_out_b(i,0:hky_ind,lkz_ind:nkz0-1,0)=rhs_out_b(i,0:hky_ind,lkz_ind:nkz0-1,0)+& !kz negative, ky positive
+          temp_bigx(i,0:hky_ind,lkz_big:nz0_big-1)*fft_norm
+     rhs_out_b(i,lky_ind:nky0-1,lkz_ind:nkz0-1,0)=rhs_out_b(i,lky_ind:nky0-1,lkz_ind:nkz0-1,0)+& !kz negative, ky negative
+          temp_bigx(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)*fft_norm
+     rhs_out_b(i,lky_ind:nky0-1,0:hkz_ind,0)=rhs_out_b(i,lky_ind:nky0-1,0:hkz_ind,0)+& !kz positive, ky negative
+          temp_bigx(i,lky_big:ny0_big-1,0:hkz_ind)*fft_norm
+     !y component
+     rhs_out_b(i,0:hky_ind,0:hkz_ind,1)=rhs_out_b(i,0:hky_ind,0:hkz_ind,1)+&           !kz positive, ky positive
+          temp_bigy(i,0:hky_ind,0:hkz_ind)*fft_norm
+     rhs_out_b(i,0:hky_ind,lkz_ind:nkz0-1,1)=rhs_out_b(i,0:hky_ind,lkz_ind:nkz0-1,1)+& !kz negative, ky positive
+          temp_bigy(i,0:hky_ind,lkz_big:nz0_big-1)*fft_norm
+     rhs_out_b(i,lky_ind:nky0-1,lkz_ind:nkz0-1,1)=rhs_out_b(i,lky_ind:nky0-1,lkz_ind:nkz0-1,1)+& !kz negative, ky negative
+          temp_bigy(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)*fft_norm
+     rhs_out_b(i,lky_ind:nky0-1,0:hkz_ind,1)=rhs_out_b(i,lky_ind:nky0-1,0:hkz_ind,1)+& !kz positive, ky negative
+          temp_bigy(i,lky_big:ny0_big-1,0:hkz_ind)*fft_norm
+     !z component
+     rhs_out_b(i,0:hky_ind,0:hkz_ind,2)=rhs_out_b(i,0:hky_ind,0:hkz_ind,2)+&           !kz positive, ky positive
+          temp_bigz(i,0:hky_ind,0:hkz_ind)*fft_norm
+     rhs_out_b(i,0:hky_ind,lkz_ind:nkz0-1,2)=rhs_out_b(i,0:hky_ind,lkz_ind:nkz0-1,2)+& !kz negative, ky positive
+          temp_bigz(i,0:hky_ind,lkz_big:nz0_big-1)*fft_norm
+     rhs_out_b(i,lky_ind:nky0-1,lkz_ind:nkz0-1,2)=rhs_out_b(i,lky_ind:nky0-1,lkz_ind:nkz0-1,2)+& !kz negative, ky negative
+          temp_bigz(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)*fft_norm
+     rhs_out_b(i,lky_ind:nky0-1,0:hkz_ind,2)=rhs_out_b(i,lky_ind:nky0-1,0:hkz_ind,2)+& !kz positive, ky negative
+          temp_bigz(i,lky_big:ny0_big-1,0:hkz_ind)*fft_norm
+  END DO!i loop
+   
 endif ! Skip b if Navier Stokes
   
 !! ! EQUATION (15)
@@ -1585,18 +1534,15 @@ ENDIF
 if (verbose) print *, 'v12 nl equation stored'
 endif
 
-if (dealias_type.ne.41) store = store_x
-if (dealias_type.eq.41) store = store_x*n1
+store = store_x
 CALL dfftw_execute_dft_r2c(plan_r2c,store,temp_big)
 temp_bigx = temp_big
 
-if (dealias_type.ne.41) store = store_y
-if (dealias_type.eq.41) store = store_y*n1
+store = store_y
 CALL dfftw_execute_dft_r2c(plan_r2c,store,temp_big)
 temp_bigy = temp_big
 
-if (dealias_type.ne.41) store = store_z
-if (dealias_type.eq.41) store = store_z*n1
+store = store_z
 CALL dfftw_execute_dft_r2c(plan_r2c,store,temp_big)
 temp_bigz = temp_big
 
@@ -1614,8 +1560,6 @@ temp_bigz = temp_big
     (/1,lky_ind,1/)+maxloc(abs(temp_bigx(1:nkx0-1,lky_big:ny0_big-1,1:hkz_ind)*fft_norm)/abs(rhs_out_v(1:nkx0-1,lky_ind:nky0-1,1:hkz_ind,0)),((abs(rhs_out_v(1:nkx0-1,lky_ind:nky0-1,1:hkz_ind,0)).gt.10.0**(-7.0))))
 
   !Now fill in appropriate rhs elements
-  if (dealias_type.ne.41) then
-     
   DO i=0,nkx0-1
   !First x component
             rhs_out_v(i,0:hky_ind,0:hkz_ind,0)=rhs_out_v(i,0:hky_ind,0:hkz_ind,0)+&           !kz positive, ky positive
@@ -1646,50 +1590,18 @@ temp_bigz = temp_big
                                        temp_bigz(i,lky_big:ny0_big-1,0:hkz_ind)*fft_norm
   END DO!i loop
 
-else ! for uncentered convolution, ignore
+  if (debug_energy) then
+     vdvendiv = 0.0
+     store = vx*(vx*dxvx+vy*dyvx+vz*dzvx)+vy*(vx*dxvy+vy*dyvy+vz*dzvy)+vz*(vx*dxvz+vy*dyvz+vz*dzvz)
+     CALL dfftw_execute_dft_r2c(plan_r2c,store,temp_big)
+     vdvendiv = - temp_big(0,0,0)*fft_norm * 8.0 * (pi**3)
+  endif
 
-         temp_bigxnc = decenter(temp_bigx)
-         temp_bigync = decenter(temp_bigy)
-         temp_bigznc = decenter(temp_bigz)
-
-         do i = 0,nkx0-1
-            rhs_out_v(i,0:hky_ind,0:hkz_ind,0) = rhs_out_v(i,0:hky_ind,0:hkz_ind,0)&
-                 +temp_bigxnc(i,0:hky_ind,0:hkz_ind)*fft_norm
-            rhs_out_v(i,0:hky_ind,lkz_ind:nkz0-1,0) = rhs_out_v(i,0:hky_ind,lkz_ind:nkz0-1,0)&
-                 +temp_bigxnc(i,0:hky_ind,lkz_ind:nkz0-1)*fft_norm
-            rhs_out_v(i,lky_ind:nky0-1,lkz_ind:nkz0-1,0) = rhs_out_v(i,lky_ind:nky0-1,lkz_ind:nkz0-1,0)&
-                 +temp_bigxnc(i,lky_ind:nky0-1,lkz_ind:nkz0-1)*fft_norm
-            rhs_out_v(i,lky_ind:nky0-1,0:hkz_ind,0) = rhs_out_v(i,lky_ind:nky0-1,0:hkz_ind,0)&
-                 +temp_bigxnc(i,lky_ind:nky0-1,0:hkz_ind)*fft_norm
-
-            rhs_out_v(i,0:hky_ind,0:hkz_ind,1) = rhs_out_v(i,0:hky_ind,0:hkz_ind,1)&
-                 +temp_bigync(i,0:hky_ind,0:hkz_ind)*fft_norm
-            rhs_out_v(i,0:hky_ind,lkz_ind:nkz0-1,1) = rhs_out_v(i,0:hky_ind,lkz_ind:nkz0-1,1)&
-                 +temp_bigync(i,0:hky_ind,lkz_ind:nkz0-1)*fft_norm
-            rhs_out_v(i,lky_ind:nky0-1,lkz_ind:nkz0-1,1) = rhs_out_v(i,lky_ind:nky0-1,lkz_ind:nkz0-1,1)&
-                 +temp_bigync(i,lky_ind:nky0-1,lkz_ind:nkz0-1)*fft_norm
-            rhs_out_v(i,lky_ind:nky0-1,0:hkz_ind,1) = rhs_out_v(i,lky_ind:nky0-1,0:hkz_ind,1)&
-                 +temp_bigync(i,lky_ind:nky0-1,0:hkz_ind)*fft_norm
-
-            rhs_out_v(i,0:hky_ind,0:hkz_ind,2) = rhs_out_v(i,0:hky_ind,0:hkz_ind,2)&
-                 +temp_bigznc(i,0:hky_ind,0:hkz_ind)*fft_norm
-            rhs_out_v(i,0:hky_ind,lkz_ind:nkz0-1,2) = rhs_out_v(i,0:hky_ind,lkz_ind:nkz0-1,2)&
-                 +temp_bigznc(i,0:hky_ind,lkz_ind:nkz0-1)*fft_norm
-            rhs_out_v(i,lky_ind:nky0-1,lkz_ind:nkz0-1,2) = rhs_out_v(i,lky_ind:nky0-1,lkz_ind:nkz0-1,2)&
-                 +temp_bigznc(i,lky_ind:nky0-1,lkz_ind:nkz0-1)*fft_norm
-            rhs_out_v(i,lky_ind:nky0-1,0:hkz_ind,2) = rhs_out_v(i,lky_ind:nky0-1,0:hkz_ind,2)&
-                 +temp_bigznc(i,lky_ind:nky0-1,0:hkz_ind)*fft_norm
-            
-         enddo
-      endif
-
-      if (debug_energy) then
-         vdvendiv = 0.0
-         store = vx*(vx*dxvx+vy*dyvx+vz*dzvx)+vy*(vx*dxvy+vy*dyvy+vz*dzvy)+vz*(vx*dxvz+vy*dyvz+vz*dzvz)
-         CALL dfftw_execute_dft_r2c(plan_r2c,store,temp_big)
-         vdvendiv = - temp_big(0,0,0)*fft_norm * 8.0 * (pi**3)
-      endif
-      
+  ! to preserve reality of the fields, remove v,b terms at nky0/2,nkz0/2
+  rhs_out_b(:,nky0/2,:,:) = 0
+  rhs_out_v(:,nky0/2,:,:) = 0
+  rhs_out_b(:,:,nkz0/2,:) = 0
+  rhs_out_v(:,:,nkz0/2,:) = 0
       
 if (verbose) print *, 'rhs out v nl found'
 
@@ -2054,6 +1966,84 @@ FUNCTION DECENTER(array_centered) RESULT(array_decentered)
   enddo
   
 END FUNCTION DECENTER
+
+SUBROUTINE DEALIASINGTEST
+
+  IMPLICIT NONE
+
+  temp_small = 0.0
+  temp_small(1,1,1) = 1
+
+  temp_big=cmplx(0.0,0.0)
+  DO i=0,nkx0-1
+     temp_big(i,0:hky_ind,0:hkz_ind)=temp_small(i,0:hky_ind,0:hkz_ind)    !kz positive, ky positive                                                                                     
+     temp_big(i,0:hky_ind,lkz_big:nz0_big-1)=temp_small(i,0:hky_ind,lkz_ind:nkz0-1) !kz negative, ky positive                                                                           
+     temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative                                                              
+     temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative                                                                           
+  END DO!k loop                                                                                                                                                                          
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dxvz = store  
+  
+  temp_small = 0.0
+  DO i = 0,nkx0-1
+     temp_small(i,:,:) = i
+  ENDDO
+  temp_small(:,nky0/2,:) = 0
+  temp_small(:,:,nkz0/2) = 0
+  temp_small(:,0,:) = 0
+  temp_small(:,:,0) = 0
+
+  temp_big=cmplx(0.0,0.0)
+  DO i=0,nkx0-1
+     temp_big(i,0:hky_ind,0:hkz_ind)=temp_small(i,0:hky_ind,0:hkz_ind)
+     temp_big(i,0:hky_ind,lkz_big:nz0_big-1)=temp_small(i,0:hky_ind,lkz_ind:nkz0-1)
+     temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1)
+     temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind)
+  END DO!k loop
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dyvz = store
+  
+  temp_small = 0.0
+  temp_small(0,0,0) = 1
+  temp_big=cmplx(0.0,0.0)
+  DO i=0,nkx0-1
+     temp_big(i,0:hky_ind,0:hkz_ind)=temp_small(i,0:hky_ind,0:hkz_ind)
+     temp_big(i,0:hky_ind,lkz_big:nz0_big-1)=temp_small(i,0:hky_ind,lkz_ind:nkz0-1)
+     temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1)
+     temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind)
+  END DO!k loop                                                                                                                                                                    
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  dzvz = store
+  
+  store = dxvz * dyvz
+  CALL dfftw_execute_dft_r2c(plan_r2c,store,temp_big)
+  DO i = 0,nkx0-1
+     temp_small(i,0:hky_ind,0:hkz_ind)=temp_big(i,0:hky_ind,0:hkz_ind)*fft_norm
+     temp_small(i,0:hky_ind,lkz_ind:nkz0-1)=temp_big(i,0:hky_ind,lkz_big:nz0_big-1)*fft_norm
+     temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1)=temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)*fft_norm
+     temp_small(i,lky_ind:nky0-1,0:hkz_ind)=temp_big(i,lky_big:ny0_big-1,0:hkz_ind)*fft_norm
+  ENDDO
+  
+  print *, "Dealiasing Test Result",temp_small(1,1,1)
+
+  store = dxvz * dzvz
+  CALL dfftw_execute_dft_r2c(plan_r2c,store,temp_big)
+  DO i = 0,nkx0-1
+     temp_small(i,0:hky_ind,0:hkz_ind)=temp_big(i,0:hky_ind,0:hkz_ind)*fft_norm
+     temp_small(i,0:hky_ind,lkz_ind:nkz0-1)=temp_big(i,0:hky_ind,lkz_big:nz0_big-1)*fft_norm
+     temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1)=temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)*fft_norm
+     temp_small(i,lky_ind:nky0-1,0:hkz_ind)=temp_big(i,lky_big:ny0_big-1,0:hkz_ind)*fft_norm
+  ENDDO
+  
+  print *, "Control Result", temp_small(1,1,1)
+
+  temp_small = cmplx(0.0,0.0)
+  temp_big = cmplx(0.0,0.0)
+  store = cmplx(0.0,0.0)
+
+END SUBROUTINE DEALIASINGTEST
+
+
 
 END MODULE nonlinearity
 

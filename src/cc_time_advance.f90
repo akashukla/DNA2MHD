@@ -74,10 +74,16 @@ SUBROUTINE iv_solver
       ENDDO
    ENDIF
 
-   IF (dp547) THEN
+   IF (intorder.eq.5) THEN
       CALL dorpi547M(b_1,v_1)
-   ELSE
+   ELSE IF (intorder.eq.4) THEN
       CALL get_g_next(b_1, v_1,dt_next)
+      dt = minval([dt_next,dt_max])
+   ELSE IF (intorder.eq.3) THEN
+      CALL ralston3(b_1,v_1,dt_next)
+      dt = minval([dt_next,dt_max])
+   ELSE
+      CALL ralston2(b_1,v_1,dt_next)
       dt = minval([dt_next,dt_max])
    ENDIF
    
@@ -723,6 +729,11 @@ SUBROUTINE ALLOCATE_STEPS
   ALLOCATE(bk2(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
   ALLOCATE(vk2(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
 
+  if (intorder.eq.5) then
+     
+  ALLOCATE(b_3(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+  ALLOCATE(v_3(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+
   ALLOCATE(bk3(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
   ALLOCATE(vk3(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
 
@@ -755,6 +766,7 @@ SUBROUTINE ALLOCATE_STEPS
 
   ALLOCATE(bk13(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
   ALLOCATE(vk13(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+  endif
 
 END SUBROUTINE ALLOCATE_STEPS
 
@@ -765,15 +777,16 @@ SUBROUTINE DEALLOCATE_STEPS
   DEALLOCATE(b_2)
   DEALLOCATE(v_2)
 
-  DEALLOCATE(b_3)
-  DEALLOCATE(v_3)
-
   DEALLOCATE(bk1)
   DEALLOCATE(vk1)
 
   DEALLOCATE(bk2)
   DEALLOCATE(vk2)
 
+  if (intorder.eq.5) then
+  DEALLOCATE(b_3)
+  DEALLOCATE(v_3)
+  
   DEALLOCATE(bk3)
   DEALLOCATE(vk3)
 
@@ -806,8 +819,96 @@ SUBROUTINE DEALLOCATE_STEPS
 
   DEALLOCATE(bk13)
   DEALLOCATE(vk13)
-  
+endif
+
 END SUBROUTINE DEALLOCATE_STEPS
 
+SUBROUTINE ralston2(b_in,v_in,dt_new)
+
+  ! Uses Ralston's method to integrate system
+  ! Butcher tableau from Wikipedia
+  ! 0  |
+  ! 2/3| 2/3
+  ! ___|____
+  !      1/4 3/4 
+  
+  IMPLICIT NONE
+
+  COMPLEX, INTENT(INOUT) :: b_in(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2)
+  COMPLEX, INTENT(INOUT) :: v_in(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2)
+  REAL, INTENT(OUT) :: dt_new
+  REAL :: dt_new1,dt_new2
+  REAL :: nmhc1,nmhc2
+  
+  CALL get_rhs(b_in,v_in,bk1,vk1,nmhc1,dt_new1)
+  b_2 = b_1 + (1.0/4.0)*bk1*dt
+  v_2 = v_1 + (1.0/4.0)*vk1*dt
+  if (mhc) mhelcorr = mhelcorr + (1.0/4.0)*nmhc1*dt
+  if (debug_energy) then
+     precorr = precorr + (1.0/4.0) * preendiv * dt
+     vdvcorr = vdvcorr + (1.0/4.0) * vdvendiv * dt
+  endif
+  
+  CALL get_rhs(b_in+(2.0/3.0)*bk1*dt,v_in+(2.0/3.0)*vk1*dt,bk2,vk2,nmhc2,dt_new2)
+  b_in = b_2 + (3.0/4.0) * bk2 * dt
+  v_in = v_2 + (3.0/4.0) * vk2 * dt
+  if (mhc) mhelcorr = mhelcorr + (3.0/4.0) * nmhc2 * dt
+  if (debug_energy) then
+     precorr = precorr + (3.0/4.0) * preendiv * dt
+     vdvcorr = vdvcorr + (3.0/4.0) * vdvendiv * dt
+  endif
+
+  dt_new = minval([dt_new1,dt_new2])
+
+END SUBROUTINE ralston2
+
+SUBROUTINE ralston3(b_in,v_in,dt_new)
+
+  ! Uses Ralston's third order minimum error bound method
+  ! Butcher tableau from Ralston 1962 Runge-Kutta Methods with Minimum Error Bounds
+
+  !     |
+  ! 1/2 | 1/2
+  ! 3/4 |  0   3/4
+  !____________________
+  !     | 2/9  1/3  4/9
+
+  IMPLICIT NONE
+  COMPLEX, INTENT(INOUT) :: b_in(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2)
+  COMPLEX, INTENT(INOUT) :: v_in(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2)
+  REAL, INTENT(OUT) :: dt_new
+  REAL :: dt_new1,dt_new2,dt_new3
+  REAL :: nmhc1,nmhc2,nmhc3
+
+  CALL get_rhs(b_in,v_in,bk1,vk1,nmhc1,dt_new1)
+  b_2 = b_in + (2.0/9.0)*bk1*dt
+  v_2 = v_in + (2.0/9.0)*vk1*dt
+  if (mhc) mhelcorr = mhelcorr + (2.0/9.0)*nmhc1*dt
+  if (debug_energy) then
+     precorr = precorr + (2.0/9.0) * preendiv * dt
+     vdvcorr = vdvcorr + (2.0/9.0) * vdvendiv * dt
+  endif
+
+  CALL get_rhs(b_in+(1.0/2.0)*bk1*dt,v_in+(1.0/2.0)*vk1*dt,bk2,vk2,nmhc2,dt_new2)
+  b_2 = b_2 + (1.0/3.0) * bk2 * dt
+  v_2 = v_2 + (1.0/3.0) * vk2 * dt
+  if (mhc) mhelcorr = mhelcorr + (1.0/3.0) * nmhc2 * dt
+  if (debug_energy) then
+     precorr = precorr + (1.0/3.0) * preendiv * dt
+     vdvcorr = vdvcorr + (1.0/3.0) * vdvendiv * dt
+  endif
+
+  CALL get_rhs(b_in+(3.0/4.0)*bk2*dt,v_in+(3.0/4.0)*vk2*dt,bk1,vk1,nmhc3,dt_new3)
+  b_in = b_2 + (4.0/9.0) * bk1 * dt
+  v_in = v_2 + (4.0/9.0) * vk1 * dt
+  if (mhc) mhelcorr = mhelcorr + (4.0/9.0) * nmhc3 * dt
+  if (debug_energy) then
+     precorr = precorr + (4.0/9.0) * preendiv * dt
+     vdvcorr = vdvcorr + (4.0/9.0) * vdvendiv * dt
+  endif
+  
+  dt_new = minval([dt_new1,dt_new2,dt_new3])
+
+END SUBROUTINE ralston3
 
 END MODULE time_advance

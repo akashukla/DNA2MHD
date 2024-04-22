@@ -41,19 +41,19 @@ SUBROUTINE read_parameters
       !mu_grid_type, vmax,hyp_nu,fracx, fracy
 
   NAMELIST /physical_parameters/ &
-      nu,omt,omn,Ti0Te,eta,vnu
+      nu,omt,omn,Ti0Te,eta,vnu,rey
 
   NAMELIST /flags/ &
       nonlinear, actual_nonlinear, force_turbulence,forceb,set_forcing,forcetype,test_nl, calc_dt, comp_type,adapt_dt_nl,&
       linear_nlbox,verbose,checkpoint_read,checkpoint_write,&
       em_conserve,flr_on,force_kz0eq0,force_ky0eq0,force_kx0eq0,flr_version,&
       flr_extra,flr_nonlinear,etg_factor, &!, which_nonlinear,etg_factor
-      perf_test_lin,perf_test_nl,perf_test_rhs,rhs_lin_version,rhs_nl_version,dp547,dealias_type,shifted,splitx,&
+      perf_test_lin,perf_test_nl,perf_test_rhs,rhs_lin_version,rhs_nl_version,intorder,dealias_type,shifted,splitx,&
       perf_test_par, version_flag, hankel, dt_slepc, nuno_closure,mu_integrated,&
       GyroLES, Gyroherm, Gyroz, Corr, &
       plot_nls,dbio,dvio,bdvio,vdbio,bdcbio,cbdbio,vdvio,bdbio,db2io,&
       hall,guide,enone,nv,test_ho,uni,beltrami,helical,shear,walenp,walenn,mhc,&
-      init_wave,bc_norm,track_divs,en_leftwhist,en_leftcyclo,en_rightwhist,en_rightcyclo
+      init_wave,bc_norm,track_divs,taylorgreen,en_leftwhist,en_leftcyclo,en_rightwhist,en_rightcyclo,debug_energy
  
   NAMELIST /eigensolve/ &
       left_vec,right_vec,ev_slepc, kxmax0, kymax0, kzmax0, kscan,n_ev,&
@@ -75,7 +75,7 @@ SUBROUTINE read_parameters
   CALL get_io_number
   par_handle=io_number
 
-  OPEN(unit = par_handle, file = 'parameters', status = 'unknown')
+  OPEN(unit = par_handle, file = "parameters", status = 'unknown')
 
   READ(par_handle, nml = diagnostics, iostat = ierr)
   IF (ierr.ne.0) STOP 'on i/o error: incorrect diagnostics NAMELIST'
@@ -391,7 +391,7 @@ SUBROUTINE output_parameters
     !IF(istep_nlt.ne.0) WRITE(out_handle,"(A,I4)") "nlt_version = ",nlt_version
     WRITE(out_handle,"(A,I4)") "rhs_lin_version = ",rhs_lin_version
     WRITE(out_handle,"(A,I4)") "rhs_nl_version = ",rhs_nl_version
-    WRITE(out_handle,"(A,L1)") "dp547 = ",dp547
+    WRITE(out_handle,"(A,I1)") "intorder = ",intorder
     WRITE(out_handle,"(A,I4)") "dealias_type = ",dealias_type
     WRITE(out_handle,"(A,L1)") "shifted = ",shifted
     WRITE(out_handle,"(A,L1)") "splitx = ",splitx
@@ -427,6 +427,7 @@ SUBROUTINE output_parameters
     WRITE(out_handle,"(A,L1)") "init_wave = ",init_wave
     WRITE(out_handle,"(A,L1)") "bc_norm = ",bc_norm
     WRITE(out_handle,"(A,L1)") "track_divs = ",track_divs
+    WRITE(out_handle,"(A,L1)") "taylorgreen = ",taylorgreen
     WRITE(out_handle,"(A,G12.4)") "en_leftwhist = ",en_leftwhist
     WRITE(out_handle,"(A,G12.4)") "en_leftcyclo = ",en_leftcyclo
     WRITE(out_handle,"(A,G12.4)") "en_rightwhist = ",en_rightwhist

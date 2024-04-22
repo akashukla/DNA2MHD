@@ -122,9 +122,9 @@ SUBROUTINE initial_condition(which_init0)
       DEALLOCATE(rseed)
 
       if (enone) s1 = 0.0
-      DO i=xst,kxinit_max-1
-        DO j=yst,kyinit_max-1
-          DO k=zst,kzinit_max-1
+      DO i=xst,nkx0-1
+        DO j=yst,nky0-1
+          DO k=zst,nkz0-1
 
              if ((((kxgrid(i).lt.kxmax+kxmin).and.(kygrid(j).lt.kymax+kymin)).and.(kzgrid(k).lt.kzmax+kzmin)).and.(kmags(i,j,k).ne.0)) then
                 
@@ -357,7 +357,7 @@ SUBROUTINE initial_condition(which_init0)
                 ! Ensure reality constraints arent violated at i = 0
                 if (i.eq.0) then
                    b_1(0,mod(nky0-j,nky0),mod(nkz0-k,nkz0),:) = conjg(b_1(0,j,k,:))
-                   v_1(0,mod(nky0-j,nky0),mod(nkz0-k,nkz0),:) = conjg(b_1(0,j,k,:))
+                   v_1(0,mod(nky0-j,nky0),mod(nkz0-k,nkz0),:) = conjg(v_1(0,j,k,:))
                 endif
 
                 ! makes sure that other modes at the same magnitude of k allow v parallel to box face
@@ -376,13 +376,34 @@ SUBROUTINE initial_condition(which_init0)
        END DO
     END DO
 
-    if (nv) b_1(:,:,:,:) = cmplx(0.0,0.0)
+
+    if (splitx.and.&
+         (((kxinit_max.lt.nkx0).and.(kxinit_max.ne.0)).and.&
+         ((kyinit_max.le.nky0/2).and.(kyinit_max.ne.0)).and.&
+         ((kzinit_max.le.nkz0/2).and.(kzinit_max.ne.0)))) then
+       b_1(kxinit_max:nkx0-1,kyinit_max:nky0-kyinit_max,kzinit_max:nkz0-kzinit_max,:) = 0.0
+       v_1(kxinit_max:nkx0-1,kyinit_max:nky0-kyinit_max,kzinit_max:nkz0-kzinit_max,:) = 0.0
+    endif
+    
     if (enone) then
        s1 = sum(abs(b_1)**2+abs(v_1)**2)
        b_1 = b_1 * sqrt(init_amp_bx / (8.0 * pi**3 * s1))
        v_1 = v_1 * sqrt(init_amp_bx / (8.0 * pi**3 * s1))
     endif
-     
+
+
+    if (nv) b_1(:,:,:,:) = cmplx(0.0,0.0)
+    if (taylorgreen) then
+       ! Initializes Fourier components of Taylor Green vortex u = sin x cos y cos z , v = - cos x sin y cos z                                                                                
+       v_1 = cmplx(0.0,0.0)
+       v_1(1,1,0,0) = 1.0
+       v_1(1,nky0-1,0,0) = 1.0
+       v_1(1,1,0,1) = -1.0
+       v_1(1,nky0-1,0,1) = 1.0
+       v_1 = -v_1 * cmplx(0.0,0.125)
+    endif
+
+   
     gpsi(:,:,:,:) = cmplx(0.0,0.0)
     pre(:,:,:) = cmplx(0.0,0.0)
     print *, "MaxVal b", maxval(abs(b_1))
@@ -393,7 +414,14 @@ SUBROUTINE initial_condition(which_init0)
 
       ! Set dissipation to set relative rate of dissipation at high scales
 
-    vnu = vnu / (maxval(kmags)**(2.0*hyp))
+    if (rey.eq.0) then
+       vnu = vnu / (maxval(kmags)**(2.0*hyp))
+       rey = 1.0/vnu
+    else
+       vnu = 1.0/rey
+    endif
+    if (verbose) print *, "Reynolds Number",rey
+ 
     eta = eta * vnu
     if(mype.eq.0) print *, 'Viscosity',vnu
 
@@ -405,7 +433,7 @@ SUBROUTINE initial_condition(which_init0)
     IF ((verbose.and.(mype.eq.0)).and.(set_forcing)) print *, 'Force Amp',force_amp
 
       ! Linear stability maximum time step
-    if (.not.test_ho) dt_max = minval([dt_max,2.8/(maxval(kzgrid)*(maxval(kmags)/2 + sqrt(1 + 0.25*maxval(kmags)**2.0)))])
+    if (calc_dt.and.(.not.(test_ho))) dt_max = minval([dt_max,2.8/(maxval(kzgrid)*(maxval(kmags)/2 + sqrt(1 + 0.25*maxval(kmags)**2.0)))])
     if (verbose.and.(mype.eq.0)) then
        print *, "kzgrid max", maxval(kzgrid)
        print *, "kmags max", maxval(kmags)

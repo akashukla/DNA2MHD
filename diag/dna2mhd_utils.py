@@ -1574,7 +1574,7 @@ def mode_break(lpath,show=False,tmax=200000):
         rckm = rck[:,1:,1:,1:]
 
     print(t)
-    fmts = ['rs','bs','r8','b8']
+    fmts = ['b--','b:','r--','r:']
     labels = ['+ Helicity Whistler','+ Helicity Cyclotron','- Helicity Whistler','- Helicity Cyclotron']
 
     mode_ks = np.stack((lwkm,lckm,rwkm,rckm))
@@ -1584,7 +1584,7 @@ def mode_break(lpath,show=False,tmax=200000):
         plt.plot(t,mode_profs[i,:],fmts[i],label=labels[i],markersize=1)
     plt.xlabel('Time ($\omega_c^{-1}$)')
     plt.ylabel('Mode Energy')
-    plt.title('Energy Spread in Hall MHD Modes vs Time')
+    plt.title('Energy Distribution in Hall MHD Modes vs Time')
     plt.yscale('log')
     plt.ylim(10**(-10),10**1)
     plt.legend()
@@ -1745,3 +1745,13 @@ def planeplotter(lpath,t,normvec=2,planenum=0,show=False):
         plt.show()
 
     return ggrid[ii],ggrid[jj],bplane,vplane
+
+def enheldev(lpath):
+    te,e = plot_energy(lpath,3,show=False)
+    dt = te[-1]-te[0]
+    de = e[-1,:]-e[0,:]
+    print(dt)
+    # print(de[0])
+    # print(de[1]+de[-3])
+    # print(de[4]+de[-3])
+    return de[0],de[1]+de[-3],de[4]+de[-3]

@@ -123,7 +123,7 @@ MODULE par_mod
   INTEGER :: rhs_lin_version
   !INTEGER :: rhs_nl_version=2
   INTEGER :: rhs_nl_version !Akash changed nl_version to 1
-  LOGICAL :: dp547 = .true.
+  INTEGER :: intorder = 4
   INTEGER :: dealias_type = 3
   LOGICAL :: shifted = .true.
   LOGICAL :: splitx = .true.
@@ -154,6 +154,7 @@ MODULE par_mod
   LOGICAL :: bc_norm = .false.
   LOGICAL :: track_divs = .true.
   LOGICAL :: debug_energy = .true.
+  LOGICAL :: taylorgreen = .false.
   
   REAL :: en_leftwhist = 1.0
   REAL :: en_leftcyclo = 0.0
@@ -354,8 +355,9 @@ MODULE par_mod
 
   ! for checkpoints in io
   INTEGER :: b_out_handle, v_out_handle
-  REAL :: vnu ! Viscosity in units ion skin depth * v_A is vnu/(maxk**(2*hyp))
+  REAL :: vnu ! Viscosity in units ion skin depth * v_A; scaled to vnu/(maxk**(2*hyp))
   REAL :: eta ! Magnetic Prandtl number, mag diffusion constant eta * vnu
+  REAL :: rey = 0 ! Reynolds Number; if rey > 0 set vnu = 1/rey
   INTEGER :: hyp
   
 

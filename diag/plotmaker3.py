@@ -2,13 +2,13 @@ import dna2mhd_utils as dn
 from output2 import maxinds
 import numpy as np
 
-lpaths = ["/scratch/08929/echansen/dna2mhdrun487"]
+lpaths = ["/scratch/08929/echansen/dna2mhdrun745"]
 #lpaths = ["/scratch/08929/echansen/dna2mhdrun452","/scratch/08929/echansen/dna2mhdrun453"]
 
 a = np.random.randint(0,63,size=4)
 
 for lpath in lpaths:
-    dn.plot_energy(lpath,3)
+    dn.plot_energy(lpath,3,show=False)
     dn.plot_enspec(lpath,4,zz=-1,log=True,newload=True,show=False)
     dn.plot_xispec(lpath,4,zz=-1,log=True,show=False)
     dn.mode_break(lpath,show=False)
