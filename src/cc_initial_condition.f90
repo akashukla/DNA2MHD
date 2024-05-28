@@ -40,6 +40,8 @@ SUBROUTINE initial_condition(which_init0)
 
   INTEGER, DIMENSION(:), ALLOCATABLE :: rseed
   INTEGER :: rseed_size,ierr
+  REAL :: testrandoms(10)
+  REAL :: nottruncic = 0.0
   INTEGER(int64) :: t 
 
   zerocmplx=0.0
@@ -48,9 +50,9 @@ SUBROUTINE initial_condition(which_init0)
   b_1(:,:,:,:)=cmplx(0.0,0.0)
   v_1(:,:,:,:)=cmplx(0.0,0.0)
 
-  xst = max(0,kxinit_min)
-  yst = max(0,kyinit_min)
-  zst = max(0,kzinit_min)
+  xst = max(1,kxinit_min)
+  yst = max(1,kyinit_min)
+  zst = max(1,kzinit_min)
 
   DO i = 0,nkx0-1
     DO j = 0,nky0-1
@@ -115,193 +117,221 @@ SUBROUTINE initial_condition(which_init0)
       t = mod(t,4294967297_int64)
 
       DO ri = 1,rseed_size
-          rseed(ri) = mod(t,4294967297_int64)
+         rseed(ri) = mod(t,4294967297_int64)
+         if (random_state.gt.0) rseed(ri) = random_state
       enddo
-      
+
       CALL RANDOM_SEED(PUT=rseed)
       DEALLOCATE(rseed)
+
+      if (verbose.and.(random_state.gt.0)) then
+         CALL RANDOM_NUMBER(testrandoms)
+         print *, testrandoms
+      endif
+
+      if (kxinit_max.eq.0) nottruncic = maxval(kmags)
+      if (kxinit_max.eq.nkx0) nottruncic = kxgrid(1)+kxgrid(nkx0-1)
 
       if (enone) s1 = 0.0
       DO i=xst,nkx0-1
         DO j=yst,nky0-1
-          DO k=zst,nkz0-1
+           DO k=zst,nkz0-1
+              ! Write the if statements as subroutines sometime
+              
+              ! Only initalize selected mode numbers
+              if (((abs(kxgrid(i)).lt.max(nottruncic,kxgrid(kxinit_max)))&
+                   .and.(abs(kygrid(j)).lt.max(kygrid(kyinit_max),nottruncic)))&
+                   .and.(abs(kzgrid(k)).lt.max(kzgrid(kzinit_max),nottruncic))) then
 
-             if ((((kxgrid(i).lt.kxmax+kxmin).and.(kygrid(j).lt.kymax+kymin)).and.(kzgrid(k).lt.kzmax+kzmin)).and.(kmags(i,j,k).ne.0)) then
+              ! Sometime write this loop as a sequence of subroutines
                 
-          !!! Uniform distribution
-                if (uni) then
-                   if (mype.eq.0) then
-                      CALL RANDOM_NUMBER(phase1)
-                      if (phdf.le.1.0) phase2 = phase1 + phdf
-                      if (phdf.gt.1.0) CALL RANDOM_NUMBER(phase2)
-                      if (phdfxy.le.1.0) then
-                         phase1y = phase1+phdfxy
-                         phase2y = phase2+phdfxy
-                      else
-                         CALL RANDOM_NUMBER(phase1y)
-                         CALL RANDOM_NUMBER(phase2y)
-                      endif
-                      CALL RANDOM_NUMBER(thb)
-                      CALL RANDOM_NUMBER(thv)
-                   endif
+!!! Uniform distribution
+                 if ((random_state.ge.0).and.uni) then
+                    if (mype.eq.0) then
+                       CALL RANDOM_NUMBER(phase1)
+                       if (phdf.le.1.0) phase2 = phase1 + phdf
+                       if (phdf.gt.1.0) CALL RANDOM_NUMBER(phase2)
+                       if (phdfxy.le.1.0) then
+                          phase1y = phase1+phdfxy
+                          phase2y = phase2+phdfxy
+                       else
+                          CALL RANDOM_NUMBER(phase1y)
+                          CALL RANDOM_NUMBER(phase2y)
+                       endif
+                       CALL RANDOM_NUMBER(thb)
+                       CALL RANDOM_NUMBER(thv)
+                    endif
 
-                   CALL MPI_BCAST(phase1,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
-                   CALL MPI_BCAST(phase2,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
-                   CALL MPI_BCAST(phase1y,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
-                   CALL MPI_BCAST(phase2y,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
-                   CALL MPI_BCAST(thb,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
-                   CALL MPI_BCAST(thv,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
+                    CALL MPI_BCAST(phase1,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
+                    CALL MPI_BCAST(phase2,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
+                    CALL MPI_BCAST(phase1y,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
+                    CALL MPI_BCAST(phase2y,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
+                    CALL MPI_BCAST(thb,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
+                    CALL MPI_BCAST(thv,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
 
-          !!! Triangular distribution 
-          
-                else 
+!!! Triangular distribution 
+                    
+                 else if (random_state.ge.0) then
+                    
+                    CALL RANDOM_NUMBER(myphase1)
+                    CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+                    CALL MPI_ALLREDUCE(myphase1,phase1,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
+                    if (phdf.le.1.0) phase2 = phase1 + phdf
+                    if (phdf.gt.1.0) then 
+                       CALL RANDOM_NUMBER(myphase2) 
+                       CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+                       CALL MPI_ALLREDUCE(myphase2,phase2,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
+                    endif
 
-                   CALL RANDOM_NUMBER(myphase1)
-                   CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-                   CALL MPI_ALLREDUCE(myphase1,phase1,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
-                   if (phdf.le.1.0) phase2 = phase1 + phdf
-                   if (phdf.gt.1.0) then 
-                      CALL RANDOM_NUMBER(myphase2) 
-                      CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-                      CALL MPI_ALLREDUCE(myphase2,phase2,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
-                   endif
+                    if (phdfxy.le.1.0) then 
+                       phase1y = phase1 + phdfxy
+                       phase2y = phase2 + phdfxy
+                    else
+                       CALL RANDOM_NUMBER(myphase1y)
+                       CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+                       CALL MPI_ALLREDUCE(myphase1y,phase1y,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
+                       
+                       CALL RANDOM_NUMBER(myphase2y)
+                       CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+                       CALL MPI_ALLREDUCE(myphase2y,phase2y,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
+                    endif
+                    CALL RANDOM_NUMBER(mythb)
+                    CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+                    CALL MPI_ALLREDUCE(mythb,thb,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
 
-                   if (phdfxy.le.1.0) then 
-                      phase1y = phase1 + phdfxy
-                      phase2y = phase2 + phdfxy
-                   else
-                      CALL RANDOM_NUMBER(myphase1y)
-                      CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-                      CALL MPI_ALLREDUCE(myphase1y,phase1y,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
+                    CALL RANDOM_NUMBER(mythv)
+                    CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+                    CALL MPI_ALLREDUCE(mythv,thv,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
 
-                      CALL RANDOM_NUMBER(myphase2y)
-                      CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-                      CALL MPI_ALLREDUCE(myphase2y,phase2y,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
-                   endif
-                   CALL RANDOM_NUMBER(mythb)
-                   CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-                   CALL MPI_ALLREDUCE(mythb,thb,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
+                 else ! Make all modes pure real (-1,0) or pure imaginary (0,1)
+                    if (init_wave.or.beltrami) then
+                       phase1 = -random_state/4.0
+                       phase2 = -random_state/4.0
+                       phase1y = -random_state/4.0
+                       phase2y = -random_state/4.0
+                    else
+                       phase1 = -random_state/4.0
+                       phase2 = 0.0
+                       phase1y = 0.0
+                       phase2y = 0.0
+                    endif
+                 endif
 
-                   CALL RANDOM_NUMBER(mythv)
-                   CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-                   CALL MPI_ALLREDUCE(mythv,thv,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
-                endif
+                 ! phase2 = phase1 - 1.0/4.0
+                 phaseb = cmplx(cos(2*pi*phase1),sin(2*pi*phase1))
+                 phasev = cmplx(cos(2*pi*phase2),sin(2*pi*phase2))
+                 phaseby = cmplx(cos(2*pi*phase1y),sin(2*pi*phase1y))
+                 phasevy = cmplx(cos(2*pi*phase2y),sin(2*pi*phase2y))
 
-          ! phase2 = phase1 - 1.0/4.0
-                phaseb = cmplx(cos(2*pi*phase1),sin(2*pi*phase1))
-                phasev = cmplx(cos(2*pi*phase2),sin(2*pi*phase2))
-                phaseby = cmplx(cos(2*pi*phase1y),sin(2*pi*phase1y))
-                phasevy = cmplx(cos(2*pi*phase2y),sin(2*pi*phase2y))
+                 if (mype.eq.0) then
+                    CALL RANDOM_NUMBER(showphase)
+                    if ((max_itime.lt.100).and.(showphase.lt.10.0/real(nkx0*nky0*nkz0))) then
+                       print *, i,j,k
+                       print *, phase1y
+                       print *, phase2
+                       print *, phase2y
+                    endif
+                 endif
+                 
+                 !DO l=0,2
 
-                if (mype.eq.0) then
-                   CALL RANDOM_NUMBER(showphase)
-                   if ((max_itime.lt.100).and.(showphase.lt.10.0/real(nkx0*nky0*nkz0))) then
-                      print *, i,j,k
-                      print *, phase1y
-                      print *, phase2
-                      print *, phase2y
-                   endif
-                endif
+                 IF(kzgrid(k).eq.zerocmplx) THEN
+                    b_1(i,j,k,0)=cmplx(0.0,0.0)
+                    b_1(i,j,k,1)=cmplx(0.0,0.0)
+                    b_1(i,j,k,2)=cmplx(0.0,0.0)
+                    v_1(i,j,k,0)=cmplx(0.0,0.0)
+                    v_1(i,j,k,1)=cmplx(0.0,0.0)
+                    v_1(i,j,k,2)=cmplx(0.0,0.0)
+                 ELSE IF (.not.(enone)) THEN
+                    b_1(i,j,k,0)=init_amp_bx*1.0/sqrt(real(nkx0*nky0*(nkz0-1)))*1/(kmags(i,j,k)**(init_kolm/2.0)) * phaseb*cos(2*pi*thb)
+                    b_1(i,j,k,1)=init_amp_by*1.0/sqrt(real(nkx0*nky0*(nkz0-1)))*1/(kmags(i,j,k)**(init_kolm/2.0)) * phaseb*phaseby*sin(2*pi*thb)
+                    b_1(i,j,k,2) = (-kxgrid(i)*b_1(i,j,k,0)-kygrid(j)*b_1(i,j,k,1))/kzgrid(k)
+                    !b_1(i,j,k,2)=init_amp_bz
+                    v_1(i,j,k,0)=init_amp_vx*1.0/sqrt(real(nkx0*nky0*(nkz0-1)))*1/(kmags(i,j,k)**(init_kolm/2.0)) * phasev*phaseb*cos(2*pi*thv)
+                    v_1(i,j,k,1)=init_amp_vy*1.0/sqrt(real(nkx0*nky0*(nkz0-1)))*1/(kmags(i,j,k)**(init_kolm/2.0)) * phasev*phasevy*phaseb*sin(2*pi*thv)
+                    !v_1(i,j,k,2)=init_amp_vz
+                    v_1(i,j,k,2) = (-kxgrid(i)*v_1(i,j,k,0)-kygrid(j)*v_1(i,j,k,1))/kzgrid(k)
+                 ELSE IF (beltrami) THEN
+                    ! These initial conditions write a Beltrami decomposition for b,v in terms of curl eigenstates (b1r,\pm b1i) as given below
+                    
+                    if (mype.eq.0) then
+                       CALL RANDOM_NUMBER(b1w)
+                       CALL RANDOM_NUMBER(b2w)
+                       CALL RANDOM_NUMBER(v1w)
+                       CALL RANDOM_NUMBER(v2w)
+                    endif
+                    CALL MPI_BCAST(b1w,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
+                    CALL MPI_BCAST(b2w,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
+                    CALL MPI_BCAST(v1w,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
+                    CALL MPI_BCAST(v2w,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
+                    
+                    if (bc_norm) shear=.true.
+                    
+                    IF (helical) THEN
+                       b2w = 0.0
+                       v2w = 0.0
+                       phasev = phaseb
+                       v1w = b1w
+                    ELSE IF (shear) THEN
+                       phaseby = phaseb
+                       phasevy = phasev
+                       b1w = b2w
+                       v1w = v2w
+                    ELSE IF ((walenp).or.(walenn)) THEN
+                       if (walenp) then
+                          phasev = phaseb
+                          phasevy = phaseby
+                       else 
+                          phasev = -phaseb
+                          phasevy = -phaseby
+                       endif
+                       v1w = b1w
+                       v2w = b2w
+                       
+                    ENDIF
+                    
+                    b_1(i,j,k,0) = (b1w*phaseb*pcurleig(i,j,k,0) + b2w*phaseby*conjg(pcurleig(i,j,k,0)))/sqrt(b1w**2+b2w**2)
+                    b_1(i,j,k,1) = (b1w*phaseb*pcurleig(i,j,k,1) + b2w*phaseby*conjg(pcurleig(i,j,k,1)))/sqrt(b1w**2+b2w**2)
+                    b_1(i,j,k,2) = (b1w*phaseb*pcurleig(i,j,k,2) + b2w*phaseby*conjg(pcurleig(i,j,k,2)))/sqrt(b1w**2+b2w**2)
+                    
+                    v_1(i,j,k,0) = (v1w*phasev*pcurleig(i,j,k,0) + v2w*phasevy*conjg(pcurleig(i,j,k,0)))/sqrt(v1w**2+v2w**2)
+                    v_1(i,j,k,1) = (v1w*phasev*pcurleig(i,j,k,1) + v2w*phasevy*conjg(pcurleig(i,j,k,1)))/sqrt(v1w**2+v2w**2)
+                    v_1(i,j,k,2) = (v1w*phasev*pcurleig(i,j,k,2) + v2w*phasevy*conjg(pcurleig(i,j,k,2)))/sqrt(v1w**2+v2w**2)
+                    
+                    b_1(i,j,k,:) = b_1(i,j,k,:) / (kmags(i,j,k)**(init_kolm/2.0))
+                    v_1(i,j,k,:) = v_1(i,j,k,:) / (kmags(i,j,k)**(init_kolm/2.0))
 
-                !DO l=0,2
+                 ELSE IF (init_wave) THEN
+                    
+                    LW1 = sqrt(en_leftwhist) * phaseb/sqrt(1 + alpha_leftwhist(i,j,k)**2)
+                    LC1 = sqrt(en_leftcyclo) * phasev/sqrt(1 + alpha_leftcyclo(i,j,k)**2)
+                    RW1 = sqrt(en_rightwhist) * phaseby/sqrt(1 + alpha_leftwhist(i,j,k)**2)
+                    RC1 = sqrt(en_rightcyclo) * phasevy/sqrt(1 + alpha_leftcyclo(i,j,k)**2)
 
-                IF(kzgrid(k).eq.zerocmplx) THEN
-                   b_1(i,j,k,0)=cmplx(0.0,0.0)
-                   b_1(i,j,k,1)=cmplx(0.0,0.0)
-                   b_1(i,j,k,2)=cmplx(0.0,0.0)
-                   v_1(i,j,k,0)=cmplx(0.0,0.0)
-                   v_1(i,j,k,1)=cmplx(0.0,0.0)
-                   v_1(i,j,k,2)=cmplx(0.0,0.0)
-                ELSE IF (.not.(enone)) THEN
-                   b_1(i,j,k,0)=init_amp_bx*1.0/sqrt(real(nkx0*nky0*(nkz0-1)))*1/(kmags(i,j,k)**(init_kolm/2.0)) * phaseb*cos(2*pi*thb)
-                   b_1(i,j,k,1)=init_amp_by*1.0/sqrt(real(nkx0*nky0*(nkz0-1)))*1/(kmags(i,j,k)**(init_kolm/2.0)) * phaseb*phaseby*sin(2*pi*thb)
-                   b_1(i,j,k,2) = (-kxgrid(i)*b_1(i,j,k,0)-kygrid(j)*b_1(i,j,k,1))/kzgrid(k)
-                   !b_1(i,j,k,2)=init_amp_bz
-                   v_1(i,j,k,0)=init_amp_vx*1.0/sqrt(real(nkx0*nky0*(nkz0-1)))*1/(kmags(i,j,k)**(init_kolm/2.0)) * phasev*phaseb*cos(2*pi*thv)
-                   v_1(i,j,k,1)=init_amp_vy*1.0/sqrt(real(nkx0*nky0*(nkz0-1)))*1/(kmags(i,j,k)**(init_kolm/2.0)) * phasev*phasevy*phaseb*sin(2*pi*thv)
-                   !v_1(i,j,k,2)=init_amp_vz
-                   v_1(i,j,k,2) = (-kxgrid(i)*v_1(i,j,k,0)-kygrid(j)*v_1(i,j,k,1))/kzgrid(k)
-                ELSE IF (beltrami) THEN
-                   ! These initial conditions write a Beltrami decomposition for b,v in terms of curl eigenstates (b1r,\pm b1i) as given below
+                    ! Given a normal boundary condition choice v = 1/kp k  x z
+                    ! This condition sets left-right branch modes equal amplitude and maintains above condition
+                    if (bc_norm) then
+                       RW1 = LW1
+                       RC1 = LC1
+                    endif
 
-                   if (mype.eq.0) then
-                      CALL RANDOM_NUMBER(b1w)
-                      CALL RANDOM_NUMBER(b2w)
-                      CALL RANDOM_NUMBER(v1w)
-                      CALL RANDOM_NUMBER(v2w)
-                   endif
-                   CALL MPI_BCAST(b1w,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
-                   CALL MPI_BCAST(b2w,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
-                   CALL MPI_BCAST(v1w,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
-                   CALL MPI_BCAST(v2w,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
+                    b_1(i,j,k,:) = (LW1 * alpha_leftwhist(i,j,k) + LC1 * alpha_leftcyclo(i,j,k)) * pcurleig(i,j,k,:)&
+                         - (RW1 * alpha_leftwhist(i,j,k) + RC1 * alpha_leftcyclo(i,j,k))*conjg(pcurleig(i,j,k,:))
+                    
+                    v_1(i,j,k,:) = (LW1 + LC1) * pcurleig(i,j,k,:) + (RW1 + RC1)*conjg(pcurleig(i,j,k,:))
+                    
+                    b_1(i,j,k,:) = b_1(i,j,k,:) / (sqrt(en_leftwhist + en_leftcyclo + en_rightwhist + en_rightcyclo) * kmags(i,j,k)**(init_kolm/2.0))
+                    v_1(i,j,k,:) = v_1(i,j,k,:) / (sqrt(en_leftwhist + en_leftcyclo + en_rightwhist + en_rightcyclo) * kmags(i,j,k)**(init_kolm/2.0))
+                    
+                 ELSE   
 
-                   if (bc_norm) shear=.true.
-                   
-                   IF (helical) THEN
-                      b2w = 0.0
-                      v2w = 0.0
-                      phasev = phaseb
-                      v1w = b1w
-                   ELSE IF (shear) THEN
-                      phaseby = phaseb
-                      phasevy = phasev
-                      b1w = b2w
-                      v1w = v2w
-                   ELSE IF ((walenp).or.(walenn)) THEN
-                      if (walenp) then
-                         phasev = phaseb
-                         phasevy = phaseby
-                      else 
-                         phasev = -phaseb
-                         phasevy = -phaseby
-                      endif
-                      v1w = b1w
-                      v2w = b2w
-             
-                   ENDIF
-
-                   b_1(i,j,k,0) = (b1w*phaseb*pcurleig(i,j,k,0) + b2w*phaseby*conjg(pcurleig(i,j,k,0)))/sqrt(b1w**2+b2w**2)
-                   b_1(i,j,k,1) = (b1w*phaseb*pcurleig(i,j,k,1) + b2w*phaseby*conjg(pcurleig(i,j,k,1)))/sqrt(b1w**2+b2w**2)
-                   b_1(i,j,k,2) = (b1w*phaseb*pcurleig(i,j,k,2) + b2w*phaseby*conjg(pcurleig(i,j,k,2)))/sqrt(b1w**2+b2w**2)
-
-                   v_1(i,j,k,0) = (v1w*phasev*pcurleig(i,j,k,0) + v2w*phasevy*conjg(pcurleig(i,j,k,0)))/sqrt(v1w**2+v2w**2)
-                   v_1(i,j,k,1) = (v1w*phasev*pcurleig(i,j,k,1) + v2w*phasevy*conjg(pcurleig(i,j,k,1)))/sqrt(v1w**2+v2w**2)
-                   v_1(i,j,k,2) = (v1w*phasev*pcurleig(i,j,k,2) + v2w*phasevy*conjg(pcurleig(i,j,k,2)))/sqrt(v1w**2+v2w**2)
-
-                   b_1(i,j,k,:) = b_1(i,j,k,:) / (kmags(i,j,k)**(init_kolm/2.0))
-                   v_1(i,j,k,:) = v_1(i,j,k,:) / (kmags(i,j,k)**(init_kolm/2.0))
-
-                ELSE IF (init_wave) THEN
-
-                   LW1 = sqrt(en_leftwhist) * phaseb/sqrt(1 + alpha_leftwhist(i,j,k)**2)
-                   LC1 = sqrt(en_leftcyclo) * phasev/sqrt(1 + alpha_leftcyclo(i,j,k)**2)
-                   RW1 = sqrt(en_rightwhist) * phaseby/sqrt(1 + alpha_leftwhist(i,j,k)**2)
-                   RC1 = sqrt(en_rightcyclo) * phasevy/sqrt(1 + alpha_leftcyclo(i,j,k)**2)
-
-                   ! Given a normal boundary condition choice v = 1/kp k  x z
-                   ! This condition sets left-right branch modes equal amplitude and maintains above condition
-                   if (bc_norm) then
-                      RW1 = LW1
-                      RC1 = LC1
-                   endif
-
-                   b_1(i,j,k,:) = (LW1 * alpha_leftwhist(i,j,k) + LC1 * alpha_leftcyclo(i,j,k)) * pcurleig(i,j,k,:)&
-                        - (RW1 * alpha_leftwhist(i,j,k) + RC1 * alpha_leftcyclo(i,j,k))*conjg(pcurleig(i,j,k,:))
-
-                   v_1(i,j,k,:) = (LW1 + LC1) * pcurleig(i,j,k,:) + (RW1 + RC1)*conjg(pcurleig(i,j,k,:))
-
-                   b_1(i,j,k,:) = b_1(i,j,k,:) / (sqrt(en_leftwhist + en_leftcyclo + en_rightwhist + en_rightcyclo) * kmags(i,j,k)**(init_kolm/2.0))
-                   v_1(i,j,k,:) = v_1(i,j,k,:) / (sqrt(en_leftwhist + en_leftcyclo + en_rightwhist + en_rightcyclo) * kmags(i,j,k)**(init_kolm/2.0))
-
-                ELSE   
-
-                   IF ((walenp).or.(walenn)) THEN
-                      if (walenp) phasev = 1.0
-                      if (walenn) phasev = -1.0
-                      phasevy =phaseby
-                      thv = thb
-                   ENDIF
-
+                    IF ((walenp).or.(walenn)) THEN
+                       if (walenp) phasev = 1.0
+                       if (walenn) phasev = -1.0
+                       phasevy =phaseby
+                       thv = thb
+                    ENDIF
+                    
                    IF (.not.(shear.or.helical)) THEN
                       s11 = kxgrid(i)**2 * cos(2*pi*thb)**2 + kxgrid(i)**2 * cos(2*pi*thv)**2
                       s12 = kygrid(j)**2 * sin(2*pi*thb)**2 + kygrid(j)**2 * sin(2*pi*thv)**2
@@ -310,7 +340,7 @@ SUBROUTINE initial_condition(which_init0)
                    ELSE
                       s1 = s1 + 2.0*kmags(i,j,k) ** (-1.0*init_kolm)
                    ENDIF
-
+                   
                    IF (helical) THEN
                       bt1 = 2.0*phase1y - 1.0
                       bt2 = 2.0*phase2 - 1.0
@@ -347,19 +377,15 @@ SUBROUTINE initial_condition(which_init0)
                       !v_1(i,j,k,2)=init_amp_vz 
                       v_1(i,j,k,2) = (-kxgrid(i)*v_1(i,j,k,0)-kygrid(j)*v_1(i,j,k,1))/kzgrid(k)
                    END IF
-     
+                   
                 END IF
 
-
-
-
-                
                 ! Ensure reality constraints arent violated at i = 0
                 if (i.eq.0) then
                    b_1(0,mod(nky0-j,nky0),mod(nkz0-k,nkz0),:) = conjg(b_1(0,j,k,:))
                    v_1(0,mod(nky0-j,nky0),mod(nkz0-k,nkz0),:) = conjg(v_1(0,j,k,:))
                 endif
-
+                
                 ! makes sure that other modes at the same magnitude of k allow v parallel to box face
                 if (bc_norm) then
                    v_1(i,mod(nky0-j,nky0),k,1) = -(v_1(i,j,k,1))
@@ -376,20 +402,20 @@ SUBROUTINE initial_condition(which_init0)
        END DO
     END DO
 
-
-    if (splitx.and.&
-         (((kxinit_max.lt.nkx0).and.(kxinit_max.ne.0)).and.&
-         ((kyinit_max.le.nky0/2).and.(kyinit_max.ne.0)).and.&
-         ((kzinit_max.le.nkz0/2).and.(kzinit_max.ne.0)))) then
-       b_1(kxinit_max:nkx0-1,kyinit_max:nky0-kyinit_max,kzinit_max:nkz0-kzinit_max,:) = 0.0
-       v_1(kxinit_max:nkx0-1,kyinit_max:nky0-kyinit_max,kzinit_max:nkz0-kzinit_max,:) = 0.0
-    endif
-    
     if (enone) then
        s1 = sum(abs(b_1)**2+abs(v_1)**2)
        b_1 = b_1 * sqrt(init_amp_bx / (8.0 * pi**3 * s1))
        v_1 = v_1 * sqrt(init_amp_bx / (8.0 * pi**3 * s1))
     endif
+
+    if (kxinit_max.eq.0) then
+       b_1(:,nky0/2,:,:) = 0.0
+       b_1(:,:,nkz0/2,:) = 0.0
+       v_1(:,nky0/2,:,:) = 0.0
+       v_1(:,:,nkz0/2,:) = 0.0
+    endif
+    
+    print *, "Nonlinear Time Scale Estimate", 1/(sqrt(sum(abs(v_1(3,3,3,:))**2))*kmags(3,3,3))
 
 
     if (nv) b_1(:,:,:,:) = cmplx(0.0,0.0)

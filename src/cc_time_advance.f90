@@ -720,9 +720,6 @@ SUBROUTINE ALLOCATE_STEPS
   ALLOCATE(b_2(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
   ALLOCATE(v_2(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
 
-  ALLOCATE(b_3(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-  ALLOCATE(v_3(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-  
   ALLOCATE(bk1(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
   ALLOCATE(vk1(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
 
@@ -731,9 +728,6 @@ SUBROUTINE ALLOCATE_STEPS
 
   if (intorder.eq.5) then
      
-  ALLOCATE(b_3(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-  ALLOCATE(v_3(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-
   ALLOCATE(bk3(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
   ALLOCATE(vk3(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
 

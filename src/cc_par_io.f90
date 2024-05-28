@@ -53,7 +53,8 @@ SUBROUTINE read_parameters
       GyroLES, Gyroherm, Gyroz, Corr, &
       plot_nls,dbio,dvio,bdvio,vdbio,bdcbio,cbdbio,vdvio,bdbio,db2io,&
       hall,guide,enone,nv,test_ho,uni,beltrami,helical,shear,walenp,walenn,mhc,&
-      init_wave,bc_norm,track_divs,taylorgreen,en_leftwhist,en_leftcyclo,en_rightwhist,en_rightcyclo,debug_energy
+      init_wave,bc_norm,track_divs,taylorgreen,en_leftwhist,en_leftcyclo,en_rightwhist,en_rightcyclo,debug_energy,&
+      force_lw,force_lc,force_rw,force_rc,random_state
  
   NAMELIST /eigensolve/ &
       left_vec,right_vec,ev_slepc, kxmax0, kymax0, kzmax0, kscan,n_ev,&
@@ -425,6 +426,7 @@ SUBROUTINE output_parameters
     WRITE(out_handle,"(A)")    "/"
     WRITE(out_handle,"(A)")    ""
     WRITE(out_handle,"(A,L1)") "init_wave = ",init_wave
+    WRITE(out_handle,"(A,I3)") "random_state = ",random_state
     WRITE(out_handle,"(A,L1)") "bc_norm = ",bc_norm
     WRITE(out_handle,"(A,L1)") "track_divs = ",track_divs
     WRITE(out_handle,"(A,L1)") "taylorgreen = ",taylorgreen
@@ -432,7 +434,10 @@ SUBROUTINE output_parameters
     WRITE(out_handle,"(A,G12.4)") "en_leftcyclo = ",en_leftcyclo
     WRITE(out_handle,"(A,G12.4)") "en_rightwhist = ",en_rightwhist
     WRITE(out_handle,"(A,G12.4)") "en_rightcyclo = ",en_rightcyclo
-
+    WRITE(out_handle,"(A,G12.4)") "force_lw = ",force_lw
+    WRITE(out_handle,"(A,G12.4)") "force_lc = ",force_lc
+    WRITE(out_handle,"(A,G12.4)") "force_rw = ",force_rw
+    WRITE(out_handle,"(A,G12.4)") "force_rc = ",force_rc    
 
     IF (verbose) WRITE(*,*) "Eigensolve "
 

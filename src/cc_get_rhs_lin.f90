@@ -138,6 +138,7 @@ SUBROUTINE get_rhs_force(rhs_out_b, rhs_out_v, dt)
     REAL, INTENT(in) :: dt
     COMPLEX, INTENT(out) :: rhs_out_b(0:nkx0-1,0:nky0-1,lkz1:lkz2, 0:2)
     COMPLEX, INTENT(out) :: rhs_out_v(0:nkx0-1,0:nky0-1,lkz1:lkz2, 0:2)
+    COMPLEX :: LW1,LC1,RW1,RC1
 
     if (mype.eq.0) call random_number(resample)
     CALL MPI_BCAST(resample,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
@@ -174,7 +175,26 @@ SUBROUTINE get_rhs_force(rhs_out_b, rhs_out_v, dt)
 
                 rhs_out_v(nkx0-i,j,k,0) = rhs_out_v(nkx0-i,j,k,0) + force_amp*random_normal() + i_complex*force_amp*random_normal()
                 rhs_out_v(nkx0-i,j,k,1) = rhs_out_v(nkx0-i,j,k,1) + force_amp*random_normal() + i_complex*force_amp*random_normal()
-              ENDIF
+             ENDIF
+
+             ! Alternative - excite modes with random normal complex amplitude * modes of choice
+
+             IF ((forcetype.eq.21).and.(kmags(i,j,k).lt.force_frac*maxval(kmags))) THEN
+                LW1 = (random_normal()+i_complex*random_normal())
+                LC1 = (random_normal()+i_complex*random_normal())
+                RW1 = (random_normal()+i_complex*random_normal())
+                RC1 = (random_normal()+i_complex*random_normal())
+
+                LW1 = LW1 * force_amp/abs(LW1) * sqrt(force_lw)/sqrt(force_lw + force_lc + force_rw + force_rc) * 1.0/sqrt(1 + alpha_leftwhist(i,j,k)**2)
+                LC1 = LC1 * force_amp/abs(LC1) * sqrt(force_lc)/sqrt(force_lw + force_lc + force_rw + force_rc) * 1.0/sqrt(1 + alpha_leftcyclo(i,j,k)**2)
+                RW1 = RW1 * force_amp/abs(RW1) * sqrt(force_rw)/sqrt(force_lw + force_lc + force_rw + force_rc) * 1.0/sqrt(1 + alpha_leftwhist(i,j,k)**2)
+                RC1 = RC1 * force_amp/abs(RC1) * sqrt(force_rc)/sqrt(force_lw + force_lc + force_rw + force_rc) * 1.0/sqrt(1 + alpha_leftcyclo(i,j,k)**2)
+                
+                rhs_out_b(i,j,k,:) = rhs_out_b(i,j,k,:) + (LW1 * alpha_leftwhist(i,j,k) + LC1 * alpha_leftcyclo(i,j,k)) * pcurleig(i,j,k,:)&
+                     -(RW1 * alpha_leftwhist(i,j,k) + RC1 * alpha_leftcyclo(i,j,k)) * conjg(pcurleig(i,j,k,:))
+                rhs_out_v(i,j,k,:) = rhs_out_v(i,j,k,:) + (LW1+LC1)*pcurleig(i,j,k,:) + (RW1+RC1)*conjg(pcurleig(i,j,k,:))
+             ENDIF
+             
             END DO
           END DO
         END DO

@@ -79,6 +79,7 @@ END SUBROUTINE initialize_fourier
 SUBROUTINE initialize_fourier_ae_mu0
 
   include 'fftw3.f'
+
   
   !for dealiasing
   if (dealias_type.eq.1) zpad = 2
@@ -166,6 +167,7 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   USE par_mod
   include 'fftw3.f'
 
+  
   COMPLEX, INTENT(in) :: b_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
   COMPLEX, INTENT(in) :: v_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
   COMPLEX, INTENT(inout) :: rhs_out_b(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)

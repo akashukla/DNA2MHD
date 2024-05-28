@@ -2,10 +2,10 @@ import dna2mhd_utils as dn
 from output2 import maxinds
 import numpy as np
 
-lpaths = ["/scratch/08929/echansen/dna2mhdrun745"]
-#lpaths = ["/scratch/08929/echansen/dna2mhdrun452","/scratch/08929/echansen/dna2mhdrun453"]
+#lpaths = ["/scratch/08929/echansen/dna2mhdrunsh24rk32"]
+lpaths = ['/scratch/08929/echansen/dna2mhdrunsh24rk64s','/scratch/08929/echansen/dna2mhdrunsh24rk32lessnuani']
 
-a = np.random.randint(0,63,size=4)
+a = np.random.randint(0,31,size=4)
 
 for lpath in lpaths:
     dn.plot_energy(lpath,3,show=False)
@@ -15,8 +15,13 @@ for lpath in lpaths:
     for zz in a:
         dn.plot_enspec(lpath,5,zz=zz,log=True,newload=True,show=False,tmaxfac=2)
         dn.plot_xispec(lpath,5,zz=zz,log=True,show=False,tmaxfac=2)
-    dn.planeplotter(lpath,0,show=False)
-    dn.planeplotter(lpath,-1,show=False)
+    #dn.planeplotter(lpath,0,show=False)
+    #dn.planeplotter(lpath,-1,show=False)
+    dn.structurefunction(lpath,tmax=2*10**10)
+    dn.mode_nlparam(lpath,0,1)
+    dn.mode_nlparam(lpath,0,3)
+    dn.mode_nlparam(lpath,-1,1)
+    dn.mode_nlparam(lpath,-1,3)
 
 x = """
 fname = {lpaths[0]:lpaths[0]+"/DNAHD.out1467543",lpaths[1]:lpaths[1]+"/DNAHD.out1472208"}

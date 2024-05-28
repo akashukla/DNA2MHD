@@ -155,11 +155,17 @@ MODULE par_mod
   LOGICAL :: track_divs = .true.
   LOGICAL :: debug_energy = .true.
   LOGICAL :: taylorgreen = .false.
+  INTEGER :: random_state = 0
   
   REAL :: en_leftwhist = 1.0
   REAL :: en_leftcyclo = 0.0
   REAL :: en_rightwhist = 0.0
   REAL :: en_rightcyclo = 0.0
+
+  REAL :: force_lw = 1.0
+  REAL :: force_lc = 0.0
+  REAL :: force_rw = 0.0
+  REAL :: force_rc = 0.0
   
   LOGICAL :: calc_dt=.false.        !Automatic initial time step calculation
   LOGICAL :: dt_slepc=.false.        !Use slepc or lapack

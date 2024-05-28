@@ -1755,3 +1755,252 @@ def enheldev(lpath):
     # print(de[1]+de[-3])
     # print(de[4]+de[-3])
     return de[0],de[1]+de[-3],de[4]+de[-3]
+
+def structurefunction(lpath,tmax=2*10**10):
+
+    read_parameters(lpath)
+    kx,ky,kz = get_grids()
+
+    x=""" if os.path.isfile(lpath+'/dumlasts.txt'):
+        bk = np.load(lpath+'/b_fin.npy')
+        vk = np.load(lpath+'v_fin.npy')
+    else:
+        t,bk,vk = lastbv(lpath)
+        bk = np.load(lpath+'/b_fin.npy')
+        vk = np.load(lpath+'v_fin.npy')"""
+
+    if os.path.isfile(lpath+'/v_xyz.dat'):
+        time,bk = load_b(lpath)
+        time,vk = load_v(lpath)
+    else:
+        time,bk = getb(lpath)
+        time,vk = getv(lpath)
+    # decompose bk,vk into constituent modes
+
+    Ky,Kx,Kz = np.meshgrid(ky,kx,kz)
+    kmags = np.sqrt(Kx**2 + Ky**2 + Kz**2)
+    alpha_lw = -kmags/2 - np.sqrt(1+kmags**2 /4)
+    alpha_lc = -kmags/2 + np.sqrt(1+kmags**2 /4)
+
+    Kvec = np.zeros([par['nkx0'],par['nky0'],par['nkz0'],3],dtype='complex64')
+    Zvec = np.zeros([par['nkx0'],par['nky0'],par['nkz0'],3],dtype='complex64')
+    Kvec[:,:,:,0] = Kx
+    Kvec[:,:,:,1] = Ky
+    Kvec[:,:,:,2] = Kz
+    Zvec[:,:,:,2] = 1
+
+    pceig = np.zeros([par['nkx0'],par['nky0'],par['nkz0'],3],dtype='complex64')
+    for i in range(par['nkx0']):
+        for j in range(par['nky0']):
+            for k in range(par['nkz0']):
+                pceig[i,j,k,:] = np.cross(Kvec[i,j,k,:],Zvec[i,j,k,:])+1/kmags[i,j,k] * 1.0j * np.cross(Kvec[i,j,k,:],np.cross(Kvec[i,j,k,:],Zvec[i,j,k,:]))
+    pceig = pceig / (np.sqrt(2) * np.sqrt(Kx[:,:,:,None]**2 + Ky[:,:,:,None]**2))
+    pceig[0,0,:,:] = 0
+    bkt = bk[-1,:,:,:,:]
+    vkt = vk[-1,:,:,:,:]
+
+    lwk = np.zeros([par['nkx0'],par['nky0'],par['nkz0']],dtype='complex64')
+    lck = np.zeros([par['nkx0'],par['nky0'],par['nkz0']],dtype='complex64')
+    rwk = np.zeros([par['nkx0'],par['nky0'],par['nkz0']],dtype='complex64')
+    rck = np.zeros([par['nkx0'],par['nky0'],par['nkz0']],dtype='complex64')
+
+    for i in range(par['nkx0']):
+        for j in range(par['nky0']):
+            for k in range(par['nkz0']):
+                lwk[i,j,k] = np.dot(np.conj(pceig[i,j,k,:]),alpha_lw[i,j,k]*bkt[i,j,k,:]+vkt[i,j,k,:])/np.sqrt(alpha_lw[i,j,k]**2+1)
+                lck[i,j,k] = np.dot(np.conj(pceig[i,j,k,:]),alpha_lc[i,j,k]*bkt[i,j,k,:]+vkt[i,j,k,:])/np.sqrt(alpha_lc[i,j,k]**2+1)
+                rwk[i,j,k] = np.dot((pceig[i,j,k,:]),-alpha_lw[i,j,k]*bkt[i,j,k,:]+vkt[i,j,k,:])/np.sqrt(alpha_lw[i,j,k]**2+1)
+                rck[i,j,k] = np.dot((pceig[i,j,k,:]),-alpha_lc[i,j,k]*bkt[i,j,k,:]+vkt[i,j,k,:])/np.sqrt(alpha_lc[i,j,k]**2+1)
+    
+    labels = ['+ Helicity Whistler','+ Helicity Cyclotron','- Helicity Whistler','- Helicity Cyclotron']
+    stname = ["phw","phc","nhw","nhc"]
+
+    xs = np.pi / par['nkx0'] * np.arange(2*par['nkx0']) / par['kxmin']
+    ys = 2*np.pi / par['nky0'] * np.arange(par['nky0']) / par['kymin']
+    zs = 2*np.pi / par['nkz0'] * np.arange(par['nkz0']) / par['kzmin']
+    
+    modespecs = [lwk,lck,rwk,rck]
+
+    fig,ax = plt.subplots(2,2)
+    ax = ax.flatten()
+    fig2,ax2 = plt.subplots(2,2)
+    ax2 = ax2.flatten()
+    
+    for I,ms in enumerate(modespecs):
+        mm = convert_spec_to_real(lpath,ms)
+            # assume axisymmetric for transverse struct fn - test this later
+        # very small - lets rescale to check Parseval's theorem print(np.amax(mm**2)); 8 pi^3 sum(ms**2) = sum(mm**2)/N
+        mm *= np.sqrt(8*np.pi**3 * np.sum(np.abs(ms)**2)*np.size(mm)/(np.sum(mm**2)))
+        
+        if par["splitx"]:
+            nx = 2*par["nkx0"]
+        else:
+            nx = par["nkx0"]
+            
+        str_perp = np.zeros(nx)
+        for j in range(nx//2):
+            if j != 0:
+                str_perp[j] = np.average((mm[j:,:,:]-mm[:-j,:,:])**2)
+            
+            # parallel structure function
+        str_par = np.zeros(par["nkz0"])
+        for k in range(par["nkz0"]//2):
+            if k != 0:
+                str_par[k] = np.average((mm[:,:,k:]-mm[:,:,:-k])**2)
+
+        pt = np.nonzero(str_perp)
+        pz = np.nonzero(str_par)
+
+        ax[I].plot(xs[pt],str_perp[pt],"--",label="Transverse")
+        ax[I].plot(zs[pz],str_par[pz],":",label="Parallel")
+        if (I==2 or I == 3):
+            ax[I].set_xlabel("r (d_i)")
+
+        
+        ax2[I].plot(str_perp[pt],"--",label="Transverse")
+        ax2[I].plot(str_par[pz],":",label="Parallel")
+        if (I==2 or I == 3):
+            ax2[I].set_xlabel("r (Grid Position)")
+        ax[I].set_title(labels[I])
+        ax[I].set_xscale("log")
+        ax[I].set_yscale("log")
+        ax2[I].set_title(labels[I])
+        ax2[I].set_xscale("log")
+        ax2[I].set_yscale("log")
+        if (I < 2):
+            ax[I].tick_params(axis='x',which='both',bottom=False,top=False,labelbottom=False,labeltop=False)
+            ax2[I].tick_params(axis='x',which='both',bottom=False,top=False,labelbottom=False,labeltop=False)
+        ax[I].legend(loc=4)
+        ax2[I].legend(loc=4)
+    fig.suptitle("Transverse and Longitudinal Structure Functions")
+    fig2.suptitle("Transverse and Longitudinal Structure Functions")
+    if lpath[-1] != '/':
+        lpath = lpath + '/'
+    if not os.path.exists(lpath + 'eplots/'):
+        os.mkdir(lpath + 'eplots/')    
+    fig.savefig(lpath + 'eplots/'+"stfns")
+    fig2.savefig(lpath + 'eplots/'+"stfns2")
+    plt.close()
+        
+def convert_spec_to_real(lpath,spectra):
+    """
+    Performs IFFTs needed to get real space values on one time b or mode
+    """
+
+    read_parameters(lpath)
+    print(len(np.shape(spectra)))
+    if len(np.shape(spectra)) == 3:
+        if par['splitx']:
+            ts = np.transpose(spectra,axes=(2,1,0))
+            ftrs = irfftn(ts,axes=(0,1,2))
+            res = np.transpose(ftrs,(2,1,0))
+        else:
+            res = irfftn(spectra,axes=(0,1,2))
+    else:
+        if par['splitx']:
+            ts = np.transpose(spectra,axes=(2,1,0,3))
+            ftrs = irfftn(ts,axes=(0,1,2))
+            res = np.transpose(ftrs,(2,1,0,3))
+        else:
+            res = irfftn(spectra,axes=(0,1,2))
+    return(res)
+
+def lastbv(lpath):
+    if lpath[-1] != '/':
+        lpath = lpath + '/'
+    read_parameters(lpath)
+    memstep = 8 + 16 * 3 * par['nkx0']*par['nky0']*par['nkz0']
+    size = os.path.getsize(lpath+'b_out.dat')
+    Nt = size//memstep
+    print(Nt)
+    
+    f = open(lpath+'b_out.dat','rb')
+    tlast = np.fromfile(f,dtype='float64',count=1,offset=(Nt-1)*memstep)
+    blast_back = np.empty((3,par['nkz0'],par['nky0'],par['nkx0']))
+    blast_back = np.fromfile(f,dtype='complex64',count=3 * par['nkx0']*par['nky0']*par['nkz0'],offset=(Nt-1)*memstep+8)
+    f.close()
+
+    print(tlast, blast_back)
+    
+    g = open(lpath+'v_out.dat','rb')
+    vlast_back = np.empty((3,par['nkz0'],par['nky0'],par['nkx0']))
+    vlast_back = np.fromfile(g,dtype='complex64',count=3 * par['nkx0']*par['nky0']*par['nkz0'],offset=(Nt-1)*memstep+8)
+    g.close()
+
+    print(vlast_back)
+
+    blast = np.reshape(blast_back,(par['nkx0'],par['nky0'],par['nkz0'],3),order='F')
+    vlast = np.reshape(vlast_back,(par['nkx0'],par['nky0'],par['nkz0'],3),order='F')
+
+    np.save(lpath+'b_fin',blast)
+    np.save(lpath+'v_fin',vlast)
+
+    h = open(lpath+'dumlasts.txt','w')
+    h.write("Wrote Lasts")
+    h.close()
+    
+    return(tlast,blast,vlast)
+
+def mode_nlparam(lpath,tt,dim,show=False,tmax=200000):
+
+    read_parameters(lpath)
+    kx,ky,kz = get_grids()
+
+    if os.path.isfile(lpath+'/dummodespec.txt'):
+        t,lwk,lck,rwk,rck = load_energyspec(lpath,mode=True)
+        lwkm = lwk[:,1:,1:,1:]
+        lckm = lck[:,1:,1:,1:]
+        rwkm = rwk[:,1:,1:,1:]
+        rckm = rck[:,1:,1:,1:]
+    else:
+        t,lwk,lck,rwk,rck = getenergyspec(lpath,tmax=tmax,mode=True)
+        lwkm = lwk[:,1:,1:,1:]
+        lckm = lck[:,1:,1:,1:]
+        rwkm = rwk[:,1:,1:,1:]
+        rckm = rck[:,1:,1:,1:]
+    
+    kyy,kxx,kzz = np.meshgrid(ky[1:],kx[1:],kz[1:])
+    kmags = np.sqrt(kxx**2 +kyy**2 + kzz**2)
+    kperps = np.sqrt(kxx**2 + kyy**2)
+
+    sq = np.sqrt(1+kmags**2 / 4)
+    whist = kzz * (kmags/2 + sq)
+    cyclo = kzz * (sq - kmags/2)
+
+    mode = [lwk[tt,1:,1:,1:],lck[tt,1:,1:,1:],rwk[tt,1:,1:,1:],rck[tt,1:,1:,1:]]
+    freq = [whist,cyclo,whist,cyclo]
+
+    fmts = ['b--','b:','r--','r:']
+    labels = ['+ Helicity Whistler','+ Helicity Cyclotron','- Helicity Whistler','- Helicity Cyclotron']
+    plt.figure()
+    for i in range(4):
+        perp = kperps
+        if dim == 1:
+            perp,e = integrated_spectrum_1d(mode[i],lpath)
+            whist = kzz[0,0,1] * (perp/2 + np.sqrt(1 + perp**2 / 4))
+            cyclo = kzz[0,0,1] * (np.sqrt(1 + perp**2 / 4) -perp/2)
+            freq = [whist,cyclo,whist,cyclo]
+        else:
+            perp = kperps[:,:,1]
+            e = mode[i][:,:,1]
+        rmse = np.sqrt(2*e)
+        if dim == 3:
+            xi = rmse*perp/freq[i][:,:,1]
+        else:
+            xi = rmse*perp/freq[i]
+
+        if dim == 1:
+            plt.plot(perp.flatten(),xi.flatten(),fmts[i],label=labels[i])
+        else:
+            plt.plot(kmags[:,:,1].flatten(),xi.flatten(),fmts[i],label=labels[i])
+    
+    plt.ylabel("Nonlinearity Parameter")
+    plt.xlabel("|k| ($d_i^{-1}$)")
+    plt.title(str(dim)+"D Nonlinearity Parameter Spectrum t = "+np.format_float_positional(t[tt],1)+" ($\omega_c^{-1}$)")
+    plt.ylim(10**(-5),10**1)
+    plt.yscale("log")
+    plt.xscale("log")
+    plt.legend()
+    plt.savefig(lpath+'/eplots/nlpar'+str(dim)+'d'+str(int(t[tt])))
+    
+    return(0)

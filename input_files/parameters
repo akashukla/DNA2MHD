@@ -5,16 +5,16 @@ omn =    1.000
 Ti0Te =    1.000 
 eta = 1.0
 vnu = 0.0
-rey = 0.0
+rey = 1000.0
 /
 
 &numerical_parameters
 kxmin =   0.125
 kymin =   0.125
 kzmin =   0.0025
-nkx0 = 128
-nky0 = 256
-nkz0 = 256
+nkx0 = 8
+nky0 = 16
+nkz0 = 16
 nv0 =   2
 nh0 =    1
 nspec =    1
@@ -35,9 +35,9 @@ courant =   0.5
 kxinit_min = 0
 kyinit_min = 0
 kzinit_min = 0
-kxinit_max = 32
-kyinit_max = 32
-kzinit_max = 32
+kxinit_max = 8
+kyinit_max = 16
+kzinit_max = 16
 init_amp_bx = 0.1
 init_amp_by = 0.1
 init_amp_bz = 0.1
@@ -52,11 +52,11 @@ nkxforce = 16
 nkyforce = 16
 nkzforce = 16
 force_frac = 0.3
-hyp = 2
+hyp = 1
 /
 
 &diagnostics
-diagdir = '/scratch/08929/echansen/dna2mhdrun1187'
+diagdir = '/scratch/08929/echansen/dna2mhdrun16s14'
 istep_ffm =   20
 istep_energy3d =  500
 istep_energy =  1
@@ -93,9 +93,9 @@ shifted = F
 splitx = T
 force_turbulence = F
 forceb = T
-forcetype = 11
+forcetype = 21
 set_forcing = F
-plot_nls = T
+plot_nls = F
 hall = 1.0
 guide = T
 enone = T
@@ -117,14 +117,18 @@ en_leftcyclo = 1.0
 en_rightwhist = 0.0
 en_rightcyclo = 0.0
 taylorgreen = F
+force_lw = 0.0
+force_lc = 1.0
+force_rw = 0.0
+force_rc = 0.0
 /
 
 &eigensolve
 /
 
 &initial_value
-max_itime = 401
+max_itime = 101
 max_walltime =   10000000.0
-dt_max =   0.005
+dt_max =   0.01
 max_time =   10000000.
 /
