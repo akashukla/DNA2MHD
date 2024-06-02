@@ -37,7 +37,7 @@ MODULE nonlinearity
   PRIVATE
 
   COMPLEX(C_DOUBLE), ALLOCATABLE, DIMENSION(:,:,:) :: b_inx0, b_iny0,  b_inz0, v_inx0, v_iny0,  v_inz0
-  COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:) :: temp_small,temp_big
+  COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:) :: temp_small,temp_big,temp_big1
 
   REAL(C_DOUBLE), ALLOCATABLE, DIMENSION(:,:,:) ::  store
 
@@ -122,6 +122,7 @@ SUBROUTINE initialize_fourier_ae_mu0
   CALL ALLOCATIONS
 
   IF (verbose) CALL DEALIASINGTEST
+  if (verbose) CALL PRECISIONTEST
   rkstage = 0
 
   !CALL dfftw_execute_dft_c2r(plan_c2r,tcomp,treal)
@@ -669,6 +670,26 @@ SUBROUTINE UNPACK
   ENDDO
 
 END SUBROUTINE UNPACK
+
+SUBROUTINE PRECISIONTEST
+
+  IMPLICIT NONE
+
+  ! Estimate the precision of the transforms by doing a transform and then an inverse transform
+
+  ALLOCATE(temp_big1(0:nx0_big/2,0:ny0_big-1,0:nz0_big-1))
+
+  temp_big1 = 1.0
+  temp_big = temp_big1
+
+  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+  CALL dfftw_execute_dft_r2c(plan_r2c,store,temp_big)
+
+  print *,"Precision Test",maxval(abs(temp_big1-temp_big*fft_norm))
+
+  DEALLOCATE(temp_big1)
+
+END SUBROUTINE PRECISIONTEST
 
 
 END MODULE nonlinearity

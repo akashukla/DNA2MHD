@@ -48,7 +48,7 @@ SUBROUTINE read_parameters
       linear_nlbox,verbose,checkpoint_read,checkpoint_write,&
       em_conserve,flr_on,force_kz0eq0,force_ky0eq0,force_kx0eq0,flr_version,&
       flr_extra,flr_nonlinear,etg_factor, &!, which_nonlinear,etg_factor
-      perf_test_lin,perf_test_nl,perf_test_rhs,rhs_lin_version,rhs_nl_version,intorder,dealias_type,shifted,splitx,&
+      perf_test_lin,perf_test_nl,perf_test_rhs,rhs_lin_version,rhs_nl_version,intorder,linen,dealias_type,shifted,splitx,&
       perf_test_par, version_flag, hankel, dt_slepc, nuno_closure,mu_integrated,&
       GyroLES, Gyroherm, Gyroz, Corr, &
       plot_nls,dbio,dvio,bdvio,vdbio,bdcbio,cbdbio,vdvio,bdbio,db2io,&
@@ -393,6 +393,7 @@ SUBROUTINE output_parameters
     WRITE(out_handle,"(A,I4)") "rhs_lin_version = ",rhs_lin_version
     WRITE(out_handle,"(A,I4)") "rhs_nl_version = ",rhs_nl_version
     WRITE(out_handle,"(A,I1)") "intorder = ",intorder
+    WRITE(out_handle,"(A,L1)") "linen = ",linen
     WRITE(out_handle,"(A,I4)") "dealias_type = ",dealias_type
     WRITE(out_handle,"(A,L1)") "shifted = ",shifted
     WRITE(out_handle,"(A,L1)") "splitx = ",splitx
