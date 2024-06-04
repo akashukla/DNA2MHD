@@ -5,16 +5,16 @@ omn =    1.000
 Ti0Te =    1.000 
 eta = 1.0
 vnu = 0.0
-rey = 1000.0
+rey = 0.0
 /
 
 &numerical_parameters
-kxmin =   0.125
-kymin =   0.125
-kzmin =   0.0025
-nkx0 = 8
-nky0 = 16
-nkz0 = 16
+kxmin =   0.01
+kymin =   0.01
+kzmin =   0.01
+nkx0 = 64
+nky0 = 128
+nkz0 = 128
 nv0 =   2
 nh0 =    1
 nspec =    1
@@ -36,9 +36,9 @@ kxinit_min = 0
 kyinit_min = 0
 kzinit_min = 0
 kxinit_max = 8
-kyinit_max = 16
-kzinit_max = 16
-init_amp_bx = 0.1
+kyinit_max = 8
+kzinit_max = 8
+init_amp_bx = 1.0
 init_amp_by = 0.1
 init_amp_bz = 0.1
 init_amp_vx = 0.1
@@ -56,7 +56,7 @@ hyp = 1
 /
 
 &diagnostics
-diagdir = '/scratch/08929/echansen/dna2mhdrun16s14'
+diagdir = '/scratch/08929/echansen/dna2mhdrun128e16'
 istep_ffm =   20
 istep_energy3d =  500
 istep_energy =  1
@@ -78,7 +78,7 @@ output_nlt_n = F
 verbose  = F
 nonlinear  = T
 actual_nonlinear = T
-calc_dt  = T
+calc_dt  = F
 comp_type = 'IV'
 checkpoint_read = F
 checkpoint_write = T
@@ -86,6 +86,7 @@ etg_factor  =    0.000
 em_conserve = T
 nuno_closure = T
 rhs_nl_version = 12
+linen = T
 intorder = 4
 rhs_lin_version = 1
 dealias_type = 3
@@ -121,6 +122,7 @@ force_lw = 0.0
 force_lc = 1.0
 force_rw = 0.0
 force_rc = 0.0
+random_state = 1
 /
 
 &eigensolve

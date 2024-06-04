@@ -36,9 +36,7 @@ MODULE time_advance
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:) :: bk3,bk4,bk5,bk6,bk7,bk8,bk9,bk10,bk11,bk12,bk13,vk3,vk4,vk5,vk6,vk7,vk8,vk9,vk10,vk11,vk12,vk13,b_3,v_3
   REAL, ALLOCATABLE, DIMENSION(:,:,:,:) :: bsph0,vsph0,bsph1,vsph1,bsph3,vsph3,bsphk1,bsphk2,bsphk3,bsphk4,bsphk5,bsphk6,bsphk7,&
        vsphk1,vsphk2,vsphk3,vsphk4,vsphk5,vsphk6,vsphk7 ! z axis spherical chart
-  REAL, ALLOCATABLE, DIMENSION(:,:,:,:) :: b1sph0,v1sph0,b1sph1,v1sph1,b1sph3,v1sph3,b1sphk1,b1sphk2,b1sphk3,b1sphk4,b1sphk5,b1sphk6,b1sphk7,&
-       v1sphk1,v1sphk2,v1sphk3,v1sphk4,v1sphk5,v1sphk6,v1sphk7 ! x axis spherical chart
-  LOGICAL, ALLOCATABLE, DIMENSION(:,:,:,:) :: breakz,breakx ! tells when a chart fails
+  LOGICAL, ALLOCATABLE, DIMENSION(:,:,:,:) :: breakz ! if a chart fails; considered unlikely but possible
 
   CONTAINS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
   
@@ -931,13 +929,10 @@ SUBROUTINE LINEARENERGYSPH(b_in,v_in,dt_new)
   ! assume at a given time that both charts work both places
 
   breakz = .false.
-  breakx = .false.
 
   ! get the initial spherical coordinates
   CALL CARTC_SPHSZ(b_in,bsph0)
-  CALL CARTC_SPHSX(b_in,b1sph0)
   CALL CARTC_SPHSZ(v_in,vsph0)
-  CALL CARTC_SPHSX(v_in,v1sph0)
 
 ! integration scheme for spherical coordinates
 
@@ -948,38 +943,27 @@ else if (intorder.eq.3) then
    
 else if (intorder.eq.4) then
 
-   CALL STEP_SPHS(bsph0,vsph0,b1sph0,v1sph0,bsphk1,vsphk1,b1sphk1,v1sphk1,nmhc1,dt_new1)
+   CALL STEP_SPHS(bsph0,vsph0,bsphk1,vsphk1,nmhc1,dt_new1)
    bsph1 = bsph0 + (1.0/6.0) * dt * bsphk1
    vsph1 = vsph0 + (1.0/6.0) * dt * vsphk1
-   b1sph1 = b1sph0 + (1.0/6.0) * dt * b1sphk1
-   v1sph1 = v1sph0 + (1.0/6.0) * dt * v1sphk1
 
    CALL STEP_SPHS(bsph0+(1.0/2.0) * dt * bsphk1,vsph0 + (1.0/2.0) * dt * vsphk1,&
-        b1sph0 + (1.0/2.0) * dt * b1sphk1,v1sph0 + (1.0/2.0) * dt * v1sphk1,&
-        bsphk2,vsphk2,b1sphk2,v1sphk2,nmhc2,dt_new2)
+        bsphk2,vsphk2,nmhc2,dt_new2)
 
    bsph1 = bsph1 + (1.0/3.0) * dt * bsphk2
    vsph1 = vsph1 + (1.0/3.0) * dt * vsphk2
-   b1sph1 = b1sph1 + (1.0/3.0) * dt * b1sphk2
-   v1sph1 = v1sph1 + (1.0/3.0) * dt * v1sphk2
    
    CALL STEP_SPHS(bsph0+(1.0/2.0) * dt * bsphk2,vsph0 + (1.0/2.0) * dt * vsphk2,&
-	b1sph0 + (1.0/2.0) * dt * b1sphk2,v1sph0 + (1.0/2.0) * dt * v1sphk2,&
-	bsphk1,vsphk1,b1sphk1,v1sphk1,nmhc3,dt_new3)
+	bsphk1,vsphk1,nmhc3,dt_new3)
    
    bsph1 = bsph1 + (1.0/3.0) * dt * bsphk1
    vsph1 = vsph1 + (1.0/3.0) * dt * vsphk1
-   b1sph1 = b1sph1 + (1.0/3.0) * dt * b1sphk1
-   v1sph1 = v1sph1 + (1.0/3.0) * dt * v1sphk1
 
    CALL STEP_SPHS(bsph0+dt * bsphk1,vsph0 +dt * vsphk1,&
-        b1sph0 +dt * b1sphk1,v1sph0 +dt * v1sphk1,&
-        bsphk2,vsphk2,b1sphk2,v1sphk2,nmhc4,dt_new4)
+        bsphk2,vsphk2,nmhc4,dt_new4)
 
    bsph1 = bsph1 + (1.0/6.0) * dt * bsphk2
    vsph1 = vsph1 + (1.0/6.0) * dt * vsphk2
-   b1sph1 = b1sph1 + (1.0/6.0) * dt * b1sphk2
-   v1sph1 = v1sph1 + (1.0/6.0) * dt * v1sphk2
 
    mhelcorr = mhelcorr + 1.0/6.0 * (nmhc1 + 2.0 * nmhc2 + 2.0 * nmhc3 + nmhc4) * dt
    dt_new = minval([dt_new1,dt_new2,dt_new3,dt_new4])
@@ -987,37 +971,14 @@ else if (intorder.eq.4) then
 endif
 
 if (verbose) print *, "Finished Integration itime",itime
-if (verbose) print *, "Number of Z Fails, X Fails, XZ Fails",count(breakz),count(breakx),count(breakz.and.breakx)
-
-! All chart possible fields
+if (verbose) print *, "Number of Z Fails",count(breakz)
 
 CALL SPHSZ_CARTC(bsph1,b_in)
 CALL SPHSZ_CARTC(vsph1,v_in)
-CALL SPHSX_CARTC(b1sph1,b_2)
-CALL SPHSX_CARTC(v1sph1,v_2)
-
-
-DO i = 0,nkx0-1
-   DO j = 0,nky0-1
-      DO k = 0,nkz0-1
-         ! If z chart field fails, use x chart field
-         ! Real part b
-         if (breakz(i,j,k,0)) b_in(i,j,k,:) = b_in(i,j,k,:) - real(b_in(i,j,k,:)) + real(b_2(i,j,k,:))
-         ! Imag part b
-         if (breakz(i,j,k,1)) b_in(i,j,k,:) = b_in(i,j,k,:) - i_complex * aimag(b_in(i,j,k,:)) + i_complex * aimag(b_2(i,j,k,:))
-         ! Real part v
-         if (breakz(i,j,k,2)) v_in(i,j,k,:) = v_in(i,j,k,:) - real(v_in(i,j,k,:)) + real(v_2(i,j,k,:))
-         ! Imag part v
-         if (breakz(i,j,k,3)) v_in(i,j,k,:) = v_in(i,j,k,:) - i_complex * aimag(v_in(i,j,k,:)) + i_complex * aimag(v_2(i,j,k,:))
-            
-      ENDDO
-   ENDDO
-ENDDO
 
 END SUBROUTINE LINEARENERGYSPH
 
-SUBROUTINE STEP_SPHS(bsphz,vsphz,bsphx,vsphx,bsphkz,vsphkz,&
-     bsphkx,vsphkx,nmhc,ndt)
+SUBROUTINE STEP_SPHS(bsphz,vsphz,bsphkz,vsphkz,nmhc,ndt)
 
   ! Individual time step for the spherical coordinates
   ! Outline: find fields with given spherical coordinates, field time derivative, coordinate time derivs
@@ -1028,25 +989,16 @@ SUBROUTINE STEP_SPHS(bsphz,vsphz,bsphx,vsphx,bsphkz,vsphkz,&
 
   REAL, INTENT(IN) :: bsphz(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5)
   REAL, INTENT(IN) :: vsphz(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5)
-  REAL, INTENT(IN) :: bsphx(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5)
-  REAL, INTENT(IN) :: vsphx(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5)
   REAL, INTENT(OUT) :: bsphkz(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5)
   REAL, INTENT(OUT) :: vsphkz(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5)
-  REAL, INTENT(OUT) :: bsphkx(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5)
-  REAL, INTENT(OUT) :: vsphkx(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5)
   REAL, INTENT(OUT) :: nmhc
   REAL, INTENT(OUT) :: ndt
-  REAL :: ndtz,ndtx
   
   CALL SPHSZ_CARTC(bsphz,b_2)
   CALL SPHSZ_CARTC(vsphz,v_2)
-  CALL SPHSX_CARTC(bsphx,b_2)
-  CALL SPHSX_CARTC(vsphx,v_2)
   CALL get_rhs(b_2,v_2,bk1,vk1,nmhc,ndt)
   CALL SPHSZ_TDS(bsphz,b_2,bk1,0,bsphkz)
   CALL SPHSZ_TDS(vsphz,v_2,vk1,2,vsphkz)
-  CALL SPHSX_TDS(bsphx,b_2,bk1,0,bsphkx)
-  CALL SPHSX_TDS(vsphx,v_2,vk1,2,vsphkx)
 
 END SUBROUTINE STEP_SPHS
   
@@ -1059,7 +1011,7 @@ SUBROUTINE SPHSZ_TDS(c1z,f1,k1,t,c1kz)
   COMPLEX, INTENT(IN) :: k1(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2)
   INTEGER, INTENT(IN) :: t ! determine if b,v used for chart breakdown; b 0, v 2
   REAL, INTENT(OUT) :: c1kz(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5)
-  REAL :: A(0:2),B(0:2),C(0:2),D(0:2)
+  REAL :: A(0:2),B(0:2),C(0:2),D(0:2),E(0:2),F(0:2)
   REAL :: CC(0:5)
   INTEGER :: i,j,k
 
@@ -1076,11 +1028,16 @@ SUBROUTINE SPHSZ_TDS(c1z,f1,k1,t,c1kz)
            c1kz(i,j,k,0) = 2.0 * sum(A*C)
            c1kz(i,j,k,3) = 2.0 * sum(B*D)
 
-           c1kz(i,j,k,1) = (C(0)*A(2)*A(0)+C(1)*A(2)*A(1)+C(2)*A(2)**2.0-C(2)*CC(0)**2.0)
-           c1kz(i,j,k,1) = c1kz(i,j,k,1)/(CC(0)**1.5 * sin(CC(1)))
+           E(0) = sqrt(CC(0))*cos(CC(1))*cos(CC(2))
+           E(1) = sqrt(CC(0))*cos(CC(1))*sin(CC(2))
+           E(2) = -sqrt(CC(0))*sin(CC(1))
 
-           c1kz(i,j,k,4) = (D(0)*B(2)*B(0)+D(1)*B(2)*B(1)+D(2)*B(2)**2.0-D(2)*CC(3)**2.0)
-           c1kz(i,j,k,4) = c1kz(i,j,k,4)/(CC(3)**1.5 * sin(CC(4)))
+           F(0) = sqrt(CC(3))*cos(CC(4))*cos(CC(5))
+           F(1) = sqrt(CC(3))*cos(CC(4))*sin(CC(5))
+           F(2) = -sqrt(CC(3))*sin(CC(4))
+
+           c1kz(i,j,k,1) = (E(0)*C(0)+E(1)*C(1)+E(2)*C(2))/CC(0)
+           c1kz(i,j,k,4) = (F(0)*D(0)+F(1)*D(1)+F(2)*D(2))/CC(3)
 
            c1kz(i,j,k,2) = (A(0) * C(1) - A(1) * C(0))/(A(0)**2.0 + A(1)**2.0)
            c1kz(i,j,k,5) = (B(0) * D(1) - B(1) * D(0))/(B(0)**2.0 + B(1)**2.0)
@@ -1106,63 +1063,6 @@ SUBROUTINE SPHSZ_TDS(c1z,f1,k1,t,c1kz)
   enddo
   
 END SUBROUTINE SPHSZ_TDS
-
-SUBROUTINE SPHSX_TDS(c1x,f1,k1,t,c1kx)
-
-  IMPLICIT NONE
-
-  REAL, INTENT(IN) :: c1x(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5)
-  COMPLEX, INTENT(IN) :: f1(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2)
-  COMPLEX, INTENT(IN) :: k1(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2)
-  INTEGER, INTENT(IN) :: t ! determine if b,v used for chart breakdown; b 0, v 2
-  REAL, INTENT(OUT) :: c1kx(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5)
-  REAL :: A(0:2),B(0:2),C(0:2),D(0:2)
-  REAL :: CC(0:5)
-  INTEGER :: i,j,k
-
-  do i = 0,nkx0-1
-     do j = 0,nky0-1
-        do k = 0,nkz0-1
-
-           A = real(f1(i,j,k,:))
-           B = aimag(f1(i,j,k,:))
-           C = real(k1(i,j,k,:))
-           D = aimag(k1(i,j,k,:))
-           CC = c1x(i,j,k,:)
-
-           c1kx(i,j,k,0) = 2.0 * sum(A*C)
-           c1kx(i,j,k,3) = 2.0 * sum(B*D)
-
-           c1kx(i,j,k,1) = (C(1)*A(0)*A(1)+C(2)*A(1)*A(2)+C(0)*A(0)**2.0-C(0)*CC(1)**2.0)
-           c1kx(i,j,k,1) = c1kx(i,j,k,1)/(CC(0)**1.5 * sin(CC(1)))
-
-           c1kx(i,j,k,4) = (D(1)*B(0)*B(1)+D(2)*B(1)*B(2)+D(0)*B(0)**2.0-D(0)*CC(3)**2.0)
-           c1kx(i,j,k,4) = c1kx(i,j,k,4)/(CC(3)**1.5 * sin(CC(4)))
-
-           c1kx(i,j,k,2) = (A(1) * C(2) - A(2) * C(1))/(A(1)**2.0 + A(2)**2.0)
-           c1kx(i,j,k,5) = (B(1) * D(2) - B(2) * D(1))/(B(1)**2.0 + B(2)**2.0)
-
-           if (CC(0).lt.10.0**(-14.0)) then
-              c1kx(i,j,k,0:2) = 0.0
-           else if (abs(sin(CC(1))).lt.10.0**(-10.0)) then
-              c1kx(i,j,k,1) = 0.0
-              c1kx(i,j,k,2) = 0.0
-              breakx(i,j,k,t) = .true.
-           endif
-
-           if (CC(3).lt.10.0**(-14.0)) then
-              c1kx(i,j,k,3:5) = 0.0
-           else if (abs(sin(CC(4))).lt.10.0**(-10.0)) then
-              c1kx(i,j,k,4) = 0.0
-              c1kx(i,j,k,5) = 0.0
-              breakx(i,j,k,t+1) = .true.
-           endif
-
-        enddo
-     enddo
-  enddo
-  
-END SUBROUTINE SPHSX_TDS
 
 SUBROUTINE SPHSZ_CARTC(bsph,b)
 
@@ -1198,40 +1098,6 @@ SUBROUTINE CARTC_SPHSZ(b,bsph)
   
 END SUBROUTINE CARTC_SPHSZ
 
-SUBROUTINE SPHSX_CARTC(b1sph,b)
-
-  IMPLICIT NONE
-
-  REAL, INTENT(IN) :: b1sph(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5)
-  COMPLEX, INTENT(OUT) :: b(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2)
-
-  b(:,:,:,0) = sqrt(b1sph(:,:,:,0)) * cos(b1sph(:,:,:,1)) &
-       + i_complex * sqrt(b1sph(:,:,:,3)) * cos(b1sph(:,:,:,4))
-  b(:,:,:,1) = sqrt(b1sph(:,:,:,0))*sin(b1sph(:,:,:,1))*cos(b1sph(:,:,:,2)) &
-       + i_complex * sqrt(b1sph(:,:,:,3))*sin(b1sph(:,:,:,4))*cos(b1sph(:,:,:,5))
-  b(:,:,:,2) = sqrt(b1sph(:,:,:,0))*sin(b1sph(:,:,:,1))*sin(b1sph(:,:,:,2)) &
-       + i_complex * sqrt(b1sph(:,:,:,3))*sin(b1sph(:,:,:,4))*sin(b1sph(:,:,:,5))  
-
-END SUBROUTINE SPHSX_CARTC
-
-SUBROUTINE CARTC_SPHSX(b,b1sph)
-
-  IMPLICIT NONE
-
-  COMPLEX, INTENT(IN) :: b(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2)
-  REAL, INTENT(OUT) :: b1sph(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5)
-
-  b1sph(:,:,:,0) = sum(real(b)**2.0,dim=4)
-  b1sph(:,:,:,3) = sum(aimag(b)**2.0,dim=4)
-  b1sph(:,:,:,1) = acos(real(b(:,:,:,0))/sqrt(b1sph(:,:,:,0)))
-  b1sph(:,:,:,4) = acos(aimag(b(:,:,:,0))/sqrt(b1sph(:,:,:,3)))
-  b1sph(:,:,:,2) = atan2(real(b(:,:,:,2)),real(b(:,:,:,1)))
-  b1sph(:,:,:,5) = atan2(aimag(b(:,:,:,2)),aimag(b(:,:,:,1)))
-
-  where(isnan(b1sph)) b1sph = 0.0
-
-END SUBROUTINE CARTC_SPHSX
-
 SUBROUTINE ALLOCATE_SPHS
 
   IMPLICIT NONE
@@ -1241,7 +1107,6 @@ SUBROUTINE ALLOCATE_SPHS
   ! Chart determination
 
   ALLOCATE(breakz(0:nkx0-1,0:nky0-1,0:nkz0-1,0:3))
-  ALLOCATE(breakx(0:nkx0-1,0:nky0-1,0:nkz0-1,0:3))
   
   ! We still need terms for field derivatives and time step fields
 
@@ -1257,23 +1122,12 @@ SUBROUTINE ALLOCATE_SPHS
   ALLOCATE(vsph0(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5))
   ALLOCATE(vsph1(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5))
 
-  ALLOCATE(b1sph0(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5))
-  ALLOCATE(b1sph1(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5))
-  ALLOCATE(v1sph0(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5))
-  ALLOCATE(v1sph1(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5))
-
   ALLOCATE(bsphk1(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5))
   ALLOCATE(bsphk2(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5))
 
   ALLOCATE(vsphk1(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5))
   ALLOCATE(vsphk2(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5))
 
-  ALLOCATE(b1sphk1(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5))
-  ALLOCATE(b1sphk2(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5))
-
-  ALLOCATE(v1sphk1(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5))
-  ALLOCATE(v1sphk2(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5))
-  
   ! Lots of things needed for DORPI but not Ralston RK2/3 or vanilla RK4
 
   if (intorder.eq.5) then
@@ -1281,8 +1135,6 @@ SUBROUTINE ALLOCATE_SPHS
   ALLOCATE(v_3(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
   ALLOCATE(bsph3(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5))
   ALLOCATE(vsph3(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5))
-  ALLOCATE(b1sph3(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5))
-  ALLOCATE(v1sph3(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5))
 
   ALLOCATE(bsphk3(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5))
   ALLOCATE(bsphk4(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5))
@@ -1296,18 +1148,6 @@ SUBROUTINE ALLOCATE_SPHS
   ALLOCATE(vsphk6(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5))
   ALLOCATE(vsphk7(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5))
 
-  ALLOCATE(b1sphk3(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5))
-  ALLOCATE(b1sphk4(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5))
-  ALLOCATE(b1sphk5(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5))
-  ALLOCATE(b1sphk6(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5))
-  ALLOCATE(b1sphk7(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5))
-
-  ALLOCATE(v1sphk3(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5))
-  ALLOCATE(v1sphk4(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5))
-  ALLOCATE(v1sphk5(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5))
-  ALLOCATE(v1sphk6(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5))
-  ALLOCATE(v1sphk7(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5))
-  
 endif
 
   
@@ -1318,7 +1158,6 @@ SUBROUTINE DEALLOCATE_SPHS
   IMPLICIT NONE
 
   DEALLOCATE(breakz)
-  DEALLOCATE(breakx)
   
   DEALLOCATE(b_2)
   DEALLOCATE(v_2)
@@ -1330,30 +1169,17 @@ SUBROUTINE DEALLOCATE_SPHS
   DEALLOCATE(vsph0)
   DEALLOCATE(vsph1)
 
-  DEALLOCATE(b1sph0)
-  DEALLOCATE(b1sph1)
-  DEALLOCATE(v1sph0)
-  DEALLOCATE(v1sph1)
-
   DEALLOCATE(bsphk1)
   DEALLOCATE(bsphk2)
 
   DEALLOCATE(vsphk1)
   DEALLOCATE(vsphk2)
 
-  DEALLOCATE(b1sphk1)
-  DEALLOCATE(b1sphk2)
-
-  DEALLOCATE(v1sphk1)
-  DEALLOCATE(v1sphk2)
-
   if (intorder.eq.5) then
   DEALLOCATE(b_3)
   DEALLOCATE(v_3)
   DEALLOCATE(bsph3)
   DEALLOCATE(vsph3)
-  DEALLOCATE(b1sph3)
-  DEALLOCATE(v1sph3)
 
   DEALLOCATE(bsphk3)
   DEALLOCATE(bsphk4)
@@ -1367,20 +1193,7 @@ SUBROUTINE DEALLOCATE_SPHS
   DEALLOCATE(vsphk6)
   DEALLOCATE(vsphk7)
 
-  DEALLOCATE(b1sphk3)
-  DEALLOCATE(b1sphk4)
-  DEALLOCATE(b1sphk5)
-  DEALLOCATE(b1sphk6)
-  DEALLOCATE(b1sphk7)
-
-  DEALLOCATE(v1sphk3)
-  DEALLOCATE(v1sphk4)
-  DEALLOCATE(v1sphk5)
-  DEALLOCATE(v1sphk6)
-  DEALLOCATE(v1sphk7)
-
-endif
-  
+endif  
 
 END SUBROUTINE DEALLOCATE_SPHS
   
