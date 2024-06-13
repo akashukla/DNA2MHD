@@ -680,7 +680,7 @@ SUBROUTINE checkpoint_out(purpose)
 !  END DO
 
   IF(b_output.and.v_output) THEN
-      WRITe(*,*) 'Closing v and b handles'
+      WRITe(*,*) 'Closing v and b handles',itime
     IF(mype==0) CLOSE(chp_handle_b)
     IF(mype==0) CLOSE(chp_handle_v)
   ELSE

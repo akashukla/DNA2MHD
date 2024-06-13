@@ -373,7 +373,7 @@ endif !Skip b FFTs if Navier Stokes
        CALL dfftw_execute_dft_r2c(plan_r2c,store,temp_big)
        CALL UNPACK
 
-       if (mype.eq.0) print *, "MaxNLBx",&
+       if ((verbose).and.mype.eq.0) print *, "MaxNLBx",&
             maxval(abs(temp_small(1:nkx0-1,1:nky0-1,1:nkz0-1))/abs(rhs_out_b(1:nkx0-1,1:nky0-1,1:nkz0-1,0)),&
             ((abs(rhs_out_b(1:nkx0-1,1:nky0-1,1:nkz0-1,0)).gt.10.0**(-8.0)))),&
     (/1,1,1/) + maxloc(abs(temp_small(1:nkx0-1,1:nky0-1,1:nkz0-1))/abs(rhs_out_b(1:nkx0-1,1:nky0-1,1:nkz0-1,0)),&
@@ -442,7 +442,7 @@ store = vy * curlvz - vz * curlvy + curlby * bz - curlbz * by
 CALL dfftw_execute_dft_r2c(plan_r2c,store,temp_big)
 CALL UNPACK
 
-       if (mype.eq.0) print *, "MaxNLVx",&
+       if ((verbose).and.mype.eq.0) print *, "MaxNLVx",&
             maxval(abs(temp_small(1:nkx0-1,1:nky0-1,1:nkz0-1))/abs(rhs_out_v(1:nkx0-1,1:nky0-1,1:nkz0-1,0)),&
             ((abs(rhs_out_v(1:nkx0-1,1:nky0-1,1:nkz0-1,0)).gt.10.0**(-8.0)))),&
     (/1,1,1/) + maxloc(abs(temp_small(1:nkx0-1,1:nky0-1,1:nkz0-1))/abs(rhs_out_v(1:nkx0-1,1:nky0-1,1:nkz0-1,0)),&
@@ -477,7 +477,7 @@ if (verbose) print *, 'rhs out v nl found'
 if (calc_dt) CALL next_dt(ndt)
 if (.not.(calc_dt)) ndt = dt_max
 
-print *, 'next dt calculated ',ndt
+if (verbose) print *, 'next dt calculated ',ndt
 
 END SUBROUTINE get_rhs_nl1
 

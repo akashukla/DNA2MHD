@@ -33,6 +33,8 @@ MODULE time_advance
   
 !  COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:,:,:) :: g_2,k1,k2
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:) :: b_2, bk1, bk2, v_2, vk1, vk2
+  COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:) :: bk1s,vk1s,bk2s,vk2s
+  
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:) :: bk3,bk4,bk5,bk6,bk7,bk8,bk9,bk10,bk11,bk12,bk13,vk3,vk4,vk5,vk6,vk7,vk8,vk9,vk10,vk11,vk12,vk13,b_3,v_3
   REAL, ALLOCATABLE, DIMENSION(:,:,:,:) :: bsph0,vsph0,bsph1,vsph1,bsph3,vsph3,bsphk1,bsphk2,bsphk3,bsphk4,bsphk5,bsphk6,bsphk7,&
        vsphk1,vsphk2,vsphk3,vsphk4,vsphk5,vsphk6,vsphk7 ! z axis spherical chart
@@ -80,6 +82,8 @@ SUBROUTINE iv_solver
    IF (linen) THEN
       CALL LINEARENERGYSPH(b_1,v_1,dt_next)
       dt = minval([dt_next,dt_max])
+   ELSE IF (intorder.eq.41) THEN
+      CALL gauss4(b_1,v_1)
    ELSE IF (intorder.eq.5) THEN
       CALL dorpi547M(b_1,v_1)
    ELSE IF (intorder.eq.4) THEN
@@ -345,7 +349,7 @@ SUBROUTINE get_rhs(b_in,v_in, rhs_out_b,rhs_out_v,nmhc,ndt)
 
 !  COMPLEX, INTENT(in) :: g_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,lv1:lv2,lh1:lh2,ls1:ls2)
 !  COMPLEX, INTENT(out) :: rhs_out(0:nkx0-1,0:nky0-1,lkz1:lkz2,lv1:lv2,lh1:lh2,ls1:ls2)
-  INTEGER :: k
+  INTEGER :: i,j,k
 
   IF (test_ho) THEN
      CALL get_rhs_test(b_in,v_in,rhs_out_b,rhs_out_v)
@@ -364,6 +368,18 @@ SUBROUTINE get_rhs(b_in,v_in, rhs_out_b,rhs_out_v,nmhc,ndt)
 
      CALL remove_div(rhs_out_b,rhs_out_v)
 
+     DO i = 0,nkx0-1
+        DO j = 0,nky0-1
+           DO k = 0,nkz0-1
+              if (sum(abs(b_in(i,j,k,:))**(2.0) + abs(v_in(i,j,k,:))**(2.0)).lt.10.0**(-16.0)) then
+                 rhs_out_b(i,j,k,:) = zerocmplx
+                 rhs_out_v(i,j,k,:) = zerocmplx
+              endif
+           ENDDO
+        ENDDO
+     ENDDO
+     
+     
      nmhc = 0.0
      IF (mhc) CALL getmhcrk(b_in,v_in,nmhc)
 
@@ -732,6 +748,16 @@ SUBROUTINE ALLOCATE_STEPS
   ALLOCATE(bk2(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
   ALLOCATE(vk2(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
 
+  if (intorder.eq.41) then
+
+  ALLOCATE(bk1s(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+  ALLOCATE(vk1s(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+
+  ALLOCATE(bk2s(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+  ALLOCATE(vk2s(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+
+endif
+
   if (intorder.eq.5) then
      
   ALLOCATE(bk3(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
@@ -782,6 +808,13 @@ SUBROUTINE DEALLOCATE_STEPS
 
   DEALLOCATE(bk2)
   DEALLOCATE(vk2)
+
+  if (intorder.eq.41) then
+     DEALLOCATE(bk1s)
+     DEALLOCATE(vk1s)
+     DEALLOCATE(bk2s)
+     DEALLOCATE(vk2s)
+  endif
 
   if (intorder.eq.5) then
   DEALLOCATE(b_3)
@@ -1196,5 +1229,110 @@ SUBROUTINE DEALLOCATE_SPHS
 endif  
 
 END SUBROUTINE DEALLOCATE_SPHS
+
+SUBROUTINE GAUSS4(b_in,v_in)
+
+  ! Use the order 4 Gauss Legendre method for time integration
+  ! k1 = f(y + a11 * dt * k1 + a12 * dt * k2)
+  ! k2 = f(y + a21 * dt * k1 + a22 * dt * k2)
+  ! y1 = y + 0.5 * dt * k1 + 0.5 * dt * k2
+  ! This method relies on a fixed point iteration solution for the implicit RK stages
   
+  IMPLICIT NONE
+  
+  COMPLEX, INTENT(INOUT) :: b_in(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2)
+  COMPLEX, INTENT(INOUT) :: v_in(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2)
+  REAL :: a11,a12,a21,a22
+  REAL :: nmhc1,nmhc2,nmhc1s,nmhc2s
+  REAL :: dt,maxdev
+  INTEGER :: solvloop
+
+  a11 = 1.0/4.0
+  a22 = 1.0/4.0
+  a12 = 1.0/4.0 - sqrt(3.0)/6.0
+  a21 = 1.0/4.0 + sqrt(3.0)/6.0
+
+  ! Initial derivative guesses
+  CALL get_rhs(b_in,v_in,bk1,vk1,nmhc1,dt)
+  CALL get_rhs(b_in+dt*bk1,v_in+dt*vk1,bk2,vk2,nmhc2,dt)
+  
+  ! Start iterating
+
+  CALL get_rhs(b_in+a11*dt*bk1+a12*dt*bk2,v_in+a11*dt*vk1+a12*dt*vk2,bk1s,vk1s,nmhc1s,dt)
+  CALL get_rhs(b_in+a21*dt*bk1+a22*dt*bk2,v_in+a21*dt*vk1+a22*dt*vk2,bk2s,vk2s,nmhc2s,dt)
+  
+  ! Fixed point solution
+
+  maxdev = max(maxval(abs(bk1-bk1s)),maxval(abs(vk1-vk1s)),maxval(abs(bk2-bk2s)),maxval(abs(vk2-vk2s)))
+  solvloop = 0
+
+  DO WHILE ((solvloop.lt.20).and.(maxdev.gt.10.0**(-16.0)))
+     ! Check for now to see if the fixed point iteration converges
+     if (verbose) print *, "Iteration ",solvloop,"Discrepancy ",maxdev
+
+     bk1 = bk1s
+     bk2 = bk2s
+     vk1 = vk1s
+     vk2 = vk2s
+
+     CALL get_rhs(b_in+a11*dt*bk1+a12*dt*bk2,v_in+a11*dt*vk1+a12*dt*vk2,bk1s,vk1s,nmhc1s,dt)
+     CALL get_rhs(b_in+a21*dt*bk1+a22*dt*bk2,v_in+a21*dt*vk1+a22*dt*vk2,bk2s,vk2s,nmhc2s,dt)
+
+     solvloop = solvloop + 1
+     maxdev = max(maxval(abs(bk1-bk1s)),maxval(abs(vk1-vk1s)),maxval(abs(bk2-bk2s)),maxval(abs(vk2-vk2s)))
+
+  ENDDO
+
+  ! Update the fields
+  
+  b_2 = b_in + (1.0/2.0) * dt * bk1s + (1.0/2.0) * dt * bk2s
+  v_2 = v_in + (1.0/2.0) * dt * vk1s + (1.0/2.0) * dt * vk2s
+  mhelcorr = mhelcorr + (1.0/2.0) * dt * nmhc1s + (1.0/2.0) * dt * nmhc2s
+
+   if (.false..and.max_itime.le.101) then
+  ! Test sensitivity of fixed point iteration to the initial condition
+  ! Repeat the calculation but switch the initial k1,k2
+
+  CALL get_rhs(b_in,v_in,bk2,vk2,nmhc1,dt)
+  CALL get_rhs(b_in+dt*bk2,v_in+dt*vk2,bk1,vk1,nmhc2,dt)
+
+  CALL get_rhs(b_in+a11*dt*bk1+a12*dt*bk2,v_in+a11*dt*vk1+a12*dt*vk2,bk1s,vk1s,nmhc1s,dt)
+  CALL get_rhs(b_in+a21*dt*bk1+a22*dt*bk2,v_in+a21*dt*vk1+a22*dt*vk2,bk2s,vk2s,nmhc2s,dt)
+
+  maxdev = max(maxval(abs(bk1-bk1s)),maxval(abs(vk1-vk1s)),maxval(abs(bk2-bk2s)),maxval(abs(vk2-vk2s)))
+  solvloop = 0
+
+  DO WHILE ((solvloop.lt.20).and.(maxdev.gt.10.0**(-16.0)))
+     ! Check for now to see if the fixed point iteration converges                                                                                                                                          
+     print *, "Iteration ",solvloop,"Discrepancy ",maxdev
+
+     bk1 = bk1s
+     bk2 = bk2s
+     vk1 = vk1s
+     vk2 = vk2s
+
+     CALL get_rhs(b_in+a11*dt*bk1+a12*dt*bk2,v_in+a11*dt*vk1+a12*dt*vk2,bk1s,vk1s,nmhc1s,dt)
+     CALL get_rhs(b_in+a21*dt*bk1+a22*dt*bk2,v_in+a21*dt*vk1+a22*dt*vk2,bk2s,vk2s,nmhc2s,dt)
+
+     solvloop = solvloop + 1
+     maxdev = max(maxval(abs(bk1-bk1s)),maxval(abs(vk1-vk1s)),maxval(abs(bk2-bk2s)),maxval(abs(vk2-vk2s)))
+
+  ENDDO
+
+  b_in = b_in + (1.0/2.0) * dt * bk1s + (1.0/2.0) * dt * bk2s
+  v_in = v_in + (1.0/2.0) * dt * vk1s + (1.0/2.0) * dt * vk2s
+  mhelcorr = mhelcorr + (1.0/2.0) * dt * nmhc1s + (1.0/2.0) * dt * nmhc2s
+
+  print *, "Difference in New Field from Swung Guess", max(maxval(abs(b_in-b_2)),maxval(abs(v_in-v_2)))
+
+  else
+
+   b_in = b_2
+   v_in = v_2
+   
+  endif  
+
+END SUBROUTINE GAUSS4
+
+
 END MODULE time_advance

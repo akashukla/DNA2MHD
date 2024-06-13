@@ -4226,8 +4226,8 @@ if (opt.eq.1) ham = sum(abs(v_1)**2) ! Kinetic
 if (opt.eq.2) ham = sum(abs(b_1)**2) ! Magnetic
 ham = ham * (8*(pi**3))
 
-if (debug_energy.and.(opt.eq.0)) print *, "Pressure Contribution to Change",precorr
-if (debug_energy.and.(opt.eq.0)) print *, "vdv Contribution to Change",vdvcorr
+if ((verbose).and.debug_energy.and.(opt.eq.0)) print *, "Pressure Contribution to Change",precorr
+if ((verbose).and.debug_energy.and.(opt.eq.0)) print *, "vdv Contribution to Change",vdvcorr
 
 end function hmhdhmtn
 
@@ -4372,7 +4372,7 @@ do i = 0,nkx0-1
    enddo
 enddo
 
-if (helical.and.(itime.eq.0)) print *, 'Pred - Exp', maxval(abs(sum((AVP(:,:,1:,:)-b_1(:,:,1:,:))**2,4)/kmags(:,:,1:)))
+if ((verbose).and.helical.and.(itime.eq.0)) print *, 'Pred - Exp', maxval(abs(sum((AVP(:,:,1:,:)-b_1(:,:,1:,:))**2,4)/kmags(:,:,1:)))
 
 end subroutine vec_potential
 
@@ -4467,8 +4467,8 @@ vb = 2.0 * (2.0*pi)**3 * sum(real(v_1*conjg(b_1)))
 vw = 2.0 * (2.0*pi)**3 * sum(real(v_1*conjg(WVORT)))
 crosshel2 = mh + 2.0 * vb + vw
 
-print *, "Cross Hel Calcs", crosshel1,crosshel2
-print *, "Components", mh,2.0*vb,vw
+if (verbose) print *, "Cross Hel Calcs", crosshel1,crosshel2
+if (verbose) print *, "Components", mh,2.0*vb,vw
 endif
 
 end function cross_helicity
@@ -4592,7 +4592,7 @@ subroutine mode_spec
      enddo
   enddo
 
-  if (itime.lt.100) then
+  if ((verbose).and.itime.lt.100) then
      print *, "Max LW ", sum(0.5*abs(LW)**2)*(16.0*pi**3)
      print *, "Max LC ", sum(0.5*abs(LC)**2)*(16.0*pi**3)
      print *, "Max RW ", sum(0.5*abs(RW)**2)*(16.0*pi**3)
@@ -4615,14 +4615,14 @@ subroutine divs
   do i = 0,nkx0-1
      do j = 0,nky0-1
         do k = 0,nkz0-1
-           divv = kxgrid(i) * v_1(i,j,k,0) + kygrid(j) * v_1(i,j,k,1) + kzgrid(k) * v_1(i,j,k,2)
-           divb = kxgrid(i) * b_1(i,j,k,0) + kygrid(j) * b_1(i,j,k,1) +	kzgrid(k) * b_1(i,j,k,2)
+           divv(i,j,k) = kxgrid(i) * v_1(i,j,k,0) + kygrid(j) * v_1(i,j,k,1) + kzgrid(k) * v_1(i,j,k,2)
+           divb(i,j,k) = kxgrid(i) * b_1(i,j,k,0) + kygrid(j) * b_1(i,j,k,1) +	kzgrid(k) * b_1(i,j,k,2)
         enddo
      enddo
   enddo
 
-  print *, "Max Abs Div v " ,maxval(abs(divv))
-  print *, "Max Abs Div b " ,maxval(abs(divb))
+  if (verbose) print *, "Max Abs Div v " ,maxval(abs(divv))
+  if (verbose) print *, "Max Abs Div b " ,maxval(abs(divb))
 
 end subroutine divs  
 
