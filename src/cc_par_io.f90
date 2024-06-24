@@ -20,7 +20,9 @@ SUBROUTINE read_parameters
   USE mpi
   IMPLICIT NONE
 
+  REAL :: lmax,Tf
   INTEGER :: ierr, par_handle
+  
 
   NAMELIST /diagnostics/ &
       diagdir, istep_ffm, istep_energy3d,istep_fmom3d, istep_gamma,istep_nltest,&
@@ -48,7 +50,7 @@ SUBROUTINE read_parameters
       linear_nlbox,verbose,checkpoint_read,checkpoint_write,&
       em_conserve,flr_on,force_kz0eq0,force_ky0eq0,force_kx0eq0,flr_version,&
       flr_extra,flr_nonlinear,etg_factor, &!, which_nonlinear,etg_factor
-      perf_test_lin,perf_test_nl,perf_test_rhs,rhs_lin_version,rhs_nl_version,intorder,linen,dealias_type,shifted,splitx,&
+      perf_test_lin,perf_test_nl,perf_test_rhs,rhs_lin_version,rhs_nl_version,intorder,linen,keepzero,dealias_type,shifted,splitx,&
       perf_test_par, version_flag, hankel, dt_slepc, nuno_closure,mu_integrated,&
       GyroLES, Gyroherm, Gyroz, Corr, &
       plot_nls,dbio,dvio,bdvio,vdbio,bdcbio,cbdbio,vdvio,bdbio,db2io,&
@@ -61,7 +63,7 @@ SUBROUTINE read_parameters
       left_ev, ev_prec, ev_max_it, ev_shift
 
   NAMELIST /initial_value/ &
-      dt_max,  max_itime, max_time ,init_cond,init_prefactor,max_walltime
+      dt_max,  max_itime, max_time ,init_cond,init_prefactor,max_walltime,fix_dt
 
   NAMELIST /rk_test/ &
       rc0,ic0,dt_rktest,rmax,imax,delta_lambda,test_rk4
@@ -194,6 +196,14 @@ SUBROUTINE read_parameters
 
   IF(test_nl.and..not.nonlinear) STOP "Error! Must USE nonlinear=T for test_nl=T."
 
+  IF (fix_dt) THEN
+     Tf = dt_max * max_itime
+     if (splitx) dt_max = (-0.669 * sqrt(kxmin**2 + kymin**2 +kzmin**2) * nkx0 + 0.669 * sqrt(4.0 + (kxmin**2 + kymin**2 + kzmin**2) * nkx0**2))/(kzmin * nkx0)
+     if (.not.splitx) dt_max = (-0.669 * sqrt(kxmin**2 + kymin**2 +kzmin**2) * nkz0 + 0.669 * sqrt(4.0 + (kxmin**2 + kymin**2 + kzmin**2) * nkz0**2))/(kzmin * nkz0)
+     if (dt_max > Tf) dt_max = Tf
+     max_itime = Tf/dt_max + 2
+  ENDIF
+  
   IF(dt_max==0.0.and..not.calc_dt) STOP "Must define dt_max or set calc_dt=T."
 
   IF(linear_nlbox) adapt_dt_nl=.false.
@@ -394,6 +404,7 @@ SUBROUTINE output_parameters
     WRITE(out_handle,"(A,I4)") "rhs_nl_version = ",rhs_nl_version
     WRITE(out_handle,"(A,I1)") "intorder = ",intorder
     WRITE(out_handle,"(A,L1)") "linen = ",linen
+    WRITE(out_handle,"(A,L1)") "keepzero = ",keepzero
     WRITE(out_handle,"(A,I4)") "dealias_type = ",dealias_type
     WRITE(out_handle,"(A,L1)") "shifted = ",shifted
     WRITE(out_handle,"(A,L1)") "splitx = ",splitx
@@ -461,7 +472,8 @@ SUBROUTINE output_parameters
     !****** initial_value NAMELIST ********
     WRITE(out_handle,"(A)")    "&initial_value"
     WRITE(out_handle,"(A,I10)") "max_itime = ",max_itime    
-    WRITE(out_handle,"(A,G12.4)") "max_walltime = ",max_walltime    
+    WRITE(out_handle,"(A,G12.4)") "max_walltime = ",max_walltime
+    WRITE(out_handle,"(A,L1)") "fix_dt",fix_dt
     WRITE(out_handle,"(A,G12.4)") "dt_max = ",dt_max
     WRITE(out_handle,"(A,G12.4)") "max_time = ",max_time
     !WRITE(out_handle,"(A)") "init_cond = '",init_cond,"'"

@@ -70,6 +70,7 @@ MODULE par_mod
   LOGICAL :: left_ev=.false.
   CHARACTER(len=2) :: comp_type='IV'
   REAL :: dt_max=0.00    !initial maximum time step
+  LOGICAL :: fix_dt 
   REAL :: courant=0.3   !courant factor times 2 pi for dt calculation
   LOGICAL :: ev_slepc=.true.
   !test_nl:  compares nonlinearity for pseudo spectral vs. convolution
@@ -125,6 +126,7 @@ MODULE par_mod
   INTEGER :: rhs_nl_version !Akash changed nl_version to 1
   INTEGER :: intorder = 4
   LOGICAL :: linen = .false.
+  LOGICAL :: keepzero = .true. ! Retain nl calculation for modes at start at zero energy
   INTEGER :: dealias_type = 3
   LOGICAL :: shifted = .true.
   LOGICAL :: splitx = .true.

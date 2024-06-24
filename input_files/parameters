@@ -12,9 +12,9 @@ rey = 0.0
 kxmin =   0.01
 kymin =   0.01
 kzmin =   0.01
-nkx0 = 8
-nky0 = 16
-nkz0 = 16
+nkx0 = 32
+nky0 = 64
+nkz0 = 64
 nv0 =   2
 nh0 =    1
 nspec =    1
@@ -35,9 +35,9 @@ courant =   0.5
 kxinit_min = 0
 kyinit_min = 0
 kzinit_min = 0
-kxinit_max = 8
-kyinit_max = 16
-kzinit_max = 16
+kxinit_max = 32
+kyinit_max = 64
+kzinit_max = 64
 init_amp_bx = 1.0
 init_amp_by = 0.1
 init_amp_bz = 0.1
@@ -56,7 +56,7 @@ hyp = 1
 /
 
 &diagnostics
-diagdir = '/scratch/08929/echansen/dna2mhdrunzerork4long'
+diagdir = '/scratch/08929/echansen/dna2mhdrun6423rt'
 istep_ffm =   20
 istep_energy3d =  500
 istep_energy =  1
@@ -87,6 +87,7 @@ em_conserve = T
 nuno_closure = T
 rhs_nl_version = 12
 linen = F
+keepzero = F
 intorder = 4
 rhs_lin_version = 1
 dealias_type = 3
@@ -122,7 +123,7 @@ force_lw = 0.0
 force_lc = 1.0
 force_rw = 0.0
 force_rc = 0.0
-random_state = 1
+random_state = 3
 /
 
 &eigensolve
@@ -132,5 +133,6 @@ random_state = 1
 max_itime = 10001
 max_walltime =   10000000.0
 dt_max =   0.1
+fix_dt = F
 max_time =   10000000.
 /

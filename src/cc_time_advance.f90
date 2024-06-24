@@ -368,6 +368,7 @@ SUBROUTINE get_rhs(b_in,v_in, rhs_out_b,rhs_out_v,nmhc,ndt)
 
      CALL remove_div(rhs_out_b,rhs_out_v)
 
+     IF (.not.keepzero) THEN
      DO i = 0,nkx0-1
         DO j = 0,nky0-1
            DO k = 0,nkz0-1
@@ -378,6 +379,7 @@ SUBROUTINE get_rhs(b_in,v_in, rhs_out_b,rhs_out_v,nmhc,ndt)
            ENDDO
         ENDDO
      ENDDO
+     ENDIF
      
      
      nmhc = 0.0
@@ -1263,10 +1265,13 @@ SUBROUTINE GAUSS4(b_in,v_in)
   
   ! Fixed point solution
 
-  maxdev = max(maxval(abs(bk1-bk1s)),maxval(abs(vk1-vk1s)),maxval(abs(bk2-bk2s)),maxval(abs(vk2-vk2s)))
+  maxdev = max(maxval(abs(bk1-bk1s)),&
+       maxval(abs(vk1-vk1s)),&
+       maxval(abs(bk2-bk2s)),&
+       maxval(abs(vk2-vk2s)))
   solvloop = 0
 
-  DO WHILE ((solvloop.lt.20).and.(maxdev.gt.10.0**(-16.0)))
+  DO WHILE ((solvloop.lt.1000).and.(maxdev.gt.10.0**(-19.0)))
      ! Check for now to see if the fixed point iteration converges
      if (verbose) print *, "Iteration ",solvloop,"Discrepancy ",maxdev
 
@@ -1279,9 +1284,16 @@ SUBROUTINE GAUSS4(b_in,v_in)
      CALL get_rhs(b_in+a21*dt*bk1+a22*dt*bk2,v_in+a21*dt*vk1+a22*dt*vk2,bk2s,vk2s,nmhc2s,dt)
 
      solvloop = solvloop + 1
-     maxdev = max(maxval(abs(bk1-bk1s)),maxval(abs(vk1-vk1s)),maxval(abs(bk2-bk2s)),maxval(abs(vk2-vk2s)))
+     maxdev = max(maxval(abs(bk1-bk1s)),&
+          maxval(abs(vk1-vk1s)),&
+          maxval(abs(bk2-bk2s)),&
+          maxval(abs(vk2-vk2s)))
+
+     if (solvloop.eq.999) print *, "Failed to Converge After 1000 iterations Maxdev ",maxdev
 
   ENDDO
+
+  if (itime.eq.10) print *, "Number of Iterations Needed itime = 10 ",solvloop
 
   ! Update the fields
   
@@ -1299,10 +1311,10 @@ SUBROUTINE GAUSS4(b_in,v_in)
   CALL get_rhs(b_in+a11*dt*bk1+a12*dt*bk2,v_in+a11*dt*vk1+a12*dt*vk2,bk1s,vk1s,nmhc1s,dt)
   CALL get_rhs(b_in+a21*dt*bk1+a22*dt*bk2,v_in+a21*dt*vk1+a22*dt*vk2,bk2s,vk2s,nmhc2s,dt)
 
-  maxdev = max(maxval(abs(bk1-bk1s)),maxval(abs(vk1-vk1s)),maxval(abs(bk2-bk2s)),maxval(abs(vk2-vk2s)))
+  maxdev = sum(abs(bk1-bk1s)+abs(vk1-vk1s)+abs(bk2-bk2s)+abs(vk2-vk2s))
   solvloop = 0
 
-  DO WHILE ((solvloop.lt.20).and.(maxdev.gt.10.0**(-16.0)))
+  DO WHILE ((solvloop.lt.1000).and.(maxdev.gt.10.0**(-16.0)))
      ! Check for now to see if the fixed point iteration converges                                                                                                                                          
      print *, "Iteration ",solvloop,"Discrepancy ",maxdev
 
@@ -1315,7 +1327,7 @@ SUBROUTINE GAUSS4(b_in,v_in)
      CALL get_rhs(b_in+a21*dt*bk1+a22*dt*bk2,v_in+a21*dt*vk1+a22*dt*vk2,bk2s,vk2s,nmhc2s,dt)
 
      solvloop = solvloop + 1
-     maxdev = max(maxval(abs(bk1-bk1s)),maxval(abs(vk1-vk1s)),maxval(abs(bk2-bk2s)),maxval(abs(vk2-vk2s)))
+     maxdev = sum(abs(bk1-bk1s)+abs(vk1-vk1s)+abs(bk2-bk2s)+abs(vk2-vk2s))
 
   ENDDO
 

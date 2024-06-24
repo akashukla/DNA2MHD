@@ -15,6 +15,7 @@ from scipy.signal import find_peaks
 from scipy.fft import fft,fftfreq,fftshift,irfftn
 import scipy.optimize as spo
 import matplotlib.animation as anim
+from matplotlib.ticker import ScalarFormatter,MultipleLocator
 
 par={}       #Global Variable to hold parameters once read_parameters is called
 namelists={}
@@ -531,7 +532,7 @@ def getenergyspec(lpath,tmax=2000000,mode=False):
     print(par)
     print('time length = ', len(time))
     for t in range(len(time)):
-        if(t%1==0):
+        if(t%100==0):
             print(str(t))
         gt = read_time_step_energyspec(t,mode=mode)
         if not mode:
@@ -996,15 +997,26 @@ def plot_energy(lpath,ntp,show=True,log=False,rescale=True,xb=1,tmax=2000000):
 #            elif i == 4:
 #                rr  = np.sqrt(enval[:,2]**2 + enval[:,5]**2)
             if i == 0 or i == 9:
-                ax.plot(timeen,enval[:,i])
+                ev = enval[:,i]
+            elif par['mhc']:
+                ev = (enval[:,i]+enval[:,9])/enval[0,i+2]
+                ax.plot(timeen,ev,"b")
             else:
-                ax.plot(timeen,enval[:,i]/enval[0,i+2],'r',label="Original")
-                if par['mhc']:
-                    ax.plot(timeen,(enval[:,i]+enval[:,9])/enval[0,i+2],'b',label="Transformed")
-                    ax.legend()
-            ax.set_xlabel('Time (1/$\omega_c$)')
+                ev = enval[:,i]/enval[0,i+2]
+            r = np.max(ev) - np.min(ev)
+            # if r < 10.0**(-12.0):
+            #    ax.plot(timeen,ev*10**(12.0),'b')
+            #    ax.set_ylabel(labels[i]+" ($10^{-12})V_A^2$)")
+            #    ax.set_ylim(bottom=10.0**(12.0)*(ev[0]-1.2*r),top=10.0**(12.0)*(ev[0]+1.2*r))
+            # else:
+            ax.plot(timeen,ev,'b')
             ax.set_ylabel(labels[i])
+            ax.set_ylim(bottom=ev[0]-1.2*r,top=ev[0]+1.2*r)
+            ax.yaxis.set_major_locator(MultipleLocator(base=r*0.4,offset=ev[0]))
+            ax.yaxis.set_major_formatter(ScalarFormatter(useMathText=True))
+            ax.set_xlabel('Time (1/$\omega_c$)')
             fig.suptitle(labels[i])
+            fig.tight_layout()
             if np.amax(enval) > 10 ** 5:
                 ax.set_yscale('log')
             plt.savefig(lpath+'/eplots/'+fnames[i])
@@ -1749,12 +1761,16 @@ def planeplotter(lpath,t,normvec=2,planenum=0,show=False):
 def enheldev(lpath):
     te,e = plot_energy(lpath,3,show=False)
     dt = te[-1]-te[0]
-    de = e[-1,:]-e[0,:]
+    de = e[:,0]-e[0,0]
+    dmh = (e[:,1]+e[:,-3]) - (e[0,1]+e[0,-3])
+    dch = (e[:,4]+e[:,-3]) - (e[0,4]+e[0,-3])
+    
     print(dt)
+    
     # print(de[0])
     # print(de[1]+de[-3])
     # print(de[4]+de[-3])
-    return de[0],de[1]+de[-3],de[4]+de[-3]
+    return np.max(np.abs(de)),np.max(np.abs(dmh)),np.max(np.abs(dch))
 
 def structurefunction(lpath,tmax=2*10**10):
 
