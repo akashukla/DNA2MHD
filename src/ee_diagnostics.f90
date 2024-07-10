@@ -4217,17 +4217,23 @@ function hmhdhmtn(opt) result(ham)
 
 implicit none
 real :: ham
-integer :: opt 
+integer :: opt ! 0 Total Energy, 1 Kinetic Energy, 2 Magnetic Energy
 
 !! Computes the Hall MHD Hamiltonian 8 pi^3 (sum(v_k^2 + b_k^2) + 2b_z0)/2 
 
-if (opt.eq.0) ham = sum(abs(v_1)**2 + abs(b_1)**2) + 2*real(b_1(0,0,0,2))
-if (opt.eq.1) ham = sum(abs(v_1)**2) ! Kinetic
-if (opt.eq.2) ham = sum(abs(b_1)**2) ! Magnetic
-ham = ham * (8*(pi**3))
+ham = 0.0
 
-if ((verbose).and.debug_energy.and.(opt.eq.0)) print *, "Pressure Contribution to Change",precorr
-if ((verbose).and.debug_energy.and.(opt.eq.0)) print *, "vdv Contribution to Change",vdvcorr
+if ((opt.eq.0).or.(opt.eq.1)) then
+   if (splitx) ham = ham + sum(abs(v_1(1:nkx0-1,:,:,:))**2) + 0.5 * sum(abs(v_1(0,:,:,:))**2)
+   if (.not.splitx) ham = ham + sum(abs(v_1(:,:,1:nkz0-1,:))**2) + 0.5 * sum(abs(v_1(:,:,0,:))**2)
+endif
+if ((opt.eq.0).or.(opt.eq.2)) then
+   if (splitx) ham = ham + sum(abs(b_1(1:nkx0-1,:,:,:))**2) + 0.5 * sum(abs(b_1(0,:,:,:))**2)
+   if (.not.splitx) ham	= ham +	sum(abs(b_1(:,:,1:nkz0-1,:))**2) + 0.5 * sum(abs(b_1(:,:,0,:))**2)
+   ham = ham + real(b_1(0,0,0,2))
+endif
+
+ham = ham * (8*(pi**3))
 
 end function hmhdhmtn
 
@@ -4360,7 +4366,7 @@ do i = 0,nkx0-1
   do j = 0,nky0-1
     do k = lkz1,lkz2
       do ind = 0,2
-        if ((kzgrid(k)).ne.0) then 
+        if (max(i,j,k).gt.0) then
           if (ind.eq.0) AVP(i,j,k,ind) = cmplx(0.0,1.0) * (kygrid(j)*b_1(i,j,k,2)-kzgrid(k)*b_1(i,j,k,1))/(kmags(i,j,k)**2)
           if (ind.eq.1) AVP(i,j,k,ind) = cmplx(0.0,1.0) * (kzgrid(k)*b_1(i,j,k,0)-kxgrid(i)*b_1(i,j,k,2))/(kmags(i,j,k)**2)
           if (ind.eq.2) AVP(i,j,k,ind) = cmplx(0.0,1.0) * (kxgrid(i)*b_1(i,j,k,1)-kygrid(j)*b_1(i,j,k,0))/(kmags(i,j,k)**2)
@@ -4381,46 +4387,20 @@ function mag_helicity result(maghel)
 implicit none
 real :: maghel
 integer :: i,j,k,ind
-real :: intx,coulomb,gchange
 
 maghel = 0.0
-coulomb = 0.0
-gchange = 0.0
+
 CALL vec_potential()
 
-!do ind = 0,2
-!  do i = 0,nkx0-1
-!    do j = 0,nky0-1
-!      do k = lkz1,lkz2
-!        coulomb = coulomb + (2*pi)**3 * real(conjg(AVP(i,j,k,ind))*b_1(i,j,k,ind))
-!        gchange = gchange + (2*pi)**3 * real(conjg(gpsi(i,j,k,ind))*b_1(i,j,k,ind))
-!      enddo
-!    enddo
-!    if (i.ne.0) intx = intx + 1.0/3.0 * (2*pi)**3 * aimag(b_1(i,0,0,1)) * (-1)**i * 1/i * 1/(kxmin**2)
-!  enddo
-!enddo
+if (splitx) then
+   maghel = maghel + 2.0*sum(real(AVP(1:nkx0-1,:,:,:)*conjg(b_1(1:nkx0-1,:,:,:))))
+   maghel = maghel + sum(AVP(0,:,:,:)*conjg(b_1(0,:,:,:)))
+endif
 
-! Simpler Sum
- maghel = 2.0*sum(real(AVP(:,:,:,:)*conjg(b_1(:,:,:,:))))*((2.0*pi)**3)
-! if (max_itime.lt.1000.and.(.not.actual_nonlinear)) print *, "Max by at kz=ky=0 ", maxval(abs(b_1(:,0,0,1)))
- maghel = maghel + 2.0*real(AVP(0,0,0,2))
- 
-! Alternative Expansion
+if (.not.splitx) maghel = maghel + 2.0*sum(real(AVP(:,:,1:nkz0-1,:)*conjg(b_1(:,:,1:nkz0-1,:))))
+if (.not.splitx) maghel = maghel + real(sum(AVP(:,:,0,:)*conjg(b_1(:,:,0,:))))
 
-!maghel = 0.0
-!do i = 0,nkx0-1
-!    do j = 0,nky0-1
-!        do k = 0,nkz0-1
-!            maghel = maghel + real(kxgrid(i) * (b_1(i,j,k,1)*conjg(b_1(i,j,k,2)) - b_1(i,j,k,2)*conjg(b_1(i,j,k,1)))/(kmags(i,j,k)**2))
-!            maghel = maghel + real(kygrid(j) * (b_1(i,j,k,2)*conjg(b_1(i,j,k,0)) - b_1(i,j,k,0)*conjg(b_1(i,j,k,2)))/(kmags(i,j,k)**2))
-!            maghel = maghel + real(kzgrid(k) * (b_1(i,j,k,0)*conjg(b_1(i,j,k,1)) - b_1(i,j,k,1)*conjg(b_1(i,j,k,0)))/(kmags(i,j,k)**2))
-!        enddo
-!    enddo
-!enddo
-
-! if (verbose.and.(mype.eq.0)) write(*,*) 'Coulomb',coulomb,'z Vec Potential',intx,&
-!    'Transformation',gchange,'Overall Magnetic Helicity',coulomb+gchange
-! maghel = 2*(coulomb+gchange)
+maghel = maghel * (2.0 * pi)**3.0
 
 end function mag_helicity
 
@@ -4456,26 +4436,26 @@ real :: crosshel,crosshel1,crosshel2
 real :: mh,vb,vw
 integer :: i,j,k,ind
 
-CALL vec_potential()
-CALL vorticity()
+   crosshel = 0.0
+   CALL vec_potential()
+   CALL vorticity()
 
-crosshel = 2.0 * (2*pi)**3 * (sum(real((AVP+ v_1)*conjg(b_1 + WVORT)))+2*v_1(0,0,0,2))
-if (actual_nonlinear.eq..false.) then
-crosshel1 = crosshel
-mh = 2.0 * (2.0*pi)**3 * sum(real(AVP*conjg(b_1)))
-vb = 2.0 * (2.0*pi)**3 * sum(real(v_1*conjg(b_1)))
-vw = 2.0 * (2.0*pi)**3 * sum(real(v_1*conjg(WVORT)))
-crosshel2 = mh + 2.0 * vb + vw
+   if (splitx) crosshel = 2.0 * sum(real((AVP(1:nkx0-1,:,:,:)+v_1(1:nkx0-1,:,:,:))*conjg(b_1(1:nkx0-1,:,:,:)+WVORT(1:nkx0-1,:,:,:))))
+   if (splitx) crosshel = crosshel + real(sum((AVP(0,:,:,:)+v_1(0,:,:,:))*conjg(b_1(0,:,:,:)+WVORT(0,:,:,:))))
 
-if (verbose) print *, "Cross Hel Calcs", crosshel1,crosshel2
-if (verbose) print *, "Components", mh,2.0*vb,vw
-endif
+   if (.not.splitx) crosshel = 2.0 * sum(real((AVP(:,:,1:nkz0-1,:)+v_1(:,:,1:nkz0-1,:))*conjg(b_1(:,:,1:nkz0-1,:)+WVORT(:,:,1:nkz0-1,:))))
+   if (.not.splitx) crosshel = crosshel + real(sum((AVP(:,:,0,:)+v_1(:,:,0,:))*conjg(b_1(:,:,0,:)+WVORT(:,:,0,:))))
+
+   crosshel = crosshel + v_1(0,0,0,2)
+   crosshel = crosshel * (2.0*pi)**3.0
 
 end function cross_helicity
 
 subroutine en_spec() 
 
 implicit none
+
+! This doesn't need to be adjusted for 2x only non ksplit = 0 modes
 
 WRITE(enspec_handle) (8*pi**3)* (abs(v_1(:,:,:,0))**2 + abs(v_1(:,:,:,1))**2+abs(v_1(:,:,:,2))**2)
 WRITE(enspec_handle) (8*pi**3)* (abs(b_1(:,:,:,0))**2+ abs(b_1(:,:,:,1))**2+abs(b_1(:,:,:,2))**2)
@@ -4547,12 +4527,27 @@ implicit none
 LOGICAL :: m
 REAL :: bound
 
-bound = sum(sum(b_1*conjg(b_1),4)/kmags,mask=(kmags.gt.0))
+if (splitx) then
+   bound = 2.0*sum(sum(b_1(1:nkx0-1,:,:,:)*conjg(b_1(1:nkx0-1,:,:,:)),4)/kmags(1:nkx0-1,:,:),mask=(kmags.gt.0))
+   bound = bound + sum(sum(abs(b_1(0,:,:,:))**2.0,dim=3)/kmags(0,:,:),mask=(kmags(0,:,:).gt.0))
 if (m.eq..false.) then 
-  bound = bound + sum(sum(v_1*conjg(v_1),4)*kmags,mask=(kmags.gt.0))
-  bound = bound + 2.0*sum(sqrt(sum(abs(v_1)**2,4))*sqrt(sum(abs(b_1)**2,4)),mask=(kmags.gt.0))
+   bound = bound + 2.0*sum(sum(v_1(1:nkx0-1,:,:,:)*conjg(v_1(1:nkx0-1,:,:,:)),4)*kmags(1:nkx0-1,:,:),mask=(kmags.gt.0))
+   bound = bound + sum(sum(v_1(0,:,:,:)*conjg(v_1(0,:,:,:)),dim=3)*kmags(0,:,:),mask=(kmags(0,:,:).gt.0))
+   bound = bound + 4.0*sum(sqrt(sum(abs(v_1(1:nkx0-1,:,:,:))**2,4))*sqrt(sum(abs(b_1(1:nkx0-1,:,:,:))**2,4)),mask=(kmags.gt.0))
+   bound = bound + 2.0*sum(sqrt(sum(abs(v_1(0,:,:,:))**2,3))*sqrt(sum(abs(b_1(0,:,:,:))**2,3)),mask=(kmags(0,:,:).gt.0))
 endif
-bound = 16.0 * (pi)**3 * bound
+else
+   bound = 2.0*sum(sum(b_1(:,:,1:nkz0-1,:)*conjg(b_1(:,:,1:nkz0-1,:)),4)/kmags(:,:,1:nkz0-1),mask=(kmags.gt.0))
+   bound = bound + sum(sum(abs(b_1(:,:,0,:))**2.0,dim=3)/kmags(:,:,0),mask=(kmags(:,:,0).gt.0))
+if (m.eq..false.) then
+   bound = bound + 2.0*sum(sum(v_1(:,:,1:nkz0-1,:)*conjg(v_1(:,:,1:nkz0-1,:)),4)*kmags(:,:,1:nkz0-1),mask=(kmags.gt.0))
+   bound = bound + sum(sum(v_1(:,:,0,:)*conjg(v_1(:,:,0,:)),dim=3)*kmags(:,:,0),mask=(kmags(:,:,0).gt.0))
+   bound = bound + 4.0*sum(sqrt(sum(abs(v_1(:,:,1:nkz0-1,:))**2,4))*sqrt(sum(abs(b_1(:,:,1:nkz0-1,:))**2,4)),mask=(kmags.gt.0))
+   bound = bound + 2.0*sum(sqrt(sum(abs(v_1(:,:,0,:))**2,3))*sqrt(sum(abs(b_1(:,:,0,:))**2,3)),mask=(kmags(:,:,0).gt.0))
+endif
+
+endif
+bound = 8.0 * pi**3.0 * bound
 
 end function bound_hels
 
@@ -4567,7 +4562,7 @@ xi = abs(kperps(1:nkx0-1,1:nky0-1,1:nkz0-1)*sqrt(sum(abs(v_1(1:nkx0-1,1:nky0-1,1
 if (.not.sh) then
   ratioarr = kmags(1:nkx0-1,1:nky0-1,1:nkz0-1)*sqrt(sum(abs(v_1(1:nkx0-1,1:nky0-1,1:nkz0-1,:)**2),4))
   ratioarr = ratioarr / (kzs(1:nkx0-1,1:nky0-1,1:nkz0-1)*(kmags(1:nkx0-1,1:nky0-1,1:nkz0-1)/2 + sqrt(-1 + 0.25*kmags(1:nkx0-1,1:nky0-1,1:nkz0-1)**2)))
-  if (itime.lt.100) print *, "Shear IMHD vs Hall Whistler Xi",maxval(xi),maxval(abs(ratioarr))
+  ! if (itime.lt.100) print *, "Shear IMHD vs Hall Whistler Xi",maxval(xi),maxval(abs(ratioarr))
   xi = abs(ratioarr)
 endif
 

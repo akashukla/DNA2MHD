@@ -38,6 +38,7 @@ MODULE time_advance
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:) :: bk3,bk4,bk5,bk6,bk7,bk8,bk9,bk10,bk11,bk12,bk13,vk3,vk4,vk5,vk6,vk7,vk8,vk9,vk10,vk11,vk12,vk13,b_3,v_3
   REAL, ALLOCATABLE, DIMENSION(:,:,:,:) :: bsph0,vsph0,bsph1,vsph1,bsph3,vsph3,bsphk1,bsphk2,bsphk3,bsphk4,bsphk5,bsphk6,bsphk7,&
        vsphk1,vsphk2,vsphk3,vsphk4,vsphk5,vsphk6,vsphk7 ! z axis spherical chart
+  LOGICAL, ALLOCATABLE, DIMENSION(:,:,:) :: zeromask
   LOGICAL, ALLOCATABLE, DIMENSION(:,:,:,:) :: breakz ! if a chart fails; considered unlikely but possible
 
   CONTAINS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
@@ -62,6 +63,8 @@ SUBROUTINE iv_solver
  CALL remove_div(b_1,v_1)
  if (.not.linen) CALL ALLOCATE_STEPS
  if (linen) CALL ALLOCATE_SPHS
+ if (.not.keepzero) ALLOCATE(zeromask(0:nkx0-1,0:nky0-1,0:nkz0-1))
+ 
  DO WHILE(time.lt.max_time.and.itime.lt.max_itime.and.continue_run)
  
    !IF(verbose) WRITE(*,*) "Calling diagnostics",time,itime,mype
@@ -115,6 +118,8 @@ SUBROUTINE iv_solver
    ENDIF
   !END IF
 END DO
+
+if (.not.keepzero) DEALLOCATE(zeromask)
 if (linen) CALL DEALLOCATE_SPHS
 if (.not.linen) CALL DEALLOCATE_STEPS
 
@@ -368,19 +373,13 @@ SUBROUTINE get_rhs(b_in,v_in, rhs_out_b,rhs_out_v,nmhc,ndt)
 
      CALL remove_div(rhs_out_b,rhs_out_v)
 
-     IF (.not.keepzero) THEN
-     DO i = 0,nkx0-1
-        DO j = 0,nky0-1
-           DO k = 0,nkz0-1
-              if (sum(abs(b_in(i,j,k,:))**(2.0) + abs(v_in(i,j,k,:))**(2.0)).lt.10.0**(-16.0)) then
-                 rhs_out_b(i,j,k,:) = zerocmplx
-                 rhs_out_v(i,j,k,:) = zerocmplx
-              endif
-           ENDDO
-        ENDDO
-     ENDDO
+     IF (.false.) THEN ! (.not.keepzero) THEN
+        zeromask = (sum(0.5*abs(b_in)**2.0+0.5*abs(v_in)**2.0,dim=4).lt.10.0**(-16.0))
+        
+        rhs_out_b = rhs_out_b * spread(zeromask,4,3)
+        rhs_out_v = rhs_out_v * spread(zeromask,4,3)
+
      ENDIF
-     
      
      nmhc = 0.0
      IF (mhc) CALL getmhcrk(b_in,v_in,nmhc)
@@ -596,8 +595,14 @@ SUBROUTINE getmhcrk(b_in,v_in,nmhc)
 
  REAL, intent(out) :: nmhc
 
-nmhc = - 32.0*(pi**3) * sum(real(b_in(:,:,:,0)*conjg(v_in(:,:,:,1))-b_in(:,:,:,1)*conjg(v_in(:,:,:,0))))
+   if (splitx) nmhc = - 2.0 * sum(real(b_in(1:nkx0-1,:,:,0)*conjg(v_in(1:nkx0-1,:,:,1))-b_in(1:nkx0-1,:,:,1)*conjg(v_in(1:nkx0-1,:,:,0))))
+   if (splitx) nmhc = nmhc - 1.0 * real(sum(b_in(0,:,:,0)*conjg(v_in(0,:,:,1))-b_in(0,:,:,1)*conjg(v_in(0,:,:,0))))
 
+   if (.not.splitx) nmhc = - 2.0 * sum(real(b_in(:,:,1:nkz0-1,0)*conjg(v_in(:,:,1:nkz0-1,1))-b_in(:,:,1:nkz0-1,1)*conjg(v_in(:,:,1:nkz0-1,0))))
+   if (.not.splitx) nmhc = nmhc - 1.0 * real(sum(b_in(:,:,0,0)*conjg(v_in(:,:,0,1))-b_in(:,:,0,1)*conjg(v_in(:,:,0,0))))
+
+   nmhc = nmhc * (16.0 * pi**3)
+   
 END SUBROUTINE getmhcrk
 
 SUBROUTINE dorpi547M(b_in,v_in)

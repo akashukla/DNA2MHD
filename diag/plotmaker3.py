@@ -3,7 +3,8 @@ from output2 import maxinds
 import numpy as np
 
 #lpaths = ["/scratch/08929/echansen/dna2mhdrunsh24rk32"]
-lpaths = ['/scratch/08929/echansen/dna2mhdrunsh24rk64s','/scratch/08929/echansen/dna2mhdrunsh24rk32lessnuani']
+lpaths = ["/scratch/08929/echansen/dna2mhdrun6424r1",
+          "/scratch/08929/echansen/dna2mhdrun6424rz1"]
 
 a = np.random.randint(0,31,size=4)
 

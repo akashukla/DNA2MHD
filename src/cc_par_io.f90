@@ -473,7 +473,7 @@ SUBROUTINE output_parameters
     WRITE(out_handle,"(A)")    "&initial_value"
     WRITE(out_handle,"(A,I10)") "max_itime = ",max_itime    
     WRITE(out_handle,"(A,G12.4)") "max_walltime = ",max_walltime
-    WRITE(out_handle,"(A,L1)") "fix_dt",fix_dt
+    WRITE(out_handle,"(A,L1)") "fix_dt = ",fix_dt
     WRITE(out_handle,"(A,G12.4)") "dt_max = ",dt_max
     WRITE(out_handle,"(A,G12.4)") "max_time = ",max_time
     !WRITE(out_handle,"(A)") "init_cond = '",init_cond,"'"

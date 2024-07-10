@@ -41,7 +41,7 @@ SUBROUTINE initial_condition(which_init0)
   INTEGER, DIMENSION(:), ALLOCATABLE :: rseed
   INTEGER :: rseed_size,ierr
   REAL :: testrandoms(10)
-  REAL :: nottruncic = 0.0
+  REAL :: truncx,truncy,truncz
   INTEGER(int64) :: t 
 
   zerocmplx=0.0
@@ -129,20 +129,20 @@ SUBROUTINE initial_condition(which_init0)
          print *, testrandoms
       endif
 
-      if (kxinit_max.eq.0) nottruncic = maxval(kmags)
-      if (kxinit_max.eq.nkx0) nottruncic = kxgrid(1)+kxgrid(nkx0-1)
-
+      ! I'm not truncating initial conditions for now
+      truncx = 300.0
+      truncy = 300.0
+      truncz = 300.0
+      
       if (enone) s1 = 0.0
+      
       DO i=xst,nkx0-1
-        DO j=yst,nky0-1
-           DO k=zst,nkz0-1
+         DO j=yst,nky0-1
+            DO k=zst,nkz0-1
               ! Write the if statements as subroutines sometime
               
               ! Only initalize selected mode numbers
-              if (((abs(kxgrid(i)).lt.max(nottruncic,kxgrid(kxinit_max)))&
-                   .and.(abs(kygrid(j)).lt.max(kygrid(kyinit_max),nottruncic)))&
-                   .and.(abs(kzgrid(k)).lt.max(kzgrid(kzinit_max),nottruncic))) then
-
+              
               ! Sometime write this loop as a sequence of subroutines
                 
 !!! Uniform distribution
@@ -395,24 +395,19 @@ SUBROUTINE initial_condition(which_init0)
                    b_1(i,j,mod(nkz0-k,nkz0),2) = -(b_1(i,j,k,2))
                    b_1(i,mod(nky0-j,nky0),mod(nkz0-k,nkz0),0) = -conjg(b_1(i,j,k,0))
                 endif
-                
-             endif
-
+               
+             ENDDO
           END DO
        END DO
-    END DO
-
-    if (enone) then
-       s1 = sum(abs(b_1)**2+abs(v_1)**2)
-       b_1 = b_1 * sqrt(init_amp_bx / (8.0 * pi**3 * s1))
-       v_1 = v_1 * sqrt(init_amp_bx / (8.0 * pi**3 * s1))
-    endif
-
-    if (kxinit_max.eq.0) then
        b_1(:,nky0/2,:,:) = 0.0
        b_1(:,:,nkz0/2,:) = 0.0
        v_1(:,nky0/2,:,:) = 0.0
        v_1(:,:,nkz0/2,:) = 0.0
+       
+    if (enone) then
+       if (splitx) s1 = sum(abs(b_1(1:nkx0-1,:,:,:))**2+abs(v_1(1:nkx0-1,:,:,:))**2)+0.5*sum(abs(b_1(0,:,:,:))**2+abs(v_1(0,:,:,:))**2)
+       b_1 = b_1 * sqrt(init_amp_bx / (s1))
+       v_1 = v_1 * sqrt(init_amp_bx / (s1))
     endif
     
     print *, "Nonlinear Time Scale Estimate", 1/(sqrt(sum(abs(v_1(3,3,3,:))**2))*kmags(3,3,3))

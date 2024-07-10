@@ -38,7 +38,7 @@ kzinit_min = 0
 kxinit_max = 32
 kyinit_max = 64
 kzinit_max = 64
-init_amp_bx = 1.0
+init_amp_bx = 0.01
 init_amp_by = 0.1
 init_amp_bz = 0.1
 init_amp_vx = 0.1
@@ -56,7 +56,7 @@ hyp = 1
 /
 
 &diagnostics
-diagdir = '/scratch/08929/echansen/dna2mhdrun6423rt'
+diagdir = '/scratch/08929/echansen/dna2mhdrun6438'
 istep_ffm =   20
 istep_energy3d =  500
 istep_energy =  1
@@ -78,7 +78,7 @@ output_nlt_n = F
 verbose  = F
 nonlinear  = T
 actual_nonlinear = T
-calc_dt  = F
+calc_dt  = T
 comp_type = 'IV'
 checkpoint_read = F
 checkpoint_write = T
@@ -87,7 +87,7 @@ em_conserve = T
 nuno_closure = T
 rhs_nl_version = 12
 linen = F
-keepzero = F
+keepzero = T
 intorder = 4
 rhs_lin_version = 1
 dealias_type = 3
@@ -130,7 +130,7 @@ random_state = 3
 /
 
 &initial_value
-max_itime = 10001
+max_itime = 51
 max_walltime =   10000000.0
 dt_max =   0.1
 fix_dt = F

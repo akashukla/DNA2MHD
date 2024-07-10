@@ -471,13 +471,13 @@ rhs_out_v(:,:,:,2) = rhs_out_v(:,:,:,2) + temp_small(0:nkx0-1,0:nky0-1,0:nkz0-1)
   rhs_out_v(:,nky0/2,:,:) = 0
   rhs_out_b(:,:,nkz0/2,:) = 0
   rhs_out_v(:,:,nkz0/2,:) = 0
-      
+
 if (verbose) print *, 'rhs out v nl found'
 
 if (calc_dt) CALL next_dt(ndt)
 if (.not.(calc_dt)) ndt = dt_max
 
-if (verbose) print *, 'next dt calculated ',ndt
+print *, 'next dt calculated ',ndt
 
 END SUBROUTINE get_rhs_nl1
 

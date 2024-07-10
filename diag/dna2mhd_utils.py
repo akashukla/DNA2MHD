@@ -15,7 +15,8 @@ from scipy.signal import find_peaks
 from scipy.fft import fft,fftfreq,fftshift,irfftn
 import scipy.optimize as spo
 import matplotlib.animation as anim
-from matplotlib.ticker import ScalarFormatter,MultipleLocator
+from matplotlib.ticker import ScalarFormatter,MultipleLocator,MaxNLocator,StrMethodFormatter
+from numpy import format_float_positional as ff
 
 par={}       #Global Variable to hold parameters once read_parameters is called
 namelists={}
@@ -1011,9 +1012,13 @@ def plot_energy(lpath,ntp,show=True,log=False,rescale=True,xb=1,tmax=2000000):
             # else:
             ax.plot(timeen,ev,'b')
             ax.set_ylabel(labels[i])
+            # bb = 0.5 * 10**(np.floor(np.log10(2*r)))
             ax.set_ylim(bottom=ev[0]-1.2*r,top=ev[0]+1.2*r)
-            ax.yaxis.set_major_locator(MultipleLocator(base=r*0.4,offset=ev[0]))
-            ax.yaxis.set_major_formatter(ScalarFormatter(useMathText=True))
+            ax.yaxis.set_major_locator(MaxNLocator(5))
+            form = ScalarFormatter()
+            form.format = "{%.1e}"
+            ax.yaxis.set_major_formatter(form)
+            
             ax.set_xlabel('Time (1/$\omega_c$)')
             fig.suptitle(labels[i])
             fig.tight_layout()
@@ -1762,8 +1767,8 @@ def enheldev(lpath):
     te,e = plot_energy(lpath,3,show=False)
     dt = te[-1]-te[0]
     de = e[:,0]-e[0,0]
-    dmh = (e[:,1]+e[:,-3]) - (e[0,1]+e[0,-3])
-    dch = (e[:,4]+e[:,-3]) - (e[0,4]+e[0,-3])
+    dmh = (e[:,1]-e[0,1]) +(e[:,-3] - e[0,-3])
+    dch = (e[:,4]-e[0,4]) +(e[:,-3] - e[0,-3])
     
     print(dt)
     
@@ -1856,13 +1861,13 @@ def structurefunction(lpath,tmax=2*10**10):
         str_perp = np.zeros(nx)
         for j in range(nx//2):
             if j != 0:
-                str_perp[j] = np.average((mm[j:,:,:]-mm[:-j,:,:])**2)
+                str_perp[j] = np.average((np.roll(mm,j,0)-mm)**2)
             
             # parallel structure function
         str_par = np.zeros(par["nkz0"])
         for k in range(par["nkz0"]//2):
             if k != 0:
-                str_par[k] = np.average((mm[:,:,k:]-mm[:,:,:-k])**2)
+                str_par[k] = np.average((np.roll(mm,k,2)-mm)**2)
 
         pt = np.nonzero(str_perp)
         pz = np.nonzero(str_par)
@@ -1888,8 +1893,10 @@ def structurefunction(lpath,tmax=2*10**10):
             ax2[I].tick_params(axis='x',which='both',bottom=False,top=False,labelbottom=False,labeltop=False)
         ax[I].legend(loc=4)
         ax2[I].legend(loc=4)
-    fig.suptitle("Transverse and Longitudinal Structure Functions")
-    fig2.suptitle("Transverse and Longitudinal Structure Functions")
+    fig.suptitle("Structure Functions "+"N = "+str(par["nky0"]))
+    fig2.suptitle("Structure Functions "+"N = "+str(par["nky0"]))
+    fig.tight_layout()
+    fig2.tight_layout()
     if lpath[-1] != '/':
         lpath = lpath + '/'
     if not os.path.exists(lpath + 'eplots/'):

@@ -112,17 +112,6 @@ endif
 
 if (nv) rhs_out_b = cmplx(0.0,0.0)
 
-if (plot_nls.and.(mod(itime,istep_energy).eq.0)) then
-WRITE(dbio) eta*(Larr**hyp)*b_in(:,:,:,0)
-WRITE(dbio) eta*(Larr**hyp)*b_in(:,:,:,1)
-WRITE(dbio) eta*(Larr**hyp)*b_in(:,:,:,2)
-WRITE(dvio) vnu*(Larr**hyp)*v_in(:,:,:,0)
-WRITE(dvio) vnu*(Larr**hyp)*v_in(:,:,:,1)
-WRITE(dvio) vnu*(Larr**hyp)*v_in(:,:,:,2)
-
-if (verbose.and.(mype.eq.0)) print *, 'Dissipation written'
-endif
-
 END SUBROUTINE get_rhs_lin1_ae
 
 
@@ -134,71 +123,110 @@ SUBROUTINE get_rhs_force(rhs_out_b, rhs_out_v, dt)
     IMPLICIT NONE
     INTEGER :: i,j,k,h,ierr
     !REAL :: r
-    REAL :: myresample,resample
+    REAL :: myresample,resample,th1,th2,th3,th4
     REAL, INTENT(in) :: dt
     COMPLEX, INTENT(out) :: rhs_out_b(0:nkx0-1,0:nky0-1,lkz1:lkz2, 0:2)
     COMPLEX, INTENT(out) :: rhs_out_v(0:nkx0-1,0:nky0-1,lkz1:lkz2, 0:2)
+    LOGICAL, allocatable :: mask1(:,:,:)
     COMPLEX :: LW1,LC1,RW1,RC1
+    REAL :: a,b,c,d,e,f,b1
 
+    ALLOCATE(mask1(0:nkx0-1,0:nky0-1,0:nkz0-1))
+    
+    if (verbose) a = MPI_WTIME()
     if (mype.eq.0) call random_number(resample)
-    CALL MPI_BCAST(resample,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
+    if (verbose) b = MPI_WTIME()
+    ! CALL MPI_BCAST(resample,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
 
-    IF(resample.lt.dt) THEN
-!        print *, "Resample value ",resample
-        DO i=1,nkx0-1
-          DO j=1,nky0-1
-            DO k=1,nkz0-1
-                IF (((kmags(i,j,k).lt.force_frac*maxval(kmags)).and.(forcetype.eq.11))&
-                    .or.((((i.le.nkxforce).and.(j.le.nkyforce)).and.(k.le.nkzforce)).and.(forcetype.eq.12))) THEN
+    mask1 = (kmags.lt.force_frac*maxval(kmags))
+    ! mask2 = (((i.le.nkxforce).and.(j.le.nkyforce)).and.(k.le.nkzforce)).and.(forcetype.eq.12))
+    
+    IF ((resample.lt.dt).and.(forcetype.eq.11)) THEN
+
+       DO i = 1,nkx0-1
+          DO j = 1,nky0-1
+             DO k = 1,nkz0-1
+                if (verbose) c = MPI_WTIME()
                 IF (forceb) THEN
-                rhs_out_b(i,j,k,0) = rhs_out_b(i,j,k,0) + force_amp*random_normal() + i_complex*force_amp*random_normal()
-                rhs_out_b(i,j,k,1) = rhs_out_b(i,j,k,1) + force_amp*random_normal() + i_complex*force_amp*random_normal()
+                   rhs_out_b(i,j,k,0) = rhs_out_b(i,j,k,0) + (force_amp*random_normal() + i_complex*force_amp*random_normal())*mask1(i,j,k)
+                   rhs_out_b(i,j,k,1) = rhs_out_b(i,j,k,1) + (force_amp*random_normal() + i_complex*force_amp*random_normal())*mask1(i,j,k)
+                   
+                   rhs_out_b(nkx0-i,nky0-j,k,0) = rhs_out_b(nkx0-i,nky0-j,k,0) + (force_amp*random_normal() + i_complex*force_amp*random_normal())*mask1(nkx0-i,nky0-j,k)
+                   rhs_out_b(nkx0-i,nky0-j,k,1) = rhs_out_b(nkx0-i,nky0-j,k,1) + (force_amp*random_normal() + i_complex*force_amp*random_normal())*mask1(nkx0-i,nky0-j,k)
 
-                rhs_out_b(nkx0-i,nky0-j,k,0) = rhs_out_b(nkx0-i,nky0-j,k,0) + force_amp*random_normal() + i_complex*force_amp*random_normal()
-                rhs_out_b(nkx0-i,nky0-j,k,1) = rhs_out_b(nkx0-i,nky0-j,k,1) + force_amp*random_normal() + i_complex*force_amp*random_normal()
-        
-                rhs_out_b(i,nky0-j,k,0) = rhs_out_b(i,nky0-j,k,0) + force_amp*random_normal() + i_complex*force_amp*random_normal()
-                rhs_out_b(i,nky0-j,k,1) = rhs_out_b(i,nky0-j,k,1) + force_amp*random_normal() + i_complex*force_amp*random_normal()
+                   rhs_out_b(i,nky0-j,k,0) = rhs_out_b(i,nky0-j,k,0) + (force_amp*random_normal() + i_complex*force_amp*random_normal())*mask1(i,nky0-j,k)
+                   rhs_out_b(i,nky0-j,k,1) = rhs_out_b(i,nky0-j,k,1) + (force_amp*random_normal() + i_complex*force_amp*random_normal())*mask1(i,nky0-j,k)
 
-                rhs_out_b(nkx0-i,j,k,0) = rhs_out_b(nkx0-i,j,k,0) + force_amp*random_normal() + i_complex*force_amp*random_normal()
-                rhs_out_b(nkx0-i,j,k,1) = rhs_out_b(nkx0-i,j,k,1) + force_amp*random_normal() + i_complex*force_amp*random_normal()
+                   rhs_out_b(nkx0-i,j,k,0) = rhs_out_b(nkx0-i,j,k,0) + (force_amp*random_normal() + i_complex*force_amp*random_normal())*mask1(nkx0-i,j,k)
+                   rhs_out_b(nkx0-i,j,k,1) = rhs_out_b(nkx0-i,j,k,1) + (force_amp*random_normal() + i_complex*force_amp*random_normal())*mask1(nkx0-i,j,k)
                 ENDIF
-
-                rhs_out_v(i,j,k,0) = rhs_out_v(i,j,k,0) + force_amp*random_normal() + i_complex*force_amp*random_normal()
-                rhs_out_v(i,j,k,1) = rhs_out_v(i,j,k,1) + force_amp*random_normal() + i_complex*force_amp*random_normal()
-
-                rhs_out_v(nkx0-i,nky0-j,k,0) = rhs_out_v(nkx0-i,nky0-j,k,0) + force_amp*random_normal() + i_complex*force_amp*random_normal()
-                rhs_out_v(nkx0-i,nky0-j,k,1) = rhs_out_v(nkx0-i,nky0-j,k,1) + force_amp*random_normal() + i_complex*force_amp*random_normal()
-
-                rhs_out_v(i,nky0-j,k,0) = rhs_out_v(i,nky0-j,k,0) + force_amp*random_normal() + i_complex*force_amp*random_normal()
-                rhs_out_v(i,nky0-j,k,1) = rhs_out_v(i,nky0-j,k,1) + force_amp*random_normal() + i_complex*force_amp*random_normal()
-
-                rhs_out_v(nkx0-i,j,k,0) = rhs_out_v(nkx0-i,j,k,0) + force_amp*random_normal() + i_complex*force_amp*random_normal()
-                rhs_out_v(nkx0-i,j,k,1) = rhs_out_v(nkx0-i,j,k,1) + force_amp*random_normal() + i_complex*force_amp*random_normal()
-             ENDIF
-
-             ! Alternative - excite modes with random normal complex amplitude * modes of choice
-
-             IF ((forcetype.eq.21).and.(kmags(i,j,k).lt.force_frac*maxval(kmags))) THEN
-                LW1 = (random_normal()+i_complex*random_normal())
-                LC1 = (random_normal()+i_complex*random_normal())
-                RW1 = (random_normal()+i_complex*random_normal())
-                RC1 = (random_normal()+i_complex*random_normal())
-
-                LW1 = LW1 * force_amp/abs(LW1) * sqrt(force_lw)/sqrt(force_lw + force_lc + force_rw + force_rc) * 1.0/sqrt(1 + alpha_leftwhist(i,j,k)**2)
-                LC1 = LC1 * force_amp/abs(LC1) * sqrt(force_lc)/sqrt(force_lw + force_lc + force_rw + force_rc) * 1.0/sqrt(1 + alpha_leftcyclo(i,j,k)**2)
-                RW1 = RW1 * force_amp/abs(RW1) * sqrt(force_rw)/sqrt(force_lw + force_lc + force_rw + force_rc) * 1.0/sqrt(1 + alpha_leftwhist(i,j,k)**2)
-                RC1 = RC1 * force_amp/abs(RC1) * sqrt(force_rc)/sqrt(force_lw + force_lc + force_rw + force_rc) * 1.0/sqrt(1 + alpha_leftcyclo(i,j,k)**2)
+             
+                rhs_out_v(i,j,k,0) = rhs_out_v(i,j,k,0) + (force_amp*random_normal() + i_complex*force_amp*random_normal())*mask1(i,j,k)
+                rhs_out_v(i,j,k,1) = rhs_out_v(i,j,k,1) + (force_amp*random_normal() + i_complex*force_amp*random_normal())*mask1(i,j,k)
                 
+                rhs_out_v(nkx0-i,nky0-j,k,0) = rhs_out_v(nkx0-i,nky0-j,k,0) + (force_amp*random_normal() + i_complex*force_amp*random_normal())*mask1(nkx0-i,nky0-j,k)
+                rhs_out_v(nkx0-i,nky0-j,k,1) = rhs_out_v(nkx0-i,nky0-j,k,1) + (force_amp*random_normal() + i_complex*force_amp*random_normal())*mask1(nkx0-i,nky0-j,k)
+
+                rhs_out_v(i,nky0-j,k,0) = rhs_out_v(i,nky0-j,k,0) + (force_amp*random_normal() + i_complex*force_amp*random_normal())*mask1(i,nky0-j,k)
+                rhs_out_v(i,nky0-j,k,1) = rhs_out_v(i,nky0-j,k,1) + (force_amp*random_normal() + i_complex*force_amp*random_normal())*mask1(i,nky0-j,k)
+
+                rhs_out_v(nkx0-i,j,k,0) = rhs_out_v(nkx0-i,j,k,0) + (force_amp*random_normal() + i_complex*force_amp*random_normal())*mask1(nkx0-i,j,k)
+                rhs_out_v(nkx0-i,j,k,1) = rhs_out_v(nkx0-i,j,k,1) + (force_amp*random_normal() + i_complex*force_amp*random_normal())*mask1(nkx0-i,j,k)
+                if (verbose) d = MPI_WTIME()
+                if (verbose) e = MPI_WTIME()
+          ENDDO
+       ENDDO
+    ENDDO
+    if (verbose) f = MPI_WTIME()
+    
+    if (verbose) print *, "Forced"
+    if (verbose) print *, "Trial Time ",b-a
+    if (verbose) print *, "Rands Time / Mode ",d-c
+    if (verbose) print *, "Assignment Time / Mode",e-d
+    if (verbose) print *, "Total Time ",f-a
+ ENDIF
+
+    IF ((resample.lt.dt).and.(forcetype.eq.21)) THEN
+
+       DO i = 1,nkx0-1
+          DO j = 1,nky0-1
+             DO k = 1,nkz0-1
+                if (verbose) c = MPI_WTIME()
+                CALL random_number(th1)
+                CALL random_number(th2)
+                CALL random_number(th3)
+                CALL random_number(th4)
+                
+                LW1 = exp(20.0*pi*i_complex*th1) !(random_normal()+i_complex*random_normal())
+                LC1 = exp(20.0*pi*i_complex*th2) !(random_normal()+i_complex*random_normal())
+                RW1 = exp(20.0*pi*i_complex*th3) !(random_normal()+i_complex*random_normal())
+                RC1 = exp(20.0*pi*i_complex*th4) !(random_normal()+i_complex*random_normal())
+                if (verbose) d = MPI_WTIME()
+
+                LW1 = LW1 * force_amp * sqrt(force_lw)/sqrt(force_lw + force_lc + force_rw + force_rc) * 1.0/sqrt(1 + alpha_leftwhist(i,j,k)**2)
+                LC1 = LC1 * force_amp * sqrt(force_lc)/sqrt(force_lw + force_lc + force_rw + force_rc) * 1.0/sqrt(1 + alpha_leftcyclo(i,j,k)**2)
+                RW1 = RW1 * force_amp * sqrt(force_rw)/sqrt(force_lw + force_lc + force_rw + force_rc) * 1.0/sqrt(1 + alpha_leftwhist(i,j,k)**2)
+                RC1 = RC1 * force_amp * sqrt(force_rc)/sqrt(force_lw + force_lc + force_rw + force_rc) * 1.0/sqrt(1 + alpha_leftcyclo(i,j,k)**2)
+                
+                if (verbose) e = MPI_WTIME()
                 rhs_out_b(i,j,k,:) = rhs_out_b(i,j,k,:) + (LW1 * alpha_leftwhist(i,j,k) + LC1 * alpha_leftcyclo(i,j,k)) * pcurleig(i,j,k,:)&
                      -(RW1 * alpha_leftwhist(i,j,k) + RC1 * alpha_leftcyclo(i,j,k)) * conjg(pcurleig(i,j,k,:))
                 rhs_out_v(i,j,k,:) = rhs_out_v(i,j,k,:) + (LW1+LC1)*pcurleig(i,j,k,:) + (RW1+RC1)*conjg(pcurleig(i,j,k,:))
-             ENDIF
-             
-            END DO
-          END DO
-        END DO
+                if (verbose) f = MPI_WTIME()
+             ENDDO
+          ENDDO
+       ENDDO
+
+       if (verbose) print *, "Forced"
+       if (verbose) print *, "Trial Time ",b-a
+       if (verbose) print *, "Rands Time / Mode ",d-c
+       if (verbose) print *, "Assignment Time / Mode",e-d
+       if (verbose) print *, "Total Time ",f-a
+
     ENDIF
+
+    DEALLOCATE(mask1)
+
 END SUBROUTINE get_rhs_force
 
 SUBROUTINE get_rhs_test(b_in,v_in,rhs_out_b,rhs_out_v)
