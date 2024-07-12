@@ -957,8 +957,11 @@ ind specifies whether you want the x(0),y(1), or z(2) component."""
     return 0
 
 def plot_energy(lpath,ntp,show=True,log=False,rescale=True,xb=1,tmax=2000000):
-    """ Plots Scalars Written in energy_out.dat """
-
+    """ Plots Scalars Written in energy_out.dat 
+    j reference for enval[i,j]: 0 - Energy, 1 - Magnetic Helicity, 2 - Magnetic Helicity Error (ignore), 3 - Magnetic Helicity Bound,
+    4 - Canonical Helicity, 5 - Canonical Helicity Error (ignore), 6 - Canonical Helicity Bound,
+    7 - Magnetic Energy, 8 - Kinetic Energy, 9 - Helicity Gauge Correction"""
+    
     read_parameters(lpath)
     if os.path.isfile(lpath+'/dumen.txt'):
         timeen,enval = load_energy(lpath)
@@ -967,24 +970,26 @@ def plot_energy(lpath,ntp,show=True,log=False,rescale=True,xb=1,tmax=2000000):
 
     shapes = {1:(1,1),2:(2,1),3:(2,2),4:(2,2),5:(2,3),6:(2,3),7:(3,3),8:(3,3),9:(3,3)}
     s = shapes[ntp+1]
-    labels = {0:'Energy',1:'Magnetic Helicity',2:'MH Error',3:'MH Bound',4:'Canonical Helicity',5:'CH Error',6:'CH Bound',7:'Kinetic Energy',8:'Magnetic Energy',9:'MH Corr'}
+    labels = {0:'Hamiltonian',1:'Magnetic Helicity',4:'Canonical Helicity',7:'Kinetic',8:'Magnetic',9:'MH Corr'}
+    axls = {0:'Total Energy / Guide Field Energy',1:'Helicity / Helicity Bound',4:'Helicity / Helicity Bound',7:'Energy Component / Initial Energy'}
     fnames = {0:'energy',1:'maghcty',4:'canhcty',7:'spliten',9:'nlp'}
-    
+
+    if np.any(np.isnan(enval)):
+        return(timeen,-99.0*np.ones(np.shape(enval)))
     if not os.path.exists(lpath + '/eplots/'):
         os.mkdir(lpath + '/eplots/')
     xx = len(timeen)
     timeen = timeen[range(0,xx,xb)]
     enval = enval[range(0,xx,xb),:]
-    plts = [0,1,4,7,9]
-    for i in plts[:ntp+1]:
+    plts = [0,1,4,7]
+    for i in plts:
         if i == 7:
-            fig,ax = plt.subplots(2)
-            ax[0].plot(timeen,enval[:,i])
-            ax[0].set_ylabel(labels[i])
-            ax[1].plot(timeen,enval[:,i+1])
-            ax[1].set_ylabel(labels[i+1])
-            ax[0].set_xlabel('Time (1/$\omega_c$)')
-            ax[1].set_xlabel('Time (1/$\omega_c$)')
+            fig,ax = plt.subplots(1)
+            ax.plot(timeen,enval[:,i]/enval[0,0],"b",label=labels[i])
+            ax.plot(timeen,enval[:,i+1]/enval[0,0],"r",label=labels[i+1])
+            ax.set_ylabel('Energy Component / Initial Energy')
+            ax.set_xlabel('Time ($\omega_c^{-1}$)')
+            ax.legend()
             fig.suptitle('Kinetic and Magnetic Energies')
             plt.savefig(lpath+'/eplots/'+fnames[i])
             if show == True:
@@ -993,33 +998,31 @@ def plot_energy(lpath,ntp,show=True,log=False,rescale=True,xb=1,tmax=2000000):
         elif not log:
             fig,ax = plt.subplots(1)
 
-#            if i == 1:
-#                rr = enval[:,2]
-#            elif i == 4:
-#                rr  = np.sqrt(enval[:,2]**2 + enval[:,5]**2)
-            if i == 0 or i == 9:
-                ev = enval[:,i]
+            if (i == 0):
+                ev = enval[:,i]/(4* np.pi**3)
+                ax.plot(timeen,ev,'k')
+                r = np.max(ev) - np.min(ev)
             elif par['mhc']:
                 ev = (enval[:,i]+enval[:,9])/enval[0,i+2]
-                ax.plot(timeen,ev,"b")
+                ev0 = enval[:,i]/enval[0,i+2]
+                ax.plot(timeen,ev0,"r",label="Original")
+                ax.plot(timeen,ev,"k",label="Transformed")
+                ax.legend()
+                r = max(np.max(ev)-np.min(ev),np.max(ev0)-np.min(ev0))
             else:
                 ev = enval[:,i]/enval[0,i+2]
+                r = np.max(ev) - np.min(ev)
+            
             r = np.max(ev) - np.min(ev)
-            # if r < 10.0**(-12.0):
-            #    ax.plot(timeen,ev*10**(12.0),'b')
-            #    ax.set_ylabel(labels[i]+" ($10^{-12})V_A^2$)")
-            #    ax.set_ylim(bottom=10.0**(12.0)*(ev[0]-1.2*r),top=10.0**(12.0)*(ev[0]+1.2*r))
-            # else:
-            ax.plot(timeen,ev,'b')
-            ax.set_ylabel(labels[i])
-            # bb = 0.5 * 10**(np.floor(np.log10(2*r)))
+            ax.set_ylabel(axls[i])
+
             ax.set_ylim(bottom=ev[0]-1.2*r,top=ev[0]+1.2*r)
             ax.yaxis.set_major_locator(MaxNLocator(5))
             form = ScalarFormatter()
             form.format = "{%.1e}"
             ax.yaxis.set_major_formatter(form)
             
-            ax.set_xlabel('Time (1/$\omega_c$)')
+            ax.set_xlabel('Time ($\omega_c^{-1}$)')
             fig.suptitle(labels[i])
             fig.tight_layout()
             if np.amax(enval) > 10 ** 5:
@@ -1763,7 +1766,7 @@ def planeplotter(lpath,t,normvec=2,planenum=0,show=False):
 
     return ggrid[ii],ggrid[jj],bplane,vplane
 
-def enheldev(lpath):
+def enheldev(lpath,local=0):
     te,e = plot_energy(lpath,3,show=False)
     dt = te[-1]-te[0]
     de = e[:,0]-e[0,0]
@@ -1775,7 +1778,13 @@ def enheldev(lpath):
     # print(de[0])
     # print(de[1]+de[-3])
     # print(de[4]+de[-3])
-    return np.max(np.abs(de)),np.max(np.abs(dmh)),np.max(np.abs(dch))
+    if local > 0:
+        dei = np.max(np.abs(de[local:]-de[:-local]))
+        dmhi = np.max(np.abs(dmh[local:]-dmh[:-local]))
+        dchi = np.max(np.abs(dch[local:]-dch[:-local]))
+        return(dei,dmhi,dchi)
+    else:
+        return np.max(np.abs(de)),np.max(np.abs(dmh)),np.max(np.abs(dch))
 
 def structurefunction(lpath,tmax=2*10**10):
 

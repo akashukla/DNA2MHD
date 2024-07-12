@@ -63,7 +63,6 @@ SUBROUTINE iv_solver
  CALL remove_div(b_1,v_1)
  if (.not.linen) CALL ALLOCATE_STEPS
  if (linen) CALL ALLOCATE_SPHS
- if (.not.keepzero) ALLOCATE(zeromask(0:nkx0-1,0:nky0-1,0:nkz0-1))
  
  DO WHILE(time.lt.max_time.and.itime.lt.max_itime.and.continue_run)
  
@@ -85,10 +84,19 @@ SUBROUTINE iv_solver
    IF (linen) THEN
       CALL LINEARENERGYSPH(b_1,v_1,dt_next)
       dt = minval([dt_next,dt_max])
+   ! Implicit + Strucuture Conserving Integrators
+   ELSE IF (intorder.eq.81) THEN
+      CALL STORM8(b_1,v_1,dt_next)
+      dt = minval([dt_next,dt_max])
    ELSE IF (intorder.eq.41) THEN
-      CALL gauss4(b_1,v_1)
+      CALL gauss4(b_1,v_1,dt_next)
+      dt = minval([dt_max,dt_next])
+   ! Dormand Prince Adaptive/Embedded Schemes
+   ELSE IF (intorder.eq.8) THEN
+      CALL DORPI8713M(b_1,v_1)
    ELSE IF (intorder.eq.5) THEN
       CALL dorpi547M(b_1,v_1)
+   ! Other RK Integrators
    ELSE IF (intorder.eq.4) THEN
       CALL get_g_next(b_1, v_1,dt_next)
       dt = minval([dt_next,dt_max])
@@ -119,7 +127,6 @@ SUBROUTINE iv_solver
   !END IF
 END DO
 
-if (.not.keepzero) DEALLOCATE(zeromask)
 if (linen) CALL DEALLOCATE_SPHS
 if (.not.linen) CALL DEALLOCATE_STEPS
 
@@ -174,8 +181,6 @@ END SUBROUTINE iv_solver
 !  WRITE(chp_handle) itime 
 !
 !END SUBROUTINE save_time
-
-
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!                                get_g_next                                 !!
@@ -373,14 +378,6 @@ SUBROUTINE get_rhs(b_in,v_in, rhs_out_b,rhs_out_v,nmhc,ndt)
 
      CALL remove_div(rhs_out_b,rhs_out_v)
 
-     IF (.false.) THEN ! (.not.keepzero) THEN
-        zeromask = (sum(0.5*abs(b_in)**2.0+0.5*abs(v_in)**2.0,dim=4).lt.10.0**(-16.0))
-        
-        rhs_out_b = rhs_out_b * spread(zeromask,4,3)
-        rhs_out_v = rhs_out_v * spread(zeromask,4,3)
-
-     ENDIF
-     
      nmhc = 0.0
      IF (mhc) CALL getmhcrk(b_in,v_in,nmhc)
 
@@ -394,198 +391,6 @@ SUBROUTINE get_rhs(b_in,v_in, rhs_out_b,rhs_out_v,nmhc,ndt)
 END SUBROUTINE get_rhs
 
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!                               get_next_rk_test                            !!
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-SUBROUTINE get_next_rk_test(g_in,g_out,lambda,dt_test)
-
- COMPLEX, INTENT(in) :: g_in
- COMPLEX, INTENT(in) :: lambda
- COMPLEX, INTENT(out) :: g_out
- REAL, INTENT(in) :: dt_test
- COMPLEX :: k1
- COMPLEX :: k2
-
- !4th order Runge-Kutta
- CALL get_rhs_rktest(g_in,k1,lambda)
- g_out=g_in+(1.0/6.0)*dt_test*k1
- CALL get_rhs_rktest(g_in+0.5*dt_test*k1,k2,lambda)
- g_out=g_out+(1.0/3.0)*dt_test*k2
- CALL get_rhs_rktest(g_in+0.5*dt_test*k2,k1,lambda)
- g_out=g_out+(1.0/3.0)*dt_test*k1
- CALL get_rhs_rktest(g_in+dt_test*k1,k2,lambda)
- g_out=g_out+(1.0/6.0)*dt_test*k2
-
-END SUBROUTINE get_next_rk_test
-
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!                               get_rhs_rktest                              !!
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-SUBROUTINE get_rhs_rktest(g_,k_,lambda)
-
-  IMPLICIT NONE
-  COMPLEX, INTENT(in) :: g_
-  COMPLEX, INTENT(in) :: lambda
-  COMPLEX, INTENT(out) :: k_
-
-  k_=lambda*g_
-
-END SUBROUTINE get_rhs_rktest
-
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!                              rk4_stability                                !!
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-SUBROUTINE rk4_stability
-
-  IMPLICIT NONE
-
-  COMPLEX :: g1,g2
-  COMPLEX :: lambda
-  INTEGER :: i,j,numr,numi
-  REAL :: rlam,ilam
-  !COMPLEX :: k0,kn
-  COMPLEX :: omega
-  REAL, ALLOCATABLE, DIMENSION(:) :: rout,iout
-  REAL, ALLOCATABLE, DIMENSION(:) :: rlamout,ilamout
-  CHARACTER(len=5) :: chnumr,chnumi
-  !INTEGER :: ierr
-
-  IF(np_herm .gt.1) STOP "rk test only for serial execution."
-  
-  c0 = cmplx(rc0,ic0)
-IF (mype.eq.0) THEN
-  OPEN(unit=100,file=trim(diagdir)//'/rout.dat',status='unknown')
-  OPEN(unit=200,file=trim(diagdir)//'/iout.dat',status='unknown')
-  OPEN(unit=300,file=trim(diagdir)//'/rgrid.dat',status='unknown')
-  OPEN(unit=400,file=trim(diagdir)//'/igrid.dat',status='unknown')
-
-  WRITE(*,*) "rmax,imax",rmax,imax
-  numr=nint(rmax*2.0/delta_lambda)
-  numi=nint(imax*2.0/delta_lambda)
-  WRITE(chnumr,'(i5.5)') numr
-  WRITE(chnumi,'(i5.5)') numi
-  WRITE(*,*) "rmax_index",numr
-  WRITE(*,*) "imax_index",numi
-  WRITE(*,*) chnumr
-  WRITE(*,*) chnumi
-  ALLOCATE(rout(numr))
-  ALLOCATE(iout(numr))
-  ALLOCATE(rlamout(numr))
-  ALLOCATE(ilamout(numi))
-  DO j=1,numi
-    DO i=1,numr
-      !IF(j==1) WRITE(100,*) ""
-      !IF(j==1) WRITE(200,*) ""
-      rlam=-1.0*rmax+delta_lambda*(i-1) 
-      ilam=-1.0*imax+delta_lambda*(j-1) 
-      IF(j==1) THEN
-          rlamout(i)=rlam
-          WRITE(300,*) rlam
-      END IF
-      IF(i==1) THEN
-           ilamout(j)=ilam
-          WRITE(400,*) ilam
-      END IF
-      lambda=cmplx(rlam,ilam)
-      g1=cmplx(1.0,0.0)
-
-      CALL get_next_rk_test(g1,g2,lambda,dt_rktest)
-
-      omega=(g2-g1)/(0.5*dt_rktest*(g2+g1)) 
-      !omega=(g2-g1)/(dt*g1) 
-      rout(i)=REAL(omega)
-      iout(i)=aimag(omega)
-
-!!!!!!!!!!!!!!Test
-      rout(i)=(REAL(sqrt(conjg(g2)*g2))-REAL(sqrt(conjg(g1)*g1)))/dt_rktest
-!!!!!!!!!!!!!!Test
-      rlamout(i)=rlam 
-      ilamout(i)=ilam 
-      
-
-    END DO
-    WRITE(100,'('//chnumr//'es16.8)') rout
-    WRITE(200,'('//chnumr//'es16.8)') iout
-  END DO
-
-  CLOSE(100)
-  CLOSE(200)
-  CLOSE(300)
-  CLOSE(400)
-
-
-
-  OPEN(unit=100,file=trim(diagdir)//'/SR_test.dat',status='unknown')
-  DO j=1,numi
-      !IF(j==1) WRITE(100,*) ""
-      !IF(j==1) WRITE(200,*) ""
-      rlam=0.0
-      ilam=-1.0*imax+delta_lambda*(j-1) 
-      lambda=cmplx(rlam,ilam)
-      g1=cmplx(1.0,0.0)
-
-      CALL get_next_rk_test(g1,g2,lambda,dt_rktest)
-!!!!!!!!!!!!!!!!!!!RK4!!!!!!!!!!!!!!!!
-!!!!!!!!!!!!!!!!!!!RK4!!!!!!!!!!!!!!!!
-!!!!!!!!!!!!!!!!!!!RK4!!!!!!!!!!!!!!!!
-!      CALL get_rhs(g1,lambda,k0)  !get k1
-!      g2=g1+1.0/6.0*k0*dt     
-!      CALL get_rhs(g1+0.5*dt*k0,lambda,kn) !get k2
-!      g2=g2+1.0/3.0*kn*dt
-!      CALL get_rhs(g1+0.5*dt*kn,lambda,k0) !get k3
-!      g2=g2+1.0/3.0*k0*dt
-!      CALL get_rhs(g1+dt*k0,lambda,kn)     !get k4
-!      g2=g2+1.0/6.0*kn*dt
-!!!!!!!!!!!!!!!!!!!RK4!!!!!!!!!!!!!!!!
-!!!!!!!!!!!!!!!!!!!RK4!!!!!!!!!!!!!!!!
-!!!!!!!!!!!!!!!!!!!RK4!!!!!!!!!!!!!!!!
-
-      omega=(g2-g1)/(0.5*dt_rktest*(g2+g1)) 
-      !omega=(g2-g1)/(dt*g1) 
-!!!!!!!!!!!!!!Test
-!      rout(i)=(REAL(sqrt(conjg(g2)*g2))-REAL(sqrt(conjg(g1)*g1)))/dt
-!!!!!!!!!!!!!!Test
-      WRITE(100,*) ilam,(REAL(sqrt(conjg(g2)*g2))-REAL(sqrt(conjg(g1)*g1)))/dt_rktest
-  END DO
-  CLOSE(100)
-
-  OPEN(unit=100,file=trim(diagdir)//'/SI_test.dat',status='unknown')
-  DO i=1,numr
-      !IF(j==1) WRITE(100,*) ""
-      !IF(j==1) WRITE(200,*) ""
-      ilam=0.0
-      rlam=-1.0*rmax+delta_lambda*(i-1) 
-      lambda=cmplx(rlam,ilam)
-      g1=cmplx(1.0,0.0)
-
-      CALL get_next_rk_test(g1,g2,lambda,dt_rktest)
-!!!!!!!!!!!!!!!!!!!RK4!!!!!!!!!!!!!!!!
-!!!!!!!!!!!!!!!!!!!RK4!!!!!!!!!!!!!!!!
-!!!!!!!!!!!!!!!!!!!RK4!!!!!!!!!!!!!!!!
-!      CALL get_rhs(g1,lambda,k0)  !get k1
-!      g2=g1+1.0/6.0*k0*dt     
-!      CALL get_rhs(g1+0.5*dt*k0,lambda,kn) !get k2
-!      g2=g2+1.0/3.0*kn*dt
-!      CALL get_rhs(g1+0.5*dt*kn,lambda,k0) !get k3
-!      g2=g2+1.0/3.0*k0*dt
-!      CALL get_rhs(g1+dt*k0,lambda,kn)     !get k4
-!      g2=g2+1.0/6.0*kn*dt
-!!!!!!!!!!!!!!!!!!!RK4!!!!!!!!!!!!!!!!
-!!!!!!!!!!!!!!!!!!!RK4!!!!!!!!!!!!!!!!
-!!!!!!!!!!!!!!!!!!!RK4!!!!!!!!!!!!!!!!
-
-      !omega=(g2-g1)/(dt*g1) 
-      omega=(g2-g1)/(0.5*dt_rktest*(g2+g1)) 
-
-      WRITE(100,*) rlam,REAL(omega)
-  END DO
-  CLOSE(100)
-
-ENDIF
-
-END SUBROUTINE rk4_stability
 
 SUBROUTINE getmhcrk(b_in,v_in,nmhc)
 
@@ -630,7 +435,7 @@ SUBROUTINE dorpi547M(b_in,v_in)
   REAL :: nmhc1,nmhc2,nmhc3,nmhc4,nmhc5,nmhc6,nmhc7,next_corr
   REAL :: enpre1,enpre2,enpre3,enpre4,enpre5,enpre6,next_enpre
   REAL :: envdv1,envdv2,envdv3,envdv4,envdv5,envdv6,next_envdv
-  LOGICAL :: trap = .true.
+  REAL :: err
   
   dt = dt_max
 
@@ -638,101 +443,86 @@ SUBROUTINE dorpi547M(b_in,v_in)
   ! print *, "dt_max", dt_max
   !! First step
 
-  trap = .true.
-  
-  do while (trap)
 
-
-     ! Use First Same As Last property to save time for higher steps
-     if (itime.eq.0) CALL get_rhs(b_in,v_in,bk1,vk1,nmhc1,dt_new1)
-     IF (mhc.and.(itime.ne.0)) THEN
-        CALL getmhcrk(b_in,v_in,nmhc1)
-        if (debug_energy) then
-           enpre1 = preendiv
-           envdv1 = vdvendiv
-        endif
-     ENDIF
-     ! CALL get_rhs(b_in,v_in,bk1,vk1,nmhc1,dt_new1) 
-     
-     !! Second step
-     CALL get_rhs(b_in+dt*bk1*1.0/5.0,&
-          v_in+dt*vk1*1.0/5.0,bk2,vk2,nmhc2,dt_new2)
+  ! Use First Same As Last property to save time for higher steps
+  if (itime.eq.0) CALL get_rhs(b_in,v_in,bk1,vk1,nmhc1,dt_new1)
+  IF (mhc.and.(itime.ne.0)) THEN
+     CALL getmhcrk(b_in,v_in,nmhc1)
      if (debug_energy) then
-        enpre2 = preendiv
-        envdv2 = vdvendiv
+        enpre1 = preendiv
+        envdv1 = vdvendiv
      endif
+  ENDIF
      
-     !! Third step
-     CALL get_rhs(b_in+dt*(3.0*bk1/40.0+9.0*bk2/40.0),&
-          v_in+dt*(3.0*vk1/40.0+9.0*vk2/40.0),bk3,vk3,nmhc3,dt_new3)
-     if (debug_energy) then
-        enpre3 = preendiv
-        envdv3 = vdvendiv
-     endif
+  !! Second step
+  CALL get_rhs(b_in+dt*bk1*1.0/5.0,&
+       v_in+dt*vk1*1.0/5.0,bk2,vk2,nmhc2,dt_new2)
+  if (debug_energy) then
+     enpre2 = preendiv
+     envdv2 = vdvendiv
+  endif
      
-     !! Fourth step
-     CALL get_rhs(b_in+dt*(44.0/45.0*bk1-56.0/15.0*bk2+32.0/9.0*bk3),&
-          v_in+dt*(44.0/45.0*vk1-56.0/15.0*vk2+32.0/9.0*vk3),bk4,vk4,nmhc4,dt_new4)
-     if (debug_energy) then
-        enpre4 = preendiv
-        envdv4 = vdvendiv
-     endif
+  !! Third step
+  CALL get_rhs(b_in+dt*(3.0*bk1/40.0+9.0*bk2/40.0),&
+       v_in+dt*(3.0*vk1/40.0+9.0*vk2/40.0),bk3,vk3,nmhc3,dt_new3)
+  if (debug_energy) then
+     enpre3 = preendiv
+     envdv3 = vdvendiv
+  endif
      
-     !! Fifth step
-     CALL get_rhs(b_in+dt*(19372.0/6561.0*bk1-25360.0/2187.0*bk2+64448.0/6561.0*bk3-212.0/729.0*bk4),&
-          v_in+dt*(19372.0/6561.0*vk1-25360.0/2187.0*vk2+64448.0/6561.0*vk3-212.0/729.0*vk4),&
-          bk5,vk5,nmhc5,dt_new5)
-     if (debug_energy) then
-        enpre5 = preendiv
-        envdv5 = vdvendiv
-     endif
+  !! Fourth step
+  CALL get_rhs(b_in+dt*(44.0/45.0*bk1-56.0/15.0*bk2+32.0/9.0*bk3),&
+       v_in+dt*(44.0/45.0*vk1-56.0/15.0*vk2+32.0/9.0*vk3),bk4,vk4,nmhc4,dt_new4)
+  if (debug_energy) then
+     enpre4 = preendiv
+     envdv4 = vdvendiv
+  endif
      
-     !! Sixth step
-     CALL get_rhs(b_in+dt*(9017.0/3168.0*bk1 - 355.0/33.0*bk2 + 46732.0/5247.0*bk3 &
-          + 49.0/176.0*bk4-5103.0/18656.0*bk5),&
-          v_in+dt*(9017.0/3168.0*vk1 - 355.0/33.0*vk2 + 46732.0/5247.0*vk3	&
+  !! Fifth step
+  CALL get_rhs(b_in+dt*(19372.0/6561.0*bk1-25360.0/2187.0*bk2+64448.0/6561.0*bk3-212.0/729.0*bk4),&
+       v_in+dt*(19372.0/6561.0*vk1-25360.0/2187.0*vk2+64448.0/6561.0*vk3-212.0/729.0*vk4),&
+       bk5,vk5,nmhc5,dt_new5)
+  if (debug_energy) then
+     enpre5 = preendiv
+     envdv5 = vdvendiv
+  endif
+     
+  !! Sixth step
+  CALL get_rhs(b_in+dt*(9017.0/3168.0*bk1 - 355.0/33.0*bk2 + 46732.0/5247.0*bk3 &
+       + 49.0/176.0*bk4-5103.0/18656.0*bk5),&
+       v_in+dt*(9017.0/3168.0*vk1 - 355.0/33.0*vk2 + 46732.0/5247.0*vk3	&
        + 49.0/176.0*vk4-5103.0/18656.0*vk5),bk6,vk6,nmhc6,dt_new6)
-     if (debug_energy) then
-        enpre6 = preendiv
-        envdv6 = vdvendiv
-     endif
+  if (debug_energy) then
+     enpre6 = preendiv
+     envdv6 = vdvendiv
+  endif
      
-     b_2 = b_in + dt*(35.0/384.0*bk1+500.0/1113.0*bk3+125.0/192.0*bk4&
-          -2187.0/6784.0*bk5+11.0/84.0*bk6)
-     v_2 = v_in + dt*(35.0/384.0*vk1+500.0/1113.0*vk3+125.0/192.0*vk4&
-          -2187.0/6784.0*vk5+11.0/84.0*vk6)
-     next_corr = dt*(35.0/384.0*nmhc1+500.0/1113.0*nmhc3+125.0/192.0*nmhc4&
-          -2187.0/6784.0*nmhc5+11.0/84.0*nmhc6)
-     if (debug_energy) then
-        next_enpre = dt*(35.0/384.0*enpre1+500.0/1113.0*enpre3+125.0/192.0*enpre4&
+  b_2 = b_in + dt*(35.0/384.0*bk1+500.0/1113.0*bk3+125.0/192.0*bk4&
+       -2187.0/6784.0*bk5+11.0/84.0*bk6)
+  v_2 = v_in + dt*(35.0/384.0*vk1+500.0/1113.0*vk3+125.0/192.0*vk4&
+       -2187.0/6784.0*vk5+11.0/84.0*vk6)
+  next_corr = dt*(35.0/384.0*nmhc1+500.0/1113.0*nmhc3+125.0/192.0*nmhc4&
+       -2187.0/6784.0*nmhc5+11.0/84.0*nmhc6)
+  if (debug_energy) then
+     next_enpre = dt*(35.0/384.0*enpre1+500.0/1113.0*enpre3+125.0/192.0*enpre4&
           -2187.0/6784.0*enpre5+11.0/84.0*enpre6)
-        next_envdv = dt*(35.0/384.0*envdv1+500.0/1113.0*envdv3+125.0/192.0*envdv4&
+     next_envdv = dt*(35.0/384.0*envdv1+500.0/1113.0*envdv3+125.0/192.0*envdv4&
           -2187.0/6784.0*envdv5+11.0/84.0*envdv6)
-     endif
+  endif
      
-     !! Seventh step
-     CALL get_rhs(b_2,v_2,bk7,vk7,nmhc7,dt_new7)
+  !! Seventh step
+  CALL get_rhs(b_2,v_2,bk7,vk7,nmhc7,dt_new7)
+  
+  b_3 = b_in + dt*(5179.0/57600.0*bk1+7571.0/16695.0*bk3+393.0/640.0*bk4&
+       -92097.0/339200.0*bk5+187.0/2100.0*bk6+bk7/40.0)
+  v_3 = v_in + dt*(5179.0/57600.0*vk1+7571.0/16695.0*vk3+393.0/640.0*vk4&
+       -92097.0/339200.0*vk5+187.0/2100.0*vk6+vk7/40.0)
+  
+  err = max(maxval(abs(b_2-b_3)),maxval(abs(v_2-v_3)))
+  print *, err
 
-     b_3 = b_in + dt*(5179.0/57600.0*bk1+7571.0/16695.0*bk3+393.0/640.0*bk4&
-          -92097.0/339200.0*bk5+187.0/2100.0*bk6+bk7/40.0)
-     v_3 = v_in + dt*(5179.0/57600.0*vk1+7571.0/16695.0*vk3+393.0/640.0*vk4&
-          -92097.0/339200.0*vk5+187.0/2100.0*vk6+vk7/40.0)
-
-     trap = ((maxval(abs((b_3-b_2)/b_2),abs(b_2).gt.10**(-10.0)).gt.10**(-3.0)).or.&
-          (maxval(abs((v_3-v_2)/v_2),abs(v_2).gt.10**(-10.0)).gt.10**(-3.0)))
-     if ((itime.lt.1)) dt = minval([dt_new1,dt_new2,dt_new3,dt_new4,dt_new5,dt_new6,dt_new7,dt])
-     if ((itime.gt.1)) dt = minval([dt_new2,dt_new3,dt_new4,dt_new5,dt_new6,dt_new7,dt])
-     if (trap) dt = 0.9 * dt
-     
-     if (verbose) then
-        print *, "Trap",trap
-        print *, "RATIOS",(maxval(abs((b_3-b_2)/b_2),abs(b_2).gt.10**(-10.0))),maxval(abs((v_3-v_2)/v_2),abs(v_2).gt.10**(-10.0))
-        print *, "dt",dt
-        print *, "itime",itime
-     endif
-     
-  enddo
-
+  !dt = min(dt_new1,dt_new2,dt_new3,dt_new4,dt_new5,dt_new6,dt * (10.0**(-5.0)/err)**(1.0/6.0))
+  
   b_in = b_2
   v_in = v_2
   mhelcorr = mhelcorr + next_corr
@@ -741,127 +531,6 @@ SUBROUTINE dorpi547M(b_in,v_in)
   vk1 = vk7
 
 END SUBROUTINE dorpi547M
-
-SUBROUTINE ALLOCATE_STEPS
-
-  IMPLICIT NONE
-
-  ALLOCATE(b_2(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-  ALLOCATE(v_2(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-
-  ALLOCATE(bk1(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-  ALLOCATE(vk1(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-
-  ALLOCATE(bk2(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-  ALLOCATE(vk2(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-
-  if (intorder.eq.41) then
-
-  ALLOCATE(bk1s(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-  ALLOCATE(vk1s(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-
-  ALLOCATE(bk2s(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-  ALLOCATE(vk2s(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-
-endif
-
-  if (intorder.eq.5) then
-     
-  ALLOCATE(bk3(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-  ALLOCATE(vk3(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-
-  ALLOCATE(bk4(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-  ALLOCATE(vk4(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-
-  ALLOCATE(bk5(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-  ALLOCATE(vk5(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-
-  ALLOCATE(bk6(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-  ALLOCATE(vk6(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-
-  ALLOCATE(bk7(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-  ALLOCATE(vk7(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-
-  ALLOCATE(bk8(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-  ALLOCATE(vk8(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-
-  ALLOCATE(bk9(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-  ALLOCATE(vk9(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-
-  ALLOCATE(bk10(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-  ALLOCATE(vk10(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-
-  ALLOCATE(bk11(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-  ALLOCATE(vk11(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-
-  ALLOCATE(bk12(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-  ALLOCATE(vk12(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-
-  ALLOCATE(bk13(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-  ALLOCATE(vk13(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-  endif
-
-END SUBROUTINE ALLOCATE_STEPS
-
-SUBROUTINE DEALLOCATE_STEPS
-
-  IMPLICIT NONE
-
-  DEALLOCATE(b_2)
-  DEALLOCATE(v_2)
-
-  DEALLOCATE(bk1)
-  DEALLOCATE(vk1)
-
-  DEALLOCATE(bk2)
-  DEALLOCATE(vk2)
-
-  if (intorder.eq.41) then
-     DEALLOCATE(bk1s)
-     DEALLOCATE(vk1s)
-     DEALLOCATE(bk2s)
-     DEALLOCATE(vk2s)
-  endif
-
-  if (intorder.eq.5) then
-  DEALLOCATE(b_3)
-  DEALLOCATE(v_3)
-  
-  DEALLOCATE(bk3)
-  DEALLOCATE(vk3)
-
-  DEALLOCATE(bk4)
-  DEALLOCATE(vk4)
-
-  DEALLOCATE(bk5)
-  DEALLOCATE(vk5)
-
-  DEALLOCATE(bk6)
-  DEALLOCATE(vk6)
-
-  DEALLOCATE(bk7)
-  DEALLOCATE(vk7)
-
-  DEALLOCATE(bk8)
-  DEALLOCATE(vk8)
-
-  DEALLOCATE(bk9)
-  DEALLOCATE(vk9)
-
-  DEALLOCATE(bk10)
-  DEALLOCATE(vk10)
-
-  DEALLOCATE(bk11)
-  DEALLOCATE(vk11)
-
-  DEALLOCATE(bk12)
-  DEALLOCATE(vk12)
-
-  DEALLOCATE(bk13)
-  DEALLOCATE(vk13)
-endif
-
-END SUBROUTINE DEALLOCATE_STEPS
 
 SUBROUTINE ralston2(b_in,v_in,dt_new)
 
@@ -950,6 +619,483 @@ SUBROUTINE ralston3(b_in,v_in,dt_new)
   dt_new = minval([dt_new1,dt_new2,dt_new3])
 
 END SUBROUTINE ralston3
+
+SUBROUTINE GAUSS4(b_in,v_in,dt_new)
+
+  ! Use the order 4 Gauss Legendre method for time integration
+  ! k1 = f(y + a11 * dt * k1 + a12 * dt * k2)
+  ! k2 = f(y + a21 * dt * k1 + a22 * dt * k2)
+  ! y1 = y + 0.5 * dt * k1 + 0.5 * dt * k2
+  ! This method relies on a fixed point iteration solution for the implicit RK stages
+  
+  IMPLICIT NONE
+  
+  COMPLEX, INTENT(INOUT) :: b_in(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2)
+  COMPLEX, INTENT(INOUT) :: v_in(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2)
+  REAL, INTENT(OUT) :: dt_new
+  
+  REAL :: a11,a12,a21,a22
+  REAL :: nmhc1,nmhc2,nmhc1s,nmhc2s
+  REAL :: ndt,maxdev,l1norm
+  INTEGER :: solvloop
+
+  a11 = 1.0/4.0
+  a22 = 1.0/4.0
+  a12 = 1.0/4.0 - sqrt(3.0)/6.0
+  a21 = 1.0/4.0 + sqrt(3.0)/6.0
+
+  ! Initial derivative guesses
+  CALL get_rhs(b_in,v_in,bk1,vk1,nmhc1,ndt)
+  CALL get_rhs(b_in+dt*bk1,v_in+dt*vk1,bk2,vk2,nmhc2,ndt)
+  
+  ! Start iterating
+
+  CALL get_rhs(b_in+a11*dt*bk1+a12*dt*bk2,v_in+a11*dt*vk1+a12*dt*vk2,bk1s,vk1s,nmhc1s,ndt)
+  CALL get_rhs(b_in+a21*dt*bk1+a22*dt*bk2,v_in+a21*dt*vk1+a22*dt*vk2,bk2s,vk2s,nmhc2s,ndt)
+  
+  ! Fixed point solution
+
+  l1norm = sum(abs(bk1-bk1s)+abs(vk1-vk1s)+abs(vk2-vk2s)+abs(bk2-bk2s))
+  maxdev = max(maxval(abs(bk1-bk1s)),&
+       maxval(abs(vk1-vk1s)),&
+       maxval(abs(bk2-bk2s)),&
+       maxval(abs(vk2-vk2s)))
+  solvloop = 0
+
+  DO WHILE ((solvloop.lt.1000).and.(maxdev.gt.10.0**(-19.0)))
+     ! Check for now to see if the fixed point iteration converges
+     if (verbose) print *, "Iteration ",solvloop,"Discrepancy ",maxdev
+
+     bk1 = bk1s
+     bk2 = bk2s
+     vk1 = vk1s
+     vk2 = vk2s
+
+     CALL get_rhs(b_in+a11*dt*bk1+a12*dt*bk2,v_in+a11*dt*vk1+a12*dt*vk2,bk1s,vk1s,nmhc1s,ndt)
+     CALL get_rhs(b_in+a21*dt*bk1+a22*dt*bk2,v_in+a21*dt*vk1+a22*dt*vk2,bk2s,vk2s,nmhc2s,ndt)
+
+     solvloop = solvloop + 1
+     maxdev = max(maxval(abs(bk1-bk1s)),&
+          maxval(abs(vk1-vk1s)),&
+          maxval(abs(bk2-bk2s)),&
+          maxval(abs(vk2-vk2s)))
+     l1norm = sum(abs(bk1-bk1s)+abs(vk1-vk1s)+abs(vk2-vk2s)+abs(bk2-bk2s))
+
+     if (solvloop.eq.999) print *, "Failed to Converge After 1000 iterations Maxdev ",maxdev
+
+  ENDDO
+
+  if (itime.eq.10) print *, "Number of Iterations Needed itime = 10 ",solvloop
+
+  ! Update the fields
+  
+  b_in = b_in + (1.0/2.0) * dt * bk1s + (1.0/2.0) * dt * bk2s
+  v_in = v_in + (1.0/2.0) * dt * vk1s + (1.0/2.0) * dt * vk2s
+  mhelcorr = mhelcorr + (1.0/2.0) * dt * nmhc1s + (1.0/2.0) * dt * nmhc2s
+  dt_new = ndt
+
+END SUBROUTINE GAUSS4
+
+SUBROUTINE STORM8(b_in,v_in,ndt)
+
+  IMPLICIT NONE
+
+  ! Use the 5 stage, 8th order Lobatto III A - III B method to integrate the system
+  ! This method is L stable (Butcher 08) and should conserve the helicities (Hairer 06)
+    
+  COMPLEX, INTENT(INOUT) :: b_in(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2)
+  COMPLEX, INTENT(INOUT) :: v_in(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2)
+  REAL :: a21,a22,a23,a24,a25,a31,a32,a33,a34,a35,a41,a42,a43,a44,a45,a51,a52,a53,a54,a55
+  REAL :: b11,b12,b13,b14,b21,b22,b23,b24,b31,b32,b33,b34,b41,b42,b43,b44,b51,b52,b53,b54
+  REAL :: nmhc1,nmhc2,nmhc3,nmhc4,nmhc5,nmhc1s,nmhc2s,nmhc3s,nmhc4s,nmhc5s
+  REAL :: ndt,maxdev,l2norm
+  INTEGER :: solvloop
+
+  ! Matrix coefficients
+  
+  a21 = (119.0 + 3.0 * sqrt(21.0))/1960.0
+  a22 = (343.0 - 9.0 * sqrt(21.0))/2520.0
+  a23 = (392.0 - 96.0 * sqrt(21.0))/2205.0
+  a24 = (343.0 - 69.0 * sqrt(21.0))/2520.0
+  a25 = (-21.0 + 3.0 * sqrt(21.0))/1960.0
+  a31 = 13.0/320.0
+  a32 = (392.0 + 105.0 * sqrt(21.0))/2880.0
+  a33 = (8.0/45.0)
+  a34 = (392.0 - 105.0 * sqrt(21.0)) / 2880.0
+  a35 = (3.0/320.0)
+  a41 = (119.0 - 3.0 * sqrt(21.0))/1960.0
+  a42 = (343.0 + 69.0 * sqrt(21.0))/2520.0
+  a43 = (392.0 + 96.0 * sqrt(21.0))/2205.0
+  a44 = (343.0 + 9.0 * sqrt(21.0))/2520.0
+  a45 = (-21.0 - 3.0 * sqrt(21.0))/1960.0
+  a51 = 1.0/20.0
+  a52 = 49.0/180.0
+  a53 = 16.0/45.0
+  a54 = 49.0/180.0
+  a55 = 1.0/20.0
+
+  b11 = 1.0/20.0
+  b12 = (-7.0-sqrt(21.0))/120.0
+  b13 = 1.0/15.0
+  b14 = (-7.0 + sqrt(21.0))/120.0
+  b21 = 1.0/20.0
+  b22 = (343.0 + 9.0*sqrt(21.0))/2520.0
+  b23 = (56.0 - 15.0 * sqrt(21.0))/315.0
+  b24 = (343.0 - 69.0 * sqrt(21.0))/2520.0
+  b31 = 1.0/20.0
+  b32 = (49.0 + 12.0 * sqrt(12.0))/360.0
+  b33 = 8.0/45.0
+  b34 = (49.0 - 12.0 * sqrt(12.0))/360.0
+  b41 = 1.0/20.0
+  b42 = (343.0 + 69.0 * sqrt(21.0))/2520.0
+  b43 = (56.0 + 15.0 * sqrt(21.0))/315.0
+  b44 = (343.0 - 9.0*sqrt(21.0))/2520.0
+  b51 = 1.0/20.0
+  b52 = (119.0 - 3.0 * sqrt(21.0))/360.0
+  b53 = 13.0/45.0
+  b54 = (119.0 + 3.0 * sqrt(21.0))/360.0
+  
+  ! Guess: read about the better way to do this for both this and Gauss4
+  
+  CALL get_rhs(b_in,v_in,bk1,vk1,ndt,nmhc1)
+  bk2 = bk1
+  vk2 = vk1
+  bk3 = bk1
+  vk3 = vk1
+  bk4 = bk1
+  vk4 = vk1
+  bk5 = bk1
+  vk5 = vk1
+  nmhc2 = nmhc1
+  nmhc3 = nmhc1
+  nmhc4 = nmhc1
+  nmhc5 = nmhc1
+    
+  CALL get_rhs(b_in,v_in+dt*(b11*vk1+b12*vk2+b13*vk3+b14*vk4),bk6,vk6,ndt,nmhc1s)
+  CALL get_rhs(b_in+dt*(a21*bk1+a22*bk2+a23*bk3+a24*bk4+a25*bk5),v_in+dt*(b21*vk1+b22*vk2+b23*vk3+b24*vk4),bk7,vk7,ndt,nmhc2s)
+  CALL get_rhs(b_in+dt*(a31*bk1+a32*bk2+a33*bk3+a34*bk4+a35*bk5),v_in+dt*(b31*vk1+b32*vk2+b33*vk3+b34*vk4),bk8,vk8,ndt,nmhc3s)
+  CALL get_rhs(b_in+dt*(a41*bk1+a42*bk2+a43*bk3+a44*bk4+a45*bk5),v_in+dt*(b41*vk1+b42*vk2+b43*vk3+b44*vk4),bk9,vk9,ndt,nmhc4s)
+  CALL get_rhs(b_in+dt*(a51*bk1+a52*bk2+a53*bk3+a54*bk4+a55*bk5),v_in+dt*(b51*vk1+b52*vk2+b53*vk3+b54*vk4),bk10,vk10,ndt,nmhc5s)
+
+  l2norm = sqrt(sum(abs(bk1-bk6)**2.0+abs(vk1-vk6)**2.0+abs(bk2-bk7)**2.0+abs(vk2-vk7)**2.0+abs(bk3-bk8)**2.0 &
+       + abs(vk3-vk8)**2.0 + abs(bk4-bk9)**2.0 + abs(vk4-vk9)**2.0 + abs(bk5-bk10)**2.0 + abs(vk5-vk10)**2.0))
+  maxdev = max(maxval(abs(bk1-bk6)),maxval(abs(bk2-bk7)),maxval(abs(bk3-bk8)),maxval(abs(bk4-bk9)),maxval(abs(bk5-bk10)),&
+       maxval(abs(vk1-vk6)),maxval(abs(vk2-vk7)),maxval(abs(vk3-vk8)),maxval(abs(vk4-vk9)),maxval(abs(vk5-vk10)))
+
+  solvloop = 0
+
+  if ((solvloop.lt.1000).and.(l2norm.gt.10.0**(-14.0))) then
+     bk1 = bk6
+     bk2 = bk7
+     bk3 = bk8
+     bk4 = bk9
+     bk5 = bk10
+     vk1 = vk6
+     vk2 = vk7
+     vk3 = vk8
+     vk4 = vk9
+     vk5 = vk10
+
+     CALL get_rhs(b_in,v_in+dt*(b11*vk1+b12*vk2+b13*vk3+b14*vk4),bk6,vk6,ndt,nmhc1s)
+     CALL get_rhs(b_in+dt*(a21*bk1+a22*bk2+a23*bk3+a24*bk4+a25*bk5),v_in+dt*(b21*vk1+b22*vk2+b23*vk3+b24*vk4),bk7,vk7,ndt,nmhc2s)
+     CALL get_rhs(b_in+dt*(a31*bk1+a32*bk2+a33*bk3+a34*bk4+a35*bk5),v_in+dt*(b31*vk1+b32*vk2+b33*vk3+b34*vk4),bk8,vk8,ndt,nmhc3s)
+     CALL get_rhs(b_in+dt*(a41*bk1+a42*bk2+a43*bk3+a44*bk4+a45*bk5),v_in+dt*(b41*vk1+b42*vk2+b43*vk3+b44*vk4),bk9,vk9,ndt,nmhc4s)
+     CALL get_rhs(b_in+dt*(a51*bk1+a52*bk2+a53*bk3+a54*bk4+a55*bk5),v_in+dt*(b51*vk1+b52*vk2+b53*vk3+b54*vk4),bk10,vk10,ndt,nmhc5s)
+
+     maxdev = max(maxval(abs(bk1-bk6)),maxval(abs(bk2-bk7)),maxval(abs(bk3-bk8)),maxval(abs(bk4-bk9)),maxval(abs(bk5-bk10)),&
+          maxval(abs(vk1-vk6)),maxval(abs(vk2-vk7)),maxval(abs(vk3-vk8)),maxval(abs(vk4-vk9)),maxval(abs(vk5-vk10)))
+     l2norm = sqrt(sum(abs(bk1-bk6)**2.0+abs(vk1-vk6)**2.0+abs(bk2-bk7)**2.0+abs(vk2-vk7)**2.0+abs(bk3-bk8)**2.0 &
+       + abs(vk3-vk8)**2.0 + abs(bk4-bk9)**2.0 + abs(vk4-vk9)**2.0 + abs(bk5-bk10)**2.0 + abs(vk5-vk10)**2.0))
+     solvloop = solvloop + 1
+
+  endif
+
+  if (itime.eq.10) print *, "itime 10 Number of Iterations",solvloop
+  if (solvloop.eq.1000) print *, "Failed to Converge After 1000 Iterations",l2norm,maxdev
+
+  b_in = b_in + dt * bk10
+  v_in = v_in + dt * (1.0/20.0 * vk6 + 49.0/180.0 * vk7 + 16.0/45.0 * vk8 + 49.0/180.0 * vk9 + 1.0/20.0 * vk10)
+
+  ! Does it matter whether I use the b or v integrator for the magnetic helicity correction??
+  
+  mhelcorr = mhelcorr + dt * nmhc5s
+
+  if (.not.calc_dt) ndt = dt_max
+  
+END SUBROUTINE STORM8
+
+SUBROUTINE DORPI8713M(b_in,v_in)
+  IMPLICIT NONE
+
+  ! Uses the 8th order adaptive explicit Dormand Prince system for time integration
+  ! https://doi.org/10.1016/0771-050X(81)90010-3
+  
+  COMPLEX, INTENT(INOUT) :: b_in(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2)
+  COMPLEX, INTENT(INOUT) :: v_in(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2)
+  
+  REAL :: nmhc1,nmhc2,nmhc3,nmhc4,nmhc5,nmhc6,nmhc7,nmhc8,nmhc9,nmhc10,nmhc11,nmhc12,nmhc13
+  REAL :: a21,a31,a41,a51,a61,a71,a81,a91,a101,a111,a121,a131
+  REAL :: a32,a43,a53,a54,a64,a74,a84,a94,a104,a114,a124,a134
+  REAL :: a65,a75,a85,a95,a105,a115,a125,a135
+  REAL :: a76,a86,a96,a106,a116,a126,a136
+  REAL :: a87,a97,a107,a117,a127,a137,a98,a108,a118,a128,a138
+  REAL :: a109,a119,a129,a139,a1110,a1210,a1310,a1211,a1311
+  REAL :: b1,b6,b7,b8,b9,b10,b11,b12
+  REAL :: bb1,bb6,bb7,bb8,bb9,bb10,bb11,bb12,bb13
+  REAL :: err,ndt
+
+  ! Rational approximations to the Butcher matrices and solution vectors from paper
+  
+  a21 = 1.0/18.0
+  a31 = 1.0/48.0
+  a41 = 1.0/32.0
+  a51 = 5.0/16.0
+  a61 = 3.0/80.0
+  a71 = 29443841.0/614563906.0
+  a81 = 16016141.0/946692911.0
+  a91 = 39632708.0/573591083.0
+  a101 = 246121993.0/1340847787.0
+  a111 = -1028468189.0/846180014.0
+  a121 = 185892177.0/718116043.0
+  a131 = 403863854.0/491063109.0
+  a32 = 1.0/16.0
+  a43 = 3.0/32.0
+  a53 = -75.0/64.0
+  a54 = 75.0/64.0
+  a64 = 3.0/16.0
+  a74 = 77736538.0/692538347.0
+  a84 = 61564180/158732637.0
+  a94 = - 433636366.0/683701615.0
+  a104 = -37695042795.0/15268766246.0
+  a114 = 8478235783.0/508512852.0
+  a124 = - 3185094517.0/667107341.0
+  a134 = - 5068492393.0/434740067.0
+  a65 = 3.0/20.0
+  a75 = -28693883.0/1125000000.0
+  a85 = 22789713.0/633445777.0
+  a95 = -421739975.0/2616292301.0
+  a105 = -309121744.0/1061227803.0
+  a115 = 1311729495.0/1432422823.0
+  a125 = -477755414.0/1098053517.0
+  a135 = -411421997.0/543043805.0
+  a76 = 23124283.0/1800000000.0
+  a86 = 545815736.0/2771057229.0
+  a96 = 100302831.0/723423059.0
+  a106 = -12992083.0/490766935.0
+  a116 = -10304129995.0/1701304382.0
+  a126 = -703635378.0/230739211.0
+  a136 = 652783627.0/914296604.0
+  a87 = - 180193667.0/1043307555.0
+  a97 = 790204164.0/839813087.0
+  a107 = 6005943493.0/2108947869.0
+  a117 = -48777925059.0/3047939560.0
+  a127 = 5731566787.0/1027545527.0
+  a137 = 11173962825.0/925320556.0
+  a98 = 800635310.0/3783071287.0
+  a108 = 393006217.0/1396673457.0
+  a118 = 15336726248.0/1032824649.0
+  a128 = 5232866602.0/850066563.0
+  a138 = -13158990841.0/6184727034.0
+  a109 = 123872331.0/1001029789.0
+  a119 = -45442868181.0/3398467696.0
+  a129 = -4093664535.0/808688257.0
+  a139 = 3936647629.0/1978049680.0
+  a1110 = 3065993473.0/597172653.0
+  a1210 = 3962137247.0/1805957418.0
+  a1310 = -160528059.0/685178525.0
+  a1211 = 65686358.0/487910083.0
+  a1311 = 248638103.0/1413531060.0
+
+  b1 = 13451932.0/455176623.0
+  b6 = -808719846.0/976000145.0
+  b7 = 1757004468.0/5645159321.0
+  b8 = 656045339.0/265891186.0
+  b9 = -3867574721.0/1518517206.0
+  b10 = 465885868.0/322736535.0
+  b11 = 53011238.0/667516719.0
+  b12 = 2.0/45.0
+
+  bb1 = 14005451.0/335480064.0
+  bb6 = -59238493.0/1068277825.0
+  bb7 = 181606767.0/758867731.0
+  bb8 = 561292985.0/797845732.0
+  bb9 = -1041891430.0/1371343529.0
+  bb10 = 760417239.0/1151165299.0
+  bb11 = 118820643.0/751138087.0
+  bb12 = -528747749.0/2220607170.0
+  bb13 = 1.0/4.0
+
+  ! Do the time steps
+
+  CALL get_rhs(b_in,v_in,bk1,vk1,ndt,nmhc1)
+  CALL get_rhs(b_in+dt*(a21*bk1),v_in+dt*(a21*vk1),bk2,vk2,ndt,nmhc2)
+  CALL get_rhs(b_in+dt*(a31*bk1+a32*bk2),v_in+dt*(a31*vk1+a32*vk2),bk3,vk3,ndt,nmhc3)
+  CALL get_rhs(b_in+dt*(a41*bk1+a43*bk3),v_in+dt*(a41*vk1+a43*vk3),bk4,vk4,ndt,nmhc4)
+  CALL get_rhs(b_in+dt*(a51*bk1+a53*bk3+a54*bk4),v_in+dt*(a51*vk1+a53*vk3+a54*vk4),&
+       bk5,vk5,ndt,nmhc5)
+  CALL get_rhs(b_in+dt*(a61*bk1+a64*bk4+a65*bk5),&
+       v_in+dt*(a61*vk1+a64*vk4+a65*vk5),bk6,vk6,ndt,nmhc6)
+  CALL get_rhs(b_in+dt*(a71*bk1+a74*bk4+a75*bk5+a76*bk6),&
+       v_in+dt*(a71*vk1+a74*vk4+a75*vk5+a76*vk6),bk7,vk7,ndt,nmhc7)
+  CALL get_rhs(b_in+dt*(a81*bk1+a84*bk4+a85*bk5+a86*bk6+a87*bk7),&
+       v_in+dt*(a81*vk1+a84*vk4+a85*vk5+a86*vk6+a87*vk7),bk8,vk8,ndt,nmhc8)
+  CALL get_rhs(b_in+dt*(a91*bk1+a94*bk4+a95*bk5+a96*bk6+a97*bk7+a98*bk8),&
+       v_in+dt*(a91*vk1+a94*vk4+a95*vk5+a96*vk6+a97*vk7+a98*vk8),bk9,vk9,ndt,nmhc9)
+  CALL get_rhs(b_in+dt*(a101*bk1+a104*bk4+a105*bk5+a106*bk6+a107*bk7+a108*bk8+a109*bk9),&
+       v_in+dt*(a101*vk1+a104*vk4+a105*vk5+a106*vk6+a107*vk7+a108*vk8+a109*vk9),bk10,vk10,ndt,nmhc10)
+  CALL get_rhs(b_in+dt*(a111*bk1+a114*bk4+a115*bk5+a116*bk6+a117*bk7+a118*bk8+a119*bk9+a1110*bk10),&
+       v_in+dt*(a111*vk1+a114*vk4+a115*vk5+a116*vk6+a117*vk7+a118*vk8+a119*vk9+a1110*vk10),bk11,vk11,ndt,nmhc11)
+  CALL get_rhs(b_in+dt*(a121*bk1+a124*bk4+a125*bk5+a126*bk6+a127*bk7+a128*bk8+a129*bk9+a1210*bk10+a1211*bk11),&
+       v_in+dt*(a121*vk1+a124*vk4+a125*vk5+a126*vk6+a127*vk7+a128*vk8+a129*vk9+a1210*vk10+a1211*vk11),bk12,vk12,ndt,nmhc12)
+  CALL get_rhs(b_in+dt*(a131*bk1+a134*bk4+a135*bk5+a136*bk6+a137*bk7+a138*bk8+a139*bk9+a1310*bk10+a1311*bk11),&
+       v_in+dt*(a131*vk1+a134*vk4+a135*vk5+a136*vk6+a137*vk7+a138*vk8+a139*vk9+a1310*vk10+a1311*vk11),bk13,vk13,ndt,nmhc13)
+  
+  ! Find seventh and eight order solutions
+
+  b_2 = b_in + dt*(b1*bk1+b6*bk6+b7*bk7+b8*bk8+b9*bk9+b10*bk10+b11*bk11+b12*bk12)
+  v_2 = v_in + dt*(b1*vk1+b6*vk6+b7*vk7+b8*vk8+b9*vk9+b10*vk10+b11*vk11+b12*vk12)
+  b_3 = b_in + dt*(bb1*bk1+bb6*bk6+bb7*bk7+bb8*bk8+bb9*bk9+bb10*bk10+bb11*bk11+bb12*bk12+bb13*bk13)
+  v_3 = v_in + dt*(bb1*vk1+bb6*vk6+bb7*vk7+bb8*vk8+bb9*vk9+bb10*vk10+bb11*vk11+bb12*vk12+bb13*vk13)
+  nmhc4 = mhelcorr + dt*(b1*nmhc1+b6*nmhc6+b7*nmhc7+b8*nmhc8+b9*nmhc9+b10*nmhc10+b11*nmhc11+b12*nmhc12)
+  nmhc5 = mhelcorr + dt*(bb1*nmhc1+bb6*nmhc6+bb7*nmhc7+bb8*nmhc8+bb9*nmhc9+bb10*nmhc10+bb11*nmhc11+bb12*nmhc12+bb13*nmhc13)  
+
+  ! Adaptive step
+  
+  err = max(maxval(abs(b_2-b_3)),maxval(abs(v_2-v_3)))
+  print *, "MHcorr err",nmhc5-nmhc4
+  print *, "Max b v err",err
+  
+  !dt = min(ndt,dt * (10.0**(-8.0)/err)**(1.0/9.0))
+
+  b_in = b_3
+  v_in = v_3
+  mhelcorr = nmhc4
+  
+END SUBROUTINE DORPI8713M
+  
+SUBROUTINE ALLOCATE_STEPS
+
+  IMPLICIT NONE
+
+  
+  ALLOCATE(b_2(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+  ALLOCATE(v_2(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+
+  ALLOCATE(bk1(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+  ALLOCATE(vk1(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+
+  ALLOCATE(bk2(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+  ALLOCATE(vk2(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+
+  if (intorder.eq.41) then
+
+  ALLOCATE(bk1s(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+  ALLOCATE(vk1s(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+
+  ALLOCATE(bk2s(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+  ALLOCATE(vk2s(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+
+endif
+
+  if ((intorder.eq.5).or.(intorder.eq.8 .or. (intorder.eq.81))) then
+
+  ALLOCATE(b_3(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+  ALLOCATE(v_3(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+  ALLOCATE(bk3(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+  ALLOCATE(vk3(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+
+  ALLOCATE(bk4(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+  ALLOCATE(vk4(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+
+  ALLOCATE(bk5(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+  ALLOCATE(vk5(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+
+  ALLOCATE(bk6(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+  ALLOCATE(vk6(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+
+  ALLOCATE(bk7(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+  ALLOCATE(vk7(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+
+  if (intorder.eq.8 .or.(intorder.eq.81)) then
+
+  ALLOCATE(bk8(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+  ALLOCATE(vk8(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+
+  ALLOCATE(bk9(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+  ALLOCATE(vk9(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+
+  ALLOCATE(bk10(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+  ALLOCATE(vk10(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+
+  ALLOCATE(bk11(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+  ALLOCATE(vk11(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+
+  ALLOCATE(bk12(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+  ALLOCATE(vk12(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+
+  ALLOCATE(bk13(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+  ALLOCATE(vk13(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+endif
+
+endif
+
+END SUBROUTINE ALLOCATE_STEPS
+
+SUBROUTINE DEALLOCATE_STEPS
+
+  IMPLICIT NONE
+
+  if (allocated(b_2)) DEALLOCATE(b_2)
+  if (allocated(v_2)) DEALLOCATE(v_2)
+
+  if (allocated(bk1)) DEALLOCATE(bk1)
+  if (allocated(vk1)) DEALLOCATE(vk1)
+
+  if (allocated(bk2)) DEALLOCATE(bk2)
+  if (allocated(vk2)) DEALLOCATE(vk2)
+
+  if (allocated(bk1s)) DEALLOCATE(bk1s)
+  if (allocated(vk1s)) DEALLOCATE(vk1s)
+  if (allocated(bk2s)) DEALLOCATE(bk2s)
+  if (allocated(vk2s)) DEALLOCATE(vk2s)
+
+  if (allocated(b_3)) DEALLOCATE(b_3)
+  if (allocated(v_3)) DEALLOCATE(v_3)
+
+  if (allocated(bk3)) DEALLOCATE(bk3)
+  if (allocated(vk3)) DEALLOCATE(vk3)
+
+  if (allocated(bk4)) DEALLOCATE(bk4)
+  if (allocated(vk4)) DEALLOCATE(vk4)
+
+  if (allocated(bk5)) DEALLOCATE(bk5)
+  if (allocated(vk5)) DEALLOCATE(vk5)
+
+  if (allocated(bk6)) DEALLOCATE(bk6)
+  if (allocated(vk6)) DEALLOCATE(vk6)
+
+  if (allocated(bk7)) DEALLOCATE(bk7)
+  if (allocated(vk7)) DEALLOCATE(vk7)
+
+  if (allocated(bk8)) DEALLOCATE(bk8)
+  if (allocated(vk8)) DEALLOCATE(vk8)
+
+  if (allocated(bk9)) DEALLOCATE(bk9)
+  if (allocated(vk9)) DEALLOCATE(vk9)
+
+  if (allocated(bk10)) DEALLOCATE(bk10)
+  if (allocated(vk10)) DEALLOCATE(vk10)
+
+  if (allocated(bk11)) DEALLOCATE(bk11)
+  if (allocated(vk11)) DEALLOCATE(vk11)
+
+  if (allocated(bk12)) DEALLOCATE(bk12)
+  if (allocated(vk12)) DEALLOCATE(vk12)
+
+  if (allocated(bk13)) DEALLOCATE(bk13)
+  if (allocated(vk13)) DEALLOCATE(vk13)
+
+END SUBROUTINE DEALLOCATE_STEPS
 
 SUBROUTINE LINEARENERGYSPH(b_in,v_in,dt_new)
 
@@ -1233,123 +1379,202 @@ SUBROUTINE DEALLOCATE_SPHS
   DEALLOCATE(vsphk6)
   DEALLOCATE(vsphk7)
 
-endif  
+endif
 
 END SUBROUTINE DEALLOCATE_SPHS
 
-SUBROUTINE GAUSS4(b_in,v_in)
 
-  ! Use the order 4 Gauss Legendre method for time integration
-  ! k1 = f(y + a11 * dt * k1 + a12 * dt * k2)
-  ! k2 = f(y + a21 * dt * k1 + a22 * dt * k2)
-  ! y1 = y + 0.5 * dt * k1 + 0.5 * dt * k2
-  ! This method relies on a fixed point iteration solution for the implicit RK stages
-  
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!                               get_next_rk_test                            !!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+SUBROUTINE get_next_rk_test(g_in,g_out,lambda,dt_test)
+
+ COMPLEX, INTENT(in) :: g_in
+ COMPLEX, INTENT(in) :: lambda
+ COMPLEX, INTENT(out) :: g_out
+ REAL, INTENT(in) :: dt_test
+ COMPLEX :: k1
+ COMPLEX :: k2
+
+ !4th order Runge-Kutta
+ CALL get_rhs_rktest(g_in,k1,lambda)
+ g_out=g_in+(1.0/6.0)*dt_test*k1
+ CALL get_rhs_rktest(g_in+0.5*dt_test*k1,k2,lambda)
+ g_out=g_out+(1.0/3.0)*dt_test*k2
+ CALL get_rhs_rktest(g_in+0.5*dt_test*k2,k1,lambda)
+ g_out=g_out+(1.0/3.0)*dt_test*k1
+ CALL get_rhs_rktest(g_in+dt_test*k1,k2,lambda)
+ g_out=g_out+(1.0/6.0)*dt_test*k2
+
+END SUBROUTINE get_next_rk_test
+
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!                               get_rhs_rktest                              !!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+SUBROUTINE get_rhs_rktest(g_,k_,lambda)
+
   IMPLICIT NONE
+  COMPLEX, INTENT(in) :: g_
+  COMPLEX, INTENT(in) :: lambda
+  COMPLEX, INTENT(out) :: k_
+
+  k_=lambda*g_
+
+END SUBROUTINE get_rhs_rktest
+
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!                              rk4_stability                                !!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+SUBROUTINE rk4_stability
+
+  IMPLICIT NONE
+
+  COMPLEX :: g1,g2
+  COMPLEX :: lambda
+  INTEGER :: i,j,numr,numi
+  REAL :: rlam,ilam
+  !COMPLEX :: k0,kn
+  COMPLEX :: omega
+  REAL, ALLOCATABLE, DIMENSION(:) :: rout,iout
+  REAL, ALLOCATABLE, DIMENSION(:) :: rlamout,ilamout
+  CHARACTER(len=5) :: chnumr,chnumi
+  !INTEGER :: ierr
+
+  IF(np_herm .gt.1) STOP "rk test only for serial execution."
   
-  COMPLEX, INTENT(INOUT) :: b_in(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2)
-  COMPLEX, INTENT(INOUT) :: v_in(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2)
-  REAL :: a11,a12,a21,a22
-  REAL :: nmhc1,nmhc2,nmhc1s,nmhc2s
-  REAL :: dt,maxdev
-  INTEGER :: solvloop
+  c0 = cmplx(rc0,ic0)
+IF (mype.eq.0) THEN
+  OPEN(unit=100,file=trim(diagdir)//'/rout.dat',status='unknown')
+  OPEN(unit=200,file=trim(diagdir)//'/iout.dat',status='unknown')
+  OPEN(unit=300,file=trim(diagdir)//'/rgrid.dat',status='unknown')
+  OPEN(unit=400,file=trim(diagdir)//'/igrid.dat',status='unknown')
 
-  a11 = 1.0/4.0
-  a22 = 1.0/4.0
-  a12 = 1.0/4.0 - sqrt(3.0)/6.0
-  a21 = 1.0/4.0 + sqrt(3.0)/6.0
+  WRITE(*,*) "rmax,imax",rmax,imax
+  numr=nint(rmax*2.0/delta_lambda)
+  numi=nint(imax*2.0/delta_lambda)
+  WRITE(chnumr,'(i5.5)') numr
+  WRITE(chnumi,'(i5.5)') numi
+  WRITE(*,*) "rmax_index",numr
+  WRITE(*,*) "imax_index",numi
+  WRITE(*,*) chnumr
+  WRITE(*,*) chnumi
+  ALLOCATE(rout(numr))
+  ALLOCATE(iout(numr))
+  ALLOCATE(rlamout(numr))
+  ALLOCATE(ilamout(numi))
+  DO j=1,numi
+    DO i=1,numr
+      !IF(j==1) WRITE(100,*) ""
+      !IF(j==1) WRITE(200,*) ""
+      rlam=-1.0*rmax+delta_lambda*(i-1) 
+      ilam=-1.0*imax+delta_lambda*(j-1) 
+      IF(j==1) THEN
+          rlamout(i)=rlam
+          WRITE(300,*) rlam
+      END IF
+      IF(i==1) THEN
+           ilamout(j)=ilam
+          WRITE(400,*) ilam
+      END IF
+      lambda=cmplx(rlam,ilam)
+      g1=cmplx(1.0,0.0)
 
-  ! Initial derivative guesses
-  CALL get_rhs(b_in,v_in,bk1,vk1,nmhc1,dt)
-  CALL get_rhs(b_in+dt*bk1,v_in+dt*vk1,bk2,vk2,nmhc2,dt)
-  
-  ! Start iterating
+      CALL get_next_rk_test(g1,g2,lambda,dt_rktest)
 
-  CALL get_rhs(b_in+a11*dt*bk1+a12*dt*bk2,v_in+a11*dt*vk1+a12*dt*vk2,bk1s,vk1s,nmhc1s,dt)
-  CALL get_rhs(b_in+a21*dt*bk1+a22*dt*bk2,v_in+a21*dt*vk1+a22*dt*vk2,bk2s,vk2s,nmhc2s,dt)
-  
-  ! Fixed point solution
+      omega=(g2-g1)/(0.5*dt_rktest*(g2+g1)) 
+      !omega=(g2-g1)/(dt*g1) 
+      rout(i)=REAL(omega)
+      iout(i)=aimag(omega)
 
-  maxdev = max(maxval(abs(bk1-bk1s)),&
-       maxval(abs(vk1-vk1s)),&
-       maxval(abs(bk2-bk2s)),&
-       maxval(abs(vk2-vk2s)))
-  solvloop = 0
+!!!!!!!!!!!!!!Test
+      rout(i)=(REAL(sqrt(conjg(g2)*g2))-REAL(sqrt(conjg(g1)*g1)))/dt_rktest
+!!!!!!!!!!!!!!Test
+      rlamout(i)=rlam 
+      ilamout(i)=ilam 
+      
 
-  DO WHILE ((solvloop.lt.1000).and.(maxdev.gt.10.0**(-19.0)))
-     ! Check for now to see if the fixed point iteration converges
-     if (verbose) print *, "Iteration ",solvloop,"Discrepancy ",maxdev
+    END DO
+    WRITE(100,'('//chnumr//'es16.8)') rout
+    WRITE(200,'('//chnumr//'es16.8)') iout
+  END DO
 
-     bk1 = bk1s
-     bk2 = bk2s
-     vk1 = vk1s
-     vk2 = vk2s
+  CLOSE(100)
+  CLOSE(200)
+  CLOSE(300)
+  CLOSE(400)
 
-     CALL get_rhs(b_in+a11*dt*bk1+a12*dt*bk2,v_in+a11*dt*vk1+a12*dt*vk2,bk1s,vk1s,nmhc1s,dt)
-     CALL get_rhs(b_in+a21*dt*bk1+a22*dt*bk2,v_in+a21*dt*vk1+a22*dt*vk2,bk2s,vk2s,nmhc2s,dt)
 
-     solvloop = solvloop + 1
-     maxdev = max(maxval(abs(bk1-bk1s)),&
-          maxval(abs(vk1-vk1s)),&
-          maxval(abs(bk2-bk2s)),&
-          maxval(abs(vk2-vk2s)))
 
-     if (solvloop.eq.999) print *, "Failed to Converge After 1000 iterations Maxdev ",maxdev
+  OPEN(unit=100,file=trim(diagdir)//'/SR_test.dat',status='unknown')
+  DO j=1,numi
+      !IF(j==1) WRITE(100,*) ""
+      !IF(j==1) WRITE(200,*) ""
+      rlam=0.0
+      ilam=-1.0*imax+delta_lambda*(j-1) 
+      lambda=cmplx(rlam,ilam)
+      g1=cmplx(1.0,0.0)
 
-  ENDDO
+      CALL get_next_rk_test(g1,g2,lambda,dt_rktest)
+!!!!!!!!!!!!!!!!!!!RK4!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!RK4!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!RK4!!!!!!!!!!!!!!!!
+!      CALL get_rhs(g1,lambda,k0)  !get k1
+!      g2=g1+1.0/6.0*k0*dt     
+!      CALL get_rhs(g1+0.5*dt*k0,lambda,kn) !get k2
+!      g2=g2+1.0/3.0*kn*dt
+!      CALL get_rhs(g1+0.5*dt*kn,lambda,k0) !get k3
+!      g2=g2+1.0/3.0*k0*dt
+!      CALL get_rhs(g1+dt*k0,lambda,kn)     !get k4
+!      g2=g2+1.0/6.0*kn*dt
+!!!!!!!!!!!!!!!!!!!RK4!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!RK4!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!RK4!!!!!!!!!!!!!!!!
 
-  if (itime.eq.10) print *, "Number of Iterations Needed itime = 10 ",solvloop
+      omega=(g2-g1)/(0.5*dt_rktest*(g2+g1)) 
+      !omega=(g2-g1)/(dt*g1) 
+!!!!!!!!!!!!!!Test
+!      rout(i)=(REAL(sqrt(conjg(g2)*g2))-REAL(sqrt(conjg(g1)*g1)))/dt
+!!!!!!!!!!!!!!Test
+      WRITE(100,*) ilam,(REAL(sqrt(conjg(g2)*g2))-REAL(sqrt(conjg(g1)*g1)))/dt_rktest
+  END DO
+  CLOSE(100)
 
-  ! Update the fields
-  
-  b_2 = b_in + (1.0/2.0) * dt * bk1s + (1.0/2.0) * dt * bk2s
-  v_2 = v_in + (1.0/2.0) * dt * vk1s + (1.0/2.0) * dt * vk2s
-  mhelcorr = mhelcorr + (1.0/2.0) * dt * nmhc1s + (1.0/2.0) * dt * nmhc2s
+  OPEN(unit=100,file=trim(diagdir)//'/SI_test.dat',status='unknown')
+  DO i=1,numr
+      !IF(j==1) WRITE(100,*) ""
+      !IF(j==1) WRITE(200,*) ""
+      ilam=0.0
+      rlam=-1.0*rmax+delta_lambda*(i-1) 
+      lambda=cmplx(rlam,ilam)
+      g1=cmplx(1.0,0.0)
 
-   if (.false..and.max_itime.le.101) then
-  ! Test sensitivity of fixed point iteration to the initial condition
-  ! Repeat the calculation but switch the initial k1,k2
+      CALL get_next_rk_test(g1,g2,lambda,dt_rktest)
+!!!!!!!!!!!!!!!!!!!RK4!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!RK4!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!RK4!!!!!!!!!!!!!!!!
+!      CALL get_rhs(g1,lambda,k0)  !get k1
+!      g2=g1+1.0/6.0*k0*dt     
+!      CALL get_rhs(g1+0.5*dt*k0,lambda,kn) !get k2
+!      g2=g2+1.0/3.0*kn*dt
+!      CALL get_rhs(g1+0.5*dt*kn,lambda,k0) !get k3
+!      g2=g2+1.0/3.0*k0*dt
+!      CALL get_rhs(g1+dt*k0,lambda,kn)     !get k4
+!      g2=g2+1.0/6.0*kn*dt
+!!!!!!!!!!!!!!!!!!!RK4!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!RK4!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!RK4!!!!!!!!!!!!!!!!
 
-  CALL get_rhs(b_in,v_in,bk2,vk2,nmhc1,dt)
-  CALL get_rhs(b_in+dt*bk2,v_in+dt*vk2,bk1,vk1,nmhc2,dt)
+      !omega=(g2-g1)/(dt*g1) 
+      omega=(g2-g1)/(0.5*dt_rktest*(g2+g1)) 
 
-  CALL get_rhs(b_in+a11*dt*bk1+a12*dt*bk2,v_in+a11*dt*vk1+a12*dt*vk2,bk1s,vk1s,nmhc1s,dt)
-  CALL get_rhs(b_in+a21*dt*bk1+a22*dt*bk2,v_in+a21*dt*vk1+a22*dt*vk2,bk2s,vk2s,nmhc2s,dt)
+      WRITE(100,*) rlam,REAL(omega)
+  END DO
+  CLOSE(100)
 
-  maxdev = sum(abs(bk1-bk1s)+abs(vk1-vk1s)+abs(bk2-bk2s)+abs(vk2-vk2s))
-  solvloop = 0
+ENDIF
 
-  DO WHILE ((solvloop.lt.1000).and.(maxdev.gt.10.0**(-16.0)))
-     ! Check for now to see if the fixed point iteration converges                                                                                                                                          
-     print *, "Iteration ",solvloop,"Discrepancy ",maxdev
-
-     bk1 = bk1s
-     bk2 = bk2s
-     vk1 = vk1s
-     vk2 = vk2s
-
-     CALL get_rhs(b_in+a11*dt*bk1+a12*dt*bk2,v_in+a11*dt*vk1+a12*dt*vk2,bk1s,vk1s,nmhc1s,dt)
-     CALL get_rhs(b_in+a21*dt*bk1+a22*dt*bk2,v_in+a21*dt*vk1+a22*dt*vk2,bk2s,vk2s,nmhc2s,dt)
-
-     solvloop = solvloop + 1
-     maxdev = sum(abs(bk1-bk1s)+abs(vk1-vk1s)+abs(bk2-bk2s)+abs(vk2-vk2s))
-
-  ENDDO
-
-  b_in = b_in + (1.0/2.0) * dt * bk1s + (1.0/2.0) * dt * bk2s
-  v_in = v_in + (1.0/2.0) * dt * vk1s + (1.0/2.0) * dt * vk2s
-  mhelcorr = mhelcorr + (1.0/2.0) * dt * nmhc1s + (1.0/2.0) * dt * nmhc2s
-
-  print *, "Difference in New Field from Swung Guess", max(maxval(abs(b_in-b_2)),maxval(abs(v_in-v_2)))
-
-  else
-
-   b_in = b_2
-   v_in = v_2
-   
-  endif  
-
-END SUBROUTINE GAUSS4
-
+END SUBROUTINE rk4_stability
 
 END MODULE time_advance

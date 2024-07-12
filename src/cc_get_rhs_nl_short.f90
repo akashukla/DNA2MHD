@@ -477,7 +477,7 @@ if (verbose) print *, 'rhs out v nl found'
 if (calc_dt) CALL next_dt(ndt)
 if (.not.(calc_dt)) ndt = dt_max
 
-print *, 'next dt calculated ',ndt
+if (calc_dt) print *, 'next dt calculated ',ndt
 
 END SUBROUTINE get_rhs_nl1
 

@@ -4,8 +4,8 @@
 #SBATCH -n 1           # Total number of mpi tasks requested
 #SBATCH -N 1           # Total number of mpi tasks requested
 #SBATCH -p vm-small   # Queue (partition) name -- normal, development, etc.
-#SBATCH -t 03:00:00     # Run time (hh:mm:ss) - 1.5 hours
+#SBATCH -t 00:20:00     # Run time (hh:mm:ss) - 1.5 hours
 #SBATCH -A PHY23037 # Project name
 
 module load python3
-python3 plotmaker3.py
+python3 convg711.py
