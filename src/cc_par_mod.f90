@@ -33,6 +33,7 @@ MODULE par_mod
   LOGICAL :: forceb=.false. ! Whether or not b is forced
   REAL :: kzmin=0.1,kymin=0.1,kxmin=0.1  !minimum k's  (i.e. sets box size)
   REAL :: init_amp_bx=0.01,init_amp_by=0.01,init_amp_bz=0.01, init_amp_vx=0.01, init_amp_vy=0.01, init_amp_vz=0.01
+  REAL :: init_energy=0.01
   REAL :: init_kolm = 1.66 !initial scaling exponent of the energy spectrum i.e. vk^2 propto k^(-init_kolm)
   REAL :: phdf = 0.25
   REAL :: phdfxy = 0.0
@@ -79,6 +80,8 @@ MODULE par_mod
   REAL :: kzmax
   REAL :: kxmax
   REAL :: kymax
+  REAL :: kmax
+
   !k*max: for eigenvalue scans (DEFAULT is set high in CASE of misuse in EV
   !calcs
   REAL :: kzmax0=1000.0
@@ -236,7 +239,7 @@ MODULE par_mod
 
   !Permanent
   REAL, PARAMETER :: pi=3.141592653589793238
-  REAL, PARAMETER :: e=2.71828183
+  REAL, PARAMETER :: e=exp(1.0)
   COMPLEX, PARAMETER :: i_complex=(0.0,1.0)
 
   !MPI 

@@ -37,7 +37,7 @@ SUBROUTINE read_parameters
       np_kz,np_spec,np_hank,&
       courant,hyp_conv,num_k_hyp_conv,hyp_conv_ky,hypx_order,hypy_order,hypz_order,&
       kxinit_min, kxinit_max, kyinit_min, kyinit_max, kzinit_min, kzinit_max,&
-      init_amp_bx,init_amp_by,init_amp_bz, init_amp_vx, init_amp_vy, init_amp_vz,init_kolm,phdf,phdfxy,hyp, &
+      init_amp_bx,init_amp_by,init_amp_bz, init_amp_vx, init_amp_vy, init_amp_vz,init_kolm,phdf,phdfxy,hyp,init_energy, &
       nkxforce,nkyforce,nkzforce, force_amp,force_frac
   !,&
       !mu_grid_type, vmax,hyp_nu,fracx, fracy
@@ -317,6 +317,7 @@ SUBROUTINE output_parameters
     WRITE(out_handle,"(A,G12.4)") "init_amp_by = ",init_amp_by
     WRITE(out_handle,"(A,G12.4)") "init_amp_vx = ",init_amp_vx
     WRITE(out_handle,"(A,G12.4)") "init_amp_vy = ",init_amp_vy
+    WRITE(out_handle,"(A,G12.4)") "init_energy = ",init_energy
     WRITE(out_handle,"(A,G12.4)") "force_frac = ",force_frac
     WRITE(out_handle,"(A,G12.4)") "init_kolm = ",init_kolm
     WRITE(out_handle,"(A,G12.4)") "phdf = ",phdf
@@ -526,9 +527,8 @@ SUBROUTINE checkpoint_out(purpose)
   INTEGER :: chp_handle_b, chp_handle_v, chp_handle
   INTEGER :: l,p
   !COMPLEX :: g_out(0:nkx0-1,0:nky0-1,0:nkz0-1,0:lv0-1)
-  COMPLEX :: b_out(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2)
-  COMPLEX :: v_out(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2)
   !INTEGER :: stat(MPI_STATUS_SIZE)
+  
   INTEGER :: send_proc,recv_proc,ierr
   !LOGICAL :: g_output,not_first
   LOGICAL :: not_first,b_output,v_output
@@ -636,34 +636,22 @@ SUBROUTINE checkpoint_out(purpose)
       WRITE(chp_handle_v) time 
       !WRITE(*,*) 'Wrote to chp_handle_b and v'
     END IF
-  END IF
-
-  IF(purpose==5.or.purpose==6) THEN
-  !   IF(verbose) WRITE(*,*) "gnlout:p,mype",p,mype
-  !   CALL get_phi(g_1) 
-  !   g_out=cmplx(0.0,0.0)
-  !   CALL get_rhs_nl(g_1,phi,g_out)
-  ELSE
-     !g_out = g_1(:,:,:,:,0,0)
-     b_out = b_1(:,:,:,:)
-     v_out = v_1(:,:,:,:)
-  ENDIF
+ END IF
 
   IF(mype==0) THEN
     !DO l=lv1,lv2
-    DO l=0,2
       !WRITE(*,*) 'l=0,2 loop'
 	  !WRITE(chp_handle) g_out(:,:,:,l)
-      IF(b_output.and.v_output) THEN
-	    WRITE(chp_handle_b) b_out(:,:,:,l)
-	    WRITE(chp_handle_v) v_out(:,:,:,l)
+     IF(b_output.and.v_output) THEN
+	    WRITE(chp_handle_b) b_1
+	    WRITE(chp_handle_v) v_1
       !ELSE
 	  !  WRITE(chp_handle) b_out(:,:,:,l)
-      END IF
 	  !WRITE(chp_handle) v_out(:,:,:,l)
-      !WRITE(*,*) 'Done with l=0,2'
-    END DO
-  END IF 
+     !WRITE(*,*) 'Done with l=0,2'
+  ENDIF
+
+END IF
 
 !  DO p=1,np_herm-1
 !    send_proc=p

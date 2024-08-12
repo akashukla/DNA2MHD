@@ -12,9 +12,9 @@ rey = 0.0
 kxmin =   0.10
 kymin =   0.10
 kzmin =   0.05
-nkx0 = 32
-nky0 = 64
-nkz0 = 64
+nkx0 = 16
+nky0 = 32
+nkz0 = 32
 nv0 =   2
 nh0 =    1
 nspec =    1
@@ -35,32 +35,34 @@ courant =   0.5
 kxinit_min = 0
 kyinit_min = 0
 kzinit_min = 0
-kxinit_max = 32
-kyinit_max = 64
-kzinit_max = 64
-init_amp_bx = 0.01
-init_amp_by = 0.1
-init_amp_bz = 0.1
-init_amp_vx = 0.1
-init_amp_vy = 0.1
+kxinit_max = 16
+kyinit_max = 32
+kzinit_max = 32
+init_energy = 0.01
+init_amp_bx = 0.0
+init_amp_by = 0.0
+init_amp_bz = 0.0
+init_amp_vx = 0.0
+init_amp_vy = 0.0
 init_amp_vz = 0.0
 init_kolm = 2.0
 phdf = 2.0
 phdfxy = 2.0
-force_amp = 0.2
+force_amp = 0.002
 nkxforce = 16
 nkyforce = 16
 nkzforce = 16
 force_frac = 0.3
-hyp = 1
+hyp = 2
 /
 
 &diagnostics
-diagdir = '/scratch/08929/echansen/dna2mhdrunctpush32563'
+diagdir = '/scratch/08929/echansen/dna2mhdrunquicktest3'
 istep_ffm =   20
 istep_energy3d =  500
 istep_energy =  1
 istep_energyspec = 20
+
 istep_hermite =  1000
 istep_gout =  1
 istep_gk =    0
@@ -75,9 +77,9 @@ output_nlt_n = F
 /
 
 &flags
-verbose  = F
+verbose  = T
 nonlinear  = T
-actual_nonlinear = T
+actual_nonlinear = F
 calc_dt  = F
 comp_type = 'IV'
 checkpoint_read = F
@@ -88,7 +90,7 @@ nuno_closure = T
 rhs_nl_version = 12
 linen = F
 keepzero = T
-intorder = 5
+intorder = 4
 rhs_lin_version = 1
 dealias_type = 3
 shifted = F
@@ -130,9 +132,9 @@ random_state = 3
 /
 
 &initial_value
-max_itime = 11
+max_itime = 100
 max_walltime =   10000000.0
-dt_max = 0.5
+dt_max = 0.02
 fix_dt = F
 max_time =   10000000.
 /

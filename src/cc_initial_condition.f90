@@ -28,7 +28,6 @@ SUBROUTINE initial_condition(which_init0)
 
   INTEGER :: i,j,k, l,zst,xst,yst,ri
   REAL :: kfactor,err
-  REAL :: divratio(0:nkx0-1,0:nky0-1,1:nkz0-1)
   REAL :: s1, s11,s12,s13,s4
   !REAL :: init_prefactor
   COMPLEX :: phase,phaseb,phasev,phaseby,phasevy
@@ -37,6 +36,7 @@ SUBROUTINE initial_condition(which_init0)
   CHARACTER(len=40), INTENT(in) :: which_init0
   CHARACTER(len=40) :: which_init
   REAL :: zerocmplx
+  REAL :: kxzeroen,knzeroen,kxzeroenm,knzeroenm
 
   INTEGER, DIMENSION(:), ALLOCATABLE :: rseed
   INTEGER :: rseed_size,ierr
@@ -52,29 +52,27 @@ SUBROUTINE initial_condition(which_init0)
 
   xst = max(1,kxinit_min)
   yst = max(1,kyinit_min)
-  zst = max(1,kzinit_min)
+  zst = max(1,lkz1)
 
   DO i = 0,nkx0-1
     DO j = 0,nky0-1
-      DO k = 0,nkz0-1
+      DO k = lkz1,lkz2
         kmags(i,j,k) = sqrt(kxgrid(i)**2 + kygrid(j)**2 + kzgrid(k)**2)
         kperps(i,j,k) = sqrt(kxgrid(i)**2 + kygrid(j)**2)
         kzs(i,j,k) = kzgrid(k)
-  ! Energy Fixing Redone Later
-  !      divratio(i,j,k) = (kxgrid(i)+kygrid(j))/kzgrid(k)
       END DO
     END DO
  END DO
 
- ALLOCATE(alpha_leftwhist(0:nkx0-1,0:nky0-1,0:nkz0-1))
- ALLOCATE(alpha_leftcyclo(0:nkx0-1,0:nky0-1,0:nkz0-1))
+ ALLOCATE(alpha_leftwhist(0:nkx0-1,0:nky0-1,lkz1:lkz2))
+ ALLOCATE(alpha_leftcyclo(0:nkx0-1,0:nky0-1,lkz1:lkz2))
 
  alpha_leftwhist = -kmags/2.0 - sqrt(1.0 + ((kmags**2.0) / 4.0))
  alpha_leftcyclo = -kmags/2.0 + sqrt(1.0 + ((kmags**2.0) / 4.0))
 
  DO i = 0,nkx0-1
     DO j = 0,nky0-1
-       DO k = 0,nkz0-1
+       DO k = lkz1,lkz2
           IF ((kmags(i,j,k).ne.0).and.(kperps(i,j,k).ne.0)) THEN
              b1r = -1.0 / (kperps(i,j,k)*sqrt(2.0)) * kygrid(j)
              b2r = 1.0 / (kperps(i,j,k)*sqrt(2.0)) * kxgrid(i)
@@ -93,18 +91,9 @@ SUBROUTINE initial_condition(which_init0)
     ENDDO
  ENDDO
 
- ! if (verbose) print *, en_leftwhist, en_leftcyclo, en_rightwhist, en_rightcyclo
- 
-  ! s1 = 2*sum(kmags(xst:kxinit_max-1,yst:kyinit_max-1,zst:kzinit_max-1) ** (-1.0*init_kolm))
-  ! s2 = 2*sum((divratio(xst:kxinit_max-1,yst:kyinit_max-1,zst:kzinit_max-1) ** 2) * kmags(0:kxinit_max-1,0:kyinit_max-1,1:kzinit_max-1) ** (-1.0 * init_kolm))
-  ! s3 = 2*sum(kmags(1:nkxforce,1:nkyforce,1:nkzforce) ** (-0.5*init_kolm))  
-
-  s4 = 2*sum(kmags(xst:kxinit_max-1,yst:kyinit_max-1,zst:kzinit_max-1) ** (2*real(hyp)-1.0*init_kolm))
-  ! s5 = 2*sum((divratio(xst:kxinit_max-1,yst:kyinit_max-1,zst:kzinit_max-1) ** 2) * kmags(0:kxinit_max-1,0:kyinit_max-1,1:kzinit_max-1) ** (2*real(hyp)-1.0*init_kolm))
-
-  !init_prefactor=0.001
-!Default Initialization
-!      CALL RANDOM_SEED
+ !init_prefactor=0.001
+ !Default Initialization
+ !      CALL RANDOM_SEED
 
       ! This seeding procedure is inspired by the fortran random_seed example
       ! Is probably a bit weaker depending on the clock 
@@ -129,45 +118,39 @@ SUBROUTINE initial_condition(which_init0)
          print *, testrandoms
       endif
 
-      ! I'm not truncating initial conditions for now
+      ! Not truncating initial conditions (for now)
       truncx = 300.0
       truncy = 300.0
       truncz = 300.0
       
       if (enone) s1 = 0.0
-      
+
       DO i=xst,nkx0-1
          DO j=yst,nky0-1
-            DO k=zst,nkz0-1
+            DO k=zst,lkz2
               ! Write the if statements as subroutines sometime
-              
+
+               if ((k.ne.nkz0/2).and.(j.ne.nky0/2)) then
               ! Only initalize selected mode numbers
               
               ! Sometime write this loop as a sequence of subroutines
                 
 !!! Uniform distribution
-                 if ((random_state.ge.0).and.uni) then
-                    if (mype.eq.0) then
-                       CALL RANDOM_NUMBER(phase1)
-                       if (phdf.le.1.0) phase2 = phase1 + phdf
-                       if (phdf.gt.1.0) CALL RANDOM_NUMBER(phase2)
-                       if (phdfxy.le.1.0) then
-                          phase1y = phase1+phdfxy
-                          phase2y = phase2+phdfxy
-                       else
-                          CALL RANDOM_NUMBER(phase1y)
-                          CALL RANDOM_NUMBER(phase2y)
-                       endif
-                       CALL RANDOM_NUMBER(thb)
-                       CALL RANDOM_NUMBER(thv)
+               
+                  if ((random_state.ge.0).and.uni) then
+                    CALL RANDOM_NUMBER(phase1)
+                    if (phdf.le.1.0) phase2 = phase1 + phdf
+                    if (phdf.gt.1.0) CALL RANDOM_NUMBER(phase2)
+                    if (phdfxy.le.1.0) then
+                       phase1y = phase1+phdfxy
+                       phase2y = phase2+phdfxy
+                    else
+                       CALL RANDOM_NUMBER(phase1y)
+                       CALL RANDOM_NUMBER(phase2y)
                     endif
+                    CALL RANDOM_NUMBER(thb)
+                    CALL RANDOM_NUMBER(thv)
 
-                    CALL MPI_BCAST(phase1,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
-                    CALL MPI_BCAST(phase2,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
-                    CALL MPI_BCAST(phase1y,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
-                    CALL MPI_BCAST(phase2y,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
-                    CALL MPI_BCAST(thb,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
-                    CALL MPI_BCAST(thv,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
 
 !!! Triangular distribution 
                     
@@ -223,17 +206,15 @@ SUBROUTINE initial_condition(which_init0)
                  phaseby = cmplx(cos(2*pi*phase1y),sin(2*pi*phase1y))
                  phasevy = cmplx(cos(2*pi*phase2y),sin(2*pi*phase2y))
 
-                 if (mype.eq.0) then
-                    CALL RANDOM_NUMBER(showphase)
-                    if ((max_itime.lt.100).and.(showphase.lt.10.0/real(nkx0*nky0*nkz0))) then
-                       print *, i,j,k
-                       print *, phase1y
-                       print *, phase2
-                       print *, phase2y
-                    endif
+                 CALL RANDOM_NUMBER(showphase)
+                 if ((max_itime.lt.100).and.(showphase.lt.10.0/real(nkx0*nky0*nkz0))) then
+                    print *, i,j,k
+                    print *, phase1y
+                    print *, phase2
+                    print *, phase2y
                  endif
+                                  
                  
-                 !DO l=0,2
 
                  IF(kzgrid(k).eq.zerocmplx) THEN
                     b_1(i,j,k,0)=cmplx(0.0,0.0)
@@ -254,12 +235,11 @@ SUBROUTINE initial_condition(which_init0)
                  ELSE IF (beltrami) THEN
                     ! These initial conditions write a Beltrami decomposition for b,v in terms of curl eigenstates (b1r,\pm b1i) as given below
                     
-                    if (mype.eq.0) then
-                       CALL RANDOM_NUMBER(b1w)
-                       CALL RANDOM_NUMBER(b2w)
-                       CALL RANDOM_NUMBER(v1w)
-                       CALL RANDOM_NUMBER(v2w)
-                    endif
+                    CALL RANDOM_NUMBER(b1w)
+                    CALL RANDOM_NUMBER(b2w)
+                    CALL RANDOM_NUMBER(v1w)
+                    CALL RANDOM_NUMBER(v2w)
+                    
                     CALL MPI_BCAST(b1w,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
                     CALL MPI_BCAST(b2w,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
                     CALL MPI_BCAST(v1w,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
@@ -380,84 +360,79 @@ SUBROUTINE initial_condition(which_init0)
                    
                 END IF
 
-                ! Ensure reality constraints arent violated at i = 0
-                if (i.eq.0) then
-                   b_1(0,mod(nky0-j,nky0),mod(nkz0-k,nkz0),:) = conjg(b_1(0,j,k,:))
-                   v_1(0,mod(nky0-j,nky0),mod(nkz0-k,nkz0),:) = conjg(v_1(0,j,k,:))
-                endif
-                
-                ! makes sure that other modes at the same magnitude of k allow v parallel to box face
-                if (bc_norm) then
-                   v_1(i,mod(nky0-j,nky0),k,1) = -(v_1(i,j,k,1))
-                   v_1(i,j,mod(nkz0-k,nkz0),2) = -(v_1(i,j,k,2))
-                   v_1(i,mod(nky0-j,nky0),mod(nkz0-k,nkz0),0) = -conjg(v_1(i,j,k,0))
-                   b_1(i,mod(nky0-j,nky0),k,1) = -(b_1(i,j,k,1))
-                   b_1(i,j,mod(nkz0-k,nkz0),2) = -(b_1(i,j,k,2))
-                   b_1(i,mod(nky0-j,nky0),mod(nkz0-k,nkz0),0) = -conjg(b_1(i,j,k,0))
-                endif
-               
-             ENDDO
-          END DO
-       END DO
-       b_1(:,nky0/2,:,:) = 0.0
-       b_1(:,:,nkz0/2,:) = 0.0
-       v_1(:,nky0/2,:,:) = 0.0
-       v_1(:,:,nkz0/2,:) = 0.0
-       
-    if (enone) then
-       if (splitx) s1 = sum(abs(b_1(1:nkx0-1,:,:,:))**2+abs(v_1(1:nkx0-1,:,:,:))**2)+0.5*sum(abs(b_1(0,:,:,:))**2+abs(v_1(0,:,:,:))**2)
-       b_1 = b_1 * sqrt(init_amp_bx / (s1))
-       v_1 = v_1 * sqrt(init_amp_bx / (s1))
-    endif
+             endif
+                            
+          ENDDO
+       ENDDO
+    ENDDO
+
+    if (verbose) print *, "Through initial b_1 and v_1",mype
     
-    print *, "Nonlinear Time Scale Estimate", 1/(sqrt(sum(abs(v_1(3,3,3,:))**2))*kmags(3,3,3))
+    ! Set energy as fraction of 4 pi^3
+    if (enone) then
+       if (splitx) then
+          knzeroenm = sum(abs(b_1(1:nkx0-1,:,:,:))**2+abs(v_1(1:nkx0-1,:,:,:))**2)
+          kxzeroenm = sum(0.5*(abs(b_1(0,:,:,:))**2+abs(v_1(0,:,:,:))**2))
+          
+          CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+          CALL MPI_ALLREDUCE(knzeroenm,knzeroen,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
+
+          CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+          CALL MPI_ALLREDUCE(kxzeroenm,kxzeroen,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
+
+          s1 = knzeroen + kxzeroen
+          if (verbose) print *, "s1",s1
+       endif
+    
+       b_1 = b_1 * sqrt(init_energy / (2.0*s1))
+       v_1 = v_1 * sqrt(init_energy / (2.0*s1))
+    endif
+
+    if (verbose) print *, "Through energy normalization"
+    
+    if (enone) print *, "Low k Nonlinear Time Scale Estimate", 1/(kxmin * sqrt(2.0 * pi**3.0 * init_energy))
 
 
     if (nv) b_1(:,:,:,:) = cmplx(0.0,0.0)
+    
     if (taylorgreen) then
        ! Initializes Fourier components of Taylor Green vortex u = sin x cos y cos z , v = - cos x sin y cos z                                                                                
        v_1 = cmplx(0.0,0.0)
+       if (mype.eq.0) then 
        v_1(1,1,0,0) = 1.0
        v_1(1,nky0-1,0,0) = 1.0
        v_1(1,1,0,1) = -1.0
        v_1(1,nky0-1,0,1) = 1.0
+    endif
+    
        v_1 = -v_1 * cmplx(0.0,0.125)
     endif
 
    
-    gpsi(:,:,:,:) = cmplx(0.0,0.0)
-    pre(:,:,:) = cmplx(0.0,0.0)
-    print *, "MaxVal b", maxval(abs(b_1))
-!      print *, "Max BV Cross Product X",maxval(abs(b_1(:,:,:,1)*v_1(:,:,:,2)-b_1(:,:,:,2)*v_1(:,:,:,1))),maxloc(abs(b_1(:,:,:,1)*v_1(:,:,:,2)-b_1(:,:,:,2)*v_1(:,:,:,1)))
-!      print *, "Max BV Cross Product Y",maxval(abs(b_1(:,:,:,2)*v_1(:,:,:,0)-b_1(:,:,:,0)*v_1(:,:,:,2))),maxloc(abs(b_1(:,:,:,2)*v_1(:,:,:,0)-b_1(:,:,:,0)*v_1(:,:,:,2)))
-!      print *, "Max BV Cross Product Z",maxval(abs(b_1(:,:,:,0)*v_1(:,:,:,1)-b_1(:,:,:,1)*v_1(:,:,:,0))),maxloc(abs(b_1(:,:,:,0)*v_1(:,:,:,1)-b_1(:,:,:,1)*v_1(:,:,:,0)))
-
-
-      ! Set dissipation to set relative rate of dissipation at high scales
+    ! Set dissipation to set relative rate of dissipation at high scales
 
     if (rey.eq.0) then
-       vnu = vnu / (maxval(kmags)**(2.0*hyp))
+       vnu = vnu / (kmax**(2.0*hyp))
        rey = 1.0/vnu
     else
        vnu = 1.0/rey
     endif
-    if (verbose) print *, "Reynolds Number",rey
+    if (verbose.and.(mype.eq.0)) print *, "Reynolds Number",rey
  
     eta = eta * vnu
     if(mype.eq.0) print *, 'Viscosity',vnu
 
-      ! Rescale forcing amplitude for to match dissipation in inertial range
-    IF ((force_turbulence).and.set_forcing) force_amp = vnu * s4 / (8.0 * nkxforce * nkyforce * nkzforce * dt_max)
-    IF (forceb) force_amp = force_amp/2.0
-    IF ((mype.eq.0).and.(set_forcing)) print *, 'Force Amp',force_amp
-    IF (force_turbulence) force_amp = force_amp * abs(b_1(nkxforce,nkyforce,nkzforce,0)*(kmags(nkxforce,nkyforce,nkzforce)**(init_kolm/2.0)))
-    IF ((verbose.and.(mype.eq.0)).and.(set_forcing)) print *, 'Force Amp',force_amp
-
+    ! Scale forcing to represent energy gained per time step |F| |v| ~ energy gain per step as fraction of initial energy
+    ! |v| ~ sqrt(|v|^2) ~ sqrt(energy/2)
+        
+    if (force_turbulence) force_amp = force_amp * sqrt(8.0 * pi**3.0 * init_energy)
+    if (verbose.and.(mype.eq.0)) print *, "Force amp",force_amp
+    
       ! Linear stability maximum time step
-    if (calc_dt.and.(.not.(test_ho))) dt_max = minval([dt_max,2.8/(maxval(kzgrid)*(maxval(kmags)/2 + sqrt(1 + 0.25*maxval(kmags)**2.0)))])
+    if (calc_dt.and.(.not.(test_ho))) dt_max = minval([dt_max,1.0/(maxval(kzgrid)*(kmax/2 + sqrt(1 + 0.25*kmax**2.0)))])
     if (verbose.and.(mype.eq.0)) then
        print *, "kzgrid max", maxval(kzgrid)
-       print *, "kmags max", maxval(kmags)
+       print *, "kmags max", kmax
     endif
 
       ! Magnetic Helicity Correction

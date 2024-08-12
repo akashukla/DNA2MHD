@@ -66,18 +66,19 @@ SUBROUTINE get_rhs_lin1_ae(b_in, v_in, rhs_out_b,rhs_out_v, which_term)
  COMPLEX :: phi_mod1,phi_mod2,g0_bcast
  COMPLEX :: g_closure
  REAL :: L
- REAL :: Larr(0:nkx0-1,0:nky0-1,lkz1:lkz2)
 
  rhs_out_b=cmplx(0.0,0.0)
  rhs_out_v=cmplx(0.0,0.0)
 
  !IF(verbose.and.mype==0) WRITE(*,*) "get_rhs_lin1", 68
+
  DO i=0,nkx0-1
    DO j=0,nky0-1
      DO k=lkz1,lkz2
-        L = kxgrid(i)*kxgrid(i) + kygrid(j)*kygrid(j) + kzgrid(k)*kzgrid(k)
-        Larr(i,j,k) = L
-     !eqn 14
+        ! L = kxgrid(i)*kxgrid(i) + kygrid(j)*kygrid(j) + kzgrid(k)*kzgrid(k)
+        L = 0
+        
+        !eqn 14
         !rhs_out_b(i,j,k,0) = i_complex*kzgrid(k)*v_in(i,j,k,0) + i_complex*kygrid(j)*b_in(i,j,k,2) -i_complex*kzgrid(k)*b_in(i,j,k,1)
         !rhs_out_b(i,j,k,1) = i_complex*kzgrid(k)*v_in(i,j,k,1) + i_complex*kzgrid(k)*b_in(i,j,k,0) -i_complex*kxgrid(i)*b_in(i,j,k,2)
         !rhs_out_b(i,j,k,2) = i_complex*kzgrid(k)*v_in(i,j,k,2) + i_complex*kxgrid(i)*b_in(i,j,k,1) -i_complex*kygrid(y)*b_in(i,j,k,0)
@@ -108,7 +109,7 @@ if (rhs_lin_version==12) then
 endif
      END DO
    END DO
- END DO 
+END DO
 
 if (nv) rhs_out_b = cmplx(0.0,0.0)
 
@@ -119,59 +120,48 @@ END SUBROUTINE get_rhs_lin1_ae
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!                                get_rhs_force                                !!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-SUBROUTINE get_rhs_force(rhs_out_b, rhs_out_v, dt)
+SUBROUTINE get_rhs_force(rhs_out_b, rhs_out_v)
     IMPLICIT NONE
     INTEGER :: i,j,k,h,ierr
     !REAL :: r
     REAL :: myresample,resample,th1,th2,th3,th4
-    REAL, INTENT(in) :: dt
     COMPLEX, INTENT(out) :: rhs_out_b(0:nkx0-1,0:nky0-1,lkz1:lkz2, 0:2)
     COMPLEX, INTENT(out) :: rhs_out_v(0:nkx0-1,0:nky0-1,lkz1:lkz2, 0:2)
     LOGICAL, allocatable :: mask1(:,:,:)
     COMPLEX :: LW1,LC1,RW1,RC1
     REAL :: a,b,c,d,e,f,b1
 
-    ALLOCATE(mask1(0:nkx0-1,0:nky0-1,0:nkz0-1))
+    ALLOCATE(mask1(0:nkx0-1,0:nky0-1,lkz1:lkz2))
     
     if (verbose) a = MPI_WTIME()
     if (mype.eq.0) call random_number(resample)
     if (verbose) b = MPI_WTIME()
-    ! CALL MPI_BCAST(resample,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
+    CALL MPI_BCAST(resample,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
 
-    mask1 = (kmags.lt.force_frac*maxval(kmags))
+    mask1 = (kmags.lt.force_frac*kmax)
     ! mask2 = (((i.le.nkxforce).and.(j.le.nkyforce)).and.(k.le.nkzforce)).and.(forcetype.eq.12))
     
     IF ((resample.lt.dt).and.(forcetype.eq.11)) THEN
 
        DO i = 1,nkx0-1
           DO j = 1,nky0-1
-             DO k = 1,nkz0-1
+             DO k = lkz1,lkz2
                 if (verbose) c = MPI_WTIME()
                 IF (forceb) THEN
                    rhs_out_b(i,j,k,0) = rhs_out_b(i,j,k,0) + (force_amp*random_normal() + i_complex*force_amp*random_normal())*mask1(i,j,k)
                    rhs_out_b(i,j,k,1) = rhs_out_b(i,j,k,1) + (force_amp*random_normal() + i_complex*force_amp*random_normal())*mask1(i,j,k)
                    
-                   rhs_out_b(nkx0-i,nky0-j,k,0) = rhs_out_b(nkx0-i,nky0-j,k,0) + (force_amp*random_normal() + i_complex*force_amp*random_normal())*mask1(nkx0-i,nky0-j,k)
-                   rhs_out_b(nkx0-i,nky0-j,k,1) = rhs_out_b(nkx0-i,nky0-j,k,1) + (force_amp*random_normal() + i_complex*force_amp*random_normal())*mask1(nkx0-i,nky0-j,k)
-
                    rhs_out_b(i,nky0-j,k,0) = rhs_out_b(i,nky0-j,k,0) + (force_amp*random_normal() + i_complex*force_amp*random_normal())*mask1(i,nky0-j,k)
                    rhs_out_b(i,nky0-j,k,1) = rhs_out_b(i,nky0-j,k,1) + (force_amp*random_normal() + i_complex*force_amp*random_normal())*mask1(i,nky0-j,k)
 
-                   rhs_out_b(nkx0-i,j,k,0) = rhs_out_b(nkx0-i,j,k,0) + (force_amp*random_normal() + i_complex*force_amp*random_normal())*mask1(nkx0-i,j,k)
-                   rhs_out_b(nkx0-i,j,k,1) = rhs_out_b(nkx0-i,j,k,1) + (force_amp*random_normal() + i_complex*force_amp*random_normal())*mask1(nkx0-i,j,k)
                 ENDIF
              
                 rhs_out_v(i,j,k,0) = rhs_out_v(i,j,k,0) + (force_amp*random_normal() + i_complex*force_amp*random_normal())*mask1(i,j,k)
                 rhs_out_v(i,j,k,1) = rhs_out_v(i,j,k,1) + (force_amp*random_normal() + i_complex*force_amp*random_normal())*mask1(i,j,k)
                 
-                rhs_out_v(nkx0-i,nky0-j,k,0) = rhs_out_v(nkx0-i,nky0-j,k,0) + (force_amp*random_normal() + i_complex*force_amp*random_normal())*mask1(nkx0-i,nky0-j,k)
-                rhs_out_v(nkx0-i,nky0-j,k,1) = rhs_out_v(nkx0-i,nky0-j,k,1) + (force_amp*random_normal() + i_complex*force_amp*random_normal())*mask1(nkx0-i,nky0-j,k)
-
                 rhs_out_v(i,nky0-j,k,0) = rhs_out_v(i,nky0-j,k,0) + (force_amp*random_normal() + i_complex*force_amp*random_normal())*mask1(i,nky0-j,k)
                 rhs_out_v(i,nky0-j,k,1) = rhs_out_v(i,nky0-j,k,1) + (force_amp*random_normal() + i_complex*force_amp*random_normal())*mask1(i,nky0-j,k)
 
-                rhs_out_v(nkx0-i,j,k,0) = rhs_out_v(nkx0-i,j,k,0) + (force_amp*random_normal() + i_complex*force_amp*random_normal())*mask1(nkx0-i,j,k)
-                rhs_out_v(nkx0-i,j,k,1) = rhs_out_v(nkx0-i,j,k,1) + (force_amp*random_normal() + i_complex*force_amp*random_normal())*mask1(nkx0-i,j,k)
                 if (verbose) d = MPI_WTIME()
                 if (verbose) e = MPI_WTIME()
           ENDDO
@@ -190,7 +180,7 @@ SUBROUTINE get_rhs_force(rhs_out_b, rhs_out_v, dt)
 
        DO i = 1,nkx0-1
           DO j = 1,nky0-1
-             DO k = 1,nkz0-1
+             DO k = lkz1,lkz2
                 if (verbose) c = MPI_WTIME()
                 CALL random_number(th1)
                 CALL random_number(th2)
@@ -209,9 +199,9 @@ SUBROUTINE get_rhs_force(rhs_out_b, rhs_out_v, dt)
                 RC1 = RC1 * force_amp * sqrt(force_rc)/sqrt(force_lw + force_lc + force_rw + force_rc) * 1.0/sqrt(1 + alpha_leftcyclo(i,j,k)**2)
                 
                 if (verbose) e = MPI_WTIME()
-                rhs_out_b(i,j,k,:) = rhs_out_b(i,j,k,:) + (LW1 * alpha_leftwhist(i,j,k) + LC1 * alpha_leftcyclo(i,j,k)) * pcurleig(i,j,k,:)&
-                     -(RW1 * alpha_leftwhist(i,j,k) + RC1 * alpha_leftcyclo(i,j,k)) * conjg(pcurleig(i,j,k,:))
-                rhs_out_v(i,j,k,:) = rhs_out_v(i,j,k,:) + (LW1+LC1)*pcurleig(i,j,k,:) + (RW1+RC1)*conjg(pcurleig(i,j,k,:))
+                rhs_out_b(i,j,k,:) = rhs_out_b(i,j,k,:) + ((LW1 * alpha_leftwhist(i,j,k) + LC1 * alpha_leftcyclo(i,j,k)) * pcurleig(i,j,k,:)&
+                     -(RW1 * alpha_leftwhist(i,j,k) + RC1 * alpha_leftcyclo(i,j,k)) * conjg(pcurleig(i,j,k,:)))*mask1(i,j,k)
+                rhs_out_v(i,j,k,:) = rhs_out_v(i,j,k,:) + ((LW1+LC1)*pcurleig(i,j,k,:) + (RW1+RC1)*conjg(pcurleig(i,j,k,:)))*mask1(i,j,k)
                 if (verbose) f = MPI_WTIME()
              ENDDO
           ENDDO
@@ -233,16 +223,39 @@ SUBROUTINE get_rhs_test(b_in,v_in,rhs_out_b,rhs_out_v)
 
   IMPLICIT NONE
 
-  COMPLEX,INTENT(in) :: b_in(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2)
-  COMPLEX,INTENT(in) :: v_in(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2)
-  COMPLEX,INTENT(out) :: rhs_out_b(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2)
-  COMPLEX,INTENT(out) :: rhs_out_v(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2)
+  COMPLEX,INTENT(in) :: b_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+  COMPLEX,INTENT(in) :: v_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+  COMPLEX,INTENT(out) :: rhs_out_b(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+  COMPLEX,INTENT(out) :: rhs_out_v(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
 
 
   rhs_out_b = v_in
   rhs_out_v = - b_in
 
 END SUBROUTINE get_rhs_test
+
+
+SUBROUTINE get_rhs_diss(b_in,v_in,rhs_out_b,rhs_out_v)
+
+  COMPLEX,INTENT(in) :: b_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+  COMPLEX,INTENT(in) :: v_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+  COMPLEX,INTENT(out) :: rhs_out_b(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+  COMPLEX,INTENT(out) :: rhs_out_v(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+
+  rhs_out_b = rhs_out_b - spread(eta * (kmags ** (2.0*hyp)),4,3) * b_in
+  rhs_out_v = rhs_out_v - spread(vnu * (kmags ** (2.0*hyp)),4,3) * v_in
+    
+END SUBROUTINE get_rhs_diss
+
+SUBROUTINE get_rhs_diss2(b_in,v_in)
+
+  COMPLEX,INTENT(inout) :: b_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+  COMPLEX,INTENT(inout) :: v_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+
+  b_in = b_in * spread(exp(-eta * (kmags ** (2.0*hyp)) * dt),4,3)
+  v_in = v_in * spread(exp(-vnu * (kmags ** (2.0*hyp)) * dt),4,3)
+
+END SUBROUTINE get_rhs_diss2
 
 END MODULE linear_rhs
 

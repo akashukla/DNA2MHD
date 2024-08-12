@@ -38,8 +38,8 @@ MODULE time_advance
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:) :: bk3,bk4,bk5,bk6,bk7,bk8,bk9,bk10,bk11,bk12,bk13,vk3,vk4,vk5,vk6,vk7,vk8,vk9,vk10,vk11,vk12,vk13,b_3,v_3
   REAL, ALLOCATABLE, DIMENSION(:,:,:,:) :: bsph0,vsph0,bsph1,vsph1,bsph3,vsph3,bsphk1,bsphk2,bsphk3,bsphk4,bsphk5,bsphk6,bsphk7,&
        vsphk1,vsphk2,vsphk3,vsphk4,vsphk5,vsphk6,vsphk7 ! z axis spherical chart
-  LOGICAL, ALLOCATABLE, DIMENSION(:,:,:) :: zeromask
   LOGICAL, ALLOCATABLE, DIMENSION(:,:,:,:) :: breakz ! if a chart fails; considered unlikely but possible
+  INTEGER :: ierr
 
   CONTAINS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
   
@@ -52,7 +52,8 @@ SUBROUTINE iv_solver
   REAL :: dt_next
   INTEGER :: ionums(9)
   INTEGER :: q
-  
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
  IF(.not.checkpoint_read) dt=dt_max
  !itime=0
  !time=0.0
@@ -63,6 +64,8 @@ SUBROUTINE iv_solver
  CALL remove_div(b_1,v_1)
  if (.not.linen) CALL ALLOCATE_STEPS
  if (linen) CALL ALLOCATE_SPHS
+
+ CALL bv_last
  
  DO WHILE(time.lt.max_time.and.itime.lt.max_itime.and.continue_run)
  
@@ -81,22 +84,35 @@ SUBROUTINE iv_solver
       ENDDO
    ENDIF
 
+
+   !! Rules for Time Integrators
+   !! intorder < 10 are explicit, nonsplitting methods
+   !! intorder 20 is a Strang splitting 
+   !! intorder 40 is a Suzuki fourth order splitting
+   !! intorder 41 is Gauss 4th order collocation; may have trouble converging for nonideal
+   !! intorder 81 is Stormer-Verlet 8th order - do not use for now
+   
    IF (linen) THEN
       CALL LINEARENERGYSPH(b_1,v_1,dt_next)
       dt = minval([dt_next,dt_max])
    ! Implicit + Strucuture Conserving Integrators
-   ELSE IF (intorder.eq.81) THEN
+   ELSE IF (intorder.eq.20) THEN
+      CALL split2(b_1,v_1)
+   ELSE IF (intorder.eq.40) THEN
+      CALL split4(b_1,v_1)
+   ! Implicit + Structure Conserving Integrators (Use on Ideal Fluid only until better understood)
+   ELSE IF (intorder.eq.81) THEN 
       CALL STORM8(b_1,v_1,dt_next)
       dt = minval([dt_next,dt_max])
    ELSE IF (intorder.eq.41) THEN
       CALL gauss4(b_1,v_1,dt_next)
       dt = minval([dt_max,dt_next])
-   ! Dormand Prince Adaptive/Embedded Schemes
+      ! Dormand Prince Adaptive/Embedded Schemes
    ELSE IF (intorder.eq.8) THEN
       CALL DORPI8713M(b_1,v_1)
    ELSE IF (intorder.eq.5) THEN
       CALL dorpi547M(b_1,v_1)
-   ! Other RK Integrators
+   ! Other Explicit RK Integrators
    ELSE IF (intorder.eq.4) THEN
       CALL get_g_next(b_1, v_1,dt_next)
       dt = minval([dt_next,dt_max])
@@ -221,8 +237,6 @@ SUBROUTINE get_g_next(b_in, v_in,dt_new)
  b_2=b_in+(1.0/6.0)*dt*bk1
  v_2=v_in+(1.0/6.0)*dt*vk1
  IF (mhc) mhelcorr = mhelcorr + (1.0/6.0)*dt*nmhc
- IF (debug_energy) precorr = precorr + (1.0/6.0)*dt*preendiv
- IF (debug_energy) vdvcorr = vdvcorr + (1.0/6.0)*dt*vdvendiv
  first_stage=.false.
  !CALL get_rhs(b_in+0.5*dt*bk1,bk2)
  bk1=b_in+0.5*dt*bk1
@@ -234,8 +248,6 @@ SUBROUTINE get_g_next(b_in, v_in,dt_new)
  v_2=v_2+(1.0/3.0)*dt*vk2
  vk2=v_in+0.5*dt*vk2
  IF (mhc) mhelcorr = mhelcorr + (1.0/3.0) *dt * nmhc
- IF (debug_energy) precorr = precorr + (1.0/3.0)*dt*preendiv
- IF (debug_energy) vdvcorr = vdvcorr + (1.0/3.0)*dt*vdvendiv
 
  CALL get_rhs(bk2,vk2,bk1,vk1,nmhc,dt_new3)
  b_2=b_2+(1.0/3.0)*dt*bk1
@@ -243,15 +255,11 @@ SUBROUTINE get_g_next(b_in, v_in,dt_new)
  v_2=v_2+(1.0/3.0)*dt*vk1
  vk1=v_in+dt*vk1
  IF (mhc) mhelcorr = mhelcorr + (1.0/3.0)*dt*nmhc
- IF (debug_energy) precorr = precorr + (1.0/3.0)*dt*preendiv
- IF (debug_energy) vdvcorr = vdvcorr + (1.0/3.0)*dt*vdvendiv
 
  CALL get_rhs(bk1,vk1,bk2,vk2,nmhc,dt_new4)
  b_in=b_2+(1.0/6.0)*dt*bk2
  v_in=v_2+(1.0/6.0)*dt*vk2
  IF (mhc) mhelcorr = mhelcorr + (1.0/6.0)*dt*nmhc
- IF (debug_energy) precorr = precorr + (1.0/6.0)*dt*preendiv
- IF (debug_energy) vdvcorr = vdvcorr + (1.0/6.0)*dt*vdvendiv
 
  !!4th order Runge-Kutta
  !first_stage=.true.
@@ -298,7 +306,7 @@ SUBROUTINE remove_div(b_in,v_in)
 
  COMPLEX, INTENT(inout) :: b_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
  COMPLEX, INTENT(inout) :: v_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
- INTEGER :: i,j,k,l,h,ierr
+ INTEGER :: i,j,k,l,h
  COMPLEX :: div_v, div_b
  REAL :: k2, zero
 
@@ -306,7 +314,6 @@ SUBROUTINE remove_div(b_in,v_in)
  div_b = 0.0 +i_complex*0.0
  k2=0.0
  zero=0.0
- if (debug_energy) preendiv = 0.0
 
  DO i=0,nkx0-1
    DO j=0,nky0-1
@@ -319,22 +326,12 @@ SUBROUTINE remove_div(b_in,v_in)
                 v_in(i,j,k,1) = v_in(i,j,k,1) - div_v*kygrid(j)/k2
                 v_in(i,j,k,2) = v_in(i,j,k,2) - div_v*kzgrid(k)/k2
 
-                ! Constructs the pressure since the above term is - grad p
-                pre(i,j,k) = i_complex * div_v / k2
 
               ! The b equation is a curl, so we don't need to remove div b
                 b_in(i,j,k,0) = b_in(i,j,k,0) - div_b*kxgrid(i)/k2
                 b_in(i,j,k,1) = b_in(i,j,k,1) - div_b*kygrid(j)/k2
                 b_in(i,j,k,2) = b_in(i,j,k,2) - div_b*kzgrid(k)/k2
 
-              ! Could be used to effect a gauge change such that dA/dt = v x B - curl B x B
-              ! Keeps track of the integral of the pressure
-
-              gpsi(i,j,k,0) = gpsi(i,j,k,0) - div_v*kxgrid(i)/k2
-              gpsi(i,j,k,1) = gpsi(i,j,k,1) - div_v*kygrid(j)/k2
-              gpsi(i,j,k,2) = gpsi(i,j,k,2) - div_v*kzgrid(k)/k2
-              if (debug_energy) preendiv = preendiv - 16*(pi**3)*real(div_v/k2 * (kxgrid(i)*v_in(i,j,k,0)&
-                   +kygrid(j)*v_in(i,j,k,1)+kzgrid(k)*v_in(i,j,k,2)))
            ENDIF
      ENDDO
    ENDDO
@@ -366,9 +363,9 @@ SUBROUTINE get_rhs(b_in,v_in, rhs_out_b,rhs_out_v,nmhc,ndt)
      ndt = dt_max
   ELSE
      
-     IF (guide) CALL get_rhs_lin(b_in,v_in,rhs_out_b, rhs_out_v,0)
-     IF ((guide.and.verbose).and.(mype.eq.0)) WRITE(*,*) 'Lin Max Abs V',maxval(abs(rhs_out_v)),maxloc(abs(rhs_out_v))
-     IF ((guide.and.verbose).and.(mype.eq.0)) WRITE(*,*) 'Lin Max Abs B',maxval(abs(rhs_out_b)),maxloc(abs(rhs_out_b))
+     CALL get_rhs_lin(b_in,v_in,rhs_out_b, rhs_out_v,0)
+     IF ((verbose).and.(mype.eq.0)) WRITE(*,*) 'Lin Max Abs V',maxval(abs(rhs_out_v)),maxloc(abs(rhs_out_v))
+     IF ((verbose).and.(mype.eq.0)) WRITE(*,*) 'Lin Max Abs B',maxval(abs(rhs_out_b)),maxloc(abs(rhs_out_b))
      !IF(nonlinear.and..not.linear_nlbox) CALL get_rhs_nl(b_in, v_in,rhs_out_b,rhs_out_v)
      IF(actual_nonlinear) CALL get_rhs_nl(b_in, v_in,rhs_out_b,rhs_out_v,ndt)
      IF (verbose.and.(mype.eq.0)) WRITE(*,*) 'NL Max Abs V',maxval(abs(rhs_out_v)),maxloc(abs(rhs_out_v))
@@ -381,16 +378,18 @@ SUBROUTINE get_rhs(b_in,v_in, rhs_out_b,rhs_out_v,nmhc,ndt)
      nmhc = 0.0
      IF (mhc) CALL getmhcrk(b_in,v_in,nmhc)
 
-  ! Add forcing
-     IF(force_turbulence) CALL get_rhs_force(rhs_out_b, rhs_out_v,ndt)
-
+     ! Add forcing
+     IF (mod(intorder,20).ne.0) THEN
+        CALL get_rhs_diss(b_in,v_in,rhs_out_b,rhs_out_v)
+        IF (force_turbulence) CALL get_rhs_force(rhs_out_b, rhs_out_v)
+     ENDIF
+     
      if (verbose.and.(mype.eq.0)) print *,'RHS found'
+
   ENDIF
   
 
 END SUBROUTINE get_rhs
-
-
 
 SUBROUTINE getmhcrk(b_in,v_in,nmhc)
 
@@ -399,14 +398,17 @@ SUBROUTINE getmhcrk(b_in,v_in,nmhc)
  COMPLEX, INTENT(in) :: v_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
 
  REAL, intent(out) :: nmhc
+ REAL :: nmhcsm(2),nmhcs(2)
 
-   if (splitx) nmhc = - 2.0 * sum(real(b_in(1:nkx0-1,:,:,0)*conjg(v_in(1:nkx0-1,:,:,1))-b_in(1:nkx0-1,:,:,1)*conjg(v_in(1:nkx0-1,:,:,0))))
-   if (splitx) nmhc = nmhc - 1.0 * real(sum(b_in(0,:,:,0)*conjg(v_in(0,:,:,1))-b_in(0,:,:,1)*conjg(v_in(0,:,:,0))))
+   if (splitx) nmhcsm(1) = - 2.0 * sum(real(b_in(1:nkx0-1,:,:,0)*conjg(v_in(1:nkx0-1,:,:,1))-b_in(1:nkx0-1,:,:,1)*conjg(v_in(1:nkx0-1,:,:,0))))
+   if (splitx) nmhcsm(2) = - 1.0 * real(sum(b_in(0,:,:,0)*conjg(v_in(0,:,:,1))-b_in(0,:,:,1)*conjg(v_in(0,:,:,0))))
 
-   if (.not.splitx) nmhc = - 2.0 * sum(real(b_in(:,:,1:nkz0-1,0)*conjg(v_in(:,:,1:nkz0-1,1))-b_in(:,:,1:nkz0-1,1)*conjg(v_in(:,:,1:nkz0-1,0))))
-   if (.not.splitx) nmhc = nmhc - 1.0 * real(sum(b_in(:,:,0,0)*conjg(v_in(:,:,0,1))-b_in(:,:,0,1)*conjg(v_in(:,:,0,0))))
+   CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+   CALL MPI_ALLREDUCE(nmhcsm,nmhcs,2,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
 
-   nmhc = nmhc * (16.0 * pi**3)
+   nmhc = sum(nmhcs)*(16.0*pi**3)
+
+   if (verbose.and.(mype.eq.0)) print *, "Through MHC"
    
 END SUBROUTINE getmhcrk
 
@@ -429,13 +431,11 @@ SUBROUTINE dorpi547M(b_in,v_in)
   
   IMPLICIT NONE
 
-  COMPLEX, INTENT(INOUT) :: b_in(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2)
-  COMPLEX, INTENT(INOUT) :: v_in(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2)
+  COMPLEX, INTENT(INOUT) :: b_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+  COMPLEX, INTENT(INOUT) :: v_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
   REAL :: dt_new1,dt_new2,dt_new3,dt_new4,dt_new5,dt_new6,dt_new7
   REAL :: nmhc1,nmhc2,nmhc3,nmhc4,nmhc5,nmhc6,nmhc7,next_corr
-  REAL :: enpre1,enpre2,enpre3,enpre4,enpre5,enpre6,next_enpre
-  REAL :: envdv1,envdv2,envdv3,envdv4,envdv5,envdv6,next_envdv
-  REAL :: err
+  REAL :: errm,err
   
   dt = dt_max
 
@@ -443,59 +443,34 @@ SUBROUTINE dorpi547M(b_in,v_in)
   ! print *, "dt_max", dt_max
   !! First step
 
-
   ! Use First Same As Last property to save time for higher steps
   if (itime.eq.0) CALL get_rhs(b_in,v_in,bk1,vk1,nmhc1,dt_new1)
   IF (mhc.and.(itime.ne.0)) THEN
      CALL getmhcrk(b_in,v_in,nmhc1)
-     if (debug_energy) then
-        enpre1 = preendiv
-        envdv1 = vdvendiv
-     endif
   ENDIF
      
   !! Second step
   CALL get_rhs(b_in+dt*bk1*1.0/5.0,&
        v_in+dt*vk1*1.0/5.0,bk2,vk2,nmhc2,dt_new2)
-  if (debug_energy) then
-     enpre2 = preendiv
-     envdv2 = vdvendiv
-  endif
      
   !! Third step
   CALL get_rhs(b_in+dt*(3.0*bk1/40.0+9.0*bk2/40.0),&
        v_in+dt*(3.0*vk1/40.0+9.0*vk2/40.0),bk3,vk3,nmhc3,dt_new3)
-  if (debug_energy) then
-     enpre3 = preendiv
-     envdv3 = vdvendiv
-  endif
      
   !! Fourth step
   CALL get_rhs(b_in+dt*(44.0/45.0*bk1-56.0/15.0*bk2+32.0/9.0*bk3),&
        v_in+dt*(44.0/45.0*vk1-56.0/15.0*vk2+32.0/9.0*vk3),bk4,vk4,nmhc4,dt_new4)
-  if (debug_energy) then
-     enpre4 = preendiv
-     envdv4 = vdvendiv
-  endif
      
   !! Fifth step
   CALL get_rhs(b_in+dt*(19372.0/6561.0*bk1-25360.0/2187.0*bk2+64448.0/6561.0*bk3-212.0/729.0*bk4),&
        v_in+dt*(19372.0/6561.0*vk1-25360.0/2187.0*vk2+64448.0/6561.0*vk3-212.0/729.0*vk4),&
        bk5,vk5,nmhc5,dt_new5)
-  if (debug_energy) then
-     enpre5 = preendiv
-     envdv5 = vdvendiv
-  endif
      
   !! Sixth step
   CALL get_rhs(b_in+dt*(9017.0/3168.0*bk1 - 355.0/33.0*bk2 + 46732.0/5247.0*bk3 &
        + 49.0/176.0*bk4-5103.0/18656.0*bk5),&
        v_in+dt*(9017.0/3168.0*vk1 - 355.0/33.0*vk2 + 46732.0/5247.0*vk3	&
        + 49.0/176.0*vk4-5103.0/18656.0*vk5),bk6,vk6,nmhc6,dt_new6)
-  if (debug_energy) then
-     enpre6 = preendiv
-     envdv6 = vdvendiv
-  endif
      
   b_2 = b_in + dt*(35.0/384.0*bk1+500.0/1113.0*bk3+125.0/192.0*bk4&
        -2187.0/6784.0*bk5+11.0/84.0*bk6)
@@ -503,12 +478,6 @@ SUBROUTINE dorpi547M(b_in,v_in)
        -2187.0/6784.0*vk5+11.0/84.0*vk6)
   next_corr = dt*(35.0/384.0*nmhc1+500.0/1113.0*nmhc3+125.0/192.0*nmhc4&
        -2187.0/6784.0*nmhc5+11.0/84.0*nmhc6)
-  if (debug_energy) then
-     next_enpre = dt*(35.0/384.0*enpre1+500.0/1113.0*enpre3+125.0/192.0*enpre4&
-          -2187.0/6784.0*enpre5+11.0/84.0*enpre6)
-     next_envdv = dt*(35.0/384.0*envdv1+500.0/1113.0*envdv3+125.0/192.0*envdv4&
-          -2187.0/6784.0*envdv5+11.0/84.0*envdv6)
-  endif
      
   !! Seventh step
   CALL get_rhs(b_2,v_2,bk7,vk7,nmhc7,dt_new7)
@@ -517,9 +486,11 @@ SUBROUTINE dorpi547M(b_in,v_in)
        -92097.0/339200.0*bk5+187.0/2100.0*bk6+bk7/40.0)
   v_3 = v_in + dt*(5179.0/57600.0*vk1+7571.0/16695.0*vk3+393.0/640.0*vk4&
        -92097.0/339200.0*vk5+187.0/2100.0*vk6+vk7/40.0)
+
   
-  err = max(maxval(abs(b_2-b_3)),maxval(abs(v_2-v_3)))
-  print *, err
+  errm = max(maxval(abs(b_2-b_3)),maxval(abs(v_2-v_3)))
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(errm,err,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
 
   !dt = min(dt_new1,dt_new2,dt_new3,dt_new4,dt_new5,dt_new6,dt * (10.0**(-5.0)/err)**(1.0/6.0))
   
@@ -543,29 +514,21 @@ SUBROUTINE ralston2(b_in,v_in,dt_new)
   
   IMPLICIT NONE
 
-  COMPLEX, INTENT(INOUT) :: b_in(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2)
-  COMPLEX, INTENT(INOUT) :: v_in(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2)
+  COMPLEX, INTENT(INOUT) :: b_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+  COMPLEX, INTENT(INOUT) :: v_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
   REAL, INTENT(OUT) :: dt_new
   REAL :: dt_new1,dt_new2
   REAL :: nmhc1,nmhc2
   
-  CALL get_rhs(b_in,v_in,bk1,vk1,nmhc1,dt_new1) ! 
+  CALL get_rhs(b_in,v_in,bk1,vk1,nmhc1,dt_new1) 
   b_2 = b_1 + (1.0/4.0)*bk1*dt
   v_2 = v_1 + (1.0/4.0)*vk1*dt
   if (mhc) mhelcorr = mhelcorr + (1.0/4.0)*nmhc1*dt
-  if (debug_energy) then
-     precorr = precorr + (1.0/4.0) * preendiv * dt
-     vdvcorr = vdvcorr + (1.0/4.0) * vdvendiv * dt
-  endif
   
   CALL get_rhs(b_in+(2.0/3.0)*bk1*dt,v_in+(2.0/3.0)*vk1*dt,bk2,vk2,nmhc2,dt_new2)
   b_in = b_2 + (3.0/4.0) * bk2 * dt
   v_in = v_2 + (3.0/4.0) * vk2 * dt
   if (mhc) mhelcorr = mhelcorr + (3.0/4.0) * nmhc2 * dt
-  if (debug_energy) then
-     precorr = precorr + (3.0/4.0) * preendiv * dt
-     vdvcorr = vdvcorr + (3.0/4.0) * vdvendiv * dt
-  endif
 
   dt_new = minval([dt_new1,dt_new2])
 
@@ -583,8 +546,8 @@ SUBROUTINE ralston3(b_in,v_in,dt_new)
   !     | 2/9  1/3  4/9
 
   IMPLICIT NONE
-  COMPLEX, INTENT(INOUT) :: b_in(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2)
-  COMPLEX, INTENT(INOUT) :: v_in(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2)
+  COMPLEX, INTENT(INOUT) :: b_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+  COMPLEX, INTENT(INOUT) :: v_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
   REAL, INTENT(OUT) :: dt_new
   REAL :: dt_new1,dt_new2,dt_new3
   REAL :: nmhc1,nmhc2,nmhc3
@@ -593,28 +556,16 @@ SUBROUTINE ralston3(b_in,v_in,dt_new)
   b_2 = b_in + (2.0/9.0)*bk1*dt
   v_2 = v_in + (2.0/9.0)*vk1*dt
   if (mhc) mhelcorr = mhelcorr + (2.0/9.0)*nmhc1*dt
-  if (debug_energy) then
-     precorr = precorr + (2.0/9.0) * preendiv * dt
-     vdvcorr = vdvcorr + (2.0/9.0) * vdvendiv * dt
-  endif
 
   CALL get_rhs(b_in+(1.0/2.0)*bk1*dt,v_in+(1.0/2.0)*vk1*dt,bk2,vk2,nmhc2,dt_new2)
   b_2 = b_2 + (1.0/3.0) * bk2 * dt
   v_2 = v_2 + (1.0/3.0) * vk2 * dt
   if (mhc) mhelcorr = mhelcorr + (1.0/3.0) * nmhc2 * dt
-  if (debug_energy) then
-     precorr = precorr + (1.0/3.0) * preendiv * dt
-     vdvcorr = vdvcorr + (1.0/3.0) * vdvendiv * dt
-  endif
 
   CALL get_rhs(b_in+(3.0/4.0)*bk2*dt,v_in+(3.0/4.0)*vk2*dt,bk1,vk1,nmhc3,dt_new3)
   b_in = b_2 + (4.0/9.0) * bk1 * dt
   v_in = v_2 + (4.0/9.0) * vk1 * dt
   if (mhc) mhelcorr = mhelcorr + (4.0/9.0) * nmhc3 * dt
-  if (debug_energy) then
-     precorr = precorr + (4.0/9.0) * preendiv * dt
-     vdvcorr = vdvcorr + (4.0/9.0) * vdvendiv * dt
-  endif
   
   dt_new = minval([dt_new1,dt_new2,dt_new3])
 
@@ -622,7 +573,7 @@ END SUBROUTINE ralston3
 
 SUBROUTINE GAUSS4(b_in,v_in,dt_new)
 
-  ! Use the order 4 Gauss Legendre method for time integration
+  ! Use the order 4 Gauss Legendre collocation method for time integration
   ! k1 = f(y + a11 * dt * k1 + a12 * dt * k2)
   ! k2 = f(y + a21 * dt * k1 + a22 * dt * k2)
   ! y1 = y + 0.5 * dt * k1 + 0.5 * dt * k2
@@ -630,8 +581,8 @@ SUBROUTINE GAUSS4(b_in,v_in,dt_new)
   
   IMPLICIT NONE
   
-  COMPLEX, INTENT(INOUT) :: b_in(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2)
-  COMPLEX, INTENT(INOUT) :: v_in(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2)
+  COMPLEX, INTENT(INOUT) :: b_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+  COMPLEX, INTENT(INOUT) :: v_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
   REAL, INTENT(OUT) :: dt_new
   
   REAL :: a11,a12,a21,a22
@@ -696,15 +647,74 @@ SUBROUTINE GAUSS4(b_in,v_in,dt_new)
 
 END SUBROUTINE GAUSS4
 
+
+SUBROUTINE GAUSS2(b_in,v_in,dt_new)
+
+  ! Uses the implicit midpoint method for time integration
+  ! Like other Gauss methods this conserves quadratic invariants
+  ! This method relies on a fixed point iteration solution for the implicit RK stages                                                                                                                                                                                    
+
+  IMPLICIT NONE
+
+  COMPLEX, INTENT(INOUT) :: b_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+  COMPLEX, INTENT(INOUT) :: v_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+  REAL, INTENT(OUT) :: dt_new
+
+  REAL :: a11
+  REAL :: nmhc1,nmhc1s
+  REAL :: ndt,maxdev,l1norm
+  INTEGER :: solvloop
+
+  a11 = 1.0/2.0
+
+  ! Initial guess
+  CALL get_rhs(b_in,v_in,bk1,vk1,nmhc1,ndt)
+  ! Iterate
+  CALL get_rhs(b_in+a11*dt*bk1,v_in+a11*dt*vk1,bk1s,vk1s,nmhc1s,ndt)  
+
+  l1norm = sum(abs(bk1-bk1s)+abs(vk1-vk1s))
+  maxdev = max(maxval(abs(bk1-bk1s)),maxval(abs(vk1-vk1s)))
+  solvloop = 0
+
+  DO WHILE ((solvloop.lt.1000).and.(maxdev.gt.10.0**(-19.0)))
+     ! Check for now to see if the fixed point iteration converges                                                                                                                                                                                                       
+     if (verbose) print *, "Iteration ",solvloop,"Discrepancy ",maxdev
+
+     bk1 = bk1s
+     vk1 = vk1s
+
+     CALL get_rhs(b_in+a11*dt*bk1,v_in+a11*dt*vk1,bk1s,vk1s,nmhc1s,ndt)
+
+     solvloop = solvloop + 1
+     maxdev = max(maxval(abs(bk1-bk1s)),maxval(abs(vk1-vk1s)))
+     l1norm = sum(abs(bk1-bk1s)+abs(vk1-vk1s))
+
+     if (solvloop.eq.999) print *, "Failed to Converge After 1000 iterations, Maxdev ",maxdev
+
+  ENDDO
+
+  if (itime.eq.10) print *, "Number of Iterations Needed itime = 10 ",solvloop
+
+  ! Update the fields                                                                                                                                                                                                                                                    
+
+  b_in = b_in + dt * bk1s
+  v_in = v_in + dt * vk1s
+  mhelcorr = mhelcorr + dt * nmhc1s 
+  dt_new = ndt
+
+END SUBROUTINE GAUSS2
+
 SUBROUTINE STORM8(b_in,v_in,ndt)
 
   IMPLICIT NONE
 
   ! Use the 5 stage, 8th order Lobatto III A - III B method to integrate the system
-  ! This method is L stable (Butcher 08) and should conserve the helicities (Hairer 06)
+  ! Should conserve the helicities (Hairer 06)
+
+  ! Do not use for now - it doesn't seem to be converging to the right solution
     
-  COMPLEX, INTENT(INOUT) :: b_in(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2)
-  COMPLEX, INTENT(INOUT) :: v_in(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2)
+  COMPLEX, INTENT(INOUT) :: b_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+  COMPLEX, INTENT(INOUT) :: v_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
   REAL :: a21,a22,a23,a24,a25,a31,a32,a33,a34,a35,a41,a42,a43,a44,a45,a51,a52,a53,a54,a55
   REAL :: b11,b12,b13,b14,b21,b22,b23,b24,b31,b32,b33,b34,b41,b42,b43,b44,b51,b52,b53,b54
   REAL :: nmhc1,nmhc2,nmhc3,nmhc4,nmhc5,nmhc1s,nmhc2s,nmhc3s,nmhc4s,nmhc5s
@@ -824,14 +834,17 @@ SUBROUTINE STORM8(b_in,v_in,ndt)
   
 END SUBROUTINE STORM8
 
+
+
+
 SUBROUTINE DORPI8713M(b_in,v_in)
   IMPLICIT NONE
 
   ! Uses the 8th order adaptive explicit Dormand Prince system for time integration
   ! https://doi.org/10.1016/0771-050X(81)90010-3
   
-  COMPLEX, INTENT(INOUT) :: b_in(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2)
-  COMPLEX, INTENT(INOUT) :: v_in(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2)
+  COMPLEX, INTENT(INOUT) :: b_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+  COMPLEX, INTENT(INOUT) :: v_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
   
   REAL :: nmhc1,nmhc2,nmhc3,nmhc4,nmhc5,nmhc6,nmhc7,nmhc8,nmhc9,nmhc10,nmhc11,nmhc12,nmhc13
   REAL :: a21,a31,a41,a51,a61,a71,a81,a91,a101,a111,a121,a131
@@ -842,7 +855,7 @@ SUBROUTINE DORPI8713M(b_in,v_in)
   REAL :: a109,a119,a129,a139,a1110,a1210,a1310,a1211,a1311
   REAL :: b1,b6,b7,b8,b9,b10,b11,b12
   REAL :: bb1,bb6,bb7,bb8,bb9,bb10,bb11,bb12,bb13
-  REAL :: err,ndt
+  REAL :: err,ndt,errm
 
   ! Rational approximations to the Butcher matrices and solution vectors from paper
   
@@ -961,7 +974,10 @@ SUBROUTINE DORPI8713M(b_in,v_in)
 
   ! Adaptive step
   
-  err = max(maxval(abs(b_2-b_3)),maxval(abs(v_2-v_3)))
+  errm = max(maxval(abs(b_2-b_3)),maxval(abs(v_2-v_3)))
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(errm,err,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
+  
   print *, "MHcorr err",nmhc5-nmhc4
   print *, "Max b v err",err
   
@@ -969,72 +985,127 @@ SUBROUTINE DORPI8713M(b_in,v_in)
 
   b_in = b_3
   v_in = v_3
-  mhelcorr = nmhc4
+
+  ! For some reason helicity correction isn't working
+  mhelcorr = nmhc5
   
 END SUBROUTINE DORPI8713M
+
+SUBROUTINE SPLIT2(b_in,v_in,dtm)
+
+  ! Uses second order Strang splitting
   
+  IMPLICIT NONE
+
+  COMPLEX, INTENT(INOUT) :: b_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+  COMPLEX, INTENT(INOUT) :: v_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+  REAL, OPTIONAL :: dtm
+  REAL :: ndt
+
+  if (.not.present(dtm)) dtm = dt_max
+  
+  dt = 0.5 * dtm
+  CALL get_rhs_diss2(b_in,v_in)
+  CALL get_rhs_force(bk1,vk1)
+  b_in = b_in + dt * bk1
+  v_in = v_in + dt * vk1
+
+  dt = dtm
+  if (intorder.eq.20) CALL GAUSS2(b_in,v_in,ndt)
+  if (intorder.eq.40) CALL GAUSS4(b_in,v_in,ndt)
+
+  dt = 0.5 * dtm
+  bk1 = 0.0
+  vk1 = 0.0
+  CALL get_rhs_force(bk1,vk1)
+  b_in = b_in + dt * bk1
+  v_in = v_in + dt * vk1
+  CALL get_rhs_diss2(b_in,v_in)
+
+END SUBROUTINE SPLIT2
+
+SUBROUTINE SPLIT4(b_in,v_in)
+
+  ! Uses 4th order splitting methods as described by H. Yoshida 1990, Hairer et al 2006, Suzuki, etc.
+
+  IMPLICIT NONE
+  COMPLEX, INTENT(INOUT) :: b_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+  COMPLEX, INTENT(INOUT) :: v_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+  REAL :: dt2
+
+  dt2 = - (2.0**(1.0/3.0))/(2.0-2.0**(1.0/3.0)) * dt_max
+  CALL SPLIT2(b_1,v_1,dt2)
+
+  dt2 = 1.0/(2.0-2.0**(1.0/3.0)) * dt_max
+  CALL SPLIT2(b_1,v_1,dt2)
+
+  dt2 = - (2.0**(1.0/3.0))/(2.0-2.0**(1.0/3.0)) * dt_max
+  CALL SPLIT2(b_1,v_1,dt2)
+
+END SUBROUTINE SPLIT4
+
 SUBROUTINE ALLOCATE_STEPS
 
   IMPLICIT NONE
 
   
-  ALLOCATE(b_2(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-  ALLOCATE(v_2(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+  ALLOCATE(b_2(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
+  ALLOCATE(v_2(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
 
-  ALLOCATE(bk1(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-  ALLOCATE(vk1(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+  ALLOCATE(bk1(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
+  ALLOCATE(vk1(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
 
-  ALLOCATE(bk2(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-  ALLOCATE(vk2(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+  ALLOCATE(bk2(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
+  ALLOCATE(vk2(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
 
-  if (intorder.eq.41) then
+  if (intorder.ge.20) then
 
-  ALLOCATE(bk1s(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-  ALLOCATE(vk1s(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+  ALLOCATE(bk1s(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
+  ALLOCATE(vk1s(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
 
-  ALLOCATE(bk2s(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-  ALLOCATE(vk2s(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+  ALLOCATE(bk2s(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
+  ALLOCATE(vk2s(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
 
 endif
 
   if ((intorder.eq.5).or.(intorder.eq.8 .or. (intorder.eq.81))) then
 
-  ALLOCATE(b_3(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-  ALLOCATE(v_3(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-  ALLOCATE(bk3(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-  ALLOCATE(vk3(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+  ALLOCATE(b_3(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
+  ALLOCATE(v_3(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
+  ALLOCATE(bk3(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
+  ALLOCATE(vk3(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
 
-  ALLOCATE(bk4(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-  ALLOCATE(vk4(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+  ALLOCATE(bk4(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
+  ALLOCATE(vk4(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
 
-  ALLOCATE(bk5(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-  ALLOCATE(vk5(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+  ALLOCATE(bk5(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
+  ALLOCATE(vk5(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
 
-  ALLOCATE(bk6(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-  ALLOCATE(vk6(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+  ALLOCATE(bk6(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
+  ALLOCATE(vk6(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
 
-  ALLOCATE(bk7(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-  ALLOCATE(vk7(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+  ALLOCATE(bk7(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
+  ALLOCATE(vk7(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
 
-  if (intorder.eq.8 .or.(intorder.eq.81)) then
+  if (intorder.ge.8) then
 
-  ALLOCATE(bk8(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-  ALLOCATE(vk8(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+  ALLOCATE(bk8(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
+  ALLOCATE(vk8(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
 
-  ALLOCATE(bk9(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-  ALLOCATE(vk9(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+  ALLOCATE(bk9(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
+  ALLOCATE(vk9(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
 
-  ALLOCATE(bk10(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-  ALLOCATE(vk10(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+  ALLOCATE(bk10(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
+  ALLOCATE(vk10(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
 
-  ALLOCATE(bk11(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-  ALLOCATE(vk11(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+  ALLOCATE(bk11(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
+  ALLOCATE(vk11(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
 
-  ALLOCATE(bk12(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-  ALLOCATE(vk12(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+  ALLOCATE(bk12(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
+  ALLOCATE(vk12(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
 
-  ALLOCATE(bk13(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-  ALLOCATE(vk13(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+  ALLOCATE(bk13(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
+  ALLOCATE(vk13(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
 endif
 
 endif
@@ -1102,8 +1173,8 @@ SUBROUTINE LINEARENERGYSPH(b_in,v_in,dt_new)
   ! Time stepping for linear energy time evolution
   
   IMPLICIT NONE
-  COMPLEX, INTENT(INOUT) :: b_in(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2)
-  COMPLEX, INTENT(INOUT) :: v_in(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2)
+  COMPLEX, INTENT(INOUT) :: b_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+  COMPLEX, INTENT(INOUT) :: v_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
 
 
   
@@ -1173,10 +1244,10 @@ SUBROUTINE STEP_SPHS(bsphz,vsphz,bsphkz,vsphkz,nmhc,ndt)
   
   IMPLICIT NONE
 
-  REAL, INTENT(IN) :: bsphz(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5)
-  REAL, INTENT(IN) :: vsphz(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5)
-  REAL, INTENT(OUT) :: bsphkz(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5)
-  REAL, INTENT(OUT) :: vsphkz(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5)
+  REAL, INTENT(IN) :: bsphz(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:5)
+  REAL, INTENT(IN) :: vsphz(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:5)
+  REAL, INTENT(OUT) :: bsphkz(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:5)
+  REAL, INTENT(OUT) :: vsphkz(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:5)
   REAL, INTENT(OUT) :: nmhc
   REAL, INTENT(OUT) :: ndt
   
@@ -1192,11 +1263,11 @@ SUBROUTINE SPHSZ_TDS(c1z,f1,k1,t,c1kz)
 
   IMPLICIT NONE
 
-  REAL, INTENT(IN) :: c1z(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5)
-  COMPLEX, INTENT(IN) :: f1(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2)
-  COMPLEX, INTENT(IN) :: k1(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2)
+  REAL, INTENT(IN) :: c1z(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:5)
+  COMPLEX, INTENT(IN) :: f1(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+  COMPLEX, INTENT(IN) :: k1(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
   INTEGER, INTENT(IN) :: t ! determine if b,v used for chart breakdown; b 0, v 2
-  REAL, INTENT(OUT) :: c1kz(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5)
+  REAL, INTENT(OUT) :: c1kz(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:5)
   REAL :: A(0:2),B(0:2),C(0:2),D(0:2),E(0:2),F(0:2)
   REAL :: CC(0:5)
   INTEGER :: i,j,k
@@ -1254,8 +1325,8 @@ SUBROUTINE SPHSZ_CARTC(bsph,b)
 
   IMPLICIT NONE
 
-  REAL, INTENT(IN) :: bsph(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5)
-  COMPLEX, INTENT(OUT) :: b(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2)
+  REAL, INTENT(IN) :: bsph(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:5)
+  COMPLEX, INTENT(OUT) :: b(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
 
   b(:,:,:,0) = sqrt(bsph(:,:,:,0))*sin(bsph(:,:,:,1))*cos(bsph(:,:,:,2)) &
        + i_complex * sqrt(bsph(:,:,:,3))*sin(bsph(:,:,:,4))*cos(bsph(:,:,:,5))
@@ -1270,8 +1341,8 @@ SUBROUTINE CARTC_SPHSZ(b,bsph)
 
   IMPLICIT NONE
 
-  COMPLEX, INTENT(IN) :: b(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2)
-  REAL, INTENT(OUT) :: bsph(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5)
+  COMPLEX, INTENT(IN) :: b(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+  REAL, INTENT(OUT) :: bsph(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:5)
 
   bsph(:,:,:,0) = sum(real(b)**2.0,dim=4)
   bsph(:,:,:,3) = sum(aimag(b)**2.0,dim=4)
@@ -1292,47 +1363,47 @@ SUBROUTINE ALLOCATE_SPHS
 
   ! Chart determination
 
-  ALLOCATE(breakz(0:nkx0-1,0:nky0-1,0:nkz0-1,0:3))
+  ALLOCATE(breakz(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:3))
   
   ! We still need terms for field derivatives and time step fields
 
-  ALLOCATE(b_2(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-  ALLOCATE(v_2(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-  ALLOCATE(bk1(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-  ALLOCATE(vk1(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+  ALLOCATE(b_2(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
+  ALLOCATE(v_2(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
+  ALLOCATE(bk1(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
+  ALLOCATE(vk1(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
   
   ! Allocate spherical coordinate integration needs
   
-  ALLOCATE(bsph0(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5))
-  ALLOCATE(bsph1(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5))
-  ALLOCATE(vsph0(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5))
-  ALLOCATE(vsph1(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5))
+  ALLOCATE(bsph0(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:5))
+  ALLOCATE(bsph1(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:5))
+  ALLOCATE(vsph0(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:5))
+  ALLOCATE(vsph1(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:5))
 
-  ALLOCATE(bsphk1(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5))
-  ALLOCATE(bsphk2(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5))
+  ALLOCATE(bsphk1(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:5))
+  ALLOCATE(bsphk2(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:5))
 
-  ALLOCATE(vsphk1(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5))
-  ALLOCATE(vsphk2(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5))
+  ALLOCATE(vsphk1(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:5))
+  ALLOCATE(vsphk2(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:5))
 
   ! Lots of things needed for DORPI but not Ralston RK2/3 or vanilla RK4
 
   if (intorder.eq.5) then
-  ALLOCATE(b_3(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-  ALLOCATE(v_3(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-  ALLOCATE(bsph3(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5))
-  ALLOCATE(vsph3(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5))
+  ALLOCATE(b_3(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
+  ALLOCATE(v_3(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
+  ALLOCATE(bsph3(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:5))
+  ALLOCATE(vsph3(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:5))
 
-  ALLOCATE(bsphk3(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5))
-  ALLOCATE(bsphk4(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5))
-  ALLOCATE(bsphk5(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5))
-  ALLOCATE(bsphk6(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5))
-  ALLOCATE(bsphk7(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5))
+  ALLOCATE(bsphk3(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:5))
+  ALLOCATE(bsphk4(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:5))
+  ALLOCATE(bsphk5(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:5))
+  ALLOCATE(bsphk6(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:5))
+  ALLOCATE(bsphk7(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:5))
 
-  ALLOCATE(vsphk3(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5))
-  ALLOCATE(vsphk4(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5))
-  ALLOCATE(vsphk5(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5))
-  ALLOCATE(vsphk6(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5))
-  ALLOCATE(vsphk7(0:nkx0-1,0:nky0-1,0:nkz0-1,0:5))
+  ALLOCATE(vsphk3(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:5))
+  ALLOCATE(vsphk4(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:5))
+  ALLOCATE(vsphk5(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:5))
+  ALLOCATE(vsphk6(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:5))
+  ALLOCATE(vsphk7(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:5))
 
 endif
 

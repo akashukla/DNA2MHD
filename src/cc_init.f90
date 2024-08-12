@@ -127,8 +127,8 @@ SUBROUTINE arrays
 
   !Info for kz grid
   lkz0=nkz0
-  lkz1=0
-  lkz2=nkz0-1
+  lkz1=mype/n_mpi_procs*nkz0
+  lkz2=(mype+1)/n_mpi_procs*nkz0-1
   !Verify the following when implementing kz parallelization
   lbkz=lkz1
   ubkz=lkz2
@@ -168,13 +168,14 @@ SUBROUTINE arrays
     IF(.not.allocated(kzgrid)) ALLOCATE(kzgrid(0:nky0-1))
   ELSE
     IF(.not.allocated(kzgrid)) ALLOCATE(kzgrid(0:nkz0-1))
-  END IF
-  IF(.not.allocated(kmags)) ALLOCATE(kmags(0:nkx0-1,0:nky0-1,0:nkz0-1))
-  IF(.not.allocated(kperps)) ALLOCATE(kperps(0:nkx0-1,0:nky0-1,0:nkz0-1))
-  IF(.not.allocated(kzs)) ALLOCATE(kzs(0:nkx0-1,0:nky0-1,0:nkz0-1))
-  IF(.not.allocated(gpsi)) ALLOCATE(gpsi(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
-  IF(.not.allocated(pre)) ALLOCATE(pre(0:nkx0-1,0:nky0-1,0:nkz0-1))
-  IF(.not.allocated(pcurleig)) ALLOCATE(pcurleig(0:nkx0-1,0:nky0-1,0:nkz0-1,0:2))
+ END IF
+ 
+  IF(.not.allocated(kmags)) ALLOCATE(kmags(0:nkx0-1,0:nky0-1,lkz1:lkz2))
+  IF(.not.allocated(kperps)) ALLOCATE(kperps(0:nkx0-1,0:nky0-1,lkz1:lkz2))
+  IF(.not.allocated(kzs)) ALLOCATE(kzs(0:nkx0-1,0:nky0-1,lkz1:lkz2))
+ ! IF(.not.allocated(gpsi)) ALLOCATE(gpsi(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
+ ! IF(.not.allocated(pre)) ALLOCATE(pre(0:nkx0-1,0:nky0-1,lkz1:lkz2))
+  IF(.not.allocated(pcurleig)) ALLOCATE(pcurleig(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
   
   !IF(.not.allocated(herm_grid)) ALLOCATE(herm_grid(0:nv0-1))
   !IF(.not.allocated(hgrid_loc)) ALLOCATE(hgrid_loc(lv1:lv2))
@@ -238,7 +239,9 @@ SUBROUTINE arrays
     kymax=kymin
     kzgrid(0)=kzmin
     kzmax=kzmin
-  END IF
+ END IF
+
+ kmax = sqrt(kxmax**2.0 + kymax**2.0 + kzmax**2.0)
 
   !DO i=0,nv0-1
   !  herm_grid(i)=REAL(i)
@@ -511,8 +514,8 @@ SUBROUTINE finalize_arrays
 !  IF(allocated(g_1)) DEALLOCATE(g_1)
   IF(allocated(b_1)) DEALLOCATE(b_1)
   IF(allocated(v_1)) DEALLOCATE(v_1)
-  IF(allocated(gpsi)) DEALLOCATE(gpsi)
-  IF(allocated(pre)) DEALLOCATE(pre)
+!  IF(allocated(gpsi)) DEALLOCATE(gpsi)
+!  IF(allocated(pre)) DEALLOCATE(pre)
   IF(allocated(pcurleig)) DEALLOCATE(pcurleig)
   
   if (verbose.and.(mype.eq.0)) print *, 'Deallocated b,v'

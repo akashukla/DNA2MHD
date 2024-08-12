@@ -8,4 +8,5 @@
 #SBATCH -A PHY23037 # Project name
 
 module load python3
-python3 convg711.py
+# python3 convg711.py
+python3 script.py
