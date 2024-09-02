@@ -64,6 +64,7 @@ MODULE par_mod
   REAL :: omt=5.0,omn=5.0
   REAL :: Ti0Te=1.0 !Ratio of i to e temperature
   CHARACTER(len=200) :: diagdir='./'  !Output directory
+  CHARACTER(len=200) :: loaddir='./'  !Output directory 
   REAL :: etg_factor=0.0  !Factor for flux surface averaged phi ==> 0.0 = ETG, 1.0 = ITG
   !left/right_vec:  Output of eignevectors for lapack calculation
   LOGICAL :: left_vec=.false.,right_vec=.false.
@@ -71,6 +72,7 @@ MODULE par_mod
   LOGICAL :: left_ev=.false.
   CHARACTER(len=2) :: comp_type='IV'
   REAL :: dt_max=0.00    !initial maximum time step
+  REAL :: turnover
   LOGICAL :: fix_dt 
   REAL :: courant=0.3   !courant factor times 2 pi for dt calculation
   LOGICAL :: ev_slepc=.true.
@@ -157,6 +159,7 @@ MODULE par_mod
   LOGICAL :: walenn = .false.
   LOGICAL :: mhc = .false.
   LOGICAL :: init_wave = .false.
+  LOGICAL :: init_null = .false.
   LOGICAL :: bc_norm = .false.
   LOGICAL :: track_divs = .true.
   LOGICAL :: debug_energy = .true.
@@ -262,6 +265,11 @@ MODULE par_mod
   !COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:,:,:) :: g_1
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:) :: b_1
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:) :: v_1
+  COMPLEX, ALLOCATABLE, DIMENSION(:,:,:) :: LW,LC,RW,RC
+  REAL, ALLOCATABLE, DIMENSION(:,:,:) :: LWp,LCp,RWp,RCp
+  REAL, ALLOCATABLE, DIMENSION(:,:,:) :: LWp2,LCp2,RWp2,RCp2
+  REAL :: last_reset = -1.0! time of last forcing phase change
+
   INTEGER :: rkstage
   COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:,:) :: bdv,vdb,cbdb,bdcb,vdv,bdb,db2
   REAL, ALLOCATABLE, DIMENSION(:,:) :: kperp2
@@ -301,7 +309,7 @@ MODULE par_mod
   REAL :: time=0.0  
   REAL :: dt
   REAL :: max_time=1.0e15
-  INTEGER :: max_itime=1000000,itime=0 
+  INTEGER :: max_itime=1000000,itime=0
   INTEGER :: itime_start
   REAL :: max_walltime=83000.0
   LOGICAL :: nonlinear
@@ -367,6 +375,8 @@ MODULE par_mod
 
   ! for checkpoints in io
   INTEGER :: b_out_handle, v_out_handle
+  INTEGER :: s_handle,f_handle
+  
   REAL :: vnu ! Viscosity in units ion skin depth * v_A; scaled to vnu/(maxk**(2*hyp))
   REAL :: eta ! Magnetic Prandtl number, mag diffusion constant eta * vnu
   REAL :: rey = 0 ! Reynolds Number; if rey > 0 set vnu = 1/rey

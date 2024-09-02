@@ -123,7 +123,6 @@ SUBROUTINE initialize_fourier_ae_mu0
 
   IF (verbose) CALL DEALIASINGTEST
   if (verbose) CALL PRECISIONTEST
-  rkstage = 0
 
   !CALL dfftw_execute_dft_c2r(plan_c2r,tcomp,treal)
   !CALL dfftw_execute_dft_r2c(plan_r2c,treal,tcomp)
@@ -156,7 +155,6 @@ SUBROUTINE get_rhs_nl(b_in, v_in, rhs_out_b, rhs_out_v,ndt)
 !  ELSE IF(rhs_nl_version==4) THEN
 !    CALL get_rhs_nl4(b_in,v_in,rhs_out_b,rhs_out_v)
   END IF
-  rkstage = rkstage + 1
  
 END SUBROUTINE get_rhs_nl
 

@@ -25,7 +25,7 @@ SUBROUTINE read_parameters
   
 
   NAMELIST /diagnostics/ &
-      diagdir, istep_ffm, istep_energy3d,istep_fmom3d, istep_gamma,istep_nltest,&
+      diagdir,loaddir, istep_ffm, istep_energy3d,istep_fmom3d, istep_gamma,istep_nltest,&
       istep_schpt,dt_output,istep_energy,istep_energyspec,istep_hermite,istep_gout,istep_real,&
       istep_nlt,min_shell_width,istep_eshells,output_nlt_n,&
       istep_gk,istep_gknl,gk_ky_index,gk_kz_index,gk_kx_index,istep_GyroLES, &
@@ -55,7 +55,7 @@ SUBROUTINE read_parameters
       GyroLES, Gyroherm, Gyroz, Corr, &
       plot_nls,dbio,dvio,bdvio,vdbio,bdcbio,cbdbio,vdvio,bdbio,db2io,&
       hall,guide,enone,nv,test_ho,uni,beltrami,helical,shear,walenp,walenn,mhc,&
-      init_wave,bc_norm,track_divs,taylorgreen,en_leftwhist,en_leftcyclo,en_rightwhist,en_rightcyclo,debug_energy,&
+      init_wave,init_null,bc_norm,track_divs,taylorgreen,en_leftwhist,en_leftcyclo,en_rightwhist,en_rightcyclo,debug_energy,&
       force_lw,force_lc,force_rw,force_rc,random_state
  
   NAMELIST /eigensolve/ &
@@ -330,6 +330,7 @@ SUBROUTINE output_parameters
     !****** diagnostics NAMELIST ********
     WRITE(out_handle,"(A)")    "&diagnostics"
     WRITE(out_handle,"(3A)")   "diagdir = '", TRIM(diagdir),"'"
+    WRITE(out_handle,"(3A)")   "loaddir = '", TRIM(loaddir),"'"
     WRITE(out_handle,"(A,I4)") "istep_ffm = ",istep_ffm    
     WRITE(out_handle,"(A,I4)") "istep_energy3d = ",istep_energy3d    
     WRITE(out_handle,"(A,I4)") "istep_energy = ",istep_energy  
@@ -439,6 +440,7 @@ SUBROUTINE output_parameters
     WRITE(out_handle,"(A)")    "/"
     WRITE(out_handle,"(A)")    ""
     WRITE(out_handle,"(A,L1)") "init_wave = ",init_wave
+    WRITE(out_handle,"(A,L1)") "init_null = ",init_null
     WRITE(out_handle,"(A,I3)") "random_state = ",random_state
     WRITE(out_handle,"(A,L1)") "bc_norm = ",bc_norm
     WRITE(out_handle,"(A,L1)") "track_divs = ",track_divs
@@ -531,7 +533,7 @@ SUBROUTINE checkpoint_out(purpose)
   
   INTEGER :: send_proc,recv_proc,ierr
   !LOGICAL :: g_output,not_first
-  LOGICAL :: not_first,b_output,v_output
+  LOGICAL :: append,not_first
 
    IF(np_hank.gt.1) STOP "checkpoint_out not yet implemented for np_hank.gt.1"
    IF(np_spec.gt.1) STOP "checkpoint_out not yet implemented for np_spec.gt.1"
@@ -539,29 +541,66 @@ SUBROUTINE checkpoint_out(purpose)
  
   not_first=.false.
   IF(purpose==1) THEN !WRITE security checkpoint
-    chp_name='/s_checkpoint'
+    chp_name='/s_checkpoint.dat'
     !g_output=.false.
-    b_output=.false.
-    v_output=.false.
-  ELSE IF(purpose==2) THEN !WRITE final checkpoint
-    chp_name='/checkpoint'
+    INQUIRE(file=trim(diagdir)//trim(chp_name),exist=not_first)
+
+    append = .false.
+    
+    IF (.not.not_first) THEN
+       CALL get_io_number
+       s_handle = io_number
+    ENDIF
+
+    chp_handle = s_handle
+
+ ELSE IF(purpose==2) THEN !WRITE final checkpoint
+    chp_name='/checkpoint.dat'
       !g_output=.false.
-      b_output=.false.
-      v_output=.false.
-  ELSE IF(purpose==3) THEN !WRITE out distribution function-start new file
-      chp_name_b='/b_out.dat'
-      chp_name_v='/v_out.dat'
-      !g_output=.true.
-      b_output=.true.
-      v_output=.true.
+    INQUIRE(file=trim(diagdir)//trim(chp_name),exist=not_first)
+
+    append = .false.
+    IF (.not.not_first) THEN
+       CALL get_io_number
+       f_handle = io_number
+    ENDIF
+
+    chp_handle = f_handle
+
   ELSE IF(purpose==4) THEN !WRITE out distribution function to possibly existing g_out file
       chp_name_b='/b_out.dat'
       chp_name_v='/v_out.dat'
       !g_output=.true.
-      b_output=.true.
-      v_output=.true.
+
+      append = .true.
+
       INQUIRE(file=trim(diagdir)//trim(chp_name_b),exist=not_first)
+
+      IF (.not.not_first) THEN
+         CALL get_io_number
+         b_out_handle = io_number
+         if (mype.eq.0) THEN
+            OPEN(unit=b_out_handle,file=trim(diagdir)//trim(chp_name_b),&
+                 form='unformatted', status='replace',access='stream')
+            CLOSE(b_out_handle)
+         endif
+         
+      ENDIF
+
       INQUIRE(file=trim(diagdir)//trim(chp_name_v),exist=not_first)
+      IF (.not.not_first) THEN
+         CALL get_io_number
+         v_out_handle = io_number
+         if (mype.eq.0) THEN
+            OPEN(unit=v_out_handle,file=trim(diagdir)//trim(chp_name_v),&
+                 form='unformatted', status='replace',access='stream')
+            CLOSE(v_out_handle)
+         endif                  
+      ENDIF
+
+      chp_handle_b = b_out_handle
+      chp_handle_v = v_out_handle
+      
   !ELSE IF(purpose==5) THEN !WRITE out nonlinearity-start new file
   !    chp_name='/gnl_out.dat'
   !    !g_output=.true.
@@ -572,128 +611,47 @@ SUBROUTINE checkpoint_out(purpose)
   !    !g_output=.true.
   !    b_output=.true.
   !    v_output=.true.
-  !    INQUIRE(file=trim(diagdir)//trim(chp_name),exist=not_first)
-  END IF
+      !    INQUIRE(file=trim(diagdir)//trim(chp_name),exist=not_first)
+      
+   END IF
 
-  IF(v_output.and.b_output.and.not_first) THEN
-    chp_handle_b=b_out_handle
-    chp_handle_v=v_out_handle
-  ELSE
-    CALL get_io_number
-    IF(b_output) b_out_handle=io_number
-    chp_handle_b=b_out_handle
-    CALL get_io_number
-    IF(v_output) v_out_handle=io_number
-    chp_handle_v=v_out_handle
-    CALL get_io_number
-    chp_handle = io_number
-  END IF
-
-  IF(not_first) THEN
-    IF(mype==0) THEN
-      IF(b_output.and.v_output) THEN
-         OPEN(unit=chp_handle_b,file=trim(diagdir)//trim(chp_name_b),&
-              form='unformatted', status='unknown',access='stream',position='append')
-         OPEN(unit=chp_handle_v,file=trim(diagdir)//trim(chp_name_v),&
-              form='unformatted', status='unknown',access='stream',position='append')
-      ELSE 
-        WRITE(*,*) 'In this Section,chp_handle is: ', chp_handle, 'chp_name is: ', chp_name
-        OPEN(unit=chp_handle,file=trim(diagdir)//trim(chp_name),&
-             form='unformatted', status='REPLACE',access='stream')
-      END IF
-    END If
-  ELSE
-    IF(mype==0) THEN
-      IF(b_output.and.v_output) THEN
-         OPEN(unit=chp_handle_b,file=trim(diagdir)//trim(chp_name_b),&
-              form='unformatted', status='REPLACE',access='stream')
-         OPEN(unit=chp_handle_v,file=trim(diagdir)//trim(chp_name_v),&
-              form='unformatted', status='REPLACE',access='stream')
-      ELSE 
+   IF (mype.eq.0) then
+      IF (.not.append) THEN
          OPEN(unit=chp_handle,file=trim(diagdir)//trim(chp_name),&
-              form='unformatted', status='REPLACE',access='stream')
-      END IF
-    END IF
-  END IF
+              form='unformatted', status='replace',access='stream')
+         WRITE(chp_handle) itime
+         WRITE(chp_handle) dt
+         WRITE(chp_handle) nkx0
+         WRITE(chp_handle) nky0
+         WRITE(chp_handle) nkz0
+         WRITE(chp_handle) time
+         WRITE(chp_handle) b_1
+         WRITE(chp_handle) v_1
+         CLOSE(chp_handle)
+         WRITE (*,*) "Closed ",purpose," handle",itime
+      ELSE
+         OPEN(unit=chp_handle_b,file=trim(diagdir)//trim(chp_name_b),&
+              form='unformatted', status='unknown',access='stream',position='append')
+         WRITE(chp_handle_b) time
+         WRITE(chp_handle_b) b_1
+         CLOSE(chp_handle_b)
+         
+         OPEN(unit=chp_handle_v,file=trim(diagdir)//trim(chp_name_v),&
+              form='unformatted', status='unknown',access='stream',position='append')
+         WRITE(chp_handle_v) time
+         WRITE(chp_handle_v) v_1
+         CLOSE(chp_handle_v)
+         
+         WRITE(*,*) 'Closed v and b handles',itime         
+      ENDIF
+   ENDIF
+   
 
-  IF(mype==0) THEN
-    IF(.not.b_output) THEN
-        !WRITE(*,*) 'Trying to write to chp_handle'
-	  !Output info necessary for restarts using the checkpoint
-	  WRITE(chp_handle) itime 
-  	  WRITE(chp_handle) dt 
-	  WRITE(chp_handle) nkx0 
-	  WRITE(chp_handle) nky0 
-	  WRITE(chp_handle) nkz0 
-      !WRITE(*,*) 'Wrote partially'
-  	  !WRITE(chp_handle) nv0 
-      WRITE(chp_handle) time 
-      !WRITE(*,*) 'Wrote fully'
-    END IF
-    IF(b_output.and.v_output) THEN
-      !WRITE(*,*) 'Trying to write to chp_handle_b and v'
-      WRITE(chp_handle_b) time 
-      WRITE(chp_handle_v) time 
-      !WRITE(*,*) 'Wrote to chp_handle_b and v'
-    END IF
- END IF
-
-  IF(mype==0) THEN
-    !DO l=lv1,lv2
-      !WRITE(*,*) 'l=0,2 loop'
-	  !WRITE(chp_handle) g_out(:,:,:,l)
-     IF(b_output.and.v_output) THEN
-	    WRITE(chp_handle_b) b_1
-	    WRITE(chp_handle_v) v_1
-      !ELSE
-	  !  WRITE(chp_handle) b_out(:,:,:,l)
-	  !WRITE(chp_handle) v_out(:,:,:,l)
-     !WRITE(*,*) 'Done with l=0,2'
-  ENDIF
-
-END IF
-
-!  DO p=1,np_herm-1
-!    send_proc=p
-!    recv_proc=0
-!    IF(verbose) WRITE(*,*) "p,mype",p,mype
-!
-!    !IF(mype==send_proc) CALL MPI_Send(g_1(0,0,0,lv1,0,0), nkx0*nky0*nkz0*lv0, &
-!    !IF(mype==send_proc) CALL MPI_Send(g_out(0,0,0,0), nkx0*nky0*nkz0*lv0, &
-!	!  	   	      MPI_DOUBLE_COMPLEX, recv_proc, p, MPI_COMM_WORLD, ierr)  
-!    IF(mype==send_proc) CALL MPI_Send(b_out(0,0,0,0), nkx0*nky0*nkz0*lv0, &
-!	   	   	      MPI_DOUBLE_COMPLEX, recv_proc, p, MPI_COMM_WORLD, ierr)  
-!    IF(mype==send_proc) CALL MPI_Send(v_out(0,0,0,0), nkx0*nky0*nkz0*lv0, &
-!	   	   	      MPI_DOUBLE_COMPLEX, recv_proc, p, MPI_COMM_WORLD, ierr)  
-!
-!    !IF(mype==recv_proc) CALL MPI_Recv(g_out(0,0,0,0), nkx0*nky0*nkz0*lv0, &
-!	!			  MPI_DOUBLE_COMPLEX, send_proc, p, MPI_COMM_WORLD, stat, ierr )  
-!    IF(mype==recv_proc) CALL MPI_Recv(b_out(0,0,0,0), nkx0*nky0*nkz0*lv0, &
-!				  MPI_DOUBLE_COMPLEX, send_proc, p, MPI_COMM_WORLD, stat, ierr )  
-!    IF(mype==recv_proc) CALL MPI_Recv(v_out(0,0,0,0), nkx0*nky0*nkz0*lv0, &
-!				  MPI_DOUBLE_COMPLEX, send_proc, p, MPI_COMM_WORLD, stat, ierr )  
-!    IF(mype==0) THEN
-!      DO l=0,lv0-1
-!	    WRITE(chp_handle) g_out(:,:,:,l)
-!      END DO
-!    END IF
-!  END DO
-
-  IF(b_output.and.v_output) THEN
-      WRITe(*,*) 'Closing v and b handles',itime
-    IF(mype==0) CLOSE(chp_handle_b)
-    IF(mype==0) CLOSE(chp_handle_v)
-  ELSE
-      WRITe(*,*) 'Closing chp handle'
-    IF(mype==0) CLOSE(chp_handle)
-  END IF
-  IF(verbose) WRITE(*,*) "checkpoint_out,mype",mype
+      IF(verbose) WRITE(*,*) "checkpoint_out,mype",mype
 
   !CALL mpi_barrier(mpi_comm_world,ierr)
 
 END SUBROUTINE checkpoint_out
-
-
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!                                                                           !!
@@ -797,3 +755,47 @@ END SUBROUTINE checkpoint_out
 !!      WRITE(*,*) "Done reading checkpoint.",mype
 !!    
 !!    END SUBROUTINE checkpoint_in
+
+SUBROUTINE CHECKPOINT_IN
+
+
+  USE par_mod
+  
+  IMPLICIT NONE
+  
+  
+  character(len=100) :: chp_name
+  integer :: chp_handle
+  INTEGER :: nkx0_in,nky0_in,nkz0_in
+ 
+  chp_name = "/s_checkpoint.dat"
+
+  CALL get_io_number
+  chp_handle = io_number
+
+  if (mype.eq.0) then
+     OPEN(unit=chp_handle,file=trim(diagdir)//trim(chp_name),form='unformatted',status='unknown',access='stream')
+
+     READ(chp_handle) itime
+     READ(chp_handle) dt
+     READ(chp_handle) nkx0_in
+     READ(chp_handle) nky0_in
+     READ(chp_handle) nkz0_in
+     READ(chp_handle) time
+     READ(chp_handle) b_1
+     READ(chp_handle) v_1
+     
+     CLOSE(chp_handle)
+
+     WRITE(*,*) "itime",itime
+     WRITE(*,*) "dt",dt
+     WRITE(*,*) "nkx0",nkx0_in
+     WRITE(*,*) "nky0",nky0_in
+     WRITE(*,*) "nkz0",nkz0_in
+     WRITE(*,*) "time",time
+
+     itime_start = itime
+     
+  endif
+
+END SUBROUTINE CHECKPOINT_IN

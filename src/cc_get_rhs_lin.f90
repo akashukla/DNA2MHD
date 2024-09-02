@@ -23,8 +23,11 @@ MODULE linear_rhs
   !USE flr_effects
   !USE hk_effects
 
-  PUBLIC :: get_rhs_lin,get_rhs_lin2 !,get_v_boundaries,get_v_boundaries2
+  PUBLIC :: get_rhs_lin,get_rhs_lin2,finalize_force,init_force,get_rhs_diss,get_rhs_diss2,get_rhs_force,get_rhs_test !,get_v_boundaries,get_v_boundaries2
 
+  PRIVATE
+  
+  LOGICAL, ALLOCATABLE :: mask1(:,:,:)
 
   CONTAINS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
   
@@ -118,7 +121,7 @@ END SUBROUTINE get_rhs_lin1_ae
 
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!                                get_rhs_force                                !!
+!!                                get_rhs_force                              !!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 SUBROUTINE get_rhs_force(rhs_out_b, rhs_out_v)
     IMPLICIT NONE
@@ -127,12 +130,9 @@ SUBROUTINE get_rhs_force(rhs_out_b, rhs_out_v)
     REAL :: myresample,resample,th1,th2,th3,th4
     COMPLEX, INTENT(out) :: rhs_out_b(0:nkx0-1,0:nky0-1,lkz1:lkz2, 0:2)
     COMPLEX, INTENT(out) :: rhs_out_v(0:nkx0-1,0:nky0-1,lkz1:lkz2, 0:2)
-    LOGICAL, allocatable :: mask1(:,:,:)
     COMPLEX :: LW1,LC1,RW1,RC1
     REAL :: a,b,c,d,e,f,b1
 
-    ALLOCATE(mask1(0:nkx0-1,0:nky0-1,lkz1:lkz2))
-    
     if (verbose) a = MPI_WTIME()
     if (mype.eq.0) call random_number(resample)
     if (verbose) b = MPI_WTIME()
@@ -215,9 +215,106 @@ SUBROUTINE get_rhs_force(rhs_out_b, rhs_out_v)
 
     ENDIF
 
-    DEALLOCATE(mask1)
+    IF (forcetype.eq.31) THEN ! continuous mode injection in range
 
-END SUBROUTINE get_rhs_force
+       ! Reset phases every half turnover time and interpolate phases linearly between turnover times
+
+       if (time.eq.0.and.(time > last_reset)) then
+
+          last_reset = time
+          CALL random_number(LWp)
+          CALL random_number(LWp2)
+
+          CALL random_number(LCp)
+          CALL random_number(LCp2)
+
+          CALL random_number(RWp)
+          CALL random_number(RWp2)
+
+          CALL random_number(RCp)
+          CALL random_number(RCp2)          
+          
+       else if ((mod(time,turnover/2).lt.dt).and.(time > last_reset)) then
+
+          last_reset = time
+          LWp = LWp2
+          LCp = LCp2
+          RWp = RWp2
+          RCp = RCp2
+
+          CALL random_number(LWp2)
+          CALL random_number(LCp2)
+          CALL random_number(RWp2)
+          CALL random_number(RCp2)          
+          
+       endif
+
+      DO i = 1,nkx0-1
+          DO j = 1,nky0-1
+             DO k = lkz1,lkz2
+                th1 = ((turnover - 2* time) * LWp(i,j,k) + (2*time) * LWp2(i,j,k))/turnover
+                th2 = ((turnover - 2* time) * LCp(i,j,k) + (2*time) * LCp2(i,j,k))/turnover
+                th3 = ((turnover - 2* time) * RWp(i,j,k) + (2*time) * RWp2(i,j,k))/turnover
+                th4 = ((turnover - 2* time) * RCp(i,j,k) + (2*time) * RCp2(i,j,k))/turnover
+
+                LW1 = exp(20.0*pi*i_complex*th1)
+                LC1 = exp(20.0*pi*i_complex*th2)
+                RW1 = exp(20.0*pi*i_complex*th3)
+                RC1 = exp(20.0*pi*i_complex*th4)
+                
+                LW1 = LW1 * force_amp * sqrt(force_lw)/sqrt(force_lw + force_lc + force_rw + force_rc) * 1.0/sqrt(1 + alpha_leftwhist(i,j,k)**2)
+                LC1 = LC1 * force_amp * sqrt(force_lc)/sqrt(force_lw + force_lc + force_rw + force_rc) * 1.0/sqrt(1 + alpha_leftcyclo(i,j,k)**2)
+                RW1 = RW1 * force_amp * sqrt(force_rw)/sqrt(force_lw + force_lc + force_rw + force_rc) * 1.0/sqrt(1 + alpha_leftwhist(i,j,k)**2)
+                RC1 = RC1 * force_amp * sqrt(force_rc)/sqrt(force_lw + force_lc + force_rw + force_rc) * 1.0/sqrt(1 + alpha_leftcyclo(i,j,k)**2)
+
+                rhs_out_b(i,j,k,:) = rhs_out_b(i,j,k,:) + ((LW1 * alpha_leftwhist(i,j,k) + LC1 * alpha_leftcyclo(i,j,k)) * pcurleig(i,j,k,:)&
+                     -(RW1 * alpha_leftwhist(i,j,k) + RC1 * alpha_leftcyclo(i,j,k)) * conjg(pcurleig(i,j,k,:)))*mask1(i,j,k)
+                rhs_out_v(i,j,k,:) = rhs_out_v(i,j,k,:) + ((LW1+LC1)*pcurleig(i,j,k,:) + (RW1+RC1)*conjg(pcurleig(i,j,k,:)))*mask1(i,j,k)
+
+             ENDDO
+          ENDDO
+       ENDDO
+       
+    END IF
+    
+  END SUBROUTINE get_rhs_force
+
+  SUBROUTINE init_force
+
+    ALLOCATE(mask1(0:nkx0-1,0:nky0-1,lkz1:lkz2))
+
+    ALLOCATE(LWp(0:nkx0-1,0:nky0-1,lkz1:lkz2))
+    ALLOCATE(LWp2(0:nkx0-1,0:nky0-1,lkz1:lkz2))
+
+    ALLOCATE(LCp(0:nkx0-1,0:nky0-1,lkz1:lkz2))
+    ALLOCATE(LCp2(0:nkx0-1,0:nky0-1,lkz1:lkz2))
+
+    ALLOCATE(RWp(0:nkx0-1,0:nky0-1,lkz1:lkz2))
+    ALLOCATE(RWp2(0:nkx0-1,0:nky0-1,lkz1:lkz2))
+
+    ALLOCATE(RCp(0:nkx0-1,0:nky0-1,lkz1:lkz2))
+    ALLOCATE(RCp2(0:nkx0-1,0:nky0-1,lkz1:lkz2))
+    
+  END SUBROUTINE init_force
+
+  SUBROUTINE finalize_force
+
+    if (allocated(mask1)) DEALLOCATE(mask1)
+
+    if (allocated(LWp)) DEALLOCATE(LWp)
+    if (allocated(LWp2)) DEALLOCATE(LWp2)
+
+    if (allocated(LCp)) DEALLOCATE(LCp)
+    if (allocated(LCp2)) DEALLOCATE(LCp2)
+
+    if (allocated(RWp)) DEALLOCATE(RWp)
+    if (allocated(RWp2)) DEALLOCATE(RWp2)
+
+    if (allocated(RCp)) DEALLOCATE(RCp)
+    if (allocated(RCp2)) DEALLOCATE(RCp2)
+    
+  END SUBROUTINE finalize_force
+  
 
 SUBROUTINE get_rhs_test(b_in,v_in,rhs_out_b,rhs_out_v)
 
@@ -233,7 +330,6 @@ SUBROUTINE get_rhs_test(b_in,v_in,rhs_out_b,rhs_out_v)
   rhs_out_v = - b_in
 
 END SUBROUTINE get_rhs_test
-
 
 SUBROUTINE get_rhs_diss(b_in,v_in,rhs_out_b,rhs_out_v)
 
@@ -252,8 +348,16 @@ SUBROUTINE get_rhs_diss2(b_in,v_in)
   COMPLEX,INTENT(inout) :: b_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
   COMPLEX,INTENT(inout) :: v_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
 
-  b_in = b_in * spread(exp(-eta * (kmags ** (2.0*hyp)) * dt),4,3)
-  v_in = v_in * spread(exp(-vnu * (kmags ** (2.0*hyp)) * dt),4,3)
+  ! b_in = b_in * spread(exp(-eta * (kmags ** (2.0*hyp)) * dt),4,3)
+  ! v_in = v_in * spread(exp(-vnu * (kmags ** (2.0*hyp)) * dt),4,3)
+
+  b_in(:,:,:,0) = b_in(:,:,:,0)*exp(-eta * (kmags ** (2.0*hyp)) * dt)
+  b_in(:,:,:,1) = b_in(:,:,:,1)*exp(-eta * (kmags ** (2.0*hyp)) * dt)
+  b_in(:,:,:,2) = b_in(:,:,:,2)*exp(-eta * (kmags ** (2.0*hyp)) * dt)
+
+  v_in(:,:,:,0) = v_in(:,:,:,0)*exp(-vnu * (kmags ** (2.0*hyp)) * dt)
+  v_in(:,:,:,1) = v_in(:,:,:,1)*exp(-vnu * (kmags ** (2.0*hyp)) * dt)
+  v_in(:,:,:,2) = v_in(:,:,:,2)*exp(-vnu * (kmags ** (2.0*hyp)) * dt)
 
 END SUBROUTINE get_rhs_diss2
 

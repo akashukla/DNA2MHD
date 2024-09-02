@@ -130,7 +130,7 @@ $(OBJDIR)/cc_get_rhs_lin.o:	$(OBJDIR)/cc_par_mod.o $(OBJDIR)/cc_random.o #cc_flr
 $(OBJDIR)/cc_get_rhs_nl_short.o:	$(OBJDIR)/cc_par_mod.o #cc_field_solver.o
 $(OBJDIR)/cc_init.o:	$(OBJDIR)/cc_par_mod.o $(OBJDIR)/ee_diagnostics.o #cc_calc_dt.o #ee_diagnostics.o \
                     #cc_hk.o cc_gaussquadrature.o #cc_field_solver.o cc_flr.o 
-$(OBJDIR)/cc_initial_condition.o:	$(OBJDIR)/cc_par_mod.o $(OBJDIR)/cc_par_io.o $(OBJDIR)/ee_mtrandom.o
+$(OBJDIR)/cc_initial_condition.o:	$(OBJDIR)/cc_par_mod.o $(OBJDIR)/cc_par_io.o $(OBJDIR)/ee_mtrandom.o $(OBJDIR)/ee_diagnostics.o
 $(OBJDIR)/cc_par_io.o:	$(OBJDIR)/cc_par_mod.o #cc_gaussquadrature.o
 #cc_gaussquadrature.o:	cc_par_mod.o
 $(OBJDIR)/cc_time_advance.o:	$(OBJDIR)/cc_par_mod.o $(OBJDIR)/cc_get_rhs_lin.o $(OBJDIR)/cc_get_rhs_nl_short.o $(OBJDIR)/ee_diagnostics.o 

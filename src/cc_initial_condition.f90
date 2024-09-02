@@ -22,8 +22,10 @@ SUBROUTINE initial_condition(which_init0)
   USE par_mod
   USE mtrandom
   USE mpi
+  USE diagnostics, only : bv_first
 
   use iso_fortran_env, only: int64
+  
   IMPLICIT NONE
 
   INTEGER :: i,j,k, l,zst,xst,yst,ri
@@ -41,7 +43,7 @@ SUBROUTINE initial_condition(which_init0)
   INTEGER, DIMENSION(:), ALLOCATABLE :: rseed
   INTEGER :: rseed_size,ierr
   REAL :: testrandoms(10)
-  REAL :: truncx,truncy,truncz
+  REAL :: truncx,truncy,truncz,nlt
   INTEGER(int64) :: t 
 
   zerocmplx=0.0
@@ -124,6 +126,71 @@ SUBROUTINE initial_condition(which_init0)
       truncz = 300.0
       
       if (enone) s1 = 0.0
+
+      if (rey.eq.0) then
+         ! Set viscosity to set relative rate of dissipation at high scales 
+         rey = kxmin/vnu
+         vnu = vnu / (kmax**(2.0*hyp))
+      else
+         ! Set viscosity from Reynolds number
+         vnu = kxmin/(rey * kxmin**(2*hyp))
+      endif
+      
+      if ((mype.eq.0)) print *, "Reynolds Number",rey
+      
+      ! Set resistivity from Magnetic Prandtl number
+      eta = eta * vnu
+      if(mype.eq.0) print *, 'Viscosity',vnu
+      
+
+      IF (init_null) THEN
+         b_1 = cmplx(0.0,0.0)
+
+         ! Set forcing amplitude based on estimate of steady state v_1 = f/(vnu k^2h)
+         ! Then (f^2/vnu^2 sum(abs(v1^2/kmags^(4*hyp)))) = force_amp * (4 pi ** 3)
+
+         ! force_amp = vnu * sqrt(init_energy * (4 * pi**3) / sum((abs(v_1)**2) /spread(kmags**(4*hyp),4,3),spread(kmags**(4*hyp),4,3).gt.10**(-10)))
+         ! if ((mype.eq.0)) print *, "Force Amp",force_amp
+
+         ! v_1 = v_1 * force_amp/(vnu * spread(kmags**(2*hyp),4,3))
+         ! v_1(0,0,0,:) = 0
+
+         ! Guessed v_1 amps
+
+         v_1 = spread(kmags ** (-init_kolm * 0.5),4,3)
+         v_1(0,:,:,:) = zerocmplx
+         v_1(:,0,:,:) = zerocmplx
+         v_1(:,:,0,:) = zerocmplx
+
+         knzeroenm = sum(abs(b_1(1:nkx0-1,:,:,:))**2+abs(v_1(1:nkx0-1,:,:,:))**2)
+         kxzeroenm = sum(0.5*(abs(b_1(0,:,:,:))**2+abs(v_1(0,:,:,:))**2))
+
+         CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+         CALL MPI_ALLREDUCE(knzeroenm,knzeroen,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
+
+         CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+	 CALL MPI_ALLREDUCE(kxzeroenm,kxzeroen,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
+
+         s1 = knzeroen + kxzeroen
+
+         v_1 = v_1 * sqrt(0.5 * init_energy / (s1 * 2.0))
+
+         turnover = 1/(2*kxmin * sqrt(sum(sum(abs(v_1)**2.0,4)*sin(spread(spread(kxgrid/(2*kxmin),2,nky0),3,lkz2+1-lkz1))**2)))
+         if ((mype.eq.0)) print *, "Turnover Time Estimate",turnover
+
+         nlt = 10/(minval(abs(spread(kmags,4,3)*v_1),abs(spread(kmags,4,3)*v_1).gt. 10**(-10)))
+
+         if (mype.eq.0) print *, "Equation-Based Nonlinear Time Scale", nlt
+
+         force_amp = sqrt(maxval(abs(vnu * spread(kmags**(2.0 * hyp),4,3) * v_1)))
+
+         if ((mype.eq.0)) print *, "Force Amp",force_amp 
+         
+         ! Revert back to null IC
+         v_1 = cmplx(0.0,0.0)
+
+      ELSE
+         
 
       DO i=xst,nkx0-1
          DO j=yst,nky0-1
@@ -389,14 +456,23 @@ SUBROUTINE initial_condition(which_init0)
     endif
 
     if (verbose) print *, "Through energy normalization"
-    
-    if (enone) print *, "Low k Nonlinear Time Scale Estimate", 1/(kxmin * sqrt(2.0 * pi**3.0 * init_energy))
 
+    turnover = 1/(2*kxmin * sqrt(sum(sum(abs(v_1)**2.0,4)*sin(spread(spread(kxgrid/(2*kxmin),2,nky0),3,lkz2+1-lkz1))**2)))
+    
+    if ((mype.eq.0)) print *, "Turnover Time Estimate",turnover
+
+    nlt = 10/(minval(abs(spread(kmags,4,3)*v_1),abs(spread(kmags,4,3)*v_1).gt. 10**(-10)))
+
+    if (mype.eq.0) print *, "Equation-Based Max Nonlinear Time Scale", nlt
+
+    nlt = 10/(maxval(abs(spread(kmags,4,3)*v_1),abs(spread(kmags,4,3)*v_1).gt. 10**(-10)))
+
+    if (mype.eq.0) print *, "Equation-Based Min Nonlinear Time Scale", nlt
 
     if (nv) b_1(:,:,:,:) = cmplx(0.0,0.0)
     
     if (taylorgreen) then
-       ! Initializes Fourier components of Taylor Green vortex u = sin x cos y cos z , v = - cos x sin y cos z                                                                                
+       ! Initializes Fourier components of Taylor Green vortex u = sin x cos y cos z , v = - cos x sin y cos z
        v_1 = cmplx(0.0,0.0)
        if (mype.eq.0) then 
        v_1(1,1,0,0) = 1.0
@@ -408,27 +484,17 @@ SUBROUTINE initial_condition(which_init0)
        v_1 = -v_1 * cmplx(0.0,0.125)
     endif
 
-   
-    ! Set dissipation to set relative rate of dissipation at high scales
-
-    if (rey.eq.0) then
-       vnu = vnu / (kmax**(2.0*hyp))
-       rey = 1.0/vnu
-    else
-       vnu = 1.0/rey
-    endif
-    if (verbose.and.(mype.eq.0)) print *, "Reynolds Number",rey
- 
-    eta = eta * vnu
-    if(mype.eq.0) print *, 'Viscosity',vnu
-
     ! Scale forcing to represent energy gained per time step |F| |v| ~ energy gain per step as fraction of initial energy
     ! |v| ~ sqrt(|v|^2) ~ sqrt(energy/2)
-        
-    if (force_turbulence) force_amp = force_amp * sqrt(8.0 * pi**3.0 * init_energy)
+    
+    if (force_turbulence) force_amp = force_amp * sqrt(4.0 * pi**3.0 * init_energy)
     if (verbose.and.(mype.eq.0)) print *, "Force amp",force_amp
     
-      ! Linear stability maximum time step
+ ENDIF
+ IF (checkpoint_read) CALL checkpoint_in
+   
+ ! Linear stability maximum time step
+    print *, "Gauss2 Critical Time Step", 2.0/(maxval(kzgrid)*(kmax/2 + sqrt(1 + 0.25*kmax**2.0)))
     if (calc_dt.and.(.not.(test_ho))) dt_max = minval([dt_max,1.0/(maxval(kzgrid)*(kmax/2 + sqrt(1 + 0.25*kmax**2.0)))])
     if (verbose.and.(mype.eq.0)) then
        print *, "kzgrid max", maxval(kzgrid)
@@ -436,7 +502,24 @@ SUBROUTINE initial_condition(which_init0)
     endif
 
       ! Magnetic Helicity Correction
-      mhelcorr = 0.0
+    mhelcorr = 0.0
+
+
+    ! Check on Initial Energy
+    knzeroenm = sum(abs(b_1(1:nkx0-1,:,:,:))**2+abs(v_1(1:nkx0-1,:,:,:))**2)
+    kxzeroenm = sum(0.5*(abs(b_1(0,:,:,:))**2+abs(v_1(0,:,:,:))**2))
+    
+    CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+    CALL MPI_ALLREDUCE(knzeroenm,knzeroen,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
+    
+    CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+    CALL MPI_ALLREDUCE(kxzeroenm,kxzeroen,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
+    
+    s1 = knzeroen + kxzeroen
+
+    if (mype.eq.0) print *, "Initial Energy",s1*8*pi**3
+
+         
 
 ! Only use default for now
 !  which_init=which_init0 

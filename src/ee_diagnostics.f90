@@ -29,7 +29,7 @@ MODULE diagnostics
   !USE Gyro_LES
   IMPLICIT NONE
 
-  PUBLIC :: initialize_diagnostics, finalize_diagnostics, diag,bv_last,&
+  PUBLIC :: initialize_diagnostics, finalize_diagnostics, diag,bv_last,bv_first,&
      !output_data, nl_test, &
      initial_wallclock,start_wallclock,&
             check_wallclock,current_wallclock!, sum3d_real
@@ -73,10 +73,10 @@ MODULE diagnostics
   REAL, ALLOCATABLE, DIMENSION(:,:,:) :: NLT3
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:) :: AVP
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:) :: WVORT
-  COMPLEX, ALLOCATABLE, DIMENSION(:,:,:) :: LW,LC,RW,RC
   REAL, ALLOCATABLE, DIMENSION(:,:,:) :: xi
   REAL, ALLOCATABLE, DIMENSION(:,:,:) :: MH
   REAL, ALLOCATABLE, DIMENSION(:,:,:) :: CH
+  REAL :: ham0,ham1
   INTEGER :: nlt3_handle 
   !NLT Testing
   !REAL, ALLOCATABLE, DIMENSION(:,:,:,:) :: NLT_bak
@@ -117,7 +117,7 @@ SUBROUTINE initialize_diagnostics
     IF(checkpoint_read) THEN
       INQUIRE(file=trim(diagdir)//'/energy_out.dat',exist=file_exists)
       IF(file_exists) THEN
-        OPEN(unit=en_handle,file=trim(diagdir)//'/energy_out.dat',form='unformatted', status='REPLACE',access='stream')
+        OPEN(unit=en_handle,file=trim(diagdir)//'/energy_out.dat',form='unformatted', status='unknown',access='stream',position='append')
       ELSE
         OPEN(unit=en_handle,file=trim(diagdir)//'/energy_out.dat',form='unformatted', status='REPLACE',access='stream')
         ! WRITE(en_handle,*) "#time,entropy,phi^2 energy,dE/dt total,flux,coll,hcoll,hyps,N.L.,hyp_conv,dE/dt"
@@ -142,10 +142,10 @@ SUBROUTINE initialize_diagnostics
     !OPEN(unit=en_handle,file=trim(diagdir)//'/energy_out.dat',status='unknown') 
     IF(checkpoint_read) THEN
       INQUIRE(file=trim(diagdir)//'/energyspec_out.dat',exist=file_exists)
-      INQUIRE(file=trim(diagdir)//'/modespec_out.dat',exist=file_exists)
+      INQUIRE(file=trim(diagdir)//'/mode_out.dat',exist=file_exists)
       IF(file_exists) THEN
-        OPEN(unit=enspec_handle,file=trim(diagdir)//'/energyspec_out.dat',form='unformatted', status='REPLACE',access='stream')
-        OPEN(unit=mode_handle,file=trim(diagdir)//'/mode_out.dat',form='unformatted', status='REPLACE',access='stream')
+        OPEN(unit=enspec_handle,file=trim(diagdir)//'/energyspec_out.dat',form='unformatted', status='unknown',access='stream',position='append')
+        OPEN(unit=mode_handle,file=trim(diagdir)//'/mode_out.dat',form='unformatted', status='unknown',access='stream',position='append')
       ELSE
         OPEN(unit=enspec_handle,file=trim(diagdir)//'/energyspec_out.dat',form='unformatted', status='REPLACE',access='stream')
         OPEN(unit=mode_handle,file=trim(diagdir)//'/mode_out.dat',form='unformatted', status='REPLACE',access='stream')
@@ -262,11 +262,7 @@ SUBROUTINE diag
 
       IF(verbose) WRITE(*,*) "Starting vbout diag.",mype
 
-      IF(itime==0) THEN
-        CALL checkpoint_out(3)
-      ELSE
-        CALL checkpoint_out(4)
-      END IF
+      CALL checkpoint_out(4)
 
       IF(itime==0.and.gout_nl) THEN
         CALL checkpoint_out(5)
@@ -313,7 +309,7 @@ SUBROUTINE bv_last
        "native",MPI_INFO_NULL,ierr)
 
   ! Write into file
-  CALL MPI_FILE_WRITE_SHARED(blast_handle,b_1,nkx0*nky0*nkz0*3/n_mpi_procs,MPI_DOUBLE_COMPLEX,status,ierr)
+  CALL MPI_FILE_WRITE_SHARED(blast_handle,b_1,product(subsizes_4d),MPI_DOUBLE_COMPLEX,status,ierr)
   CALL MPI_FILE_GET_SIZE(blast_handle,size,ierr)
   print	*, size	
   ! Close file
@@ -323,7 +319,7 @@ SUBROUTINE bv_last
        MPI_MODE_WRONLY.or.MPI_MODE_CREATE, MPI_INFO_NULL,vlast_handle,ierr)
   CALL MPI_FILE_SET_VIEW(vlast_handle,0, MPI_DOUBLE_COMPLEX, MPI_4D_COMPLEX_ARRAY,&
        "native",MPI_INFO_NULL,ierr)
-  CALL MPI_FILE_WRITE_SHARED(vlast_handle,v_1,nkx0*nky0*nkz0*3/n_mpi_procs,MPI_DOUBLE_COMPLEX,status,ierr)
+  CALL MPI_FILE_WRITE_SHARED(vlast_handle,v_1,product(subsizes_4d),MPI_DOUBLE_COMPLEX,status,ierr)
   CALL MPI_FILE_GET_SIZE(vlast_handle,size,ierr)
   print *, size
   CALL MPI_FILE_CLOSE(vlast_handle, ierr)
@@ -331,6 +327,60 @@ SUBROUTINE bv_last
   print *, "End bv_last"
 
 END SUBROUTINE bv_last
+
+SUBROUTINE bv_first
+
+  IMPLICIT NONE
+
+  ! Read the last b_1 and v_1 to a file for a warm restart
+  ! This is a trial using MPI routines
+  ! Code almost all from MPI 3-1 Standard
+  
+  integer :: bfirst_handle,vfirst_handle
+  integer :: sizes_4d(4),subsizes_4d(4),starts_4d(4)
+  integer :: MPI_4D_COMPLEX_ARRAY
+  TYPE(MPI_Status) :: status
+
+  INTEGER :: size
+
+  ! Subarray type 
+  print *, "In bv_first"
+  sizes_4d = (/nkx0,nky0,nkz0,3/)
+  subsizes_4d = (/nkx0,nky0,nkz0/n_mpi_procs,3/)
+  starts_4d = (/0,0,mype*nkz0/n_mpi_procs,0/)
+
+  CALL MPI_TYPE_CREATE_SUBARRAY(4,sizes_4d,subsizes_4d,starts_4d,&
+       MPI_ORDER_FORTRAN, MPI_DOUBLE_COMPLEX,MPI_4D_COMPLEX_ARRAY,ierr)
+
+  ! Open file and set view
+  CALL MPI_FILE_OPEN(MPI_COMM_WORLD,trim(loaddir)//'/blast_out.dat',&
+       MPI_MODE_RDONLY, MPI_INFO_NULL,bfirst_handle,ierr)
+  CALL MPI_FILE_SET_VIEW(bfirst_handle,0, MPI_DOUBLE_COMPLEX,MPI_4D_COMPLEX_ARRAY,&
+       "native",MPI_INFO_NULL,ierr)
+
+  ! Write into file
+  CALL MPI_FILE_READ_SHARED(bfirst_handle,b_1,product(subsizes_4d),MPI_DOUBLE_COMPLEX,status,ierr)
+
+  if ((mype.eq.0)) print *, "Max b_1 first",maxval(abs(b_1))
+  
+  ! Close file
+  CALL MPI_FILE_CLOSE(bfirst_handle, ierr)
+
+  CALL MPI_FILE_OPEN(MPI_COMM_WORLD,trim(loaddir)//'/vlast_out.dat',&
+       MPI_MODE_RDONLY, MPI_INFO_NULL,vfirst_handle,ierr)
+  CALL MPI_FILE_SET_VIEW(vfirst_handle,0, MPI_DOUBLE_COMPLEX, MPI_4D_COMPLEX_ARRAY,&
+       "native",MPI_INFO_NULL,ierr)
+  CALL MPI_FILE_READ_SHARED(vfirst_handle,v_1,product(subsizes_4d),MPI_DOUBLE_COMPLEX,status,ierr)
+  if ((mype.eq.0)) print *, "Max v_1 first",maxval(abs(v_1))
+  CALL MPI_FILE_CLOSE(vfirst_handle, ierr)
+
+  if ((mype.eq.0)) print *, "Max b_1 first",maxval(abs(b_1))
+  if ((mype.eq.0)) print *, "Max v_1 first",maxval(abs(v_1))
+
+  print *, "End bv_first"
+
+END SUBROUTINE bv_first
+  
 
 
 
@@ -440,6 +490,19 @@ CALL MPI_ALLREDUCE(hamsm,hams,2,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
 ham = sum(hams) * (8*(pi**3))
 
 if (mype.eq.0) WRITE(en_handle) ham
+
+if (opt.eq.0) then
+   if (itime.eq.0) ham0 = ham
+
+   if (verbose.and.(mype.eq.0)) print *, "Initial Hamiltonian",ham
+
+if (mod(itime,istep_energyspec).eq.0.and.itime.gt.0) then
+   ham1 = ham
+   write(*,"(A20,E10.3)") "Energy Fractional Change",(ham1-ham0)/(ham0)
+   ham0 = ham1
+endif
+endif
+
 
 end subroutine hmhdhmtn
 
@@ -768,7 +831,7 @@ subroutine divs
   if (verbose.and.(mype.eq.0)) print *, "Max Abs Div v " ,maxval(abs(divv))
   if (verbose.and.(mype.eq.0)) print *, "Max Abs Div b " ,maxval(abs(divb))
 
-end subroutine divs  
+end subroutine divs
 
 END MODULE diagnostics
 

@@ -982,7 +982,7 @@ def plot_energy(lpath,ntp,show=True,log=False,rescale=True,xb=1,tmax=2000000):
     timeen = timeen[range(0,xx,xb)]
     enval = enval[range(0,xx,xb),:]
     plts = [0,1,4,7]
-    for i in plts:
+    for i in plts[:ntp+1]:
         if i == 7:
             fig,ax = plt.subplots(1)
             ax.plot(timeen,enval[:,i]/enval[0,0],"b",label=labels[i])
@@ -1003,8 +1003,12 @@ def plot_energy(lpath,ntp,show=True,log=False,rescale=True,xb=1,tmax=2000000):
                 ax.plot(timeen,ev,'k')
                 r = np.max(ev) - np.min(ev)
             elif par['mhc']:
-                ev = (enval[:,i]+enval[:,9])/enval[0,i+2]
-                ev0 = enval[:,i]/enval[0,i+2]
+                if enval[0,i+2] > 10**(-16):
+                    ev = (enval[:,i]+enval[:,9])/enval[0,i+2]
+                    ev0 = enval[:,i]/enval[0,i+2]
+                else:
+                    ev = (enval[:,i]+enval[:,9])/np.amax(np.abs(enval[:,i]+enval[:,9]))
+                    ev0 = enval[:,i]/np.amax(np.abs(enval[:,i]+enval[:,9]))
                 ax.plot(timeen,ev0,"r",label="Original")
                 ax.plot(timeen,ev,"k",label="Transformed")
                 ax.legend()

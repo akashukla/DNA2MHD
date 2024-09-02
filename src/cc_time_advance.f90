@@ -21,9 +21,11 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 MODULE time_advance
   USE par_mod
+  USE mpi
   USE linear_rhs
   USE nonlinearity
   USE diagnostics
+  
   !USE field_solver
   !USE calculate_time_step, ONLY: adapt_dt
 
@@ -53,6 +55,7 @@ SUBROUTINE iv_solver
   INTEGER :: ionums(9)
   INTEGER :: q
 
+  CALL init_force
   CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
  IF(.not.checkpoint_read) dt=dt_max
  !itime=0
@@ -65,12 +68,14 @@ SUBROUTINE iv_solver
  if (.not.linen) CALL ALLOCATE_STEPS
  if (linen) CALL ALLOCATE_SPHS
 
- CALL bv_last
+ rkstage = 0
  
- DO WHILE(time.lt.max_time.and.itime.lt.max_itime.and.continue_run)
+ DO WHILE((time.lt.max_time).and.(itime.lt.max_itime).and.(continue_run))
  
-   !IF(verbose) WRITE(*,*) "Calling diagnostics",time,itime,mype
-   CALL diag
+    !IF(verbose) WRITE(*,*) "Calling diagnostics",time,itime,mype
+
+    ! Don't call diagnostics on first iteration when doing a warm restart - no doubles in data
+   if ((.not.checkpoint_read).or.(itime.gt.itime_start)) CALL diag
    !IF(verbose) WRITE(*,*) "Done with diagnostics",time,itime,mype
 
    IF(verbose.and.(mype.eq.0)) WRITE(*,*) "iv_solver: before get_g_next",time,itime,mype
@@ -95,17 +100,20 @@ SUBROUTINE iv_solver
    IF (linen) THEN
       CALL LINEARENERGYSPH(b_1,v_1,dt_next)
       dt = minval([dt_next,dt_max])
-   ! Implicit + Strucuture Conserving Integrators
+   ! Implicit + Strucuture Conserving Integrators with Splitting for Nonideal fluid
    ELSE IF (intorder.eq.20) THEN
       CALL split2(b_1,v_1)
    ELSE IF (intorder.eq.40) THEN
       CALL split4(b_1,v_1)
    ! Implicit + Structure Conserving Integrators (Use on Ideal Fluid only until better understood)
-   ELSE IF (intorder.eq.81) THEN 
+   ELSE IF (intorder.eq.81) THEN ! Don't use this for now
       CALL STORM8(b_1,v_1,dt_next)
       dt = minval([dt_next,dt_max])
    ELSE IF (intorder.eq.41) THEN
       CALL gauss4(b_1,v_1,dt_next)
+      dt = minval([dt_max,dt_next])
+   ELSE IF (intorder.eq.21) THEN
+      CALL gauss2(b_1,v_1,dt_next)
       dt = minval([dt_max,dt_next])
       ! Dormand Prince Adaptive/Embedded Schemes
    ELSE IF (intorder.eq.8) THEN
@@ -142,6 +150,12 @@ SUBROUTINE iv_solver
    ENDIF
   !END IF
 END DO
+
+if (mype.eq.0.and.verbose) print *, "Run stopped"
+CALL finalize_force
+if (mype.eq.0.and.verbose) print *, "Force deallocated"
+CALL diag
+CALL bv_last
 
 if (linen) CALL DEALLOCATE_SPHS
 if (.not.linen) CALL DEALLOCATE_STEPS
@@ -387,6 +401,7 @@ SUBROUTINE get_rhs(b_in,v_in, rhs_out_b,rhs_out_v,nmhc,ndt)
      if (verbose.and.(mype.eq.0)) print *,'RHS found'
 
   ENDIF
+  rkstage = rkstage + 1
   
 
 END SUBROUTINE get_rhs
@@ -613,7 +628,7 @@ SUBROUTINE GAUSS4(b_in,v_in,dt_new)
        maxval(abs(vk2-vk2s)))
   solvloop = 0
 
-  DO WHILE ((solvloop.lt.1000).and.(maxdev.gt.10.0**(-19.0)))
+  DO WHILE ((solvloop.lt.1000).and.(maxdev.gt.10.0**(-16.0)))
      ! Check for now to see if the fixed point iteration converges
      if (verbose) print *, "Iteration ",solvloop,"Discrepancy ",maxdev
 
@@ -676,8 +691,9 @@ SUBROUTINE GAUSS2(b_in,v_in,dt_new)
   maxdev = max(maxval(abs(bk1-bk1s)),maxval(abs(vk1-vk1s)))
   solvloop = 0
 
-  DO WHILE ((solvloop.lt.1000).and.(maxdev.gt.10.0**(-19.0)))
-     ! Check for now to see if the fixed point iteration converges                                                                                                                                                                                                       
+  DO WHILE ((solvloop.lt.1000).and.(maxdev.gt.10.0**(-16.0)))
+     ! Check for now to see if the fixed point iteration converges
+
      if (verbose) print *, "Iteration ",solvloop,"Discrepancy ",maxdev
 
      bk1 = bk1s
@@ -695,8 +711,8 @@ SUBROUTINE GAUSS2(b_in,v_in,dt_new)
 
   if (itime.eq.10) print *, "Number of Iterations Needed itime = 10 ",solvloop
 
-  ! Update the fields                                                                                                                                                                                                                                                    
-
+  ! Update the fields
+  
   b_in = b_in + dt * bk1s
   v_in = v_in + dt * vk1s
   mhelcorr = mhelcorr + dt * nmhc1s 
@@ -991,7 +1007,7 @@ SUBROUTINE DORPI8713M(b_in,v_in)
   
 END SUBROUTINE DORPI8713M
 
-SUBROUTINE SPLIT2(b_in,v_in,dtm)
+SUBROUTINE SPLIT2(b_in,v_in)
 
   ! Uses second order Strang splitting
   
@@ -999,28 +1015,39 @@ SUBROUTINE SPLIT2(b_in,v_in,dtm)
 
   COMPLEX, INTENT(INOUT) :: b_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
   COMPLEX, INTENT(INOUT) :: v_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
-  REAL, OPTIONAL :: dtm
   REAL :: ndt
+  REAL :: dt2
 
-  if (.not.present(dtm)) dtm = dt_max
+  dt2 = dt
+!   if (.not.present(dtm)) dtm = dt_max
   
-  dt = 0.5 * dtm
+  dt = 0.5 * dt2
+  if (verbose.and.(mype.eq.0)) print *, "Set time step"
   CALL get_rhs_diss2(b_in,v_in)
+  if (verbose.and.mype.eq.0) print *, "Through dissipation 1"
   CALL get_rhs_force(bk1,vk1)
   b_in = b_in + dt * bk1
   v_in = v_in + dt * vk1
+  if (verbose.and.mype.eq.0) print *, "Through force 1"
 
-  dt = dtm
+  dt = dt2
   if (intorder.eq.20) CALL GAUSS2(b_in,v_in,ndt)
   if (intorder.eq.40) CALL GAUSS4(b_in,v_in,ndt)
+  if (verbose.and.mype.eq.0) print *, "Through ideal"
 
-  dt = 0.5 * dtm
+  dt = 0.5 * dt2
   bk1 = 0.0
   vk1 = 0.0
   CALL get_rhs_force(bk1,vk1)
+
   b_in = b_in + dt * bk1
   v_in = v_in + dt * vk1
+  if (verbose.and.mype.eq.0) print *, "Through force 2"
+  
   CALL get_rhs_diss2(b_in,v_in)
+  if (verbose.and.mype.eq.0) print *, "Through dissipation 2"
+
+  dt = dt2
 
 END SUBROUTINE SPLIT2
 
@@ -1033,14 +1060,18 @@ SUBROUTINE SPLIT4(b_in,v_in)
   COMPLEX, INTENT(INOUT) :: v_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
   REAL :: dt2
 
-  dt2 = - (2.0**(1.0/3.0))/(2.0-2.0**(1.0/3.0)) * dt_max
-  CALL SPLIT2(b_1,v_1,dt2)
+  dt2 = dt
 
-  dt2 = 1.0/(2.0-2.0**(1.0/3.0)) * dt_max
-  CALL SPLIT2(b_1,v_1,dt2)
+  dt = - (2.0**(1.0/3.0))/(2.0-2.0**(1.0/3.0)) * dt2
+  CALL SPLIT2(b_1,v_1)
 
-  dt2 = - (2.0**(1.0/3.0))/(2.0-2.0**(1.0/3.0)) * dt_max
-  CALL SPLIT2(b_1,v_1,dt2)
+  dt = 1.0/(2.0-2.0**(1.0/3.0)) * dt2
+  CALL SPLIT2(b_1,v_1)
+
+  dt = - (2.0**(1.0/3.0))/(2.0-2.0**(1.0/3.0)) * dt2
+  CALL SPLIT2(b_1,v_1)
+
+  dt = dt2
 
 END SUBROUTINE SPLIT4
 

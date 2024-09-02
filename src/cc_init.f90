@@ -190,7 +190,6 @@ SUBROUTINE arrays
   !hyp_x_herm1(:) = 0.001 
   !hyp_y_herm1(:) = 0.001 
 
- 
   IF(kmin_eq_0) THEN
     if (splitx) then
 
