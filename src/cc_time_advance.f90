@@ -54,6 +54,7 @@ SUBROUTINE iv_solver
   REAL :: dt_next
   INTEGER :: ionums(9)
   INTEGER :: q
+  REAL :: sttime,diagtime
 
   CALL init_force
   CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
@@ -75,7 +76,11 @@ SUBROUTINE iv_solver
     !IF(verbose) WRITE(*,*) "Calling diagnostics",time,itime,mype
 
     ! Don't call diagnostics on first iteration when doing a warm restart - no doubles in data
+   if (timer) sttime = MPI_WTIME()
    if ((.not.checkpoint_read).or.(itime.gt.itime_start)) CALL diag
+   if (timer) diagtime = MPI_WTIME()
+   if (timer) print *, "Diag Time",diagtime - sttime
+   
    !IF(verbose) WRITE(*,*) "Done with diagnostics",time,itime,mype
 
    IF(verbose.and.(mype.eq.0)) WRITE(*,*) "iv_solver: before get_g_next",time,itime,mype
@@ -322,12 +327,15 @@ SUBROUTINE remove_div(b_in,v_in)
  COMPLEX, INTENT(inout) :: v_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
  INTEGER :: i,j,k,l,h
  COMPLEX :: div_v, div_b
- REAL :: k2, zero
+ REAL :: k2
+ COMPLEX :: exb(0:2),exv(0:2)
 
  div_v = 0.0 +i_complex*0.0
  div_b = 0.0 +i_complex*0.0
  k2=0.0
  zero=0.0
+ exb = b_in(0,0,0,:)
+ exv = v_in(0,0,0,:)
 
  DO i=0,nkx0-1
    DO j=0,nky0-1
@@ -335,21 +343,24 @@ SUBROUTINE remove_div(b_in,v_in)
         k2 = kxgrid(i)**2 + kygrid(j)**2 + kzgrid(k)**2
         div_v = kxgrid(i)*v_in(i,j,k,0) + kygrid(j)*v_in(i,j,k,1) + kzgrid(k)*v_in(i,j,k,2)
         div_b = kxgrid(i)*b_in(i,j,k,0) + kygrid(j)*b_in(i,j,k,1) + kzgrid(k)*b_in(i,j,k,2)
-        IF(k2.ne.zero) THEN 
-                v_in(i,j,k,0) = v_in(i,j,k,0) - div_v*kxgrid(i)/k2
-                v_in(i,j,k,1) = v_in(i,j,k,1) - div_v*kygrid(j)/k2
-                v_in(i,j,k,2) = v_in(i,j,k,2) - div_v*kzgrid(k)/k2
 
+        v_in(i,j,k,0) = v_in(i,j,k,0) - div_v*kxgrid(i)/k2
+        v_in(i,j,k,1) = v_in(i,j,k,1) - div_v*kygrid(j)/k2
+        v_in(i,j,k,2) = v_in(i,j,k,2) - div_v*kzgrid(k)/k2
+        
 
-              ! The b equation is a curl, so we don't need to remove div b
-                b_in(i,j,k,0) = b_in(i,j,k,0) - div_b*kxgrid(i)/k2
-                b_in(i,j,k,1) = b_in(i,j,k,1) - div_b*kygrid(j)/k2
-                b_in(i,j,k,2) = b_in(i,j,k,2) - div_b*kzgrid(k)/k2
+        ! The b equation is a curl, so we don't need to remove div b
+        b_in(i,j,k,0) = b_in(i,j,k,0) - div_b*kxgrid(i)/k2
+        b_in(i,j,k,1) = b_in(i,j,k,1) - div_b*kygrid(j)/k2
+        b_in(i,j,k,2) = b_in(i,j,k,2) - div_b*kzgrid(k)/k2
 
-           ENDIF
+     
      ENDDO
    ENDDO
- ENDDO 
+ENDDO
+
+b_in(0,0,0,:) = exb
+v_in(0,0,0,:) = exv
 
 if (verbose.and.(mype.eq.0)) print *,'Divergence Removed'
 
@@ -367,6 +378,7 @@ SUBROUTINE get_rhs(b_in,v_in, rhs_out_b,rhs_out_v,nmhc,ndt)
  COMPLEX, INTENT(out) :: rhs_out_v(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
  REAL, INTENT(out) :: nmhc
  REAL :: ndt
+ REAL :: sttime,lintime,nltime,disstime,forcetime
 
 !  COMPLEX, INTENT(in) :: g_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,lv1:lv2,lh1:lh2,ls1:ls2)
 !  COMPLEX, INTENT(out) :: rhs_out(0:nkx0-1,0:nky0-1,lkz1:lkz2,lv1:lv2,lh1:lh2,ls1:ls2)
@@ -376,12 +388,20 @@ SUBROUTINE get_rhs(b_in,v_in, rhs_out_b,rhs_out_v,nmhc,ndt)
      CALL get_rhs_test(b_in,v_in,rhs_out_b,rhs_out_v)
      ndt = dt_max
   ELSE
-     
+
+     if (timer) sttime = MPI_WTIME()
      CALL get_rhs_lin(b_in,v_in,rhs_out_b, rhs_out_v,0)
+     if (timer) lintime = MPI_WTIME()
+     if (timer) print *, "Linear Time",lintime-sttime
+     
      IF ((verbose).and.(mype.eq.0)) WRITE(*,*) 'Lin Max Abs V',maxval(abs(rhs_out_v)),maxloc(abs(rhs_out_v))
      IF ((verbose).and.(mype.eq.0)) WRITE(*,*) 'Lin Max Abs B',maxval(abs(rhs_out_b)),maxloc(abs(rhs_out_b))
      !IF(nonlinear.and..not.linear_nlbox) CALL get_rhs_nl(b_in, v_in,rhs_out_b,rhs_out_v)
+     if (timer) sttime = MPI_WTIME()
      IF(actual_nonlinear) CALL get_rhs_nl(b_in, v_in,rhs_out_b,rhs_out_v,ndt)
+     if (timer) nltime = MPI_WTIME()
+     if (timer) print *, "Nonlinear Time",nltime-sttime
+     
      IF (verbose.and.(mype.eq.0)) WRITE(*,*) 'NL Max Abs V',maxval(abs(rhs_out_v)),maxloc(abs(rhs_out_v))
      IF (verbose.and.(mype.eq.0)) WRITE(*,*) 'NL Max Abs B',maxval(abs(rhs_out_b)),maxloc(abs(rhs_out_b))
      IF (.not.(actual_nonlinear)) ndt = dt_max
@@ -394,8 +414,14 @@ SUBROUTINE get_rhs(b_in,v_in, rhs_out_b,rhs_out_v,nmhc,ndt)
 
      ! Add forcing
      IF (mod(intorder,20).ne.0) THEN
+        if (timer) sttime = MPI_WTIME()
         CALL get_rhs_diss(b_in,v_in,rhs_out_b,rhs_out_v)
+        if (timer) disstime =MPI_WTIME()
+        if (timer) print *, "Dissipation Time",disstime-sttime
+        if (timer) sttime = MPI_WTIME()
         IF (force_turbulence) CALL get_rhs_force(rhs_out_b, rhs_out_v)
+        if (timer) forcetime = MPI_WTIME()
+        if (timer) print *, "Forcing Time",forcetime-sttime
      ENDIF
      
      if (verbose.and.(mype.eq.0)) print *,'RHS found'

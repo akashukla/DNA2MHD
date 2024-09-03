@@ -4,7 +4,7 @@ omt = 5.000
 omn =    1.000    
 Ti0Te =    1.000 
 eta = 1.0
-vnu = 0.0001
+vnu = 0.0
 rey = 0.0
 /
 
@@ -12,9 +12,9 @@ rey = 0.0
 kxmin =   0.10
 kymin =   0.10
 kzmin =   0.05
-nkx0 = 64
-nky0 = 128
-nkz0 = 128
+nkx0 = 32
+nky0 = 64
+nkz0 = 64
 nv0 =   2
 nh0 =    1
 nspec =    1
@@ -35,9 +35,9 @@ courant =   0.5
 kxinit_min = 0
 kyinit_min = 0
 kzinit_min = 0
-kxinit_max = 64
-kyinit_max = 128
-kzinit_max = 128
+kxinit_max = 32
+kyinit_max = 64
+kzinit_max = 64
 init_energy = 0.01
 init_amp_bx = 0.0
 init_amp_by = 0.0
@@ -48,7 +48,7 @@ init_amp_vz = 0.0
 init_kolm = 2.0
 phdf = 2.0
 phdfxy = 2.0
-force_amp = 0.00003
+force_amp = 0.0
 nkxforce = 16
 nkyforce = 16
 nkzforce = 16
@@ -57,14 +57,14 @@ hyp = 2
 /
 
 &diagnostics
-diagdir = '/scratch/08929/echansen/dna2mhdrunDPP128LC2'
-loaddir = '/scratch/08929/echansen/dna2mhdrunDPP128LC'
+diagdir = '/scratch/08929/echansen/dna2mhdruntiming'
+loaddir = '/scratch/08929/echansen/dna2mhdruntiming'
 istep_ffm =   20
 istep_energy3d =  500
-istep_energy =  20
-istep_energyspec = 100
+istep_energy =  1
+istep_energyspec = 200
 istep_hermite =  1000
-istep_gout =  1
+istep_gout =  50
 istep_gk =    0
 istep_gknl =    0
 istep_nlt =    0
@@ -72,14 +72,15 @@ istep_eshells =   500
 istep_real =   200
 istep_fmom3d =  500
 istep_gamma =    0
-istep_schpt =  20
+istep_schpt =  200
 output_nlt_n = F
 /
 
 &flags
-verbose  = F
+verbose  = T
+timer = F
 nonlinear  = T
-actual_nonlinear = T
+actual_nonlinear = F
 calc_dt  = T
 comp_type = 'IV'
 checkpoint_write = T

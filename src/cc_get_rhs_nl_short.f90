@@ -179,7 +179,8 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
                                                                 !REAL :: dyphi(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1)
                                                                 !REAL :: dxg(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1)
                                                                 !REAL :: dyg(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1)
-   INTEGER :: l,h, ierr
+  INTEGER :: l,h, ierr
+  REAL :: sttime,padtime,sttimeb,timeb
 
   IF(np_spec.gt.1) STOP "get_rhs_nl1 not yet implemented for np_spec.gt.1"
   IF(np_kz.gt.1) STOP "get_rhs_nl1 not yet implemented for np_kz.gt.1"
@@ -199,6 +200,7 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
 ! TERMS BX BY BZ
 
 
+  if (timer) sttimeb = MPI_WTIME()
   if (.not.nv) then ! Skip b if Navier Stokes
     !bx
     DO i=0,nkx0-1
@@ -225,11 +227,26 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
     bz = store
 
     ! curlbx
+
+    if (timer) sttime = MPI_WTIME()
+    DO j = 0,nky0-1
+       temp_small(:,j,:) = i_complex * kygrid(j)*b_inz0(:,j,:)
+    END DO
+    DO k = 0,nkz0-1
+       temp_small(:,:,k) = temp_small(:,:,k) - i_complex * kzgrid(k) * b_iny0(:,:,k)
+    ENDDO
+    if (timer) padtime = MPI_WTIME()
+    if (timer) print *, "Curl Time 1",padtime-sttime
+
+    if (timer) sttime = MPI_WTIME()
     DO j = 0,nky0-1
        DO k = 0,nkz0-1
           temp_small(:,j,k) = i_complex * kygrid(j) * b_inz0(:,j,k) - i_complex  * kzgrid(k) * b_iny0(:,j,k)
        ENDDO
     ENDDO
+    if (timer) padtime = MPI_WTIME()
+    if (timer) print *, "Curl Time 2",padtime - sttime
+    
     CALL ZEROPAD
     CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
     curlbx = store
@@ -250,7 +267,11 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
           temp_small(i,j,:) = i_complex * kxgrid(i) * b_iny0(i,j,:) - i_complex * kygrid(j) * b_inx0(i,j,:)
        ENDDO
     ENDDO
+    if (timer) sttime = MPI_WTIME()
     CALL ZEROPAD
+    if (timer) padtime = MPI_WTIME()
+    if (timer) print *, "Pad Call Time",padtime-sttime
+    
     CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
     curlbz = store
     
@@ -262,13 +283,17 @@ endif !Skip b FFTs if Navier Stokes
         temp_small(i,:,:)=v_inx0(i,:,:)
     END DO
     !Add padding for dealiasing
+    if (timer) sttime = MPI_WTIME()
     temp_big=cmplx(0.0,0.0)
     DO i=0,nkx0-1
         temp_big(i,0:hky_ind,0:hkz_ind)=temp_small(i,0:hky_ind,0:hkz_ind)    !kz positive, ky positive    
         temp_big(i,0:hky_ind,lkz_big:nz0_big-1)=temp_small(i,0:hky_ind,lkz_ind:nkz0-1) !kz negative, ky positive
         temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
         temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
-    END DO!k loop
+     END DO!k loop
+     if (timer) padtime = MPI_WTIME()
+     if (timer) print *, "Pad Raw Time",padtime-sttime
+     
     CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
     vx = store
 
@@ -332,6 +357,9 @@ endif !Skip b FFTs if Navier Stokes
     CALL ZEROPAD
     CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
     curlvz = store
+
+    if (timer) timeb = MPI_WTIME()
+    if (timer) print *, "Inverse Time",timeb-sttimeb
     
 ! EQUATION (14) 1=xcomp, 2=ycomp 3=zcomp
 !     eq14x=P1-Q1-R1+S1
@@ -364,6 +392,7 @@ endif !Skip b FFTs if Navier Stokes
 
     ! To save memory, only use one store by adding terms to rhs_out as needed
 
+    if (timer) sttimeb = MPI_WTIME()
     if (.not.nv) then ! Skip b ffts if Navier Stokes
 
        ! x: vy bz - vz by - (curlby bz - curlbz by)
@@ -462,7 +491,10 @@ CALL dfftw_execute_dft_r2c(plan_r2c,store,temp_big)
 CALL UNPACK
 if (verbose) print *, "vz fft complete"
 rhs_out_v(:,:,:,2) = rhs_out_v(:,:,:,2) + temp_small(0:nkx0-1,0:nky0-1,0:nkz0-1)
-  if (verbose) print *, "vz done"
+if (verbose) print *, "vz done"
+
+if (timer) timeb = MPI_WTIME()
+if (timer) print *, "Equations and Forward Time",timeb-sttimeb
 
   ! to preserve reality of the fields, remove v,b terms at nky0/2,nkz0/2
   rhs_out_b(:,nky0/2,:,:) = 0
@@ -649,7 +681,7 @@ SUBROUTINE ZEROPAD
        temp_big(i,0:hky_ind,lkz_big:nz0_big-1)=temp_small(i,0:hky_ind,lkz_ind:nkz0-1) !kz negative, ky positive
        temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
        temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
-     END DO!k loop                             
+     END DO!k loop 
 
 END SUBROUTINE ZEROPAD
 

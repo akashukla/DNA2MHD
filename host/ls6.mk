@@ -42,7 +42,7 @@ PREPROC =
 
 #####  COMPILERS AND LINKER TYPE
 ###############################################################################
-FC = mpif90
+FC = mpiifort
 LD = $(FC) 
 
 

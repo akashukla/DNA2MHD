@@ -47,7 +47,7 @@ SUBROUTINE read_parameters
 
   NAMELIST /flags/ &
       nonlinear, actual_nonlinear, force_turbulence,forceb,set_forcing,forcetype,test_nl, calc_dt, comp_type,adapt_dt_nl,&
-      linear_nlbox,verbose,checkpoint_read,checkpoint_write,&
+      linear_nlbox,verbose,timer,checkpoint_read,checkpoint_write,&
       em_conserve,flr_on,force_kz0eq0,force_ky0eq0,force_kx0eq0,flr_version,&
       flr_extra,flr_nonlinear,etg_factor, &!, which_nonlinear,etg_factor
       perf_test_lin,perf_test_nl,perf_test_rhs,rhs_lin_version,rhs_nl_version,intorder,linen,keepzero,dealias_type,shifted,splitx,&
@@ -768,7 +768,7 @@ SUBROUTINE CHECKPOINT_IN
   integer :: chp_handle
   INTEGER :: nkx0_in,nky0_in,nkz0_in
  
-  chp_name = "/s_checkpoint.dat"
+  chp_name = "/checkpoint.dat"
 
   CALL get_io_number
   chp_handle = io_number

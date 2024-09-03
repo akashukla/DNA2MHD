@@ -70,12 +70,9 @@ MODULE diagnostics
   INTEGER :: nlt_status
   LOGICAL :: shells_initialized
   !nlt_triple diagnostics
-  REAL, ALLOCATABLE, DIMENSION(:,:,:) :: NLT3
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:) :: AVP
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:) :: WVORT
   REAL, ALLOCATABLE, DIMENSION(:,:,:) :: xi
-  REAL, ALLOCATABLE, DIMENSION(:,:,:) :: MH
-  REAL, ALLOCATABLE, DIMENSION(:,:,:) :: CH
   REAL :: ham0,ham1
   INTEGER :: nlt3_handle 
   !NLT Testing
@@ -214,12 +211,11 @@ SUBROUTINE diag
   REAL, ALLOCATABLE, DIMENSION(:,:,:) :: energy3d_temp
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:) :: mom3d
 
-     IF((istep_energy.ne.0))THEN
-       IF(MOD(itime,istep_energy)==0) THEN
-         IF(verbose.and.(mype.eq.0)) WRITE(*,*) "Starting energy diag.",mype
+     IF((istep_energy.ne.0).and.(MOD(itime,istep_energy)==0))THEN
+         ! IF(verbose.and.(mype.eq.0)) WRITE(*,*) "Starting energy diag.",mype
          IF (mype.eq.0) WRITE(en_handle) time
          CALL hmhdhmtn(0)
-         if (verbose.and.(mype.eq.0)) write(*,*) "Found Hamiltonian",mype
+         ! if (verbose.and.(mype.eq.0)) write(*,*) "Found Hamiltonian",mype
          CALL mag_helicity()
          CALL err_hel1(1.0,.true.,.true.,.true.)
          CALL bound_hels(.true.)
@@ -230,49 +226,42 @@ SUBROUTINE diag
          CALL hmhdhmtn(1)
          CALL hmhdhmtn(2)
          if (mype.eq.0) WRITE(en_handle) mhelcorr
-         if (verbose.and.(mype.eq.0)) write(*,*) "Found Helicities",mype
+         ! if (verbose.and.(mype.eq.0)) write(*,*) "Found Helicities",mype
          CALL resvischange("b")
          CALL resvischange("v")
          if (track_divs) CALL divs    
-         IF(verbose.and.(mype.eq.0)) WRITE(*,*) "Done with energy diag.",mype
-       END IF
+         ! IF(verbose.and.(mype.eq.0)) WRITE(*,*) "Done with energy diag.",mype
      END IF
 
-     IF((istep_energyspec.ne.0).and.(mype.eq.0)) THEN
-       IF(MOD(itime,istep_energyspec)==0) THEN
-         IF(verbose) WRITE(*,*) "Starting energyspec diag.",mype
+     IF((istep_energyspec.ne.0).and.(mype.eq.0).and.(MOD(itime,istep_energyspec)==0)) THEN
+         ! IF(verbose) WRITE(*,*) "Starting energyspec diag.",mype
          WRITE(enspec_handle) time
          CALL en_spec()
          WRITE(mode_handle) time
          CALL mode_spec()
-         IF(verbose) WRITE(*,*) "Done with energyspec diag.",mype
-       END IF
+         ! IF(verbose) WRITE(*,*) "Done with energyspec diag.",mype
      END IF
 
-  IF((istep_schpt.ne.0).and.(mype.eq.0)) THEN
-    IF(MOD(itime,istep_schpt)==0) THEN
-      IF(verbose) WRITE(*,*) "Writing s_checkpoint.",mype
+  IF((istep_schpt.ne.0).and.(mype.eq.0).and.(MOD(itime,istep_schpt)==0)) THEN
+      ! IF(verbose) WRITE(*,*) "Writing s_checkpoint.",mype
       CALL checkpoint_out(1)
-      IF(verbose) WRITE(*,*) "Done writing s_checkpoint.",mype
-    END IF
+      ! IF(verbose) WRITE(*,*) "Done writing s_checkpoint.",mype
   END IF
 
-  IF((istep_gout.ne.0).and.(mype.eq.0)) THEN
-    IF(MOD(itime,istep_gout)==0.or.(MOD(itime,istep_gout)==1.and.gout_2xt)) THEN
+  IF((istep_gout.ne.0).and.(mype.eq.0).and.(MOD(itime,istep_gout)==0)) THEN
 
-      IF(verbose) WRITE(*,*) "Starting vbout diag.",mype
+      ! IF(verbose) WRITE(*,*) "Starting vbout diag.",mype
 
       CALL checkpoint_out(4)
 
-      IF(itime==0.and.gout_nl) THEN
-        CALL checkpoint_out(5)
-      ELSE IF (gout_nl) THEN
-        CALL checkpoint_out(6)
-      END IF
+      ! IF(itime==0.and.gout_nl) THEN
+      !   CALL checkpoint_out(5)
+      ! ELSE IF (gout_nl) THEN
+      !   CALL checkpoint_out(6)
+      ! END IF
 
-      IF(verbose) WRITE(*,*) "Done with vbout diag.",mype
+      ! IF(verbose) WRITE(*,*) "Done with vbout diag.",mype
 
-    END IF
   END IF
 
 END SUBROUTINE diag
@@ -474,13 +463,18 @@ real :: hamsm(2),hams(2)
 hamsm = 0.0
 
 if ((opt.eq.0).or.(opt.eq.1)) then
-   if (splitx) hamsm(1) = hamsm(1) + sum(abs(v_1(1:nkx0-1,:,:,:))**2)
-   if (splitx) hamsm(2) = hamsm(2) + 0.5 * sum(abs(v_1(0,:,:,:))**2)
+   !if (splitx) hamsm(1) = hamsm(1) + sum(abs(v_1(1:nkx0-1,:,:,:))**2)
+   !if (splitx) hamsm(2) = hamsm(2) + 0.5 * sum(abs(v_1(0,:,:,:))**2)
+   hamsm(1) = hamsm(1) + sum(abs(v_1(1:nkx0-1,:,:,:))**2)
+   hamsm(2) = hamsm(2) + 0.5 * sum(abs(v_1(0,:,:,:))**2)
 
 endif
 if ((opt.eq.0).or.(opt.eq.2)) then
-   if (splitx) hamsm(1) = hamsm(1) + sum(abs(b_1(1:nkx0-1,:,:,:))**2)
-   if (splitx) hamsm(2) = hamsm(2) + 0.5 * sum(abs(b_1(0,:,:,:))**2)
+   !if (splitx) hamsm(1) = hamsm(1) + sum(abs(b_1(1:nkx0-1,:,:,:))**2)
+   !if (splitx) hamsm(2) = hamsm(2) + 0.5 * sum(abs(b_1(0,:,:,:))**2)
+
+   hamsm(1) = hamsm(1) + sum(abs(b_1(1:nkx0-1,:,:,:))**2)
+   hamsm(2) = hamsm(2) + 0.5 * sum(abs(b_1(0,:,:,:))**2)
    if (mype.eq.0) hamsm(2) = hamsm(2) + real(b_1(0,0,0,2))
 endif
 
@@ -494,7 +488,7 @@ if (mype.eq.0) WRITE(en_handle) ham
 if (opt.eq.0) then
    if (itime.eq.0) ham0 = ham
 
-   if (verbose.and.(mype.eq.0)) print *, "Initial Hamiltonian",ham
+!   if (verbose.and.(mype.eq.0)) print *, "Initial Hamiltonian",ham
 
 if (mod(itime,istep_energyspec).eq.0.and.itime.gt.0) then
    ham1 = ham
@@ -636,17 +630,18 @@ AVP = cmplx(0.0,0.0)
 
 do i = 0,nkx0-1
   do j = 0,nky0-1
-    do k = lkz1,lkz2
-      do ind = 0,2
-        if (max(i,j,k).gt.0) then
-          if (ind.eq.0) AVP(i,j,k,ind) = cmplx(0.0,1.0) * (kygrid(j)*b_1(i,j,k,2)-kzgrid(k)*b_1(i,j,k,1))/(kmags(i,j,k)**2)
-          if (ind.eq.1) AVP(i,j,k,ind) = cmplx(0.0,1.0) * (kzgrid(k)*b_1(i,j,k,0)-kxgrid(i)*b_1(i,j,k,2))/(kmags(i,j,k)**2)
-          if (ind.eq.2) AVP(i,j,k,ind) = cmplx(0.0,1.0) * (kxgrid(i)*b_1(i,j,k,1)-kygrid(j)*b_1(i,j,k,0))/(kmags(i,j,k)**2)
-        endif
-      enddo
+     do k = lkz1,lkz2
+
+          AVP(i,j,k,0) = cmplx(0.0,1.0) * (kygrid(j)*b_1(i,j,k,2)-kzgrid(k)*b_1(i,j,k,1))/(kmags(i,j,k)**2)
+          AVP(i,j,k,1) = cmplx(0.0,1.0) * (kzgrid(k)*b_1(i,j,k,0)-kxgrid(i)*b_1(i,j,k,2))/(kmags(i,j,k)**2)
+          AVP(i,j,k,2) = cmplx(0.0,1.0) * (kxgrid(i)*b_1(i,j,k,1)-kygrid(j)*b_1(i,j,k,0))/(kmags(i,j,k)**2)
+
     enddo
    enddo
 enddo
+
+AVP(0,0,0,:) = cmplx(0.0,0.0)
+
 
 end subroutine vec_potential
 
@@ -661,10 +656,10 @@ mhsm = 0.0
 
 CALL vec_potential()
 
-if (splitx) then
+!if (splitx) then
    mhsm(1) = mhsm(1) + 2.0*sum(real(AVP(1:nkx0-1,:,:,:)*conjg(b_1(1:nkx0-1,:,:,:))))
    mhsm(2) = mhsm(2) + sum(AVP(0,:,:,:)*conjg(b_1(0,:,:,:)))
-endif
+!endif
 
 CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
 CALL MPI_ALLREDUCE(mhsm,mhs,2,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
@@ -672,6 +667,9 @@ CALL MPI_ALLREDUCE(mhsm,mhs,2,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
 maghel = sum(mhs) * (2.0 * pi)**3.0
 
 if (mype.eq.0) WRITE(en_handle) maghel
+
+if (timer.and.(mype.eq.0)) print *,	"Magnetic Helicity",maghel+mhelcorr
+
 
 END SUBROUTINE mag_helicity
 
@@ -682,17 +680,15 @@ integer :: ind,i,j,k
 
 WVORT = cmplx(0.0,0.0)
 
-do ind = 0,2
   do i = 0,nkx0-1
     do j = 0,nky0-1
       do k = lkz1,lkz2
-          if (ind.eq.0) WVORT(i,j,k,ind) = kygrid(j) * v_1(i,j,k,2) - kzgrid(k) * v_1(i,j,k,1)
-          if (ind.eq.1) WVORT(i,j,k,ind) = kzgrid(k) * v_1(i,j,k,0) - kxgrid(i) * v_1(i,j,k,2)
-          if (ind.eq.2) WVORT(i,j,k,ind) = kxgrid(i) * v_1(i,j,k,1) - kygrid(j) * v_1(i,j,k,0)
+          WVORT(i,j,k,0) = kygrid(j) * v_1(i,j,k,2) - kzgrid(k) * v_1(i,j,k,1)
+          WVORT(i,j,k,1) = kzgrid(k) * v_1(i,j,k,0) - kxgrid(i) * v_1(i,j,k,2)
+          WVORT(i,j,k,2) = kxgrid(i) * v_1(i,j,k,1) - kygrid(j) * v_1(i,j,k,0)
       enddo
     enddo
    enddo
-enddo
 
 WVORT = cmplx(0.0,1.0) * WVORT
 
@@ -722,6 +718,7 @@ subroutine cross_helicity
   crosshel = sum(chs) * (2.0*pi)**3.0
    
   if (mype.eq.0) WRITE(en_handle) crosshel
+  if (timer.and.(mype.eq.0)) print *, "Cross Helicity",crosshel+mhelcorr
 
 end subroutine cross_helicity
 
@@ -828,8 +825,8 @@ subroutine divs
      enddo
   enddo
 
-  if (verbose.and.(mype.eq.0)) print *, "Max Abs Div v " ,maxval(abs(divv))
-  if (verbose.and.(mype.eq.0)) print *, "Max Abs Div b " ,maxval(abs(divb))
+  if (timer.and.(mype.eq.0)) print *, "Max Abs Div v " ,maxval(abs(divv))
+  if (timer.and.(mype.eq.0)) print *, "Max Abs Div b " ,maxval(abs(divb))
 
 end subroutine divs
 

@@ -181,6 +181,7 @@ MODULE par_mod
 !  LOGICAL :: adapt_dt_nl=.true.     !Adapt time step in nonlinear sims
   LOGICAL :: adapt_dt_nl=.false.     !FALSE for dna2mhd initially
   LOGICAL :: verbose=.false.        !Extra output
+  LOGICAL :: timer = .false.        ! Timing specific output only
   LOGICAL :: checkpoint_read=.false. !READ checkpoint for restart
   LOGICAL :: checkpoint_write=.true.
 !  LOGICAL :: get_chpt_from_gout=.false.
