@@ -66,12 +66,16 @@ SUBROUTINE initial_condition(which_init0)
     END DO
  END DO
 
+ if (verbose) print *, mype,"MaxVal ks",maxval(kmags),maxval(kperps)
+
  ALLOCATE(alpha_leftwhist(0:nkx0-1,0:nky0-1,lkz1:lkz2))
  ALLOCATE(alpha_leftcyclo(0:nkx0-1,0:nky0-1,lkz1:lkz2))
 
  alpha_leftwhist = -kmags/2.0 - sqrt(1.0 + ((kmags**2.0) / 4.0))
  alpha_leftcyclo = -kmags/2.0 + sqrt(1.0 + ((kmags**2.0) / 4.0))
 
+ if (verbose) print *, mype,"MaxVal alphas",maxval(alpha_leftwhist),maxval(alpha_leftcyclo)
+ 
  DO i = 0,nkx0-1
     DO j = 0,nky0-1
        DO k = lkz1,lkz2
@@ -93,6 +97,10 @@ SUBROUTINE initial_condition(which_init0)
     ENDDO
  ENDDO
 
+ if (verbose) print *, mype,"MaxVal PC",maxval(abs(pcurleig))
+
+ if (verbose) print *, mype,"b1 Extent",sum(0*b_1 + 1)
+
  !init_prefactor=0.001
  !Default Initialization
  !      CALL RANDOM_SEED
@@ -112,7 +120,7 @@ SUBROUTINE initial_condition(which_init0)
          if (random_state.gt.0) rseed(ri) = random_state
       enddo
 
-      CALL RANDOM_SEED(PUT=rseed)
+      CALL RANDOM_SEED(PUT=rseed+mype) ! Add mype to ensure different processes have different phases
       DEALLOCATE(rseed)
 
       if (verbose.and.(random_state.gt.0)) then
@@ -176,15 +184,15 @@ SUBROUTINE initial_condition(which_init0)
          v_1 = v_1 * sqrt(0.5 * init_energy / (s1 * 2.0))
 
          turnover = 1/(2*kxmin * sqrt(sum(sum(abs(v_1)**2.0,4)*sin(spread(spread(kxgrid/(2*kxmin),2,nky0),3,lkz2+1-lkz1))**2)))
-         if ((mype.eq.0)) print *, "Turnover Time Estimate",turnover
+         print *, mype,"Turnover Time Estimate",turnover
 
          nlt = 10/(minval(abs(spread(kmags,4,3)*v_1),abs(spread(kmags,4,3)*v_1).gt. 10**(-10)))
 
-         if (mype.eq.0) print *, "Equation-Based Nonlinear Time Scale", nlt
+         print *, mype,"Equation-Based Nonlinear Time Scale", nlt
 
          force_amp = sqrt(maxval(abs(vnu * spread(kmags**(2.0 * hyp),4,3) * v_1)))
 
-         if ((mype.eq.0)) print *, "Force Amp",force_amp 
+         print *, "Force Amp",force_amp 
          
          ! Revert back to null IC
          v_1 = cmplx(0.0,0.0)
@@ -437,9 +445,11 @@ SUBROUTINE initial_condition(which_init0)
     
     ! Set energy as fraction of 4 pi^3
     if (enone) then
-       if (splitx) then
+
           knzeroenm = sum(abs(b_1(1:nkx0-1,:,:,:))**2+abs(v_1(1:nkx0-1,:,:,:))**2)
           kxzeroenm = sum(0.5*(abs(b_1(0,:,:,:))**2+abs(v_1(0,:,:,:))**2))
+
+          if (verbose) print *, mype,"Unnormalized Sum",knzeroenm+kxzeroenm
           
           CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
           CALL MPI_ALLREDUCE(knzeroenm,knzeroen,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
@@ -447,9 +457,9 @@ SUBROUTINE initial_condition(which_init0)
           CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
           CALL MPI_ALLREDUCE(kxzeroenm,kxzeroen,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
 
-          s1 = knzeroen + kxzeroen
-          if (verbose) print *, "s1",s1
-       endif
+          s1 = knzeroen+kxzeroen
+          if (verbose) print *, mype,"s1",s1
+
     
        b_1 = b_1 * sqrt(init_energy / (2.0*s1))
        v_1 = v_1 * sqrt(init_energy / (2.0*s1))
@@ -459,15 +469,15 @@ SUBROUTINE initial_condition(which_init0)
 
     turnover = 1/(2*kxmin * sqrt(sum(sum(abs(v_1)**2.0,4)*sin(spread(spread(kxgrid/(2*kxmin),2,nky0),3,lkz2+1-lkz1))**2)))
     
-    if ((mype.eq.0)) print *, "Turnover Time Estimate",turnover
+    print *, mype,"Turnover Time Estimate",turnover
 
     nlt = 10/(minval(abs(spread(kmags,4,3)*v_1),abs(spread(kmags,4,3)*v_1).gt. 10**(-10)))
 
-    if (mype.eq.0) print *, "Equation-Based Max Nonlinear Time Scale", nlt
+    print *, mype,"Equation-Based Max Nonlinear Time Scale", nlt
 
     nlt = 10/(maxval(abs(spread(kmags,4,3)*v_1),abs(spread(kmags,4,3)*v_1).gt. 10**(-10)))
 
-    if (mype.eq.0) print *, "Equation-Based Min Nonlinear Time Scale", nlt
+    print *, mype,"Equation-Based Min Nonlinear Time Scale", nlt
 
     if (nv) b_1(:,:,:,:) = cmplx(0.0,0.0)
     
@@ -475,11 +485,11 @@ SUBROUTINE initial_condition(which_init0)
        ! Initializes Fourier components of Taylor Green vortex u = sin x cos y cos z , v = - cos x sin y cos z
        v_1 = cmplx(0.0,0.0)
        if (mype.eq.0) then 
-       v_1(1,1,0,0) = 1.0
-       v_1(1,nky0-1,0,0) = 1.0
-       v_1(1,1,0,1) = -1.0
-       v_1(1,nky0-1,0,1) = 1.0
-    endif
+          v_1(1,1,0,0) = 1.0
+          v_1(1,nky0-1,0,0) = 1.0
+          v_1(1,1,0,1) = -1.0
+          v_1(1,nky0-1,0,1) = 1.0
+       endif
     
        v_1 = -v_1 * cmplx(0.0,0.125)
     endif
@@ -488,7 +498,7 @@ SUBROUTINE initial_condition(which_init0)
     ! |v| ~ sqrt(|v|^2) ~ sqrt(energy/2)
     
     if (force_turbulence) force_amp = force_amp * sqrt(4.0 * pi**3.0 * init_energy)
-    if (verbose.and.(mype.eq.0)) print *, "Force amp",force_amp
+    if (verbose) print *, mype,"Force amp",force_amp
     
  ENDIF
  IF (checkpoint_read) CALL checkpoint_in
@@ -508,6 +518,8 @@ SUBROUTINE initial_condition(which_init0)
     ! Check on Initial Energy
     knzeroenm = sum(abs(b_1(1:nkx0-1,:,:,:))**2+abs(v_1(1:nkx0-1,:,:,:))**2)
     kxzeroenm = sum(0.5*(abs(b_1(0,:,:,:))**2+abs(v_1(0,:,:,:))**2))
+
+    print *, mype, "Mype Energy",8*pi**3 * (knzeroenm+kxzeroenm)
     
     CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
     CALL MPI_ALLREDUCE(knzeroenm,knzeroen,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
@@ -517,9 +529,7 @@ SUBROUTINE initial_condition(which_init0)
     
     s1 = knzeroen + kxzeroen
 
-    if (mype.eq.0) print *, "Initial Energy",s1*8*pi**3
-
-         
+    if (mype.eq.0) print *, "All Mype Initial Energy",s1*8*pi**3
 
 ! Only use default for now
 !  which_init=which_init0 

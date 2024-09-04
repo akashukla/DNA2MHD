@@ -4,7 +4,7 @@ omt = 5.000
 omn =    1.000    
 Ti0Te =    1.000 
 eta = 1.0
-vnu = 0.0
+vnu = 0.001
 rey = 0.0
 /
 
@@ -48,7 +48,7 @@ init_amp_vz = 0.0
 init_kolm = 2.0
 phdf = 2.0
 phdfxy = 2.0
-force_amp = 0.0
+force_amp = 0.00003
 nkxforce = 16
 nkyforce = 16
 nkzforce = 16

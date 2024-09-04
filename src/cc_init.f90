@@ -127,8 +127,11 @@ SUBROUTINE arrays
 
   !Info for kz grid
   lkz0=nkz0
-  lkz1=mype/n_mpi_procs*nkz0
-  lkz2=(mype+1)/n_mpi_procs*nkz0-1
+  lkz1=mype*nkz0/n_mpi_procs
+  lkz2=(mype+1)*nkz0/n_mpi_procs-1
+
+  if (verbose) print *, mype,"Mype Limits",lkz1,lkz2
+  
   !Verify the following when implementing kz parallelization
   lbkz=lkz1
   ubkz=lkz2

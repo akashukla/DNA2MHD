@@ -164,17 +164,17 @@ SUBROUTINE get_rhs_force(rhs_out_b, rhs_out_v)
 
                 if (verbose) d = MPI_WTIME()
                 if (verbose) e = MPI_WTIME()
+             ENDDO
           ENDDO
        ENDDO
-    ENDDO
-    if (verbose) f = MPI_WTIME()
-    
-    if (verbose) print *, "Forced"
-    if (verbose) print *, "Trial Time ",b-a
-    if (verbose) print *, "Rands Time / Mode ",d-c
-    if (verbose) print *, "Assignment Time / Mode",e-d
-    if (verbose) print *, "Total Time ",f-a
- ENDIF
+       if (verbose) f = MPI_WTIME()
+       
+       if (verbose) print *, "Forced"
+       if (verbose) print *, "Trial Time ",b-a
+       if (verbose) print *, "Rands Time / Mode ",d-c
+       if (verbose) print *, "Assignment Time / Mode",e-d
+       if (verbose) print *, "Total Time ",f-a
+    ENDIF
 
     IF ((resample.lt.dt).and.(forcetype.eq.21)) THEN
 
@@ -315,7 +315,6 @@ SUBROUTINE get_rhs_force(rhs_out_b, rhs_out_v)
     
   END SUBROUTINE finalize_force
   
-
 SUBROUTINE get_rhs_test(b_in,v_in,rhs_out_b,rhs_out_v)
 
   IMPLICIT NONE

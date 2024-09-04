@@ -72,7 +72,7 @@ MODULE diagnostics
   !nlt_triple diagnostics
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:) :: AVP
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:) :: WVORT
-  REAL, ALLOCATABLE, DIMENSION(:,:,:) :: xi
+  REAL, ALLOCATABLE, DIMENSION(:,:,:) :: OSPEC
   REAL :: ham0,ham1
   INTEGER :: nlt3_handle 
   !NLT Testing
@@ -155,6 +155,7 @@ SUBROUTINE initialize_diagnostics
     ALLOCATE(LC(0:nkx0-1,0:nky0-1,lkz1:lkz2))
     ALLOCATE(RW(0:nkx0-1,0:nky0-1,lkz1:lkz2))
     ALLOCATE(RC(0:nkx0-1,0:nky0-1,lkz1:lkz2))
+    ALLOCATE(OSPEC(0:nkx0-1,0:nky0-1,lkz1:lkz2))
   END IF
 
   if (plot_nls) CALL initialize_debug
@@ -186,6 +187,7 @@ SUBROUTINE finalize_diagnostics
     DEALLOCATE(LC)
     DEALLOCATE(RW)
     DEALLOCATE(RC)
+    DEALLOCATE(OSPEC)
   END IF
   IF(verbose.and.(mype==0)) print *, 'Closed energy handles'
  
@@ -640,7 +642,7 @@ do i = 0,nkx0-1
    enddo
 enddo
 
-AVP(0,0,0,:) = cmplx(0.0,0.0)
+if (mype.eq.0) AVP(0,0,0,:) = cmplx(0.0,0.0)
 
 
 end subroutine vec_potential
@@ -724,12 +726,33 @@ end subroutine cross_helicity
 
 subroutine en_spec() 
 
-implicit none
+  implicit none
+
+  integer :: test1, test2
 
 ! This doesn't need to be adjusted for 2x only non ksplit = 0 modes
 
+! Use mode tools to get steady state estimates
+LW = (8*pi**3)* (abs(v_1(:,:,:,0))**2 + abs(v_1(:,:,:,1))**2+abs(v_1(:,:,:,2))**2)+ &
+     (8*pi**3)* (abs(b_1(:,:,:,0))**2+ abs(b_1(:,:,:,1))**2+abs(b_1(:,:,:,2))**2)
+
+! Rate of Energy Flow Constant in Inertial Range
+
+test1 = nint(3*kmax*force_frac/kxmin)+2
+test2 = nint(7*kmax*force_frac/kxmin)+2
+
+CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+print *, mype,"IR Energy Change Diff",abs((LW(test1,test1,lkz1+1)-OSPEC(test1,test1,lkz1+1))-(LW(test2,test2,lkz1+1)-OSPEC(test2,test2,lkz1+1)))
+
+! Fractional Change in Spectrum
+
+print *, mype,"Maximum spectrum fractional change",maxval((abs(LW)-OSPEC)/OSPEC,OSPEC.gt.0)
+
+! Writing
 WRITE(enspec_handle) (8*pi**3)* (abs(v_1(:,:,:,0))**2 + abs(v_1(:,:,:,1))**2+abs(v_1(:,:,:,2))**2)
-WRITE(enspec_handle) (8*pi**3)* (abs(b_1(:,:,:,0))**2+ abs(b_1(:,:,:,1))**2+abs(b_1(:,:,:,2))**2)
+WRITE(enspec_handle) (8*pi**3)* (abs(b_1(:,:,:,0))**2 + abs(b_1(:,:,:,1))**2+abs(b_1(:,:,:,2))**2)
+
+OSPEC = abs(LW)
 
 end subroutine en_spec
 

@@ -359,8 +359,10 @@ SUBROUTINE remove_div(b_in,v_in)
    ENDDO
 ENDDO
 
+if (mype.eq.0) then
 b_in(0,0,0,:) = exb
 v_in(0,0,0,:) = exv
+endif
 
 if (verbose.and.(mype.eq.0)) print *,'Divergence Removed'
 
@@ -389,22 +391,21 @@ SUBROUTINE get_rhs(b_in,v_in, rhs_out_b,rhs_out_v,nmhc,ndt)
      ndt = dt_max
   ELSE
 
+     if (verbose) print *, "Mype",mype,"MaxVal v_1",maxval(abs(v_in))
      if (timer) sttime = MPI_WTIME()
      CALL get_rhs_lin(b_in,v_in,rhs_out_b, rhs_out_v,0)
      if (timer) lintime = MPI_WTIME()
      if (timer) print *, "Linear Time",lintime-sttime
      
-     IF ((verbose).and.(mype.eq.0)) WRITE(*,*) 'Lin Max Abs V',maxval(abs(rhs_out_v)),maxloc(abs(rhs_out_v))
-     IF ((verbose).and.(mype.eq.0)) WRITE(*,*) 'Lin Max Abs B',maxval(abs(rhs_out_b)),maxloc(abs(rhs_out_b))
+     IF ((verbose)) WRITE(*,*) mype,'Lin Max Abs V',maxval(abs(rhs_out_v)),maxloc(abs(rhs_out_v))
+     IF ((verbose)) WRITE(*,*) mype,'Lin Max Abs B',maxval(abs(rhs_out_b)),maxloc(abs(rhs_out_b))
      !IF(nonlinear.and..not.linear_nlbox) CALL get_rhs_nl(b_in, v_in,rhs_out_b,rhs_out_v)
      if (timer) sttime = MPI_WTIME()
      IF(actual_nonlinear) CALL get_rhs_nl(b_in, v_in,rhs_out_b,rhs_out_v,ndt)
      if (timer) nltime = MPI_WTIME()
      if (timer) print *, "Nonlinear Time",nltime-sttime
      
-     IF (verbose.and.(mype.eq.0)) WRITE(*,*) 'NL Max Abs V',maxval(abs(rhs_out_v)),maxloc(abs(rhs_out_v))
-     IF (verbose.and.(mype.eq.0)) WRITE(*,*) 'NL Max Abs B',maxval(abs(rhs_out_b)),maxloc(abs(rhs_out_b))
-     IF (.not.(actual_nonlinear)) ndt = dt_max
+      IF (.not.(actual_nonlinear)) ndt = dt_max
      if (verbose.and.(mype.eq.0)) print *, ndt
 
      CALL remove_div(rhs_out_b,rhs_out_v)
