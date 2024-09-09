@@ -742,11 +742,13 @@ test1 = nint(3*kmax*force_frac/kxmin)+2
 test2 = nint(7*kmax*force_frac/kxmin)+2
 
 CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-print *, mype,"IR Energy Change Diff",abs((LW(test1,test1,lkz1+1)-OSPEC(test1,test1,lkz1+1))-(LW(test2,test2,lkz1+1)-OSPEC(test2,test2,lkz1+1)))
+print *, mype,"Fractional IR Energy Change Diff",abs((LW(test1,test1,lkz1+1)-OSPEC(test1,test1,lkz1+1)) &
+     -(LW(test2,test2,lkz1+1)-OSPEC(test2,test2,lkz1+1))) &
+     /abs(LW(test2,test2,lkz1+1)-OSPEC(test2,test2,lkz1+1))
 
 ! Fractional Change in Spectrum
 
-print *, mype,"Maximum spectrum fractional change",maxval((abs(LW)-OSPEC)/OSPEC,OSPEC.gt.0)
+print *, mype,"Maximum spectrum fractional change",maxval((abs(LW)-OSPEC)/OSPEC,OSPEC.gt.10.0**(-10.0))
 
 ! Writing
 WRITE(enspec_handle) (8*pi**3)* (abs(v_1(:,:,:,0))**2 + abs(v_1(:,:,:,1))**2+abs(v_1(:,:,:,2))**2)

@@ -160,6 +160,7 @@ SUBROUTINE arrays
   
 !  IF(.not.allocated(g_1))&
 !      ALLOCATE(g_1(0:nkx0-1,0:nky0-1,lkz1:lkz2,lv1:lv2,lh1:lh2,ls1:ls2)) 
+  IF(.not.allocated(reader)) ALLOCATE(reader(0:nkx0-1,0:nky0-1,lkz1:lkz2))
   IF(.not.allocated(b_1))&
       ALLOCATE(b_1(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)) 
   IF(.not.allocated(v_1))&
@@ -513,7 +514,8 @@ END SUBROUTINE arrays_temp
 SUBROUTINE finalize_arrays
   USE par_mod
 
-!  IF(allocated(g_1)) DEALLOCATE(g_1)
+  !  IF(allocated(g_1)) DEALLOCATE(g_1)
+  IF (allocated(reader)) DEALLOCATE(reader)
   IF(allocated(b_1)) DEALLOCATE(b_1)
   IF(allocated(v_1)) DEALLOCATE(v_1)
 !  IF(allocated(gpsi)) DEALLOCATE(gpsi)

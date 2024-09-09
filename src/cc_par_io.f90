@@ -766,7 +766,7 @@ SUBROUTINE CHECKPOINT_IN
   
   character(len=100) :: chp_name
   integer :: chp_handle
-  INTEGER :: nkx0_in,nky0_in,nkz0_in
+  INTEGER :: nkx0_in,nky0_in,nkz0_in,ind,field
  
   chp_name = "/checkpoint.dat"
 
@@ -782,20 +782,20 @@ SUBROUTINE CHECKPOINT_IN
      READ(chp_handle) nky0_in
      READ(chp_handle) nkz0_in
      READ(chp_handle) time
+
      READ(chp_handle) b_1
      READ(chp_handle) v_1
-     
      CLOSE(chp_handle)
-
-     WRITE(*,*) "itime",itime
-     WRITE(*,*) "dt",dt
-     WRITE(*,*) "nkx0",nkx0_in
-     WRITE(*,*) "nky0",nky0_in
-     WRITE(*,*) "nkz0",nkz0_in
-     WRITE(*,*) "time",time
-
-     itime_start = itime
      
   endif
 
+  WRITE(*,*) "itime",itime
+  WRITE(*,*) "dt",dt
+  WRITE(*,*) "nkx0",nkx0_in
+  WRITE(*,*) "nky0",nky0_in
+  WRITE(*,*) "nkz0",nkz0_in
+  WRITE(*,*) "time",time
+
+  itime_start = itime
+     
 END SUBROUTINE CHECKPOINT_IN
