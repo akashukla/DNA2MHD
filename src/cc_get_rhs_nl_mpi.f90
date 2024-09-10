@@ -1,4 +1,4 @@
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !! 29/12/2012                                                                !!
 !!                            cc_get_rhs_nl.f90                              !!
 !!                                                                           !!
@@ -26,7 +26,10 @@ MODULE nonlinearity
   !USE flr_effects
   
   use, intrinsic :: iso_c_binding
+  
   IMPLICIT NONE
+
+  include 'fftw3-mpi.f03'
 
   PUBLIC :: initialize_fourier,finalize_fourier,get_rhs_nl,&
             get_rhs_nl1,&
@@ -37,27 +40,26 @@ MODULE nonlinearity
   PRIVATE
 
   COMPLEX(C_DOUBLE), ALLOCATABLE, DIMENSION(:,:,:) :: b_inx0, b_iny0,  b_inz0, v_inx0, v_iny0,  v_inz0
-  COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:) :: temp_small,temp_big,temp_big1
-
-  REAL(C_DOUBLE), ALLOCATABLE, DIMENSION(:,:,:) ::  store
+  COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:) :: temp_small,temp_big1
 
   REAL(C_DOUBLE), ALLOCATABLE, DIMENSION(:,:,:) :: bx,by,bz,curlbx,curlby,curlbz
   REAL(C_DOUBLE), ALLOCATABLE, DIMENSION(:,:,:) :: vx,vy,vz,curlvx,curlvy,curlvz
 
   !For fft's
 
-  COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:):: g_kbig
-  REAL(C_DOUBLE), ALLOCATABLE, DIMENSION(:,:,:):: g_rbig
-  COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:):: g_kbig_2d
-  REAL(C_DOUBLE), ALLOCATABLE, DIMENSION(:,:):: g_rbig_2d
-  INTEGER :: nx0_big,ny0_big,nz0_big
-  INTEGER(kind=8), allocatable :: plan_r2c,plan_c2r
-  INTEGER(kind=8) :: plan_kz2z,plan_z2kz
-  INTEGER(kind=8) :: plan_ky2y,plan_y2ky
-  INTEGER(kind=8) :: plan_kx2x,plan_x2kx
+  INTEGER(C_INTPTR_T) :: nx0_big,ny0_big,nz0_big
+  INTEGER(C_INTPTR_T) :: local_N,local_k_offset,alloc_local
+  
+  type(C_PTR) :: plan_r2c,plan_c2r
+  type(C_PTR) :: rinout,cinout
+
+  COMPLEX(C_DOUBLE_COMPLEX), pointer :: temp_big(:,:,:)
+  REAL(C_DOUBLE), pointer ::  store(:,:,:)
+  
   REAL :: fft_norm  !normalization factor for inverse fft
-  INTEGER :: zpad
-  INTEGER :: i,j,k
+  INTEGER(C_INTPTR_T) :: zpad
+  INTEGER(C_INTPTR_T) :: i,j,k
+  INTEGER :: ierr
  
   CONTAINS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
   
@@ -77,11 +79,12 @@ END SUBROUTINE initialize_fourier
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !Note: only for adiabatic electrons (ae) and mu-integrated (mu0) version
 SUBROUTINE initialize_fourier_ae_mu0
-
-  include 'fftw3.f'
-
   
   !for dealiasing
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL fftw_mpi_init()
+  
   if (dealias_type.eq.1) zpad = 2
   if (((dealias_type.eq.3).or.(dealias_type.eq.4)).or.((dealias_type.eq.6).or.(dealias_type.eq.8))) zpad = dealias_type
 
@@ -95,17 +98,18 @@ SUBROUTINE initialize_fourier_ae_mu0
   endif
 
   fft_norm=1.0/(REAL(nx0_big*ny0_big*nz0_big))
-  ALLOCATE(plan_r2c)
-  ALLOCATE(plan_c2r)
 
-  ALLOCATE(store(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(temp_big(0:nx0_big/2,0:ny0_big-1,0:nz0_big-1))
-
+  alloc_local = fftw_mpi_local_size_3d(nz0_big,ny0_big,nx0_big/2+1,MPI_COMM_WORLD,local_N,local_k_offset)
+  rinout = fftw_alloc_real(2*alloc_local)
+  cinout = fftw_alloc_complex(alloc_local)
+  
+  CALL c_f_pointer(rinout,store,[2*(nx0_big/2+1),ny0_big,local_N])
+  CALL c_f_pointer(cinout,temp_big,[nx0_big/2+1,ny0_big,local_N])
+  
+  plan_c2r = fftw_mpi_plan_dft_c2r_3d(nz0_big,ny0_big,nx0_big,temp_big,store,MPI_COMM_WORLD,FFTW_PATIENT)
+  plan_r2c = fftw_mpi_plan_dft_r2c_3d(nz0_big,ny0_big,nx0_big,store,temp_big,MPI_COMM_WORLD,FFTW_PATIENT)
+     
   !WRITE(*,*) "making plans"
-  CALL dfftw_plan_dft_c2r_3d(plan_c2r,nx0_big,ny0_big,nz0_big,&
-                             temp_big,store,FFTW_EXHAUSTIVE+FFTW_DESTROY_INPUT)
-  CALL dfftw_plan_dft_r2c_3d(plan_r2c,nx0_big,ny0_big,nz0_big,&
-       store,temp_big,FFTW_EXHAUSTIVE+FFTW_DESTROY_INPUT)
 
   lky_big=ny0_big-hky_ind !Index of minimum (most negative) FILLED ky value for big arrays
   if (.not.splitx) lkx_big = nx0_big-hkx_ind
@@ -121,9 +125,6 @@ SUBROUTINE initialize_fourier_ae_mu0
 
   CALL ALLOCATIONS
 
-  IF (verbose) CALL DEALIASINGTEST
-  if (verbose) CALL PRECISIONTEST
-
   !CALL dfftw_execute_dft_c2r(plan_c2r,tcomp,treal)
   !CALL dfftw_execute_dft_r2c(plan_r2c,treal,tcomp)
   !tcomp=tcomp/REAL(n1*n2*n3)
@@ -135,7 +136,6 @@ END SUBROUTINE initialize_fourier_ae_mu0
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 SUBROUTINE get_rhs_nl(b_in, v_in, rhs_out_b, rhs_out_v,ndt)
   USE par_mod
-  include 'fftw3.f'
 
   COMPLEX, INTENT(in) :: b_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
   COMPLEX, INTENT(in) :: v_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
@@ -164,8 +164,6 @@ END SUBROUTINE get_rhs_nl
 SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
 
   USE par_mod
-  include 'fftw3.f'
-
   
   COMPLEX, INTENT(in) :: b_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
   COMPLEX, INTENT(in) :: v_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
@@ -173,19 +171,14 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   COMPLEX, INTENT(inout) :: rhs_out_v(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
   REAL :: ndt
 
-                                                                !COMPLEX :: temp_small(0:nkx0-1,0:nky0-1,0:nkz0-1)
-                                                                !COMPLEX :: temp_big(0:nx0_big/2,0:ny0_big-1,0:nz0_big-1)
-                                                                !REAL :: dxphi(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1)
-                                                                !REAL :: dyphi(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1)
-                                                                !REAL :: dxg(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1)
-                                                                !REAL :: dyg(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1)
+  !COMPLEX :: temp_small(0:nkx0-1,0:nky0-1,0:nkz0-1)
+  !COMPLEX :: temp_big(0:nx0_big/2,0:ny0_big-1,0:nz0_big-1)
+  !REAL :: dxphi(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1)
+  !REAL :: dyphi(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1)
+  !REAL :: dxg(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1)
+  !REAL :: dyg(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1)
+
   INTEGER :: l,h, ierr
-  REAL :: sttime,padtime,sttimeb,timeb
-
-  IF(np_spec.gt.1) STOP "get_rhs_nl1 not yet implemented for np_spec.gt.1"
-  IF(np_kz.gt.1) STOP "get_rhs_nl1 not yet implemented for np_kz.gt.1"
-
-  IF(np_kz.ne.1) STOP "get_rhs_nl1 only suitable for np_kz=1"
 
   ! I dont want to change g_in, so I copy temporaly to g_in0
   !g_in0 = g_in
@@ -200,65 +193,38 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
 ! TERMS BX BY BZ
 
 
-  if (timer) sttimeb = MPI_WTIME()
   if (.not.nv) then ! Skip b if Navier Stokes
-    !bx
-    DO i=0,nkx0-1
-        temp_small(i,:,:)=b_inx0(i,:,:)
-    END DO
-    CALL ZEROPAD
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
-    bx = store
+   !bx
+   temp_small = b_inx0
+   CALL ZEROPAD
+   bx = store
 
-    !by
-    DO j=0,nky0-1
-        temp_small(:,j,:)=b_iny0(:,j,:)
-    END DO
-    CALL ZEROPAD
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
-    by = store
-
-    !bz
-    DO k=0,nkz0-1
-        temp_small(:,:,k)=b_inz0(:,:,k)
-    END DO
-    CALL ZEROPAD
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
-    bz = store
+   !by
+   temp_small = b_iny0
+   CALL ZEROPAD    
+   by = store
+   
+   !bz
+   temp_small = b_inz0
+   CALL ZEROPAD
+   bz = store
 
     ! curlbx
-
-    if (timer) sttime = MPI_WTIME()
     DO j = 0,nky0-1
-       temp_small(:,j,:) = i_complex * kygrid(j)*b_inz0(:,j,:)
-    END DO
-    DO k = 0,nkz0-1
-       temp_small(:,:,k) = temp_small(:,:,k) - i_complex * kzgrid(k) * b_iny0(:,:,k)
-    ENDDO
-    if (timer) padtime = MPI_WTIME()
-    if (timer) print *, "Curl Time 1",padtime-sttime
-
-    if (timer) sttime = MPI_WTIME()
-    DO j = 0,nky0-1
-       DO k = 0,nkz0-1
+       DO k = lkz1,lkz2
           temp_small(:,j,k) = i_complex * kygrid(j) * b_inz0(:,j,k) - i_complex  * kzgrid(k) * b_iny0(:,j,k)
        ENDDO
     ENDDO
-    if (timer) padtime = MPI_WTIME()
-    if (timer) print *, "Curl Time 2",padtime - sttime
-    
-    CALL ZEROPAD
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    CALL ZEROPAD    
     curlbx = store
     
     ! curlby
-    DO k = 0,nkz0-1
+    DO k = lkz1,lkz2
        DO i = 0,nkx0-1
           temp_small(i,:,k) = i_complex * kzgrid(k) * b_inx0(i,:,k) - i_complex * kxgrid(i) * b_inz0(i,:,k)
        ENDDO
     ENDDO
-    CALL ZEROPAD
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    CALL ZEROPAD    
     curlby = store
 
     ! curlbz
@@ -267,88 +233,46 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
           temp_small(i,j,:) = i_complex * kxgrid(i) * b_iny0(i,j,:) - i_complex * kygrid(j) * b_inx0(i,j,:)
        ENDDO
     ENDDO
-    if (timer) sttime = MPI_WTIME()
-    CALL ZEROPAD
-    if (timer) padtime = MPI_WTIME()
-    if (timer) print *, "Pad Call Time",padtime-sttime
-
-    if (timer) sttime = MPI_WTIME()
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
-    if (timer) padtime = MPI_WTIME()
-    if (timer) print *, "1 IFFT Time",padtime-sttime
+    CALL ZEROPAD    
     curlbz = store
     
-endif !Skip b FFTs if Navier Stokes 
+ endif !Skip b FFTs if Navier Stokes 
 
 !!! TERMS  vx,vy,vz 
 !vx
-    DO i=0,nkx0-1
-        temp_small(i,:,:)=v_inx0(i,:,:)
-    END DO
+    temp_small = v_inx0
     !Add padding for dealiasing
-    if (timer) sttime = MPI_WTIME()
-    temp_big=cmplx(0.0,0.0)
-    DO i=0,nkx0-1
-        temp_big(i,0:hky_ind,0:hkz_ind)=temp_small(i,0:hky_ind,0:hkz_ind)    !kz positive, ky positive    
-        temp_big(i,0:hky_ind,lkz_big:nz0_big-1)=temp_small(i,0:hky_ind,lkz_ind:nkz0-1) !kz negative, ky positive
-        temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
-        temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
-     END DO!k loop
-     if (timer) padtime = MPI_WTIME()
-     if (timer) print *, "Pad Raw Time",padtime-sttime
-     
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    CALL ZEROPAD
     vx = store
 
     !vy
-    DO j=0,nky0-1
-                              !temp_small(i,:,:)=i_complex*kxgrid(i)*phi_in(i,:,:)
-        temp_small(:,j,:)=v_iny0(:,j,:)
-    END DO
+    temp_small = v_iny0
     !Add padding for dealiasing
-    temp_big=cmplx(0.0,0.0)
-    DO i=0,nkx0-1
-        temp_big(i,0:hky_ind,0:hkz_ind)=temp_small(i,0:hky_ind,0:hkz_ind)    !kz positive, ky positive    
-        temp_big(i,0:hky_ind,lkz_big:nz0_big-1)=temp_small(i,0:hky_ind,lkz_ind:nkz0-1) !kz negative, ky positive
-        temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
-        temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
-    END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    CALL ZEROPAD    
     vy = store
 
     !vz
-    DO k=0,nkz0-1
-        temp_small(:,:,k)=v_inz0(:,:,k)
-    END DO
-    !Add padding for dealiasing
-    temp_big=cmplx(0.0,0.0)
-    DO i=0,nkx0-1
-        temp_big(i,0:hky_ind,0:hkz_ind)=temp_small(i,0:hky_ind,0:hkz_ind)    !kz positive, ky positive    
-        temp_big(i,0:hky_ind,lkz_big:nz0_big-1)=temp_small(i,0:hky_ind,lkz_ind:nkz0-1) !kz negative, ky positive
-        temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
-        temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
-    END DO!k loop
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    temp_small = v_inz0
+    !Add padding for dealiasing    
+    CALL ZEROPAD    
     vz = store
 
     ! curlvx
     DO j = 0,nky0-1
-       DO k = 0,nkz0-1
+       DO k = lkz1,lkz2
           temp_small(:,j,k) = i_complex * kygrid(j) * v_inz0(:,j,k) - i_complex  * kzgrid(k) * v_iny0(:,j,k)
        ENDDO
     ENDDO
-    CALL ZEROPAD
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    CALL ZEROPAD    
     curlvx = store
 
     ! curlvy
-    DO k = 0,nkz0-1
+    DO k = lkz1,lkz2
        DO i = 0,nkx0-1
           temp_small(i,:,k) = i_complex * kzgrid(k) * v_inx0(i,:,k) - i_complex * kxgrid(i) * v_inz0(i,:,k)
        ENDDO
     ENDDO
-    CALL ZEROPAD
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    CALL ZEROPAD    
     curlvy = store
 
     ! curlvz
@@ -357,12 +281,8 @@ endif !Skip b FFTs if Navier Stokes
           temp_small(i,j,:) = i_complex * kxgrid(i) * v_iny0(i,j,:) - i_complex * kygrid(j) * v_inx0(i,j,:)
        ENDDO
     ENDDO
-    CALL ZEROPAD
-    CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    CALL ZEROPAD    
     curlvz = store
-
-    if (timer) timeb = MPI_WTIME()
-    if (timer) print *, "Inverse Time",timeb-sttimeb
     
 ! EQUATION (14) 1=xcomp, 2=ycomp 3=zcomp
 !     eq14x=P1-Q1-R1+S1
@@ -395,46 +315,39 @@ endif !Skip b FFTs if Navier Stokes
 
     ! To save memory, only use one store by adding terms to rhs_out as needed
 
-    if (timer) sttimeb = MPI_WTIME()
     if (.not.nv) then ! Skip b ffts if Navier Stokes
 
        ! x: vy bz - vz by - (curlby bz - curlbz by)
        store = vy * bz - vz * by - hall * (curlby * bz - curlbz * by)
-       CALL dfftw_execute_dft_r2c(plan_r2c,store,temp_big)
+       
        CALL UNPACK
 
-       if ((verbose).and.mype.eq.0) print *, "MaxNLBx",&
-            maxval(abs(temp_small(1:nkx0-1,1:nky0-1,1:nkz0-1))/abs(rhs_out_b(1:nkx0-1,1:nky0-1,1:nkz0-1,0)),&
-            ((abs(rhs_out_b(1:nkx0-1,1:nky0-1,1:nkz0-1,0)).gt.10.0**(-8.0)))),&
-    (/1,1,1/) + maxloc(abs(temp_small(1:nkx0-1,1:nky0-1,1:nkz0-1))/abs(rhs_out_b(1:nkx0-1,1:nky0-1,1:nkz0-1,0)),&
-            ((abs(rhs_out_b(1:nkx0-1,1:nky0-1,1:nkz0-1,0)).gt.10.0**(-8.0))))
-
-       DO k = 0,nkz0-1
-          rhs_out_b(:,:,k,1) = rhs_out_b(:,:,k,1) + i_complex * kzgrid(k) * temp_small(0:nkx0-1,:,k)
+       DO k = lkz1,lkz2
+          rhs_out_b(:,:,k,1) = rhs_out_b(:,:,k,1) + i_complex * kzgrid(k) * temp_small(:,:,k)
        ENDDO
        DO j = 0,nky0-1
-          rhs_out_b(:,j,:,2) = rhs_out_b(:,j,:,2) - i_complex * kygrid(j) * temp_small(0:nkx0-1,j,:)
+          rhs_out_b(:,j,:,2) = rhs_out_b(:,j,:,2) - i_complex * kygrid(j) * temp_small(:,j,:)
        ENDDO
 
        ! y: vz bx - vx bz - hall * (curlbz bx - curlbx bz)
        store = vz * bx - vx * bz - hall * (curlbz * bx - curlbx * bz)
-       CALL dfftw_execute_dft_r2c(plan_r2c,store,temp_big)
+       
        CALL UNPACK
 
        DO i = 0,nkx0-1
           rhs_out_b(i,:,:,2) = rhs_out_b(i,:,:,2) + i_complex * kxgrid(i) * temp_small(i,:,:)
        ENDDO
-       DO k = 0,nkz0-1
-          rhs_out_b(:,:,k,0) = rhs_out_b(:,:,k,0) - i_complex * kzgrid(k) * temp_small(0:nkx0-1,:,k)
+       DO k = lkz1,lkz2
+          rhs_out_b(:,:,k,0) = rhs_out_b(:,:,k,0) - i_complex * kzgrid(k) * temp_small(:,:,k)
        ENDDO
 
        ! z: vx by - vy bx - hall (curlbx by - curlby bx)
        store = vx * by - vy * bx - hall*(curlbx * by - curlby * bx)
-       CALL dfftw_execute_dft_r2c(plan_r2c,store,temp_big)
+       
        CALL UNPACK
 
        DO j = 0,nky0-1
-          rhs_out_b(:,j,:,0) = rhs_out_b(:,j,:,0) + i_complex * kygrid(j) * temp_small(0:nkx0-1,j,:)
+          rhs_out_b(:,j,:,0) = rhs_out_b(:,j,:,0) + i_complex * kygrid(j) * temp_small(:,j,:)
        ENDDO
        DO i = 0,nkx0-1
           rhs_out_b(i,:,:,1) = rhs_out_b(i,:,:,1) - i_complex * kxgrid(i) * temp_small(i,:,:)
@@ -469,42 +382,37 @@ endif ! Skip b if Navier Stokes
 ! x: vy curlvz - vz curlvy + curlby bz - curlbz by
 
 store = vy * curlvz - vz * curlvy + curlby * bz - curlbz * by
-CALL dfftw_execute_dft_r2c(plan_r2c,store,temp_big)
+
 CALL UNPACK
 
-       if ((verbose).and.mype.eq.0) print *, "MaxNLVx",&
-            maxval(abs(temp_small(1:nkx0-1,1:nky0-1,1:nkz0-1))/abs(rhs_out_v(1:nkx0-1,1:nky0-1,1:nkz0-1,0)),&
-            ((abs(rhs_out_v(1:nkx0-1,1:nky0-1,1:nkz0-1,0)).gt.10.0**(-8.0)))),&
-    (/1,1,1/) + maxloc(abs(temp_small(1:nkx0-1,1:nky0-1,1:nkz0-1))/abs(rhs_out_v(1:nkx0-1,1:nky0-1,1:nkz0-1,0)),&
-            ((abs(rhs_out_v(1:nkx0-1,1:nky0-1,1:nkz0-1,0)).gt.10.0**(-8.0))))
-       
-rhs_out_v(:,:,:,0) = rhs_out_v(:,:,:,0) + temp_small(0:nkx0-1,0:nky0-1,0:nkz0-1)
+rhs_out_v(:,:,:,0) = rhs_out_v(:,:,:,0) + temp_small
 
 ! y: vz * curlvx - vx * curlvz + curlbz * bx - curlbx * bz
 store = vz * curlvx - vx * curlvz + curlbz * bx - curlbx * bz
-CALL dfftw_execute_dft_r2c(plan_r2c,store,temp_big)
+
 CALL UNPACK
 if (verbose) print *, "vy fft complete"
-rhs_out_v(:,:,:,1) = rhs_out_v(:,:,:,1) + temp_small(0:nkx0-1,0:nky0-1,0:nkz0-1)
+rhs_out_v(:,:,:,1) = rhs_out_v(:,:,:,1) + temp_small
 if (verbose) print *, "vy done"
 
 ! z: vx * curlvy - vy * curlvx + curlbx * by - curlby * bx
 store = vx * curlvy - vy * curlvx + curlbx * by - curlby * bx
-CALL dfftw_execute_dft_r2c(plan_r2c,store,temp_big)
+
 CALL UNPACK
 if (verbose) print *, "vz fft complete"
-rhs_out_v(:,:,:,2) = rhs_out_v(:,:,:,2) + temp_small(0:nkx0-1,0:nky0-1,0:nkz0-1)
+rhs_out_v(:,:,:,2) = rhs_out_v(:,:,:,2) + temp_small
 if (verbose) print *, "vz done"
 
-if (timer) timeb = MPI_WTIME()
-if (timer) print *, "Equations and Forward Time",timeb-sttimeb
+! to preserve reality of the fields, remove v,b terms at nky0/2,nkz0/2
+rhs_out_b(:,nky0/2,:,:) = 0
+rhs_out_v(:,nky0/2,:,:) = 0
 
-  ! to preserve reality of the fields, remove v,b terms at nky0/2,nkz0/2
-  rhs_out_b(:,nky0/2,:,:) = 0
-  rhs_out_v(:,nky0/2,:,:) = 0
-  rhs_out_b(:,:,nkz0/2,:) = 0
-  rhs_out_v(:,:,nkz0/2,:) = 0
-
+! Condition to only do this for when nkz0/2 in mype needed
+if ((nkz0/2 .ge. lkz1).and.(nkz0/2 .le. lkz2)) then
+   rhs_out_b(:,:,nkz0/2,:) = 0
+   rhs_out_v(:,:,nkz0/2,:) = 0
+endif
+  
 if (verbose) print *, 'rhs out v nl found'
 
 if (calc_dt) CALL next_dt(ndt)
@@ -542,42 +450,39 @@ SUBROUTINE finalize_fourier
 implicit none
 
 CALL DEALLOCATIONS
-call dfftw_destroy_plan(plan_r2c)
-call dfftw_destroy_plan(plan_c2r)
-call dfftw_cleanup()
+!call fftw_destroy_plan(plan_r2c)
+!call fftw_destroy_plan(plan_c2r)
 
-DEALLOCATE(store)
-DEALLOCATE(temp_big)
-
-DEALLOCATE(plan_r2c)
-DEALLOCATE(plan_c2r)
+CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+CALL fftw_free(rinout)
+CALL fftw_free(cinout)
+CALL fftw_mpi_cleanup()
 
 END SUBROUTINE finalize_fourier
 
 SUBROUTINE ALLOCATIONS
 
-  ALLOCATE(temp_small(0:nkx0-1,0:nky0-1,0:nkz0-1))
+  ALLOCATE(temp_small(0:nkx0-1,0:nky0-1,lkz1:lkz2))
 
-! All b arrays 
-  ALLOCATE(bx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(by(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(bz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-
-! All v arrays 
-  ALLOCATE(vx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(vy(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(vz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ! all first order v arrays
-
-  ALLOCATE(curlvx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(curlvy(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(curlvz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ! All b arrays
+  ALLOCATE(bx(1:nx0_big+2,1:ny0_big,1:local_N))
+  ALLOCATE(by(1:nx0_big+2,1:ny0_big,1:local_N))
+  ALLOCATE(bz(1:nx0_big+2,1:ny0_big,1:local_N))
   
-! all first order b arrays 
+  ! All v arrays
+  ALLOCATE(vx(1:nx0_big+2,1:ny0_big,1:local_N))
+  ALLOCATE(vy(1:nx0_big+2,1:ny0_big,1:local_N))
+  ALLOCATE(vz(1:nx0_big+2,1:ny0_big,1:local_N))
 
-  ALLOCATE(curlbx(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(curlby(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
-  ALLOCATE(curlbz(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1))
+  ! all first order v arrays
+  ALLOCATE(curlvx(1:nx0_big+2,1:ny0_big,1:local_N))
+  ALLOCATE(curlvy(1:nx0_big+2,1:ny0_big,1:local_N))
+  ALLOCATE(curlvz(1:nx0_big+2,1:ny0_big,1:local_N))
+  
+  ! all first order b arrays
+  ALLOCATE(curlbx(1:nx0_big+2,1:ny0_big,1:local_N))
+  ALLOCATE(curlby(1:nx0_big+2,1:ny0_big,1:local_N))
+  ALLOCATE(curlbz(1:nx0_big+2,1:ny0_big,1:local_N))
   
   ALLOCATE(b_inx0(0:nkx0-1,0:nky0-1,lkz1:lkz2))
   ALLOCATE(b_iny0(0:nkx0-1,0:nky0-1,lkz1:lkz2))
@@ -623,68 +528,28 @@ DEALLOCATE(curlbz)
 
 END SUBROUTINE DEALLOCATIONS
 
-SUBROUTINE DEALIASINGTEST
-
-  IMPLICIT NONE
-
-  temp_small = 0.0
-  temp_small(1,1,1) = 1
-
-  CALL ZEROPAD
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
-  vx = store  
-  
-  temp_small = 0.0
-  DO i = 0,nkx0-1
-     temp_small(i,:,:) = i
-  ENDDO
-  temp_small(:,nky0/2,:) = 0
-  temp_small(:,:,nkz0/2) = 0
-  temp_small(:,0,:) = 0
-  temp_small(:,:,0) = 0
-
-  CALL ZEROPAD
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
-  vy = store
-  
-  temp_small = 0.0
-  temp_small(0,0,0) = 1
-  CALL ZEROPAD
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
-  vz = store
-  
-  store = vx * vy
-  CALL dfftw_execute_dft_r2c(plan_r2c,store,temp_big)
-  CALL UNPACK
-  
-  print *, "Dealiasing Test Result",temp_small(1,1,1)
-
-  store = vx * vz
-  CALL dfftw_execute_dft_r2c(plan_r2c,store,temp_big)
-  CALL UNPACK
-  
-  print *, "Control Result", temp_small(1,1,1)
-
-  temp_small = cmplx(0.0,0.0)
-  temp_big = cmplx(0.0,0.0)
-  store = cmplx(0.0,0.0)
-
-END SUBROUTINE DEALIASINGTEST
-
 SUBROUTINE ZEROPAD
 
   IMPLICIT NONE
 
   integer :: i 
   
-    temp_big=cmplx(0.0,0.0)
-
-    DO i=0,nkx0-1
-       temp_big(i,0:hky_ind,0:hkz_ind)=temp_small(i,0:hky_ind,0:hkz_ind)    !kz positive, ky positive
-       temp_big(i,0:hky_ind,lkz_big:nz0_big-1)=temp_small(i,0:hky_ind,lkz_ind:nkz0-1) !kz negative, ky positive
-       temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative
-       temp_big(i,lky_big:ny0_big-1,0:hkz_ind)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative
-     END DO!k loop 
+  temp_big=cmplx(0.0,0.0)
+  if (verbose) print *, "Entering Zeropad"
+  DO i=0,nkx0-1
+     temp_big(i+1,1:1+hky_ind,1:hkz_ind+1)=temp_small(i,0:hky_ind,0:hkz_ind)    !kz positive, ky positive
+     !if (verbose) print *, i,"++ done"
+     temp_big(i+1,1:1+hky_ind,1+lkz_big:nz0_big)=temp_small(i,0:hky_ind,lkz_ind:nkz0-1) !kz negative, ky positive             
+     ! if (verbose) print *, i,"+- done"
+     temp_big(i+1,1+lky_big:ny0_big,1+lkz_big:nz0_big)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative  
+     ! if (verbose) print *, i,"-- done"
+     temp_big(i+1,1+lky_big:ny0_big,1:hkz_ind+1)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative             
+     ! if (verbose) print *, i,"-+ done"
+  END DO
+  
+  if (verbose) print *, "Padded"
+  CALL fftw_mpi_execute_dft_c2r(plan_c2r,temp_big,store)
+  if (verbose) print *, "Through IRFFT"
 
 END SUBROUTINE ZEROPAD
 
@@ -694,36 +559,26 @@ SUBROUTINE UNPACK
 
   integer :: i
 
+  if (verbose) print *, "Entering Unpack"
+
+  CALL fftw_mpi_execute_dft_r2c(plan_r2c,store,temp_big)
+  if (verbose) print *, "Through RFFT"
   temp_small = cmplx(0.0,0.0)
+  
   DO i = 0,nkx0-1
-     temp_small(i,0:hky_ind,0:hkz_ind) = temp_big(i,0:hky_ind,0:hkz_ind)*fft_norm
-     temp_small(i,0:hky_ind,lkz_ind:nkz0-1) = temp_big(i,0:hky_ind,lkz_big:nz0_big-1)*fft_norm
-     temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) = temp_big(i,lky_big:ny0_big-1,lkz_big:nz0_big-1)*fft_norm
-     temp_small(i,lky_ind:nky0-1,0:hkz_ind) = temp_big(i,lky_big:ny0_big-1,0:hkz_ind)*fft_norm
+     temp_small(i,0:hky_ind,0:hkz_ind) = temp_big(i+1,1:1+hky_ind,1:hkz_ind+1)*fft_norm
+     if (verbose) print *, i,"++ done"
+     temp_small(i,0:hky_ind,lkz_ind:nkz0-1) = temp_big(i+1,1:1+hky_ind,1+lkz_big:nz0_big)*fft_norm
+     if (verbose) print *, i,"+- done"
+     temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) = temp_big(i+1,1+lky_big:ny0_big,1+lkz_big:nz0_big)*fft_norm
+     if (verbose) print *, i,"-- done"
+     temp_small(i,lky_ind:nky0-1,0:hkz_ind) = temp_big(i+1,1+lky_big:ny0_big,1:hkz_ind+1)*fft_norm
+     if (verbose) print *, i,"-+ done"
   ENDDO
+  
+  if (verbose) print *, "All Done"
 
 END SUBROUTINE UNPACK
-
-SUBROUTINE PRECISIONTEST
-
-  IMPLICIT NONE
-
-  ! Estimate the precision of the transforms by doing a transform and then an inverse transform
-
-  ALLOCATE(temp_big1(0:nx0_big/2,0:ny0_big-1,0:nz0_big-1))
-
-  temp_big1 = 1.0
-  temp_big = temp_big1
-
-  CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
-  CALL dfftw_execute_dft_r2c(plan_r2c,store,temp_big)
-
-  print *,"Precision Test",maxval(abs(temp_big1-temp_big*fft_norm))
-
-  DEALLOCATE(temp_big1)
-
-END SUBROUTINE PRECISIONTEST
-
 
 END MODULE nonlinearity
 

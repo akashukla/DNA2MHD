@@ -57,7 +57,7 @@ hyp = 2
 /
 
 &diagnostics
-diagdir = '/scratch/08929/echansen/dna2mhdruntiming'
+diagdir = '/scratch/08929/echansen/dna2mhdruntiming2'
 loaddir = '/scratch/08929/echansen/dna2mhdruntiming'
 istep_ffm =   20
 istep_energy3d =  500
@@ -78,7 +78,7 @@ output_nlt_n = F
 
 &flags
 verbose  = F
-timer = F
+timer = T
 nonlinear  = T
 actual_nonlinear = T
 calc_dt  = T
@@ -134,7 +134,7 @@ random_state = 3
 /
 
 &initial_value
-max_itime = 300
+max_itime = 100
 max_walltime =   10000000.0
 dt_max = 0.01
 fix_dt = F
