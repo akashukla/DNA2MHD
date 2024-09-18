@@ -40,7 +40,7 @@ MODULE nonlinearity
   PRIVATE
 
   COMPLEX(C_DOUBLE), ALLOCATABLE, DIMENSION(:,:,:) :: b_inx0, b_iny0,  b_inz0, v_inx0, v_iny0,  v_inz0
-  COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:) :: temp_small,temp_big1
+  COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:) :: temp_small,bigmask,smallmask
 
   REAL(C_DOUBLE), ALLOCATABLE, DIMENSION(:,:,:) :: bx,by,bz,curlbx,curlby,curlbz
   REAL(C_DOUBLE), ALLOCATABLE, DIMENSION(:,:,:) :: vx,vy,vz,curlvx,curlvy,curlvz
@@ -60,7 +60,10 @@ MODULE nonlinearity
   INTEGER(C_INTPTR_T) :: zpad
   INTEGER(C_INTPTR_T) :: i,j,k
   INTEGER :: ierr
- 
+
+  LOGICAL :: v1
+  LOGICAL :: v2
+  
   CONTAINS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
   
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -125,8 +128,12 @@ SUBROUTINE initialize_fourier_ae_mu0
 
   CALL ALLOCATIONS
 
+  v1 = (.false.)
+  v2 = (.true.)
+
   !CALL dfftw_execute_dft_c2r(plan_c2r,tcomp,treal)
   !CALL dfftw_execute_dft_r2c(plan_r2c,treal,tcomp)
+  
   !tcomp=tcomp/REAL(n1*n2*n3)
 
 END SUBROUTINE initialize_fourier_ae_mu0
@@ -154,13 +161,14 @@ SUBROUTINE get_rhs_nl(b_in, v_in, rhs_out_b, rhs_out_v,ndt)
 !    CALL get_rhs_nl3(b_in,v_in,rhs_out_b,rhs_out_v)
 !  ELSE IF(rhs_nl_version==4) THEN
 !    CALL get_rhs_nl4(b_in,v_in,rhs_out_b,rhs_out_v)
-  END IF
+ END IF
  
 END SUBROUTINE get_rhs_nl
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!                                 get_rhs_nl1                               !!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
 SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
 
   USE par_mod
@@ -463,6 +471,7 @@ END SUBROUTINE finalize_fourier
 SUBROUTINE ALLOCATIONS
 
   ALLOCATE(temp_small(0:nkx0-1,0:nky0-1,lkz1:lkz2))
+  
 
   ! All b arrays
   ALLOCATE(bx(1:nx0_big+2,1:ny0_big,1:local_N))
@@ -483,6 +492,9 @@ SUBROUTINE ALLOCATIONS
   ALLOCATE(curlbx(1:nx0_big+2,1:ny0_big,1:local_N))
   ALLOCATE(curlby(1:nx0_big+2,1:ny0_big,1:local_N))
   ALLOCATE(curlbz(1:nx0_big+2,1:ny0_big,1:local_N))
+
+  ALLOCATE(bigmask(1:nx0_big/2+1,1:ny0_big,1:local_N))
+  ALLOCATE(smallmask(0:nkx0-1,0:nky0-1,0:nkz0/n_mpi_procs-1))
   
   ALLOCATE(b_inx0(0:nkx0-1,0:nky0-1,lkz1:lkz2))
   ALLOCATE(b_iny0(0:nkx0-1,0:nky0-1,lkz1:lkz2))
@@ -518,6 +530,9 @@ DEALLOCATE(curlbz)
   DEALLOCATE(curlvx)
   DEALLOCATE(curlvy)
   DEALLOCATE(curlvz)
+
+  DEALLOCATE(bigmask)
+  DEALLOCATE(smallmask)
   
   DEALLOCATE(b_inx0)
   DEALLOCATE(b_iny0)
@@ -532,20 +547,70 @@ SUBROUTINE ZEROPAD
 
   IMPLICIT NONE
 
-  integer :: i 
-  
+  integer :: lkz1_rank,lkz2_rank
+  integer :: rank,k,kp,i
+  integer :: ind
+  logical :: zmask
+
   temp_big=cmplx(0.0,0.0)
   if (verbose) print *, "Entering Zeropad"
+
+  if (v1) then
+  
   DO i=0,nkx0-1
      temp_big(i+1,1:1+hky_ind,1:hkz_ind+1)=temp_small(i,0:hky_ind,0:hkz_ind)    !kz positive, ky positive
-     !if (verbose) print *, i,"++ done"
+!     !if (verbose) print *, i,"++ done"
      temp_big(i+1,1:1+hky_ind,1+lkz_big:nz0_big)=temp_small(i,0:hky_ind,lkz_ind:nkz0-1) !kz negative, ky positive             
-     ! if (verbose) print *, i,"+- done"
+!     ! if (verbose) print *, i,"+- done"
      temp_big(i+1,1+lky_big:ny0_big,1+lkz_big:nz0_big)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative  
-     ! if (verbose) print *, i,"-- done"
+!     ! if (verbose) print *, i,"-- done"
      temp_big(i+1,1+lky_big:ny0_big,1:hkz_ind+1)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative             
-     ! if (verbose) print *, i,"-+ done"
+!     ! if (verbose) print *, i,"-+ done"
   END DO
+
+endif
+
+ if (v2) then
+
+  DO rank = 0,n_mpi_procs-1
+     
+     lkz1_rank = rank*(3*nkz0/2)/n_mpi_procs
+     lkz2_rank = (rank+1)*(3*nkz0/2)/n_mpi_procs-1
+
+     ! print *, "MaxVal temp_small",maxval(abs(temp_small))
+
+     DO k = lkz1,lkz2
+     
+        ! Shift up values of k greater than nkz0/2 - match the larger array
+        if (k.gt.nkz0/2) kp = k + nkz0/2
+        if (k.le.nkz0/2) kp = k
+
+        ! Mask away values that either are outside the rank bounds
+        zmask = ((kp.ge.lkz1_rank).and.(kp.le.lkz2_rank))
+        ! Or that are taken out because of dealiasing
+        zmask = (zmask.and.((kp.ge.lkz_big).or.(kp.le.hkz_ind)))
+
+        ! Find position of ind in bigmask - lkz1_rank is min in rank, kp has been shifted up
+        ! If the minimum below is lkz2_rank and not both equal, then zmask will be zero so works
+        ! But also make sure that the index doesn't fall below one - if it would have, zmask takes out
+        ind = max(min(1+kp - lkz1_rank,1+lkz2_rank),1)
+        
+        bigmask(1:nkx0,1:hky_ind+1,ind) = temp_small(0:nkx0-1,0:hky_ind,k)*zmask
+        bigmask(1:nkx0,lky_big+1:ny0_big,ind) = temp_small(0:nkx0-1,lky_ind:nky0-1,k)*zmask
+
+     ENDDO
+
+     ! print *, "MaxVal bigmask",maxval(abs(bigmask))
+     
+     CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+     CALL MPI_REDUCE(bigmask,temp_big,nx0_big*ny0_big*local_N,MPI_DOUBLE_COMPLEX,&
+          MPI_SUM,rank,MPI_COMM_WORLD,ierr)
+
+     ! print *, "MaxVal temp_big",maxval(abs(temp_big))
+     
+  ENDDO
+endif
+
   
   if (verbose) print *, "Padded"
   CALL fftw_mpi_execute_dft_c2r(plan_c2r,temp_big,store)
@@ -558,23 +623,66 @@ SUBROUTINE UNPACK
   IMPLICIT NONE
 
   integer :: i
+  integer :: lkz1_rank,lkz2_rank,ind,rank,kp,k
+  logical :: zmask
 
   if (verbose) print *, "Entering Unpack"
 
   CALL fftw_mpi_execute_dft_r2c(plan_r2c,store,temp_big)
   if (verbose) print *, "Through RFFT"
   temp_small = cmplx(0.0,0.0)
+
+ if (v1) then
   
   DO i = 0,nkx0-1
      temp_small(i,0:hky_ind,0:hkz_ind) = temp_big(i+1,1:1+hky_ind,1:hkz_ind+1)*fft_norm
-     if (verbose) print *, i,"++ done"
-     temp_small(i,0:hky_ind,lkz_ind:nkz0-1) = temp_big(i+1,1:1+hky_ind,1+lkz_big:nz0_big)*fft_norm
-     if (verbose) print *, i,"+- done"
-     temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) = temp_big(i+1,1+lky_big:ny0_big,1+lkz_big:nz0_big)*fft_norm
-     if (verbose) print *, i,"-- done"
-     temp_small(i,lky_ind:nky0-1,0:hkz_ind) = temp_big(i+1,1+lky_big:ny0_big,1:hkz_ind+1)*fft_norm
-     if (verbose) print *, i,"-+ done"
+     !   if (verbose) print *, i,"++ done"
+    temp_small(i,0:hky_ind,lkz_ind:nkz0-1) = temp_big(i+1,1:1+hky_ind,1+lkz_big:nz0_big)*fft_norm
+    !   if (verbose) print *, i,"+- done"
+    temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) = temp_big(i+1,1+lky_big:ny0_big,1+lkz_big:nz0_big)*fft_norm
+    !   if (verbose) print *, i,"-- done"
+    temp_small(i,lky_ind:nky0-1,0:hkz_ind) = temp_big(i+1,1+lky_big:ny0_big,1:hkz_ind+1)*fft_norm
+    !   if (verbose) print *, i,"-+ done"
+ ENDDO
+
+endif
+  
+if (v2) then
+   
+    DO rank = 0,n_mpi_procs-1
+
+       lkz1_rank = rank*(nkz0)/n_mpi_procs
+       lkz2_rank = (rank+1)*(nkz0)/n_mpi_procs-1
+
+       DO k = 1,local_N
+
+          ! Find full position in large array
+          kp = local_k_offset + k
+          
+          ! Mask away values from dealiasing
+          zmask = (((kp.ge.lkz_big).or.(kp.le.hkz_ind)))
+
+          ! Pull kp down to original array size if over half way
+          if (kp.ge.lkz_big) kp = kp - nkz0/2
+          ! Now take out values that aren't compatible with rank indices
+          zmask = (zmask.and.((kp.ge.lkz1_rank).and.(kp.le.lkz2_rank)))
+          
+          ! Find position of ind in smallmask - lkz1_rank is min in rank
+          ! If the minimum below is lkz2_rank and not both equal, then zmask will be zero so works
+          ind = max(min(kp-lkz1_rank-1,lkz2_rank),lkz1_rank)
+          
+          smallmask(0:nkx0-1,0:hky_ind,ind) = temp_big(1:nkx0,1:1+hky_ind,k)*zmask*fft_norm
+          smallmask(0:nkx0-1,lky_ind:nky0-1,ind) = temp_big(1:nkx0,1+lky_big:ny0_big,k)*zmask*fft_norm
+        
+       ENDDO
+
+     CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+     CALL MPI_REDUCE(smallmask,temp_small,nkx0*nky0*nkz0/n_mpi_procs,MPI_DOUBLE_COMPLEX,&
+          MPI_SUM,rank,MPI_COMM_WORLD,ierr)
+
   ENDDO
+  
+endif
   
   if (verbose) print *, "All Done"
 

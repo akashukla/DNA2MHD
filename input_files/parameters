@@ -57,7 +57,7 @@ hyp = 2
 /
 
 &diagnostics
-diagdir = '/scratch/08929/echansen/dna2mhdruntiming2'
+diagdir = '/scratch/08929/echansen/dna2mhdruntiming3'
 loaddir = '/scratch/08929/echansen/dna2mhdruntiming'
 istep_ffm =   20
 istep_energy3d =  500
