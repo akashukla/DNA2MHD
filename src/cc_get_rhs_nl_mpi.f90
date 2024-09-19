@@ -61,8 +61,9 @@ MODULE nonlinearity
   INTEGER(C_INTPTR_T) :: i,j,k
   INTEGER :: ierr
 
-  LOGICAL :: v1
-  LOGICAL :: v2
+  LOGICAL :: padv1
+  LOGICAL :: padv2
+  LOGICAL :: printpad,printunpack
   
   CONTAINS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
   
@@ -128,8 +129,10 @@ SUBROUTINE initialize_fourier_ae_mu0
 
   CALL ALLOCATIONS
 
-  v1 = (.false.)
-  v2 = (.true.)
+  padv1 = (.false.)
+  padv2 = (.true.)
+  printpad = (.true.)
+  printunpack = (.true.)
 
   !CALL dfftw_execute_dft_c2r(plan_c2r,tcomp,treal)
   !CALL dfftw_execute_dft_r2c(plan_r2c,treal,tcomp)
@@ -458,12 +461,20 @@ SUBROUTINE finalize_fourier
 implicit none
 
 CALL DEALLOCATIONS
-!call fftw_destroy_plan(plan_r2c)
-!call fftw_destroy_plan(plan_c2r)
+! call fftw_destroy_plan(plan_r2c)
+! call fftw_destroy_plan(plan_c2r)
+ 
+! if (verbose) print *, "plans destroyed"
 
 CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
 CALL fftw_free(rinout)
+
+if (verbose) print *, "store freed"
+
 CALL fftw_free(cinout)
+
+if (verbose) print *, "temp_big freed"
+
 CALL fftw_mpi_cleanup()
 
 END SUBROUTINE finalize_fourier
@@ -531,8 +542,14 @@ DEALLOCATE(curlbz)
   DEALLOCATE(curlvy)
   DEALLOCATE(curlvz)
 
+  if (verbose) print *, "all derivatives deallocated"
+
   DEALLOCATE(bigmask)
+
+  if (verbose) print *, "big mask deallocated"
   DEALLOCATE(smallmask)
+
+  if (verbose) print *, "small mask deallocated"
   
   DEALLOCATE(b_inx0)
   DEALLOCATE(b_iny0)
@@ -555,7 +572,7 @@ SUBROUTINE ZEROPAD
   temp_big=cmplx(0.0,0.0)
   if (verbose) print *, "Entering Zeropad"
 
-  if (v1) then
+  if (padv1) then
   
   DO i=0,nkx0-1
      temp_big(i+1,1:1+hky_ind,1:hkz_ind+1)=temp_small(i,0:hky_ind,0:hkz_ind)    !kz positive, ky positive
@@ -570,7 +587,7 @@ SUBROUTINE ZEROPAD
 
 endif
 
- if (v2) then
+if (padv2) then
 
   DO rank = 0,n_mpi_procs-1
      
@@ -595,8 +612,8 @@ endif
         ! But also make sure that the index doesn't fall below one - if it would have, zmask takes out
         ind = max(min(1+kp - lkz1_rank,1+lkz2_rank),1)
         
-        bigmask(1:nkx0,1:hky_ind+1,ind) = temp_small(0:nkx0-1,0:hky_ind,k)*zmask
-        bigmask(1:nkx0,lky_big+1:ny0_big,ind) = temp_small(0:nkx0-1,lky_ind:nky0-1,k)*zmask
+        if (zmask) bigmask(1:nkx0,1:hky_ind+1,ind) = temp_small(0:nkx0-1,0:hky_ind,k)
+        if (zmask) bigmask(1:nkx0,lky_big+1:ny0_big,ind) = temp_small(0:nkx0-1,lky_ind:nky0-1,k)
 
      ENDDO
 
@@ -611,7 +628,7 @@ endif
   ENDDO
 endif
 
-  
+if (printpad) CALL WRITE_PADDING(1)
   if (verbose) print *, "Padded"
   CALL fftw_mpi_execute_dft_c2r(plan_c2r,temp_big,store)
   if (verbose) print *, "Through IRFFT"
@@ -632,7 +649,7 @@ SUBROUTINE UNPACK
   if (verbose) print *, "Through RFFT"
   temp_small = cmplx(0.0,0.0)
 
- if (v1) then
+ if (padv1) then
   
   DO i = 0,nkx0-1
      temp_small(i,0:hky_ind,0:hkz_ind) = temp_big(i+1,1:1+hky_ind,1:hkz_ind+1)*fft_norm
@@ -647,8 +664,8 @@ SUBROUTINE UNPACK
 
 endif
   
-if (v2) then
-   
+if (padv2) then
+
     DO rank = 0,n_mpi_procs-1
 
        lkz1_rank = rank*(nkz0)/n_mpi_procs
@@ -657,7 +674,7 @@ if (v2) then
        DO k = 1,local_N
 
           ! Find full position in large array
-          kp = local_k_offset + k
+          kp = local_k_offset + k-1
           
           ! Mask away values from dealiasing
           zmask = (((kp.ge.lkz_big).or.(kp.le.hkz_ind)))
@@ -669,10 +686,10 @@ if (v2) then
           
           ! Find position of ind in smallmask - lkz1_rank is min in rank
           ! If the minimum below is lkz2_rank and not both equal, then zmask will be zero so works
-          ind = max(min(kp-lkz1_rank-1,lkz2_rank),lkz1_rank)
+          ind = max(min(kp-lkz1_rank,lkz2_rank),lkz1_rank)
           
-          smallmask(0:nkx0-1,0:hky_ind,ind) = temp_big(1:nkx0,1:1+hky_ind,k)*zmask*fft_norm
-          smallmask(0:nkx0-1,lky_ind:nky0-1,ind) = temp_big(1:nkx0,1+lky_big:ny0_big,k)*zmask*fft_norm
+          if (zmask) smallmask(0:nkx0-1,0:hky_ind,ind) = temp_big(1:nkx0,1:1+hky_ind,k)*fft_norm
+          if (zmask) smallmask(0:nkx0-1,lky_ind:nky0-1,ind) = temp_big(1:nkx0,1+lky_big:ny0_big,k)*fft_norm
         
        ENDDO
 
@@ -681,12 +698,42 @@ if (v2) then
           MPI_SUM,rank,MPI_COMM_WORLD,ierr)
 
   ENDDO
-  
+
 endif
+
+if (printunpack) CALL WRITE_PADDING(2)
   
   if (verbose) print *, "All Done"
 
 END SUBROUTINE UNPACK
+
+SUBROUTINE WRITE_PADDING(purpose)
+
+  IMPLICIT NONE
+
+  INTEGER, intent(in) :: purpose
+  INTEGER :: chp_handle
+  CHARACTER(len=100) :: chp_name
+
+  CALL get_io_number
+  chp_handle = io_number
+
+  if (purpose.eq.1) chp_name = "/padding.dat"
+  if (purpose.eq.2) chp_name = "/unpack.dat"
+
+  OPEN(unit=chp_handle,file=trim(diagdir)//trim(chp_name),&
+       form='unformatted', status='replace',access='stream')
+
+  if (purpose.eq.1) WRITE(chp_handle) temp_big
+  if (purpose.eq.2) WRITE(chp_handle) temp_small
+
+  CLOSE(chp_handle)
+
+  if (purpose.eq.1) printpad = (.false.)
+  if (purpose.eq.2) printunpack = (.false.)
+
+END SUBROUTINE WRITE_PADDING
+
 
 END MODULE nonlinearity
 

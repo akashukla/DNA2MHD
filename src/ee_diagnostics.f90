@@ -292,15 +292,16 @@ SUBROUTINE bv_last
   
   CALL MPI_TYPE_CREATE_SUBARRAY(4,sizes_4d,subsizes_4d,starts_4d,&
        MPI_ORDER_FORTRAN, MPI_DOUBLE_COMPLEX,MPI_4D_COMPLEX_ARRAY,ierr)
+  CALL MPI_TYPE_COMMIT(MPI_4D_COMPLEX_ARRAY,ierr)
 
   ! Open file and set view
   CALL MPI_FILE_OPEN(MPI_COMM_WORLD,trim(diagdir)//'/blast_out.dat',&
        MPI_MODE_WRONLY.or.MPI_MODE_CREATE, MPI_INFO_NULL,blast_handle,ierr)
-  CALL MPI_FILE_SET_VIEW(blast_handle,0, MPI_DOUBLE_COMPLEX,MPI_4D_COMPLEX_ARRAY,&
-       "native",MPI_INFO_NULL,ierr)
+!  CALL MPI_FILE_SET_VIEW(blast_handle,0, MPI_DOUBLE_COMPLEX,MPI_4D_COMPLEX_ARRAY,&
+!       "native",MPI_INFO_NULL,ierr)
 
   ! Write into file
-  CALL MPI_FILE_WRITE_SHARED(blast_handle,b_1,product(subsizes_4d),MPI_DOUBLE_COMPLEX,status,ierr)
+  CALL MPI_FILE_WRITE_SHARED(blast_handle,b_1,product(subsizes_4d),MPI_4D_COMPLEX_ARRAY,MPI_STATUS_IGNORE,ierr)
   CALL MPI_FILE_GET_SIZE(blast_handle,size,ierr)
   print	*, size	
   ! Close file
@@ -308,9 +309,9 @@ SUBROUTINE bv_last
 
   CALL MPI_FILE_OPEN(MPI_COMM_WORLD,trim(diagdir)//'/vlast_out.dat',&
        MPI_MODE_WRONLY.or.MPI_MODE_CREATE, MPI_INFO_NULL,vlast_handle,ierr)
-  CALL MPI_FILE_SET_VIEW(vlast_handle,0, MPI_DOUBLE_COMPLEX, MPI_4D_COMPLEX_ARRAY,&
-       "native",MPI_INFO_NULL,ierr)
-  CALL MPI_FILE_WRITE_SHARED(vlast_handle,v_1,product(subsizes_4d),MPI_DOUBLE_COMPLEX,status,ierr)
+!  CALL MPI_FILE_SET_VIEW(vlast_handle,0, MPI_DOUBLE_COMPLEX, MPI_4D_COMPLEX_ARRAY,&
+!       "native",MPI_INFO_NULL,ierr)
+  CALL MPI_FILE_WRITE_SHARED(vlast_handle,v_1,product(subsizes_4d),MPI_4D_COMPLEX_ARRAY,MPI_STATUS_IGNORE,ierr)
   CALL MPI_FILE_GET_SIZE(vlast_handle,size,ierr)
   print *, size
   CALL MPI_FILE_CLOSE(vlast_handle, ierr)
@@ -342,6 +343,7 @@ SUBROUTINE bv_first
 
   CALL MPI_TYPE_CREATE_SUBARRAY(4,sizes_4d,subsizes_4d,starts_4d,&
        MPI_ORDER_FORTRAN, MPI_DOUBLE_COMPLEX,MPI_4D_COMPLEX_ARRAY,ierr)
+  CALL MPI_TYPE_COMMIT(MPI_4D_COMPLEX_ARRAY,ierr)
 
   ! Open file and set view
   CALL MPI_FILE_OPEN(MPI_COMM_WORLD,trim(loaddir)//'/blast_out.dat',&
