@@ -123,10 +123,10 @@ SUBROUTINE initial_condition(which_init0)
       CALL RANDOM_SEED(PUT=rseed+mype) ! Add mype to ensure different processes have different phases
       DEALLOCATE(rseed)
 
-      if (verbose.and.(random_state.gt.0)) then
-         CALL RANDOM_NUMBER(testrandoms)
-         print *, testrandoms
-      endif
+!      if (verbose.and.(random_state.gt.0)) then
+!         CALL RANDOM_NUMBER(testrandoms)
+!         print *, testrandoms
+!      endif
 
       ! Not truncating initial conditions (for now)
       truncx = 300.0

@@ -62,8 +62,8 @@ SUBROUTINE iv_solver
  !itime=0
  !time=0.0
 
- IF(mype==0) WRITE(*,*) "max_itime=",max_itime
- IF(mype==0) WRITE(*,*) "max_time=",max_time
+ WRITE(*,*) "max_itime=",max_itime,mype
+ WRITE(*,*) "max_time=",max_time,mype
 
  CALL remove_div(b_1,v_1)
  if (.not.linen) CALL ALLOCATE_STEPS
@@ -79,12 +79,12 @@ SUBROUTINE iv_solver
    if (timer) sttime = MPI_WTIME()
    if ((.not.checkpoint_read).or.(itime.gt.itime_start)) CALL diag
    if (timer) diagtime = MPI_WTIME()
-   if (timer) print *, "Diag Time",diagtime - sttime
+   if (timer) print *, "Diag Time",diagtime - sttime,mype
    
    !IF(verbose) WRITE(*,*) "Done with diagnostics",time,itime,mype
 
-   IF(verbose.and.(mype.eq.0)) WRITE(*,*) "iv_solver: before get_g_next",time,itime,mype
-   IF(verbose.and.(mype.eq.0)) WRITE(*,*) "iv_solver: before get_g_next dt=",dt
+   IF(verbose) WRITE(*,*) "iv_solver: before get_g_next",time,itime,mype
+   IF(verbose) WRITE(*,*) "iv_solver: before get_g_next dt=",dt
    !CALL save_b(b_1)
    !CALL save_time(itime)
    IF ((mype.eq.0).and.(plot_nls.and.(mod(itime,istep_energy).eq.0))) THEN
@@ -1049,18 +1049,18 @@ SUBROUTINE SPLIT2(b_in,v_in)
 !   if (.not.present(dtm)) dtm = dt_max
   
   dt = 0.5 * dt2
-  if (verbose.and.(mype.eq.0)) print *, "Set time step"
+  if (verbose) print *, "Set time step",mype
   CALL get_rhs_diss2(b_in,v_in)
-  if (verbose.and.mype.eq.0) print *, "Through dissipation 1"
+  if (verbose) print *, "Through dissipation 1",mype
   CALL get_rhs_force(bk1,vk1)
   b_in = b_in + dt * bk1
   v_in = v_in + dt * vk1
-  if (verbose.and.mype.eq.0) print *, "Through force 1"
+  if (verbose) print *, "Through force 1",mype
 
   dt = dt2
   if (intorder.eq.20) CALL GAUSS2(b_in,v_in,ndt)
   if (intorder.eq.40) CALL GAUSS4(b_in,v_in,ndt)
-  if (verbose.and.mype.eq.0) print *, "Through ideal"
+  if (verbose) print *, "Through ideal",mype
 
   dt = 0.5 * dt2
   bk1 = 0.0

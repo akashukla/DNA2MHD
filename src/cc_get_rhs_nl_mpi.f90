@@ -99,7 +99,7 @@ SUBROUTINE initialize_fourier_ae_mu0
   else
   nx0_big = zpad*nkx0/2
   nz0_big = zpad*nkz0
-  endif
+endif
 
   fft_norm=1.0/(REAL(nx0_big*ny0_big*nz0_big))
 
@@ -126,6 +126,8 @@ SUBROUTINE initialize_fourier_ae_mu0
   IF(mype==0) WRITE(*,*) "lky_big",lky_big
   IF(mype==0) WRITE(*,*) "hkz_ind,lkz_ind",hkz_ind,lkz_ind
   IF(mype==0) WRITE(*,*) "lkz_big",lkz_big
+  WRITE(*,*) "local_N",local_N,mype
+  WRITE(*,*) "local_k_offset",local_k_offset,mype
 
   CALL ALLOCATIONS
 
@@ -461,19 +463,18 @@ SUBROUTINE finalize_fourier
 implicit none
 
 CALL DEALLOCATIONS
-! call fftw_destroy_plan(plan_r2c)
-! call fftw_destroy_plan(plan_c2r)
+
+call fftw_destroy_plan(plan_r2c)
+call fftw_destroy_plan(plan_c2r)
  
 ! if (verbose) print *, "plans destroyed"
 
 CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+CALL fftw_free(cinout)
+if (verbose) print *, "temp_big freed"
 CALL fftw_free(rinout)
 
 if (verbose) print *, "store freed"
-
-CALL fftw_free(cinout)
-
-if (verbose) print *, "temp_big freed"
 
 CALL fftw_mpi_cleanup()
 
