@@ -55,7 +55,7 @@ SUBROUTINE read_parameters
       GyroLES, Gyroherm, Gyroz, Corr, &
       plot_nls,dbio,dvio,bdvio,vdbio,bdcbio,cbdbio,vdvio,bdbio,db2io,&
       hall,guide,enone,nv,test_ho,uni,beltrami,helical,shear,walenp,walenn,mhc,&
-      init_wave,init_null,bc_norm,track_divs,taylorgreen,en_leftwhist,en_leftcyclo,en_rightwhist,en_rightcyclo,debug_energy,&
+      init_wave,init_null,force_trunc,bc_norm,track_divs,taylorgreen,en_leftwhist,en_leftcyclo,en_rightwhist,en_rightcyclo,debug_energy,&
       force_lw,force_lc,force_rw,force_rc,random_state
  
   NAMELIST /eigensolve/ &
@@ -441,6 +441,7 @@ SUBROUTINE output_parameters
     WRITE(out_handle,"(A)")    ""
     WRITE(out_handle,"(A,L1)") "init_wave = ",init_wave
     WRITE(out_handle,"(A,L1)") "init_null = ",init_null
+    WRITE(out_handle,"(A,L1)") "force_trunc = ",force_trunc
     WRITE(out_handle,"(A,I3)") "random_state = ",random_state
     WRITE(out_handle,"(A,L1)") "bc_norm = ",bc_norm
     WRITE(out_handle,"(A,L1)") "track_divs = ",track_divs
@@ -768,7 +769,7 @@ SUBROUTINE CHECKPOINT_IN
   integer :: chp_handle
   INTEGER :: nkx0_in,nky0_in,nkz0_in,ind,field
  
-  chp_name = "/checkpoint.dat"
+  chp_name = "/s_checkpoint.dat"
 
   CALL get_io_number
   chp_handle = io_number

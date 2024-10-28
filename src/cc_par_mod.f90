@@ -160,6 +160,7 @@ MODULE par_mod
   LOGICAL :: mhc = .false.
   LOGICAL :: init_wave = .false.
   LOGICAL :: init_null = .false.
+  LOGICAL :: force_trunc = .false.
   LOGICAL :: bc_norm = .false.
   LOGICAL :: track_divs = .true.
   LOGICAL :: debug_energy = .true.

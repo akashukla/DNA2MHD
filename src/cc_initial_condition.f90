@@ -137,19 +137,26 @@ SUBROUTINE initial_condition(which_init0)
 
       if (rey.eq.0) then
          ! Set viscosity to set relative rate of dissipation at high scales 
-         rey = kxmin/vnu
+         rey = kxmin/vnu * sqrt(force_amp * 8*pi **3 ) * (nkx0)**(2.0*hyp)
          vnu = vnu / (kmax**(2.0*hyp))
       else
          ! Set viscosity from Reynolds number
-         vnu = kxmin/(rey * kxmin**(2*hyp))
+         vnu = kxmin/(rey * kxmin**(2*hyp)) * sqrt(force_amp * 8*pi **3 )
       endif
       
-      if ((mype.eq.0)) print *, "Reynolds Number",rey
+      if ((mype.eq.0)) print *, "Perp Reynolds Number",rey
       
       ! Set resistivity from Magnetic Prandtl number
       eta = eta * vnu
       if(mype.eq.0) print *, 'Viscosity',vnu
+
+      ! Set forcing such that a smallest wavenumber mode
+      ! would have energy force_amp times guide field energy divided by number of modes forced
+      ! Order of magnitude estimate pending phases and forcing, of course
       
+      force_amp = abs(cmplx(vnu*(kmags(0,0,1))**(2.0*hyp),0)) * sqrt(1.0/3.0 * force_amp) * sqrt(8.0 * (pi ** 3))/sum(abs( kperps .lt. (maxval(kperps) * force_frac)))
+      
+      print *, "Force Amp",force_amp      
 
       IF (init_null) THEN
          b_1 = cmplx(0.0,0.0)
@@ -165,7 +172,7 @@ SUBROUTINE initial_condition(which_init0)
 
          ! Guessed v_1 amps
 
-         v_1 = spread(kmags ** (-init_kolm * 0.5),4,3)
+         v_1 = spread(kperps ** (-init_kolm * 0.5),4,3)
          v_1(0,:,:,:) = zerocmplx
          v_1(:,0,:,:) = zerocmplx
          v_1(:,:,0,:) = zerocmplx
@@ -186,19 +193,14 @@ SUBROUTINE initial_condition(which_init0)
          turnover = 1/(2*kxmin * sqrt(sum(sum(abs(v_1)**2.0,4)*sin(spread(spread(kxgrid/(2*kxmin),2,nky0),3,lkz2+1-lkz1))**2)))
          print *, mype,"Turnover Time Estimate",turnover
 
-         nlt = 10/(minval(abs(spread(kmags,4,3)*v_1),abs(spread(kmags,4,3)*v_1).gt. 10**(-10)))
+         nlt = 10.0/(minval(abs(spread(kmags,4,3)*v_1),abs(spread(kmags,4,3)*v_1).gt. 10**(-10)))
 
          print *, mype,"Equation-Based Nonlinear Time Scale", nlt
 
-         force_amp = sqrt(maxval(abs(vnu * spread(kmags**(2.0 * hyp),4,3) * v_1)))
-
-         print *, "Force Amp",force_amp 
-         
          ! Revert back to null IC
          v_1 = cmplx(0.0,0.0)
 
-      ELSE
-         
+      ELSE         
 
       DO i=xst,nkx0-1
          DO j=yst,nky0-1
@@ -299,12 +301,12 @@ SUBROUTINE initial_condition(which_init0)
                     v_1(i,j,k,1)=cmplx(0.0,0.0)
                     v_1(i,j,k,2)=cmplx(0.0,0.0)
                  ELSE IF (.not.(enone)) THEN
-                    b_1(i,j,k,0)=init_amp_bx*1.0/sqrt(real(nkx0*nky0*(nkz0-1)))*1/(kmags(i,j,k)**(init_kolm/2.0)) * phaseb*cos(2*pi*thb)
-                    b_1(i,j,k,1)=init_amp_by*1.0/sqrt(real(nkx0*nky0*(nkz0-1)))*1/(kmags(i,j,k)**(init_kolm/2.0)) * phaseb*phaseby*sin(2*pi*thb)
+                    b_1(i,j,k,0)=init_amp_bx*1.0/sqrt(real(nkx0*nky0*(nkz0-1)))*1/(kperps(i,j,k)**(init_kolm/2.0)) * phaseb*cos(2*pi*thb)
+                    b_1(i,j,k,1)=init_amp_by*1.0/sqrt(real(nkx0*nky0*(nkz0-1)))*1/(kperps(i,j,k)**(init_kolm/2.0)) * phaseb*phaseby*sin(2*pi*thb)
                     b_1(i,j,k,2) = (-kxgrid(i)*b_1(i,j,k,0)-kygrid(j)*b_1(i,j,k,1))/kzgrid(k)
                     !b_1(i,j,k,2)=init_amp_bz
-                    v_1(i,j,k,0)=init_amp_vx*1.0/sqrt(real(nkx0*nky0*(nkz0-1)))*1/(kmags(i,j,k)**(init_kolm/2.0)) * phasev*phaseb*cos(2*pi*thv)
-                    v_1(i,j,k,1)=init_amp_vy*1.0/sqrt(real(nkx0*nky0*(nkz0-1)))*1/(kmags(i,j,k)**(init_kolm/2.0)) * phasev*phasevy*phaseb*sin(2*pi*thv)
+                    v_1(i,j,k,0)=init_amp_vx*1.0/sqrt(real(nkx0*nky0*(nkz0-1)))*1/(kperps(i,j,k)**(init_kolm/2.0)) * phasev*phaseb*cos(2*pi*thv)
+                    v_1(i,j,k,1)=init_amp_vy*1.0/sqrt(real(nkx0*nky0*(nkz0-1)))*1/(kperps(i,j,k)**(init_kolm/2.0)) * phasev*phasevy*phaseb*sin(2*pi*thv)
                     !v_1(i,j,k,2)=init_amp_vz
                     v_1(i,j,k,2) = (-kxgrid(i)*v_1(i,j,k,0)-kygrid(j)*v_1(i,j,k,1))/kzgrid(k)
                  ELSE IF (beltrami) THEN
@@ -353,8 +355,8 @@ SUBROUTINE initial_condition(which_init0)
                     v_1(i,j,k,1) = (v1w*phasev*pcurleig(i,j,k,1) + v2w*phasevy*conjg(pcurleig(i,j,k,1)))/sqrt(v1w**2+v2w**2)
                     v_1(i,j,k,2) = (v1w*phasev*pcurleig(i,j,k,2) + v2w*phasevy*conjg(pcurleig(i,j,k,2)))/sqrt(v1w**2+v2w**2)
                     
-                    b_1(i,j,k,:) = b_1(i,j,k,:) / (kmags(i,j,k)**(init_kolm/2.0))
-                    v_1(i,j,k,:) = v_1(i,j,k,:) / (kmags(i,j,k)**(init_kolm/2.0))
+                    b_1(i,j,k,:) = b_1(i,j,k,:) / (kperps(i,j,k)**(init_kolm/2.0))
+                    v_1(i,j,k,:) = v_1(i,j,k,:) / (kperps(i,j,k)**(init_kolm/2.0))
 
                  ELSE IF (init_wave) THEN
                     
@@ -375,8 +377,8 @@ SUBROUTINE initial_condition(which_init0)
                     
                     v_1(i,j,k,:) = (LW1 + LC1) * pcurleig(i,j,k,:) + (RW1 + RC1)*conjg(pcurleig(i,j,k,:))
                     
-                    b_1(i,j,k,:) = b_1(i,j,k,:) / (sqrt(en_leftwhist + en_leftcyclo + en_rightwhist + en_rightcyclo) * kmags(i,j,k)**(init_kolm/2.0))
-                    v_1(i,j,k,:) = v_1(i,j,k,:) / (sqrt(en_leftwhist + en_leftcyclo + en_rightwhist + en_rightcyclo) * kmags(i,j,k)**(init_kolm/2.0))
+                    b_1(i,j,k,:) = b_1(i,j,k,:) / (sqrt(en_leftwhist + en_leftcyclo + en_rightwhist + en_rightcyclo) * kperps(i,j,k)**(init_kolm/2.0))
+                    v_1(i,j,k,:) = v_1(i,j,k,:) / (sqrt(en_leftwhist + en_leftcyclo + en_rightwhist + en_rightcyclo) * kperps(i,j,k)**(init_kolm/2.0))
                     
                  ELSE   
 
@@ -391,9 +393,9 @@ SUBROUTINE initial_condition(which_init0)
                       s11 = kxgrid(i)**2 * cos(2*pi*thb)**2 + kxgrid(i)**2 * cos(2*pi*thv)**2
                       s12 = kygrid(j)**2 * sin(2*pi*thb)**2 + kygrid(j)**2 * sin(2*pi*thv)**2
                       s13 = kxgrid(i) * kygrid(j) * (sin(4*pi*thb) * cos(2*pi*phase1y) + sin(4*pi*thv)*cos(2*pi*phase2y))
-                      s1 = s1 + kmags(i,j,k)**(-1.0*init_kolm) * (2+(s11+s12+s13)/(kzgrid(k)**2))
+                      s1 = s1 + kperps(i,j,k)**(-1.0*init_kolm) * (2+(s11+s12+s13)/(kzgrid(k)**2))
                    ELSE
-                      s1 = s1 + 2.0*kmags(i,j,k) ** (-1.0*init_kolm)
+                      s1 = s1 + 2.0*kperps(i,j,k) ** (-1.0*init_kolm)
                    ENDIF
                    
                    IF (helical) THEN
@@ -407,27 +409,27 @@ SUBROUTINE initial_condition(which_init0)
                       b1i = (kygrid(j) * b3r - kzgrid(k) * b2r)/kmags(i,j,k)
                       b2i = (kzgrid(k) * b1r - kxgrid(i) * b3r)/kmags(i,j,k)
                       b3i = (kxgrid(i) * b2r - kygrid(j) * b1r)/kmags(i,j,k)
-                      b_1(i,j,k,0) = cmplx(b1r,b1i)/(sqrt(2.0) * btmag * kmags(i,j,k)**(init_kolm/2.0))
-                      b_1(i,j,k,1) = cmplx(b2r,b2i)/(sqrt(2.0) * btmag * kmags(i,j,k)**(init_kolm/2.0))
-                      b_1(i,j,k,2) = cmplx(b3r,b3i)/(sqrt(2.0) * btmag * kmags(i,j,k)**(init_kolm/2.0))
+                      b_1(i,j,k,0) = cmplx(b1r,b1i)/(sqrt(2.0) * btmag * kperps(i,j,k)**(init_kolm/2.0))
+                      b_1(i,j,k,1) = cmplx(b2r,b2i)/(sqrt(2.0) * btmag * kperps(i,j,k)**(init_kolm/2.0))
+                      b_1(i,j,k,2) = cmplx(b3r,b3i)/(sqrt(2.0) * btmag * kperps(i,j,k)**(init_kolm/2.0))
                       v_1(i,j,k,:) = b_1(i,j,k,:)
                    ELSE IF (shear.and.(max(i,j).ne.0)) THEN
-                      b_1(i,j,k,0) = - kygrid(j)/sqrt(kxgrid(i)**2 + kygrid(j)**2) * phaseb * (kmags(i,j,k) **(-init_kolm/2.0))
-                      b_1(i,j,k,1) = kxgrid(i)/sqrt(kxgrid(i)**2 + kygrid(j)**2) * phaseb * (kmags(i,j,k) **(-init_kolm/2.0))
+                      b_1(i,j,k,0) = - kygrid(j)/sqrt(kxgrid(i)**2 + kygrid(j)**2) * phaseb * (kperps(i,j,k) **(-init_kolm/2.0))
+                      b_1(i,j,k,1) = kxgrid(i)/sqrt(kxgrid(i)**2 + kygrid(j)**2) * phaseb * (kperps(i,j,k) **(-init_kolm/2.0))
                       b_1(i,j,k,2) = cmplx(0.0,0.0)
-                      v_1(i,j,k,0) = -kygrid(j)/sqrt(kxgrid(i)**2 + kygrid(j)**2) * phasev * phaseb * (kmags(i,j,k) **(-init_kolm/2.0))
-                      v_1(i,j,k,1) = kxgrid(i)/sqrt(kxgrid(i)**2 + kygrid(j)**2) * phasev*phaseb * (kmags(i,j,k) **(-init_kolm/2.0))
+                      v_1(i,j,k,0) = -kygrid(j)/sqrt(kxgrid(i)**2 + kygrid(j)**2) * phasev * phaseb * (kperps(i,j,k) **(-init_kolm/2.0))
+                      v_1(i,j,k,1) = kxgrid(i)/sqrt(kxgrid(i)**2 + kygrid(j)**2) * phasev*phaseb * (kperps(i,j,k) **(-init_kolm/2.0))
                       v_1(i,j,k,2) = cmplx(0.0,0.0)
                    ELSE
-                      b_1(i,j,k,0)= phaseb*cos(2*pi*thb)*1/(kmags(i,j,k)**(init_kolm/2.0))
+                      b_1(i,j,k,0)= phaseb*cos(2*pi*thb)*1/(kperps(i,j,k)**(init_kolm/2.0))
                       !0.32/sqrt((2+pi**2 * real(nkx0+nky0)/144.0) * real(nkx0*nky0*(nkz0-1)) * 8 * pi**3)
-                      b_1(i,j,k,1)= phaseb*phaseby*sin(2*pi*thb)*1/(kmags(i,j,k)**(init_kolm/2.0))
+                      b_1(i,j,k,1)= phaseb*phaseby*sin(2*pi*thb)*1/(kperps(i,j,k)**(init_kolm/2.0))
                       !0.32/sqrt((2+pi**2 * real(nkx0+nky0)/144.0) * real(nkx0*nky0*(nkz0-1)) * 8 * pi**3)
                       b_1(i,j,k,2) = (-kxgrid(i)*b_1(i,j,k,0)-kygrid(j)*b_1(i,j,k,1))/kzgrid(k)
                       !b_1(i,j,k,2)=init_amp_bz              
-                      v_1(i,j,k,0)= phasev*phaseb*cos(2*pi*thv)*1/(kmags(i,j,k)**(init_kolm/2.0))
+                      v_1(i,j,k,0)= phasev*phaseb*cos(2*pi*thv)*1/(kperps(i,j,k)**(init_kolm/2.0))
                       !0.32/sqrt((2+pi**2 * real(nkx0+nky0)/144.0) * real(nkx0*nky0*(nkz0-1)) * 8 * pi**3)
-                      v_1(i,j,k,1)= phasev*phasevy*phaseb*sin(2*pi*thv)*1/(kmags(i,j,k)**(init_kolm/2.0))
+                      v_1(i,j,k,1)= phasev*phasevy*phaseb*sin(2*pi*thv)*1/(kperps(i,j,k)**(init_kolm/2.0))
                       !0.32/sqrt((2+pi**2 * real(nkx0+nky0)/144.0) * real(nkx0*nky0*(nkz0-1)) * 8 * pi**3)
                       !v_1(i,j,k,2)=init_amp_vz 
                       v_1(i,j,k,2) = (-kxgrid(i)*v_1(i,j,k,0)-kygrid(j)*v_1(i,j,k,1))/kzgrid(k)
@@ -436,13 +438,20 @@ SUBROUTINE initial_condition(which_init0)
                 END IF
 
              endif
-                            
+
+             if (force_trunc) then !Only initalize forced waves
+                if (kperps(i,j,k) > (maxval(kperps)*force_frac)) then
+                   b_1(i,j,k,:) = cmplx(0.0,0.0)
+                   v_1(i,j,k,:) = cmplx(0.0,0.0)
+                end if
+             endif
+             
           ENDDO
        ENDDO
     ENDDO
 
     if (verbose) print *, "Through initial b_1 and v_1",mype
-    
+
     ! Set energy as fraction of 4 pi^3
     if (enone) then
 
@@ -497,15 +506,15 @@ SUBROUTINE initial_condition(which_init0)
     ! Scale forcing to represent energy gained per time step |F| |v| ~ energy gain per step as fraction of initial energy
     ! |v| ~ sqrt(|v|^2) ~ sqrt(energy/2)
     
-    if (force_turbulence) force_amp = force_amp * sqrt(4.0 * pi**3.0 * init_energy)
-    if (verbose) print *, mype,"Force amp",force_amp
+    ! if (force_turbulence) force_amp = force_amp * sqrt(4.0 * pi**3.0 * init_energy)
+    ! if (verbose) print *, mype,"Force amp",force_amp
     
  ENDIF
  IF (checkpoint_read) CALL checkpoint_in
    
  ! Linear stability maximum time step
     print *, "Gauss2 Critical Time Step", 2.0/(maxval(kzgrid)*(kmax/2 + sqrt(1 + 0.25*kmax**2.0)))
-    if (calc_dt.and.(.not.(test_ho))) dt_max = minval([dt_max,1.0/(maxval(kzgrid)*(kmax/2 + sqrt(1 + 0.25*kmax**2.0)))])
+    if (calc_dt.and.(.not.(test_ho)).and.(hall.ne.0.0)) dt_max = minval([dt_max,1.0/(maxval(kzgrid)*(kmax/2 + sqrt(1 + 0.25*kmax**2.0)))])
     if (verbose.and.(mype.eq.0)) then
        print *, "kzgrid max", maxval(kzgrid)
        print *, "kmags max", kmax

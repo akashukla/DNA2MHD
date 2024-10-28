@@ -2,27 +2,27 @@ import dna2mhd_utils as dn
 from output2 import maxinds
 import numpy as np
 
-#lpaths = ["/scratch/08929/echansen/dna2mhdrunsh24rk32"]
-lpaths = ["/scratch/08929/echansen/dna2mhdrun6424r1",
-          "/scratch/08929/echansen/dna2mhdrun6424rz1"]
+lpaths = ["/scratch/08929/echansen/dna2mhdruncurvetest19"]
+#lpaths = ["/scratch/08929/echansen/dna2mhdrunDPP128LC",
+#          "/scratch/08929/echansen/dna2mhdrunDPP128LCi"]
 
 a = np.random.randint(0,31,size=4)
 
 for lpath in lpaths:
     dn.plot_energy(lpath,3,show=False)
-    dn.plot_enspec(lpath,4,zz=-1,log=True,newload=True,show=False)
-    dn.plot_xispec(lpath,4,zz=-1,log=True,show=False)
+    print("Through energy")
+    dn.plot_enspec(lpath,npt=4,zz=-1,show=False,log=True,linplot=False,newload=True,fullspec=False,old=True,tmaxfac=1,tmax=2000000)
+    dn.plot_enspec(lpath,npt=4,zz=-1,show=False,log=True,linplot=False,newload=True,fullspec=False,old=True,tmaxfac=1,tmax=2000000,version=0)
+    print("Through Energy Spec")
     dn.mode_break(lpath,show=False)
-    for zz in a:
-        dn.plot_enspec(lpath,5,zz=zz,log=True,newload=True,show=False,tmaxfac=2)
-        dn.plot_xispec(lpath,5,zz=zz,log=True,show=False,tmaxfac=2)
-    #dn.planeplotter(lpath,0,show=False)
-    #dn.planeplotter(lpath,-1,show=False)
+    print("Through Mode Breakdown")
     dn.structurefunction(lpath,tmax=2*10**10)
+    print("Through Structure Functions")
     dn.mode_nlparam(lpath,0,1)
     dn.mode_nlparam(lpath,0,3)
     dn.mode_nlparam(lpath,-1,1)
     dn.mode_nlparam(lpath,-1,3)
+    print("Through Nonlinearity Parameter")
 
 x = """
 fname = {lpaths[0]:lpaths[0]+"/DNAHD.out1467543",lpaths[1]:lpaths[1]+"/DNAHD.out1472208"}

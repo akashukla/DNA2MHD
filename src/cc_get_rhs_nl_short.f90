@@ -228,15 +228,15 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
 
     ! curlbx
 
-    if (timer) sttime = MPI_WTIME()
-    DO j = 0,nky0-1
-       temp_small(:,j,:) = i_complex * kygrid(j)*b_inz0(:,j,:)
-    END DO
-    DO k = 0,nkz0-1
-       temp_small(:,:,k) = temp_small(:,:,k) - i_complex * kzgrid(k) * b_iny0(:,:,k)
-    ENDDO
-    if (timer) padtime = MPI_WTIME()
-    if (timer) print *, "Curl Time 1",padtime-sttime
+!    if (timer) sttime = MPI_WTIME()
+!    DO j = 0,nky0-1
+!       temp_small(:,j,:) = i_complex * kygrid(j)*b_inz0(:,j,:)
+!    END DO
+!    DO k = 0,nkz0-1
+!       temp_small(:,:,k) = temp_small(:,:,k) - i_complex * kzgrid(k) * b_iny0(:,:,k)
+!    ENDDO
+!    if (timer) padtime = MPI_WTIME()
+!    if (timer) print *, "Curl Time 1",padtime-sttime
 
     if (timer) sttime = MPI_WTIME()
     DO j = 0,nky0-1
@@ -507,7 +507,7 @@ if (verbose) print *, 'rhs out v nl found'
 if (calc_dt) CALL next_dt(ndt)
 if (.not.(calc_dt)) ndt = dt_max
 
-if (calc_dt) print *, 'next dt calculated ',ndt
+if (calc_dt.and.(mod(itime,istep_energy).eq.0)) print *, 'next dt calculated ',ndt
 
 END SUBROUTINE get_rhs_nl1
 

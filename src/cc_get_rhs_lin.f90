@@ -138,7 +138,7 @@ SUBROUTINE get_rhs_force(rhs_out_b, rhs_out_v)
     if (verbose) b = MPI_WTIME()
     CALL MPI_BCAST(resample,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
 
-    mask1 = (kmags.lt.force_frac*kmax)
+    mask1 = (kperps.lt.force_frac*maxval(kperps))
     ! mask2 = (((i.le.nkxforce).and.(j.le.nkyforce)).and.(k.le.nkzforce)).and.(forcetype.eq.12))
     
     IF ((resample.lt.dt).and.(forcetype.eq.11)) THEN

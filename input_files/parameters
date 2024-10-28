@@ -4,17 +4,17 @@ omt = 5.000
 omn =    1.000    
 Ti0Te =    1.000 
 eta = 1.0
-vnu = 0.0
+vnu = 0.01
 rey = 0.0
 /
 
 &numerical_parameters
-kxmin =   0.10
-kymin =   0.10
+kxmin =   0.1
+kymin =   0.1
 kzmin =   0.05
-nkx0 = 32
-nky0 = 64
-nkz0 = 64
+nkx0 = 16
+nky0 = 32
+nkz0 = 32
 nv0 =   2
 nh0 =    1
 nspec =    1
@@ -35,29 +35,29 @@ courant =   0.5
 kxinit_min = 0
 kyinit_min = 0
 kzinit_min = 0
-kxinit_max = 32
-kyinit_max = 64
-kzinit_max = 64
-init_energy = 0.01
+kxinit_max = 16
+kyinit_max = 32
+kzinit_max = 32
+init_energy = 1.00
 init_amp_bx = 0.0
 init_amp_by = 0.0
 init_amp_bz = 0.0
 init_amp_vx = 0.0
 init_amp_vy = 0.0
 init_amp_vz = 0.0
-init_kolm = 2.0
+init_kolm = 3.0
 phdf = 2.0
 phdfxy = 2.0
-force_amp = 0.0
+force_amp = 1.00
 nkxforce = 16
 nkyforce = 16
 nkzforce = 16
-force_frac = 0.05
-hyp = 2
+force_frac = 0.1
+hyp = 1
 /
 
 &diagnostics
-diagdir = '/scratch/08929/echansen/dna2mhdruntiming'
+diagdir = '/scratch/08929/echansen/dna2mhdruncurvetest19'
 loaddir = '/scratch/08929/echansen/dna2mhdruntiming'
 istep_ffm =   20
 istep_energy3d =  500
@@ -90,7 +90,7 @@ nuno_closure = T
 rhs_nl_version = 12
 linen = F
 keepzero = T
-intorder = 20
+intorder = 3
 rhs_lin_version = 12
 dealias_type = 3
 shifted = F
@@ -117,6 +117,7 @@ debug_energy = F
 mhc = T
 init_wave = T
 init_null = F
+force_trunc = F
 checkpoint_read = F
 en_leftwhist = 0.0
 en_leftcyclo = 1.0
@@ -134,7 +135,7 @@ random_state = 3
 /
 
 &initial_value
-max_itime = 300
+max_itime = 200000
 max_walltime =   10000000.0
 dt_max = 0.01
 fix_dt = F

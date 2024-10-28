@@ -15,7 +15,7 @@ from scipy.signal import find_peaks
 from scipy.fft import fft,fftfreq,fftshift,irfftn
 import scipy.optimize as spo
 import matplotlib.animation as anim
-from matplotlib.ticker import ScalarFormatter,MultipleLocator,MaxNLocator,StrMethodFormatter
+from matplotlib.ticker import ScalarFormatter,MultipleLocator,MaxNLocator,StrMethodFormatter,LogLocator,LogFormatterExponent,LinearLocator
 from numpy import format_float_positional as ff
 
 par={}       #Global Variable to hold parameters once read_parameters is called
@@ -661,6 +661,9 @@ def load_xi(lpath):
     xi=np.memmap(lpath+'/xi_xyz.dat',dtype='float64',mode='r',shape=tuple(np.load(lpath+'/xishape.npy')))
     return time, xi
 
+
+
+
 def plot_bv(lpath,ix,iy,iz,ind,show=True,ask=True):
     """
     This is an example method that plots the timetraces of b and v at the specified wavevector (kx[ix],ky[iy],kz[iz]).
@@ -1004,10 +1007,10 @@ def plot_energy(lpath,ntp,show=True,log=False,rescale=True,xb=1,tmax=2000000):
                 r = np.max(ev) - np.min(ev)
             elif par['mhc']:
                 if enval[0,i+2] > 10**(-16):
-                    ev = (enval[:,i]+enval[:,9])/enval[0,i+2]
+                    ev = (enval[:,i]+patch_mhc(enval[:,9]))/enval[0,i+2]
                     ev0 = enval[:,i]/enval[0,i+2]
                 else:
-                    ev = (enval[:,i]+enval[:,9])/np.amax(np.abs(enval[:,i]+enval[:,9]))
+                    ev = (enval[:,i]+patch_mhc(enval[:,9]))/np.amax(np.abs(enval[:,i]+enval[:,9]))
                     ev0 = enval[:,i]/np.amax(np.abs(enval[:,i]+enval[:,9]))
                 ax.plot(timeen,ev0,"r",label="Original")
                 ax.plot(timeen,ev,"k",label="Transformed")
@@ -1018,12 +1021,22 @@ def plot_energy(lpath,ntp,show=True,log=False,rescale=True,xb=1,tmax=2000000):
                 r = np.max(ev) - np.min(ev)
             
             r = np.max(ev) - np.min(ev)
+            r1 = 10**(np.ceil(np.log10(r)))
+            if r1 > 2 * r:
+                r1 = r1/2
+            if r1 > 2 * r:
+                r1 = r1/2
+            if r1 > 2 * r:
+                r1 = 10**(np.ceil(np.log10(r))) * 0.15
             ax.set_ylabel(axls[i])
 
-            ax.set_ylim(bottom=ev[0]-1.2*r,top=ev[0]+1.2*r)
-            ax.yaxis.set_major_locator(MaxNLocator(5))
+            # find integer multiple of 1/10 r1 inside the data
+
+            cen = (np.ceil(10*np.min(ev)/r1)+4)*r1/10
+            
+            ax.set_ylim(bottom=cen-r1,top=cen+r1)
+            ax.yaxis.set_major_locator(LinearLocator())
             form = ScalarFormatter()
-            form.format = "{%.1e}"
             ax.yaxis.set_major_formatter(form)
             
             ax.set_xlabel('Time ($\omega_c^{-1}$)')
@@ -1049,7 +1062,7 @@ def plot_energy(lpath,ntp,show=True,log=False,rescale=True,xb=1,tmax=2000000):
     
     return timeen,enval
 
-def plot_enspec(lpath,npt=1,zz=-1,show=True,log=False,linplot=False,newload=False,fullspec=False,old=True,tmaxfac=1,tmax=2000000):
+def plot_enspec(lpath,npt=1,zz=-1,show=True,log=False,linplot=False,newload=False,fullspec=False,old=True,tmaxfac=1,tmax=2000000,version=3):
     read_parameters(lpath)
     kx,ky,kz = get_grids()
 
@@ -1082,7 +1095,7 @@ def plot_enspec(lpath,npt=1,zz=-1,show=True,log=False,linplot=False,newload=Fals
                     badj = 1+(kx[i]**2 * np.cos(bths)**2 + ky[j]**2 * np.sin(bths)**2 + kx[i]*ky[j]*np.sin(2*bths)*np.cos(bphixs-bphiys))/(kz[k]**2)
                     vadj = 1+(kx[i]**2 * np.cos(vths)**2 + ky[j]**2 * np.sin(vths)**2 + kx[i]*ky[j]*np.sin(2*vths)*np.cos(vpsixs-vpsiys))/(kz[k]**2)
             print(i)
-    fmts = ["r8","ks","ro","b^","m*"]
+    fmts = ["ro","ko","mo","bo","ro"]
     fig1,ax1 = plt.subplots(1)
     fig2,ax2 = plt.subplots(1)
     fig3,ax3 = plt.subplots(1)
@@ -1192,19 +1205,29 @@ def plot_enspec(lpath,npt=1,zz=-1,show=True,log=False,linplot=False,newload=Fals
         plt.close("all")
     
     tt = np.arange(np.size(t))
-    sts = ["ks","ro","b^","m*"]
+    sts = fmts
     ttplot = np.floor(np.linspace(0,tt[-1],4)).astype("int")
     fig,ax = plt.subplots(1)
     for i in range(4):
-        kperps,ekti = integrated_spectrum_1d(ekm[ttplot[i],:,:,:],lpath)
-        ax.plot(kperps,ekti,sts[i],label=np.format_float_positional(t[ttplot[i]],2))
+        kperps,ekti = integrated_spectrum_1d(ekm[ttplot[i],:,:,:],lpath,v=version)
+        ax.plot(kperps,ekti,sts[i],label=np.format_float_positional(t[ttplot[i]],2)+"$(\omega_c^{-1})$")
     fig.suptitle("Integrated Total Energy Spectrum")
     ax.set_ylabel("Total Energy Spectrum")
+
+    ax.set_xlim(10**(-1),10**2)
+    ax.set_ylim(10**(-6),10**(1))
+    ax.yaxis.set_major_locator(LogLocator())
+    ax.yaxis.set_minor_locator(LogLocator(subs=[2,3,4,5,6,7,8,9]))
+    form = LogFormatterExponent(minor_thresholds="all")
+    form2 = LogFormatterExponent(minor_thresholds="auto")
+    ax.yaxis.set_major_formatter(form)
+    ax.yaxis.set_minor_formatter(form2)
+            
     ax.set_xlabel("$k_{\perp}$")
     ax.set_yscale("log")
     ax.set_xscale("log")
     ax.legend()
-    fig.savefig(lpath+'/eplots/t1denspec.png')
+    fig.savefig(lpath+'/eplots/t1denspec'+str(version)+'.png')
     if show == True:
         plt.show()
     else:
@@ -1499,7 +1522,7 @@ def plot_xispec(lpath,npt=1,zz=-1,show=True,log=True,tmaxfac=1,tmax=2000000,tt=1
 #
     return(t,xik)
 
-def integrated_spectrum_1d(spec,lpath,v1=False,v2=True):
+def integrated_spectrum_1d(spec,lpath,v=3):
     read_parameters(lpath)
     kx,ky,kz = get_grids()
     kxx = kx[1:]
@@ -1510,7 +1533,7 @@ def integrated_spectrum_1d(spec,lpath,v1=False,v2=True):
     kps = kpgrid.flatten()
     kperps = np.unique(kps)
 
-    if v1:
+    if v==1:
         spec2d = np.zeros([np.size(kperps),np.size(kzz)])
         for j in np.arange(np.size(kzz)):
             for i in np.arange(np.size(kperps)):
@@ -1519,20 +1542,47 @@ def integrated_spectrum_1d(spec,lpath,v1=False,v2=True):
                 spec2d[i,j] = kperps[i]*np.sum(specperp[w])
         spec1d = np.sum(spec2d,axis=1)
 
-    elif v2:
+    elif v==2:
+        # Integrate over kz first
+        specperp = np.sum(spec,axis=2)
+
+        # Sort spectrum and kperps by size
+        a = np.argsort(kps)
+        kps_sorted = kps[a]
+        spiral = specperp.flatten()[a]
+
+        # Split into different rings
+        cumulative_sum = []
+        kperps = np.linspace(2*kx[1],np.amax(kperps),num=int(np.amax(kperps)//(2*kx[1])))
+
+        # Add up all values of the spectrum inside the full circle
+        for ring in kperps:
+            test = np.nonzero(kps_sorted < ring)
+            cumulative_sum.append(np.sum(spiral[test]))
+
+        # Pull apart to see the total value inside each individual ring
+        spec1d = np.array(cumulative_sum[1:]) - np.array(cumulative_sum[:-1])
+
+    elif v==3:
         specperp = np.sum(spec,axis=2)
         a = np.argsort(kps)
         kps_sorted = kps[a]
         spiral = specperp.flatten()[a]
 
-        cumulative_sum = []
-        kperps = np.linspace(2*kx[1],np.amax(kperps),num=int(np.amax(kperps)//(2*kx[1])))
+        averages = []
+        N = int(np.amax(kperps)//(3*kx[1]))
+        kperps = np.linspace(0,np.amax(kperps),num=N)
 
-        for ring in kperps:
-            test = np.nonzero(kps_sorted < ring)
-            cumulative_sum.append(np.sum(spiral[test]))
+        for i in range(0,N-1):
+            test = np.nonzero((kps_sorted >= kperps[i])*(kps_sorted < kperps[i+1]))
+            averages.append(np.average(spiral[test]) * 2 * np.pi * kperps[i+1])
+            print("Ring i # Elements: ",np.count_nonzero((kps_sorted >= kperps[i])*(kps_sorted < kperps[i+1])))
 
-        spec1d = np.array(cumulative_sum[1:]) - np.array(cumulative_sum[:-1])
+        spec1d = np.array(averages)
+
+    else:
+        spec1d = 2*np.pi*kpgrid[:-1,0]*np.sum(spec,axis=-1)[:-1,0].flatten()
+        kperps = kpgrid[:,0]
 
     return(kperps[:-1],spec1d)
 
@@ -1621,6 +1671,7 @@ def mode_break(lpath,show=False,tmax=200000):
     plt.close()
 
     # Other plots: 1D spectra
+    comment = """
 
     fig,ax = plt.subplots(2)
 
@@ -1644,7 +1695,34 @@ def mode_break(lpath,show=False,tmax=200000):
     fig.savefig(lpath+"/eplots/modespec.png")
     if show == True:
         plt.show()
+    plt.close()"""
+
+    fig,ax = plt.subplots(1)
+
+    cmin = 0
+    cmax = 0
+    for i in range(4):
+        kperps,spec1df = integrated_spectrum_1d(mode_ks[i,-1,:,:,:],lpath)
+        ax.plot(kperps,spec1df,fmts[i],label=labels[i],markersize=1)
+        cmin = min(cmin,np.amin(spec1df))
+        cmax = max(cmax,np.amax(spec1df))
+    ax.set_ylabel("Final Mode Energy Spectrum")
+    ax.set_xlabel("$k_\perp$ ($d_i^{-1}$)")
+    ax.set_yscale("log")
+    ax.set_xscale("log")
+    ax.set_ylim(10**(-5),10**(-1))
+
+    ax.yaxis.set_major_locator(LogLocator())
+    form = LogFormatterExponent()
+    ax.yaxis.set_major_formatter(form)
+    
+    ax.legend()
+    fig.suptitle("Mode Energy Spectra at t = %.2f $(\omega_c^{-1})$ " % (t[-1]))
+    fig.savefig(lpath+"/eplots/modespec.png")
+    if show == True:
+        plt.show()
     plt.close()
+    
     return (t,lwkm,lckm,rwkm,rckm)
 
 def steadystate(lpath,graph=True):
@@ -1801,14 +1879,9 @@ def structurefunction(lpath,tmax=2*10**10):
     else:
         t,bk,vk = lastbv(lpath)
         bk = np.load(lpath+'/b_fin.npy')
-        vk = np.load(lpath+'v_fin.npy')"""
+        vk = np.load(lpath+'v_fin.npy')"""    
 
-    if os.path.isfile(lpath+'/v_xyz.dat'):
-        time,bk = load_b(lpath)
-        time,vk = load_v(lpath)
-    else:
-        time,bk = getb(lpath)
-        time,vk = getv(lpath)
+    time,bkt,vkt = bv_time(lpath)
     # decompose bk,vk into constituent modes
 
     Ky,Kx,Kz = np.meshgrid(ky,kx,kz)
@@ -1830,8 +1903,6 @@ def structurefunction(lpath,tmax=2*10**10):
                 pceig[i,j,k,:] = np.cross(Kvec[i,j,k,:],Zvec[i,j,k,:])+1/kmags[i,j,k] * 1.0j * np.cross(Kvec[i,j,k,:],np.cross(Kvec[i,j,k,:],Zvec[i,j,k,:]))
     pceig = pceig / (np.sqrt(2) * np.sqrt(Kx[:,:,:,None]**2 + Ky[:,:,:,None]**2))
     pceig[0,0,:,:] = 0
-    bkt = bk[-1,:,:,:,:]
-    vkt = vk[-1,:,:,:,:]
 
     lwk = np.zeros([par['nkx0'],par['nky0'],par['nkz0']],dtype='complex64')
     lck = np.zeros([par['nkx0'],par['nky0'],par['nkz0']],dtype='complex64')
@@ -1861,7 +1932,7 @@ def structurefunction(lpath,tmax=2*10**10):
     ax2 = ax2.flatten()
     
     for I,ms in enumerate(modespecs):
-        mm = convert_spec_to_real(lpath,ms)
+        mm = convert_spec_to_real(lpath,ms/1j) # Divide by 1j because mode amplitudes are anti-Hermitian
             # assume axisymmetric for transverse struct fn - test this later
         # very small - lets rescale to check Parseval's theorem print(np.amax(mm**2)); 8 pi^3 sum(ms**2) = sum(mm**2)/N
         mm *= np.sqrt(8*np.pi**3 * np.sum(np.abs(ms)**2)*np.size(mm)/(np.sum(mm**2)))
@@ -1888,7 +1959,7 @@ def structurefunction(lpath,tmax=2*10**10):
         ax[I].plot(xs[pt],str_perp[pt],"--",label="Transverse")
         ax[I].plot(zs[pz],str_par[pz],":",label="Parallel")
         if (I==2 or I == 3):
-            ax[I].set_xlabel("r (d_i)")
+            ax[I].set_xlabel("r ($d_i$)")
 
         
         ax2[I].plot(str_perp[pt],"--",label="Transverse")
@@ -2032,7 +2103,7 @@ def mode_nlparam(lpath,tt,dim,show=False,tmax=200000):
     
     plt.ylabel("Nonlinearity Parameter")
     plt.xlabel("|k| ($d_i^{-1}$)")
-    plt.title(str(dim)+"D Nonlinearity Parameter Spectrum t = "+np.format_float_positional(t[tt],1)+" ($\omega_c^{-1}$)")
+    plt.title(str(dim)+"D Nonlinearity Parameter Spectrum t = "+np.format_float_positional(t[tt],0)+" ($\omega_c^{-1}$)")
     plt.ylim(10**(-5),10**1)
     plt.yscale("log")
     plt.xscale("log")
@@ -2040,3 +2111,51 @@ def mode_nlparam(lpath,tt,dim,show=False,tmax=200000):
     plt.savefig(lpath+'/eplots/nlpar'+str(dim)+'d'+str(int(t[tt])))
     
     return(0)
+
+def bv_time(lpath,time=-1):
+
+    read_parameters(lpath)
+
+    kx,ky,kz = get_grids()
+
+    if lpath[-1] == "/":
+        lpath = lpath[:-1]
+
+    if time == -1:
+
+        f = open(lpath+"/checkpoint.dat")
+        ift = np.fromfile(f,dtype = "int32",count=1)
+        fdt = np.fromfile(f,dtype="float64",count=1)
+        nk = np.fromfile(f,dtype="int32",count=3)
+        ft = np.fromfile(f,dtype="float64",count=1)
+        b1 = np.fromfile(f,dtype="complex128",count=3*np.prod(nk))
+        v1 = np.fromfile(f,dtype="complex128",count=3*np.prod(nk))
+
+        b1 = np.reshape(b1,(nk[0],nk[1],nk[2],3),order="F")
+        v1 = np.reshape(v1,(nk[0],nk[1],nk[2],3),order="F")
+
+    else:
+        ts = get_time_from_bout()
+        gb = read_time_step_b(time)
+        b1 = np.reshape(gb,(par['nkx0'],par['nky0'],par['nkz0'],3),order='F')
+        gv = read_time_step_v(time)
+        v1 = np.reshape(gv,(par['nkx0'],par['nky0'],par['nkz0'],3),order='F')
+        ft = ts[time]
+
+    return(ft,b1,v1)
+
+def patch_mhc(mhc):
+
+    # Recovers magnetic helicity correction from a warm restart
+    
+    N = np.size(mhc)
+    mhc1 = np.zeros(N)
+
+    for i in range(N-1):
+        # Only correct after a substantial drop
+        if np.abs(mhc[i]) > np.abs(mhc[i+1]) and np.abs(mhc[i+1]) < 0.1 * np.abs(mhc[i]):
+            mhc1[i+1:] += mhc[i]
+        mhc1[i] += mhc[i]
+    mhc1[-1] += mhc[-1]
+
+    return(mhc1)
