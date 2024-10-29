@@ -169,4 +169,6 @@ PROGRAM dna
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   CALL finalize_mpi
 
+  print *, "Mission accomplished"
+
 END PROGRAM dna

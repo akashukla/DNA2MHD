@@ -13,7 +13,7 @@ default	: all
 
 #####  CHOSSE THE DESIRED COMPUTER HOST 
 ###############################################################################
-  HOST = ls6
+  HOST = perl
 #  HOST = stampede2
 #  HOST = edison
 #  HOST = hopper
@@ -24,8 +24,8 @@ default	: all
 
 #####  CHOSSE THE DESIRED COMPILATION TYPE 
 ###############################################################################
- # CMPLTYPE = debug
- CMPLTYPE = optim
+ CMPLTYPE = debug
+# CMPLTYPE = optim
 
 #####  CHOSSE THE DESIRED PRECISION TYPE 
 ###############################################################################

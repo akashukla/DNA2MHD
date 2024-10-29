@@ -66,8 +66,8 @@ SUBROUTINE iv_solver
  IF(mype==0) WRITE(*,*) "max_time=",max_time
 
  CALL remove_div(b_1,v_1)
- if (.not.linen) CALL ALLOCATE_STEPS
- if (linen) CALL ALLOCATE_SPHS
+ CALL ALLOCATE_STEPS
+ ! if (linen) CALL ALLOCATE_SPHS
 
  rkstage = 0
  
@@ -102,18 +102,16 @@ SUBROUTINE iv_solver
    !! intorder 41 is Gauss 4th order collocation; may have trouble converging for nonideal
    !! intorder 81 is Stormer-Verlet 8th order - do not use for now
    
-   IF (linen) THEN
-      CALL LINEARENERGYSPH(b_1,v_1,dt_next)
-      dt = minval([dt_next,dt_max])
+   ! IF (linen) THEN
+   !   CALL LINEARENERGYSPH(b_1,v_1,dt_next)
+   !   dt = minval([dt_next,dt_max])
+   
    ! Implicit + Strucuture Conserving Integrators with Splitting for Nonideal fluid
-   ELSE IF (intorder.eq.20) THEN
+   IF (intorder.eq.20) THEN
       CALL split2(b_1,v_1)
    ELSE IF (intorder.eq.40) THEN
       CALL split4(b_1,v_1)
    ! Implicit + Structure Conserving Integrators (Use on Ideal Fluid only until better understood)
-   ELSE IF (intorder.eq.81) THEN ! Don't use this for now
-      CALL STORM8(b_1,v_1,dt_next)
-      dt = minval([dt_next,dt_max])
    ELSE IF (intorder.eq.41) THEN
       CALL gauss4(b_1,v_1,dt_next)
       dt = minval([dt_max,dt_next])
@@ -121,8 +119,6 @@ SUBROUTINE iv_solver
       CALL gauss2(b_1,v_1,dt_next)
       dt = minval([dt_max,dt_next])
       ! Dormand Prince Adaptive/Embedded Schemes
-   ELSE IF (intorder.eq.8) THEN
-      CALL DORPI8713M(b_1,v_1)
    ELSE IF (intorder.eq.5) THEN
       CALL dorpi547M(b_1,v_1)
    ! Other Explicit RK Integrators
@@ -162,8 +158,8 @@ if (mype.eq.0.and.verbose) print *, "Force deallocated"
 CALL diag
 CALL bv_last
 
-if (linen) CALL DEALLOCATE_SPHS
-if (.not.linen) CALL DEALLOCATE_STEPS
+  ! if (linen) CALL DEALLOCATE_SPHS
+  CALL DEALLOCATE_STEPS
 
  write(*,*) 'Simulation Time: ',current_wallclock
  IF(verbose.and.(mype.eq.0)) WRITE(*,*) "time,itime,mype",time,itime,mype
@@ -559,17 +555,23 @@ SUBROUTINE ralston2(b_in,v_in,dt_new)
   COMPLEX, INTENT(INOUT) :: b_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
   COMPLEX, INTENT(INOUT) :: v_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
   REAL, INTENT(OUT) :: dt_new
-  REAL :: dt_new1,dt_new2
+  REAL :: dt_new1 = 0,dt_new2 = 0
   REAL :: nmhc1,nmhc2
   
   CALL get_rhs(b_in,v_in,bk1,vk1,nmhc1,dt_new1) 
-  b_2 = b_1 + (1.0/4.0)*bk1*dt
-  v_2 = v_1 + (1.0/4.0)*vk1*dt
+  b_2 = b_in + (1.0/4.0)*bk1*dt
+  v_2 = v_in + (1.0/4.0)*vk1*dt
   if (mhc) mhelcorr = mhelcorr + (1.0/4.0)*nmhc1*dt
+  print *, "Through MHC"
+
+  bk1s = b_in+(2.0/3.0)*bk1*dt
+  vk1s = v_in+(2.0/3.0)*vk1*dt
   
-  CALL get_rhs(b_in+(2.0/3.0)*bk1*dt,v_in+(2.0/3.0)*vk1*dt,bk2,vk2,nmhc2,dt_new2)
+  CALL get_rhs(bk1s,vk1s,bk2,vk2,nmhc2,dt_new2)
+  
   b_in = b_2 + (3.0/4.0) * bk2 * dt
   v_in = v_2 + (3.0/4.0) * vk2 * dt
+  
   if (mhc) mhelcorr = mhelcorr + (3.0/4.0) * nmhc2 * dt
 
   dt_new = minval([dt_new1,dt_new2])
@@ -597,14 +599,21 @@ SUBROUTINE ralston3(b_in,v_in,dt_new)
   CALL get_rhs(b_in,v_in,bk1,vk1,nmhc1,dt_new1)
   b_2 = b_in + (2.0/9.0)*bk1*dt
   v_2 = v_in + (2.0/9.0)*vk1*dt
+  if (verbose)   print *, "First Stage"
   if (mhc) mhelcorr = mhelcorr + (2.0/9.0)*nmhc1*dt
 
-  CALL get_rhs(b_in+(1.0/2.0)*bk1*dt,v_in+(1.0/2.0)*vk1*dt,bk2,vk2,nmhc2,dt_new2)
+  bk1s = b_in+(1.0/2.0)*bk1*dt
+  vk1s = v_in+(1.0/2.0)*vk1*dt
+
+  CALL get_rhs(bk1s,vk1s,bk2,vk2,nmhc2,dt_new2)
   b_2 = b_2 + (1.0/3.0) * bk2 * dt
   v_2 = v_2 + (1.0/3.0) * vk2 * dt
   if (mhc) mhelcorr = mhelcorr + (1.0/3.0) * nmhc2 * dt
 
-  CALL get_rhs(b_in+(3.0/4.0)*bk2*dt,v_in+(3.0/4.0)*vk2*dt,bk1,vk1,nmhc3,dt_new3)
+  bk1s = b_in+(3.0/4.0)*bk2*dt
+  vk1s = v_in+(3.0/4.0)*vk2*dt
+
+  CALL get_rhs(bk1s,vk1s,bk1,vk1,nmhc3,dt_new3)
   b_in = b_2 + (4.0/9.0) * bk1 * dt
   v_in = v_2 + (4.0/9.0) * vk1 * dt
   if (mhc) mhelcorr = mhelcorr + (4.0/9.0) * nmhc3 * dt
@@ -747,293 +756,6 @@ SUBROUTINE GAUSS2(b_in,v_in,dt_new)
 
 END SUBROUTINE GAUSS2
 
-SUBROUTINE STORM8(b_in,v_in,ndt)
-
-  IMPLICIT NONE
-
-  ! Use the 5 stage, 8th order Lobatto III A - III B method to integrate the system
-  ! Should conserve the helicities (Hairer 06)
-
-  ! Do not use for now - it doesn't seem to be converging to the right solution
-    
-  COMPLEX, INTENT(INOUT) :: b_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
-  COMPLEX, INTENT(INOUT) :: v_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
-  REAL :: a21,a22,a23,a24,a25,a31,a32,a33,a34,a35,a41,a42,a43,a44,a45,a51,a52,a53,a54,a55
-  REAL :: b11,b12,b13,b14,b21,b22,b23,b24,b31,b32,b33,b34,b41,b42,b43,b44,b51,b52,b53,b54
-  REAL :: nmhc1,nmhc2,nmhc3,nmhc4,nmhc5,nmhc1s,nmhc2s,nmhc3s,nmhc4s,nmhc5s
-  REAL :: ndt,maxdev,l2norm
-  INTEGER :: solvloop
-
-  ! Matrix coefficients
-  
-  a21 = (119.0 + 3.0 * sqrt(21.0))/1960.0
-  a22 = (343.0 - 9.0 * sqrt(21.0))/2520.0
-  a23 = (392.0 - 96.0 * sqrt(21.0))/2205.0
-  a24 = (343.0 - 69.0 * sqrt(21.0))/2520.0
-  a25 = (-21.0 + 3.0 * sqrt(21.0))/1960.0
-  a31 = 13.0/320.0
-  a32 = (392.0 + 105.0 * sqrt(21.0))/2880.0
-  a33 = (8.0/45.0)
-  a34 = (392.0 - 105.0 * sqrt(21.0)) / 2880.0
-  a35 = (3.0/320.0)
-  a41 = (119.0 - 3.0 * sqrt(21.0))/1960.0
-  a42 = (343.0 + 69.0 * sqrt(21.0))/2520.0
-  a43 = (392.0 + 96.0 * sqrt(21.0))/2205.0
-  a44 = (343.0 + 9.0 * sqrt(21.0))/2520.0
-  a45 = (-21.0 - 3.0 * sqrt(21.0))/1960.0
-  a51 = 1.0/20.0
-  a52 = 49.0/180.0
-  a53 = 16.0/45.0
-  a54 = 49.0/180.0
-  a55 = 1.0/20.0
-
-  b11 = 1.0/20.0
-  b12 = (-7.0-sqrt(21.0))/120.0
-  b13 = 1.0/15.0
-  b14 = (-7.0 + sqrt(21.0))/120.0
-  b21 = 1.0/20.0
-  b22 = (343.0 + 9.0*sqrt(21.0))/2520.0
-  b23 = (56.0 - 15.0 * sqrt(21.0))/315.0
-  b24 = (343.0 - 69.0 * sqrt(21.0))/2520.0
-  b31 = 1.0/20.0
-  b32 = (49.0 + 12.0 * sqrt(12.0))/360.0
-  b33 = 8.0/45.0
-  b34 = (49.0 - 12.0 * sqrt(12.0))/360.0
-  b41 = 1.0/20.0
-  b42 = (343.0 + 69.0 * sqrt(21.0))/2520.0
-  b43 = (56.0 + 15.0 * sqrt(21.0))/315.0
-  b44 = (343.0 - 9.0*sqrt(21.0))/2520.0
-  b51 = 1.0/20.0
-  b52 = (119.0 - 3.0 * sqrt(21.0))/360.0
-  b53 = 13.0/45.0
-  b54 = (119.0 + 3.0 * sqrt(21.0))/360.0
-  
-  ! Guess: read about the better way to do this for both this and Gauss4
-  
-  CALL get_rhs(b_in,v_in,bk1,vk1,ndt,nmhc1)
-  bk2 = bk1
-  vk2 = vk1
-  bk3 = bk1
-  vk3 = vk1
-  bk4 = bk1
-  vk4 = vk1
-  bk5 = bk1
-  vk5 = vk1
-  nmhc2 = nmhc1
-  nmhc3 = nmhc1
-  nmhc4 = nmhc1
-  nmhc5 = nmhc1
-    
-  CALL get_rhs(b_in,v_in+dt*(b11*vk1+b12*vk2+b13*vk3+b14*vk4),bk6,vk6,ndt,nmhc1s)
-  CALL get_rhs(b_in+dt*(a21*bk1+a22*bk2+a23*bk3+a24*bk4+a25*bk5),v_in+dt*(b21*vk1+b22*vk2+b23*vk3+b24*vk4),bk7,vk7,ndt,nmhc2s)
-  CALL get_rhs(b_in+dt*(a31*bk1+a32*bk2+a33*bk3+a34*bk4+a35*bk5),v_in+dt*(b31*vk1+b32*vk2+b33*vk3+b34*vk4),bk8,vk8,ndt,nmhc3s)
-  CALL get_rhs(b_in+dt*(a41*bk1+a42*bk2+a43*bk3+a44*bk4+a45*bk5),v_in+dt*(b41*vk1+b42*vk2+b43*vk3+b44*vk4),bk9,vk9,ndt,nmhc4s)
-  CALL get_rhs(b_in+dt*(a51*bk1+a52*bk2+a53*bk3+a54*bk4+a55*bk5),v_in+dt*(b51*vk1+b52*vk2+b53*vk3+b54*vk4),bk10,vk10,ndt,nmhc5s)
-
-  l2norm = sqrt(sum(abs(bk1-bk6)**2.0+abs(vk1-vk6)**2.0+abs(bk2-bk7)**2.0+abs(vk2-vk7)**2.0+abs(bk3-bk8)**2.0 &
-       + abs(vk3-vk8)**2.0 + abs(bk4-bk9)**2.0 + abs(vk4-vk9)**2.0 + abs(bk5-bk10)**2.0 + abs(vk5-vk10)**2.0))
-  maxdev = max(maxval(abs(bk1-bk6)),maxval(abs(bk2-bk7)),maxval(abs(bk3-bk8)),maxval(abs(bk4-bk9)),maxval(abs(bk5-bk10)),&
-       maxval(abs(vk1-vk6)),maxval(abs(vk2-vk7)),maxval(abs(vk3-vk8)),maxval(abs(vk4-vk9)),maxval(abs(vk5-vk10)))
-
-  solvloop = 0
-
-  if ((solvloop.lt.1000).and.(l2norm.gt.10.0**(-14.0))) then
-     bk1 = bk6
-     bk2 = bk7
-     bk3 = bk8
-     bk4 = bk9
-     bk5 = bk10
-     vk1 = vk6
-     vk2 = vk7
-     vk3 = vk8
-     vk4 = vk9
-     vk5 = vk10
-
-     CALL get_rhs(b_in,v_in+dt*(b11*vk1+b12*vk2+b13*vk3+b14*vk4),bk6,vk6,ndt,nmhc1s)
-     CALL get_rhs(b_in+dt*(a21*bk1+a22*bk2+a23*bk3+a24*bk4+a25*bk5),v_in+dt*(b21*vk1+b22*vk2+b23*vk3+b24*vk4),bk7,vk7,ndt,nmhc2s)
-     CALL get_rhs(b_in+dt*(a31*bk1+a32*bk2+a33*bk3+a34*bk4+a35*bk5),v_in+dt*(b31*vk1+b32*vk2+b33*vk3+b34*vk4),bk8,vk8,ndt,nmhc3s)
-     CALL get_rhs(b_in+dt*(a41*bk1+a42*bk2+a43*bk3+a44*bk4+a45*bk5),v_in+dt*(b41*vk1+b42*vk2+b43*vk3+b44*vk4),bk9,vk9,ndt,nmhc4s)
-     CALL get_rhs(b_in+dt*(a51*bk1+a52*bk2+a53*bk3+a54*bk4+a55*bk5),v_in+dt*(b51*vk1+b52*vk2+b53*vk3+b54*vk4),bk10,vk10,ndt,nmhc5s)
-
-     maxdev = max(maxval(abs(bk1-bk6)),maxval(abs(bk2-bk7)),maxval(abs(bk3-bk8)),maxval(abs(bk4-bk9)),maxval(abs(bk5-bk10)),&
-          maxval(abs(vk1-vk6)),maxval(abs(vk2-vk7)),maxval(abs(vk3-vk8)),maxval(abs(vk4-vk9)),maxval(abs(vk5-vk10)))
-     l2norm = sqrt(sum(abs(bk1-bk6)**2.0+abs(vk1-vk6)**2.0+abs(bk2-bk7)**2.0+abs(vk2-vk7)**2.0+abs(bk3-bk8)**2.0 &
-       + abs(vk3-vk8)**2.0 + abs(bk4-bk9)**2.0 + abs(vk4-vk9)**2.0 + abs(bk5-bk10)**2.0 + abs(vk5-vk10)**2.0))
-     solvloop = solvloop + 1
-
-  endif
-
-  if (itime.eq.10) print *, "itime 10 Number of Iterations",solvloop
-  if (solvloop.eq.1000) print *, "Failed to Converge After 1000 Iterations",l2norm,maxdev
-
-  b_in = b_in + dt * bk10
-  v_in = v_in + dt * (1.0/20.0 * vk6 + 49.0/180.0 * vk7 + 16.0/45.0 * vk8 + 49.0/180.0 * vk9 + 1.0/20.0 * vk10)
-
-  ! Does it matter whether I use the b or v integrator for the magnetic helicity correction??
-  
-  mhelcorr = mhelcorr + dt * nmhc5s
-
-  if (.not.calc_dt) ndt = dt_max
-  
-END SUBROUTINE STORM8
-
-
-
-
-SUBROUTINE DORPI8713M(b_in,v_in)
-  IMPLICIT NONE
-
-  ! Uses the 8th order adaptive explicit Dormand Prince system for time integration
-  ! https://doi.org/10.1016/0771-050X(81)90010-3
-  
-  COMPLEX, INTENT(INOUT) :: b_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
-  COMPLEX, INTENT(INOUT) :: v_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
-  
-  REAL :: nmhc1,nmhc2,nmhc3,nmhc4,nmhc5,nmhc6,nmhc7,nmhc8,nmhc9,nmhc10,nmhc11,nmhc12,nmhc13
-  REAL :: a21,a31,a41,a51,a61,a71,a81,a91,a101,a111,a121,a131
-  REAL :: a32,a43,a53,a54,a64,a74,a84,a94,a104,a114,a124,a134
-  REAL :: a65,a75,a85,a95,a105,a115,a125,a135
-  REAL :: a76,a86,a96,a106,a116,a126,a136
-  REAL :: a87,a97,a107,a117,a127,a137,a98,a108,a118,a128,a138
-  REAL :: a109,a119,a129,a139,a1110,a1210,a1310,a1211,a1311
-  REAL :: b1,b6,b7,b8,b9,b10,b11,b12
-  REAL :: bb1,bb6,bb7,bb8,bb9,bb10,bb11,bb12,bb13
-  REAL :: err,ndt,errm
-
-  ! Rational approximations to the Butcher matrices and solution vectors from paper
-  
-  a21 = 1.0/18.0
-  a31 = 1.0/48.0
-  a41 = 1.0/32.0
-  a51 = 5.0/16.0
-  a61 = 3.0/80.0
-  a71 = 29443841.0/614563906.0
-  a81 = 16016141.0/946692911.0
-  a91 = 39632708.0/573591083.0
-  a101 = 246121993.0/1340847787.0
-  a111 = -1028468189.0/846180014.0
-  a121 = 185892177.0/718116043.0
-  a131 = 403863854.0/491063109.0
-  a32 = 1.0/16.0
-  a43 = 3.0/32.0
-  a53 = -75.0/64.0
-  a54 = 75.0/64.0
-  a64 = 3.0/16.0
-  a74 = 77736538.0/692538347.0
-  a84 = 61564180/158732637.0
-  a94 = - 433636366.0/683701615.0
-  a104 = -37695042795.0/15268766246.0
-  a114 = 8478235783.0/508512852.0
-  a124 = - 3185094517.0/667107341.0
-  a134 = - 5068492393.0/434740067.0
-  a65 = 3.0/20.0
-  a75 = -28693883.0/1125000000.0
-  a85 = 22789713.0/633445777.0
-  a95 = -421739975.0/2616292301.0
-  a105 = -309121744.0/1061227803.0
-  a115 = 1311729495.0/1432422823.0
-  a125 = -477755414.0/1098053517.0
-  a135 = -411421997.0/543043805.0
-  a76 = 23124283.0/1800000000.0
-  a86 = 545815736.0/2771057229.0
-  a96 = 100302831.0/723423059.0
-  a106 = -12992083.0/490766935.0
-  a116 = -10304129995.0/1701304382.0
-  a126 = -703635378.0/230739211.0
-  a136 = 652783627.0/914296604.0
-  a87 = - 180193667.0/1043307555.0
-  a97 = 790204164.0/839813087.0
-  a107 = 6005943493.0/2108947869.0
-  a117 = -48777925059.0/3047939560.0
-  a127 = 5731566787.0/1027545527.0
-  a137 = 11173962825.0/925320556.0
-  a98 = 800635310.0/3783071287.0
-  a108 = 393006217.0/1396673457.0
-  a118 = 15336726248.0/1032824649.0
-  a128 = 5232866602.0/850066563.0
-  a138 = -13158990841.0/6184727034.0
-  a109 = 123872331.0/1001029789.0
-  a119 = -45442868181.0/3398467696.0
-  a129 = -4093664535.0/808688257.0
-  a139 = 3936647629.0/1978049680.0
-  a1110 = 3065993473.0/597172653.0
-  a1210 = 3962137247.0/1805957418.0
-  a1310 = -160528059.0/685178525.0
-  a1211 = 65686358.0/487910083.0
-  a1311 = 248638103.0/1413531060.0
-
-  b1 = 13451932.0/455176623.0
-  b6 = -808719846.0/976000145.0
-  b7 = 1757004468.0/5645159321.0
-  b8 = 656045339.0/265891186.0
-  b9 = -3867574721.0/1518517206.0
-  b10 = 465885868.0/322736535.0
-  b11 = 53011238.0/667516719.0
-  b12 = 2.0/45.0
-
-  bb1 = 14005451.0/335480064.0
-  bb6 = -59238493.0/1068277825.0
-  bb7 = 181606767.0/758867731.0
-  bb8 = 561292985.0/797845732.0
-  bb9 = -1041891430.0/1371343529.0
-  bb10 = 760417239.0/1151165299.0
-  bb11 = 118820643.0/751138087.0
-  bb12 = -528747749.0/2220607170.0
-  bb13 = 1.0/4.0
-
-  ! Do the time steps
-
-  CALL get_rhs(b_in,v_in,bk1,vk1,ndt,nmhc1)
-  CALL get_rhs(b_in+dt*(a21*bk1),v_in+dt*(a21*vk1),bk2,vk2,ndt,nmhc2)
-  CALL get_rhs(b_in+dt*(a31*bk1+a32*bk2),v_in+dt*(a31*vk1+a32*vk2),bk3,vk3,ndt,nmhc3)
-  CALL get_rhs(b_in+dt*(a41*bk1+a43*bk3),v_in+dt*(a41*vk1+a43*vk3),bk4,vk4,ndt,nmhc4)
-  CALL get_rhs(b_in+dt*(a51*bk1+a53*bk3+a54*bk4),v_in+dt*(a51*vk1+a53*vk3+a54*vk4),&
-       bk5,vk5,ndt,nmhc5)
-  CALL get_rhs(b_in+dt*(a61*bk1+a64*bk4+a65*bk5),&
-       v_in+dt*(a61*vk1+a64*vk4+a65*vk5),bk6,vk6,ndt,nmhc6)
-  CALL get_rhs(b_in+dt*(a71*bk1+a74*bk4+a75*bk5+a76*bk6),&
-       v_in+dt*(a71*vk1+a74*vk4+a75*vk5+a76*vk6),bk7,vk7,ndt,nmhc7)
-  CALL get_rhs(b_in+dt*(a81*bk1+a84*bk4+a85*bk5+a86*bk6+a87*bk7),&
-       v_in+dt*(a81*vk1+a84*vk4+a85*vk5+a86*vk6+a87*vk7),bk8,vk8,ndt,nmhc8)
-  CALL get_rhs(b_in+dt*(a91*bk1+a94*bk4+a95*bk5+a96*bk6+a97*bk7+a98*bk8),&
-       v_in+dt*(a91*vk1+a94*vk4+a95*vk5+a96*vk6+a97*vk7+a98*vk8),bk9,vk9,ndt,nmhc9)
-  CALL get_rhs(b_in+dt*(a101*bk1+a104*bk4+a105*bk5+a106*bk6+a107*bk7+a108*bk8+a109*bk9),&
-       v_in+dt*(a101*vk1+a104*vk4+a105*vk5+a106*vk6+a107*vk7+a108*vk8+a109*vk9),bk10,vk10,ndt,nmhc10)
-  CALL get_rhs(b_in+dt*(a111*bk1+a114*bk4+a115*bk5+a116*bk6+a117*bk7+a118*bk8+a119*bk9+a1110*bk10),&
-       v_in+dt*(a111*vk1+a114*vk4+a115*vk5+a116*vk6+a117*vk7+a118*vk8+a119*vk9+a1110*vk10),bk11,vk11,ndt,nmhc11)
-  CALL get_rhs(b_in+dt*(a121*bk1+a124*bk4+a125*bk5+a126*bk6+a127*bk7+a128*bk8+a129*bk9+a1210*bk10+a1211*bk11),&
-       v_in+dt*(a121*vk1+a124*vk4+a125*vk5+a126*vk6+a127*vk7+a128*vk8+a129*vk9+a1210*vk10+a1211*vk11),bk12,vk12,ndt,nmhc12)
-  CALL get_rhs(b_in+dt*(a131*bk1+a134*bk4+a135*bk5+a136*bk6+a137*bk7+a138*bk8+a139*bk9+a1310*bk10+a1311*bk11),&
-       v_in+dt*(a131*vk1+a134*vk4+a135*vk5+a136*vk6+a137*vk7+a138*vk8+a139*vk9+a1310*vk10+a1311*vk11),bk13,vk13,ndt,nmhc13)
-  
-  ! Find seventh and eight order solutions
-
-  b_2 = b_in + dt*(b1*bk1+b6*bk6+b7*bk7+b8*bk8+b9*bk9+b10*bk10+b11*bk11+b12*bk12)
-  v_2 = v_in + dt*(b1*vk1+b6*vk6+b7*vk7+b8*vk8+b9*vk9+b10*vk10+b11*vk11+b12*vk12)
-  b_3 = b_in + dt*(bb1*bk1+bb6*bk6+bb7*bk7+bb8*bk8+bb9*bk9+bb10*bk10+bb11*bk11+bb12*bk12+bb13*bk13)
-  v_3 = v_in + dt*(bb1*vk1+bb6*vk6+bb7*vk7+bb8*vk8+bb9*vk9+bb10*vk10+bb11*vk11+bb12*vk12+bb13*vk13)
-  nmhc4 = mhelcorr + dt*(b1*nmhc1+b6*nmhc6+b7*nmhc7+b8*nmhc8+b9*nmhc9+b10*nmhc10+b11*nmhc11+b12*nmhc12)
-  nmhc5 = mhelcorr + dt*(bb1*nmhc1+bb6*nmhc6+bb7*nmhc7+bb8*nmhc8+bb9*nmhc9+bb10*nmhc10+bb11*nmhc11+bb12*nmhc12+bb13*nmhc13)  
-
-  ! Adaptive step
-  
-  errm = max(maxval(abs(b_2-b_3)),maxval(abs(v_2-v_3)))
-  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-  CALL MPI_ALLREDUCE(errm,err,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
-  
-  print *, "MHcorr err",nmhc5-nmhc4
-  print *, "Max b v err",err
-  
-  !dt = min(ndt,dt * (10.0**(-8.0)/err)**(1.0/9.0))
-
-  b_in = b_3
-  v_in = v_3
-
-  ! For some reason helicity correction isn't working
-  mhelcorr = nmhc5
-  
-END SUBROUTINE DORPI8713M
-
 SUBROUTINE SPLIT2(b_in,v_in)
 
   ! Uses second order Strang splitting
@@ -1116,15 +838,11 @@ SUBROUTINE ALLOCATE_STEPS
   ALLOCATE(bk2(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
   ALLOCATE(vk2(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
 
-  if (intorder.ge.20) then
-
   ALLOCATE(bk1s(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
   ALLOCATE(vk1s(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
 
   ALLOCATE(bk2s(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
   ALLOCATE(vk2s(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
-
-endif
 
   if ((intorder.eq.5).or.(intorder.eq.8 .or. (intorder.eq.81))) then
 
