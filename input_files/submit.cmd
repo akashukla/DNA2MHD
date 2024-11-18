@@ -1,12 +1,14 @@
 #!/bin/bash
-#SBATCH -J DNAMHD       # Job Name
-#SBATCH -o DNAHD.out%j    # Output and error file name (%j expands to jobID)
-#SBATCH -n 2          # Total number of mpi tasks requested
-#SBATCH -N 1           # Total number of mpi tasks requested
-#SBATCH -p normal   # Queue (partition) name -- normal, development, etc.
-#SBATCH --mail-type=all    # Send email at begin and end of job
-#SBATCH -t 00:10:00     # Run time (hh:mm:ss) - 1.5 hours
-#SBATCH -A PHY23037 # Project name
-#SBATCH --mail-user=echansen@tacc.utexas.edu
+#SBATCH -J DNAMHD
+#SBATCH --output=%x.out%j 
+#SBATCH --qos=regular
+#SBATCH --time=360
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --constraint=cpu
+#SBATCH -A m2116                                                                                                                           
+#SBATCH --mail-type=begin,end,fail
+#SBATCH --mail-user=ehansen99@utexas.edu
 
-ibrun ../bin2/dna
+module load valgrind
+valgrind /global/homes/e/echansen/DNA2MHD/bin2/dna

@@ -20,34 +20,31 @@
 !!                                                                           !!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 MODULE nonlinearity
-  USE mpi
+  !USE mpi
   USE par_mod
   !USE hk_effects
   !USE flr_effects
   
   use, intrinsic :: iso_c_binding
   
-  IMPLICIT NONE
-
   include 'fftw3-mpi.f03'
+  include 'mpif.h'
 
   PUBLIC :: initialize_fourier,finalize_fourier,get_rhs_nl,&
             get_rhs_nl1,&
             initialize_fourier_ae_mu0 !,initialize_fourier2, get_rhs_nl2, get_rhs_nl_convolution
   
-  REAL, PUBLIC :: ve_max(2)
-
   PRIVATE
 
   COMPLEX(C_DOUBLE), ALLOCATABLE, DIMENSION(:,:,:) :: b_inx0, b_iny0,  b_inz0, v_inx0, v_iny0,  v_inz0
   COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:) :: temp_small,bigmask,smallmask
+  COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE :: scatter_big(:),scatter_small(:),gather_big(:),gather_small(:)
 
   REAL(C_DOUBLE), ALLOCATABLE, DIMENSION(:,:,:) :: bx,by,bz,curlbx,curlby,curlbz
   REAL(C_DOUBLE), ALLOCATABLE, DIMENSION(:,:,:) :: vx,vy,vz,curlvx,curlvy,curlvz
 
   !For fft's
 
-  INTEGER(C_INTPTR_T) :: nx0_big,ny0_big,nz0_big
   INTEGER(C_INTPTR_T) :: local_N,local_k_offset,alloc_local
   
   type(C_PTR) :: plan_r2c,plan_c2r
@@ -57,12 +54,10 @@ MODULE nonlinearity
   REAL(C_DOUBLE), pointer ::  store(:,:,:)
   
   REAL :: fft_norm  !normalization factor for inverse fft
-  INTEGER(C_INTPTR_T) :: zpad
   INTEGER(C_INTPTR_T) :: i,j,k
   INTEGER :: ierr
 
-  LOGICAL :: padv1
-  LOGICAL :: padv2
+  LOGICAL :: padv1,padv2,padv3
   LOGICAL :: printpad,printunpack
   
   CONTAINS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
@@ -89,18 +84,6 @@ SUBROUTINE initialize_fourier_ae_mu0
   CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
   CALL fftw_mpi_init()
   
-  if (dealias_type.eq.1) zpad = 2
-  if (((dealias_type.eq.3).or.(dealias_type.eq.4)).or.((dealias_type.eq.6).or.(dealias_type.eq.8))) zpad = dealias_type
-
-  ny0_big=zpad*nky0/2
-  if (splitx) then
-  nx0_big = zpad*nkx0
-  nz0_big = zpad*nkz0/2
-  else
-  nx0_big = zpad*nkx0/2
-  nz0_big = zpad*nkz0
-endif
-
   fft_norm=1.0/(REAL(nx0_big*ny0_big*nz0_big))
 
   alloc_local = fftw_mpi_local_size_3d(nz0_big,ny0_big,nx0_big/2+1,MPI_COMM_WORLD,local_N,local_k_offset)
@@ -109,9 +92,11 @@ endif
   
   CALL c_f_pointer(rinout,store,[2*(nx0_big/2+1),ny0_big,local_N])
   CALL c_f_pointer(cinout,temp_big,[nx0_big/2+1,ny0_big,local_N])
-  
-  plan_c2r = fftw_mpi_plan_dft_c2r_3d(nz0_big,ny0_big,nx0_big,temp_big,store,MPI_COMM_WORLD,FFTW_PATIENT)
-  plan_r2c = fftw_mpi_plan_dft_r2c_3d(nz0_big,ny0_big,nx0_big,store,temp_big,MPI_COMM_WORLD,FFTW_PATIENT)
+
+  plan_c2r = fftw_mpi_plan_dft_c2r_3d(nz0_big,ny0_big,nx0_big,temp_big,store,MPI_COMM_WORLD,FFTW_ESTIMATE)
+  CALL fftw_destroy_plan(plan_c2r)
+  plan_c2r = fftw_mpi_plan_dft_c2r_3d(nz0_big,ny0_big,nx0_big,temp_big,store,MPI_COMM_WORLD,FFTW_ESTIMATE)
+  plan_r2c = fftw_mpi_plan_dft_r2c_3d(nz0_big,ny0_big,nx0_big,store,temp_big,MPI_COMM_WORLD,FFTW_ESTIMATE)
      
   !WRITE(*,*) "making plans"
 
@@ -132,7 +117,8 @@ endif
   CALL ALLOCATIONS
 
   padv1 = (.false.)
-  padv2 = (.true.)
+  padv2 = (.false.)
+  padv3 = (.true.)
   printpad = (.true.)
   printunpack = (.true.)
 
@@ -466,7 +452,7 @@ CALL DEALLOCATIONS
 
 call fftw_destroy_plan(plan_r2c)
 call fftw_destroy_plan(plan_c2r)
- 
+
 ! if (verbose) print *, "plans destroyed"
 
 CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
@@ -483,7 +469,6 @@ END SUBROUTINE finalize_fourier
 SUBROUTINE ALLOCATIONS
 
   ALLOCATE(temp_small(0:nkx0-1,0:nky0-1,lkz1:lkz2))
-  
 
   ! All b arrays
   ALLOCATE(bx(1:nx0_big+2,1:ny0_big,1:local_N))
@@ -514,6 +499,12 @@ SUBROUTINE ALLOCATIONS
   ALLOCATE(v_inx0(0:nkx0-1,0:nky0-1,lkz1:lkz2))
   ALLOCATE(v_iny0(0:nkx0-1,0:nky0-1,lkz1:lkz2))
   ALLOCATE(v_inz0(0:nkx0-1,0:nky0-1,lkz1:lkz2))
+
+  ALLOCATE(scatter_big((1+nx0_big/2)*ny0_big*nz0_big/n_mpi_procs))
+  ALLOCATE(scatter_small(nkx0*nky0*nkz0/n_mpi_procs))
+
+  ALLOCATE(gather_big((1+nx0_big/2)*ny0_big*nz0_big))
+  ALLOCATE(gather_small(nkx0*nky0*nkz0))
 
 END SUBROUTINE ALLOCATIONS
 
@@ -559,6 +550,12 @@ DEALLOCATE(curlbz)
   DEALLOCATE(v_iny0)
   DEALLOCATE(v_inz0)
 
+  DEALLOCATE(gather_big)
+  DEALLOCATE(gather_small)
+
+  DEALLOCATE(scatter_big)
+  DEALLOCATE(scatter_small)
+
 END SUBROUTINE DEALLOCATIONS
 
 SUBROUTINE ZEROPAD
@@ -569,28 +566,34 @@ SUBROUTINE ZEROPAD
   integer :: rank,k,kp,i
   integer :: ind
   logical :: zmask
+  integer :: llkz1,llkz2
 
   temp_big=cmplx(0.0,0.0)
+  fullbigarray = cmplx(0.0,0.0)
+  fullsmallarray = cmplx(0.0,0.0)
+  
   if (verbose) print *, "Entering Zeropad"
 
   if (padv1) then
   
   DO i=0,nkx0-1
-     temp_big(i+1,1:1+hky_ind,1:hkz_ind+1)=temp_small(i,0:hky_ind,0:hkz_ind)    !kz positive, ky positive
-!     !if (verbose) print *, i,"++ done"
-     temp_big(i+1,1:1+hky_ind,1+lkz_big:nz0_big)=temp_small(i,0:hky_ind,lkz_ind:nkz0-1) !kz negative, ky positive             
-!     ! if (verbose) print *, i,"+- done"
-     temp_big(i+1,1+lky_big:ny0_big,1+lkz_big:nz0_big)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1) !kz negative, ky negative  
-!     ! if (verbose) print *, i,"-- done"
-     temp_big(i+1,1+lky_big:ny0_big,1:hkz_ind+1)=temp_small(i,lky_ind:nky0-1,0:hkz_ind) !kz positive, ky negative             
-!     ! if (verbose) print *, i,"-+ done"
+     temp_big(i+1,1:1+hky_ind,1:hkz_ind+1)=temp_small(i,0:hky_ind,0:hkz_ind)
+     !kz positive, ky positive
+     temp_big(i+1,1:1+hky_ind,1+lkz_big:nz0_big)=temp_small(i,0:hky_ind,lkz_ind:nkz0-1)
+     !kz negative, ky positive             
+     temp_big(i+1,1+lky_big:ny0_big,1+lkz_big:nz0_big)=temp_small(i,lky_ind:nky0-1,lkz_ind:nkz0-1)
+     !kz negative, ky negative  
+     temp_big(i+1,1+lky_big:ny0_big,1:hkz_ind+1)=temp_small(i,lky_ind:nky0-1,0:hkz_ind)
+     !kz positive, ky negative             
   END DO
 
 endif
 
 if (padv2) then
 
-  DO rank = 0,n_mpi_procs-1
+   DO rank = 0,n_mpi_procs-1
+
+      bigmask = cmplx(0.0,0.0)
      
      lkz1_rank = rank*(3*nkz0/2)/n_mpi_procs
      lkz2_rank = (rank+1)*(3*nkz0/2)/n_mpi_procs-1
@@ -621,7 +624,7 @@ if (padv2) then
      ! print *, "MaxVal bigmask",maxval(abs(bigmask))
      
      CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-     CALL MPI_REDUCE(bigmask,temp_big,nx0_big*ny0_big*local_N,MPI_DOUBLE_COMPLEX,&
+     CALL MPI_REDUCE(bigmask,temp_big,(nx0_big/2+1)*ny0_big*local_N,MPI_DOUBLE_COMPLEX,&
           MPI_SUM,rank,MPI_COMM_WORLD,ierr)
 
      ! print *, "MaxVal temp_big",maxval(abs(temp_big))
@@ -629,8 +632,43 @@ if (padv2) then
   ENDDO
 endif
 
-if (printpad) CALL WRITE_PADDING(1)
-  if (verbose) print *, "Padded"
+if (padv3) then
+
+   ! Make a copy of the full array to be stored
+   CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+   CALL MPI_GATHER(temp_small,nkx0*nky0*nkz0/n_mpi_procs,MPI_DOUBLE_COMPLEX,&
+        gather_small,nkx0*nky0*nkz0/n_mpi_procs,MPI_DOUBLE_COMPLEX,0,MPI_COMM_WORLD,ierr)
+
+   if (mype.eq.0) then
+   
+      if (verbose) print *, "Gather Small",maxval(abs(gather_small))
+   
+      fullsmallarray = reshape(gather_small,[nkx0,nky0,nkz0])
+
+      if (verbose) print *, "Maxval smallarray",maxval(abs(fullsmallarray))
+
+      fullbigarray(0:nkx0-1,0:hky_ind,0:hkz_ind)=fullsmallarray(0:nkx0-1,0:hky_ind,0:hkz_ind)
+      fullbigarray(0:nkx0-1,0:hky_ind,lkz_big:nz0_big-1)=fullsmallarray(0:nkx0-1,0:hky_ind,lkz_ind:nkz0-1)
+      fullbigarray(0:nkx0-1,lky_big:ny0_big-1,lkz_big:nz0_big-1)=fullsmallarray(0:nkx0-1,lky_ind:nky0-1,lkz_ind:nkz0-1)
+      fullbigarray(0:nkx0-1,lky_big:ny0_big-1,0:hkz_ind)=fullsmallarray(0:nkx0-1,lky_ind:nky0-1,0:hkz_ind)
+      
+      if (verbose) print *, "Maxval bigarray",maxval(abs(fullbigarray))
+   endif
+
+   if (printpad) CALL WRITE_PADDING(1)
+   printpad = (.false.)
+
+   CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+   CALL MPI_SCATTER(fullbigarray,(nx0_big/2+1)*ny0_big*nz0_big/n_mpi_procs,MPI_DOUBLE_COMPLEX,scatter_big,&
+        (nx0_big/2+1)*ny0_big*nz0_big/n_mpi_procs,MPI_DOUBLE_COMPLEX,0,MPI_COMM_WORLD,ierr)
+
+   temp_big = reshape(scatter_big,[nx0_big/2+1,ny0_big,nz0_big/n_mpi_procs])
+   
+endif
+
+ if (printpad) CALL WRITE_PADDING(1)
+if (verbose) print *, "Padded"
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
   CALL fftw_mpi_execute_dft_c2r(plan_c2r,temp_big,store)
   if (verbose) print *, "Through IRFFT"
 
@@ -646,9 +684,13 @@ SUBROUTINE UNPACK
 
   if (verbose) print *, "Entering Unpack"
 
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
   CALL fftw_mpi_execute_dft_r2c(plan_r2c,store,temp_big)
+
+  print *, "Post RFFT",maxval(abs(temp_big))
   if (verbose) print *, "Through RFFT"
   temp_small = cmplx(0.0,0.0)
+  fullsmallarray = cmplx(0.0,0.0)
 
  if (padv1) then
   
@@ -672,14 +714,19 @@ if (padv2) then
        lkz1_rank = rank*(nkz0)/n_mpi_procs
        lkz2_rank = (rank+1)*(nkz0)/n_mpi_procs-1
 
-       DO k = 1,local_N
+       smallmask = cmplx(0.0,0.0)
+
+       DO k = 1,3*nkz0/(2*n_mpi_procs)
 
           ! Find full position in large array
-          kp = local_k_offset + k-1
+          
+          kp = 3*lkz1/2 + k - 1
+          
+          ! kp = lkz1 + k-1
           
           ! Mask away values from dealiasing
           zmask = (((kp.ge.lkz_big).or.(kp.le.hkz_ind)))
-
+          
           ! Pull kp down to original array size if over half way
           if (kp.ge.lkz_big) kp = kp - nkz0/2
           ! Now take out values that aren't compatible with rank indices
@@ -699,6 +746,42 @@ if (padv2) then
           MPI_SUM,rank,MPI_COMM_WORLD,ierr)
 
   ENDDO
+
+endif
+
+if (padv3) then
+
+  ! Gather the temp_big arrays
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_GATHER(temp_big,(nx0_big/2+1)*ny0_big*nz0_big/n_mpi_procs,MPI_DOUBLE_COMPLEX,&
+       gather_big,(nx0_big/2+1)*ny0_big*nz0_big/n_mpi_procs,MPI_DOUBLE_COMPLEX,0,MPI_COMM_WORLD,ierr)
+
+  if (mype.eq.0) then 
+
+     if (verbose) print *, "Gather Big",maxval(abs(gather_big))
+
+     fullbigarray = reshape(gather_big,[nx0_big/2+1,ny0_big,nz0_big])
+  
+  
+     fullsmallarray(0:nkx0-1,0:hky_ind,0:hkz_ind) = fullbigarray(0:nkx0-1,0:hky_ind,0:hkz_ind)*fft_norm
+     fullsmallarray(0:nkx0-1,0:hky_ind,lkz_ind:nkz0-1) = fullbigarray(0:nkx0-1,0:hky_ind,lkz_big:nz0_big-1)*fft_norm
+     fullsmallarray(0:nkx0-1,lky_ind:nky0-1,lkz_ind:nkz0-1) = fullbigarray(0:nkx0-1,lky_big:ny0_big-1,lkz_big:nz0_big-1)*fft_norm
+     fullsmallarray(0:nkx0-1,lky_ind:nky0-1,0:hkz_ind) = fullbigarray(0:nkx0-1,lky_big:ny0_big-1,0:hkz_ind)*fft_norm
+
+     if (verbose) print *, "Maxval smallarray",maxval(abs(fullsmallarray))
+  endif
+  
+  if (printunpack) CALL WRITE_PADDING(2)
+  printunpack = (.false.)
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_SCATTER(fullsmallarray,nkx0*nky0*nkz0/n_mpi_procs,MPI_DOUBLE_COMPLEX,scatter_small,&
+       nkx0*nky0*nkz0/n_mpi_procs,MPI_DOUBLE_COMPLEX,0,MPI_COMM_WORLD,ierr)
+
+  if (verbose.and.(mype.eq.0)) print *, "Scatter Small",maxval(abs(scatter_small))
+
+  temp_small = reshape(scatter_small,[nkx0,nky0,nkz0/n_mpi_procs])
 
 endif
 
@@ -724,9 +807,17 @@ SUBROUTINE WRITE_PADDING(purpose)
 
   OPEN(unit=chp_handle,file=trim(diagdir)//trim(chp_name),&
        form='unformatted', status='replace',access='stream')
+  
+   if (purpose.eq.1) then 
+      if (padv1) WRITE(chp_handle) temp_big
+      if (padv3.and.(mype.eq.0)) WRITE(chp_handle) fullbigarray
+   endif
 
-  if (purpose.eq.1) WRITE(chp_handle) temp_big
-  if (purpose.eq.2) WRITE(chp_handle) temp_small
+   if (purpose.eq.2) then
+      if (padv1) WRITE(chp_handle) temp_small
+      if (padv3.and.(mype.eq.0)) WRITE(chp_handle) fullsmallarray
+   endif
+  
 
   CLOSE(chp_handle)
 
@@ -734,7 +825,6 @@ SUBROUTINE WRITE_PADDING(purpose)
   if (purpose.eq.2) printunpack = (.false.)
 
 END SUBROUTINE WRITE_PADDING
-
 
 END MODULE nonlinearity
 

@@ -13,7 +13,7 @@ default	: all
 
 #####  CHOSSE THE DESIRED COMPUTER HOST 
 ###############################################################################
-  HOST = ls6
+  HOST = perl
 #  HOST = stampede2
 #  HOST = edison
 #  HOST = hopper

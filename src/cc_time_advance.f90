@@ -56,7 +56,7 @@ SUBROUTINE iv_solver
   INTEGER :: q
   REAL :: sttime,diagtime
 
-  CALL init_force
+ if (force_turbulence) CALL init_force
   CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
  IF(.not.checkpoint_read) dt=dt_max
  !itime=0
@@ -77,7 +77,7 @@ SUBROUTINE iv_solver
 
     ! Don't call diagnostics on first iteration when doing a warm restart - no doubles in data
    if (timer) sttime = MPI_WTIME()
-   if ((.not.checkpoint_read).or.(itime.gt.itime_start)) CALL diag
+   ! if ((.not.checkpoint_read).or.(itime.gt.itime_start)) CALL diag
    if (timer) diagtime = MPI_WTIME()
    if (timer) print *, "Diag Time",diagtime - sttime,mype
    
@@ -157,7 +157,7 @@ SUBROUTINE iv_solver
 END DO
 
 if (mype.eq.0.and.verbose) print *, "Run stopped"
-CALL finalize_force
+if (force_turbulence) CALL finalize_force
 if (mype.eq.0.and.verbose) print *, "Force deallocated"
 CALL diag
 CALL bv_last

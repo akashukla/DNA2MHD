@@ -9,12 +9,12 @@ rey = 0.0
 /
 
 &numerical_parameters
-kxmin =   0.10
-kymin =   0.10
-kzmin =   0.05
-nkx0 = 16
-nky0 = 32
-nkz0 = 32
+kxmin =   0.02
+kymin =   0.02
+kzmin =   0.01
+nkx0 = 8
+nky0 = 16
+nkz0 = 16
 nv0 =   2
 nh0 =    1
 nspec =    1
@@ -35,9 +35,9 @@ courant =   0.5
 kxinit_min = 0
 kyinit_min = 0
 kzinit_min = 0
-kxinit_max = 16
-kyinit_max = 32
-kzinit_max = 32
+kxinit_max = 8
+kyinit_max = 16
+kzinit_max = 16
 init_energy = 0.01
 init_amp_bx = 0.0
 init_amp_by = 0.0
@@ -45,20 +45,20 @@ init_amp_bz = 0.0
 init_amp_vx = 0.0
 init_amp_vy = 0.0
 init_amp_vz = 0.0
-init_kolm = 2.0
+init_kolm = 3.0
 phdf = 2.0
 phdfxy = 2.0
-force_amp = 0.0
+force_amp = 0.01
 nkxforce = 16
 nkyforce = 16
 nkzforce = 16
-force_frac = 0.05
-hyp = 2
+force_frac = 0.1
+hyp = 1
 /
 
 &diagnostics
-diagdir = '/scratch/08929/echansen/dna2mhdruntiming5'
-loaddir = '/scratch/08929/echansen/dna2mhdruntiming'
+diagdir = "/pscratch/sd/e/echansen/DNA2MHDruns/mpifft3"
+loaddir = "/pscratch/sd/e/echansen/DNA2MHDruns/fullwhist"
 istep_ffm =   20
 istep_energy3d =  500
 istep_energy =  1
@@ -77,8 +77,8 @@ output_nlt_n = F
 /
 
 &flags
-verbose  = T
-timer = T
+verbose  = F
+timer = F
 nonlinear  = T
 actual_nonlinear = T
 calc_dt  = T
@@ -95,7 +95,7 @@ rhs_lin_version = 12
 dealias_type = 3
 shifted = F
 splitx = T
-force_turbulence = T
+force_turbulence = F
 forceb = T
 forcetype = 31
 set_forcing = F
@@ -118,13 +118,13 @@ mhc = T
 init_wave = T
 init_null = F
 checkpoint_read = F
-en_leftwhist = 0.0
-en_leftcyclo = 1.0
+en_leftwhist = 1.0
+en_leftcyclo = 0.0
 en_rightwhist = 0.0
 en_rightcyclo = 0.0
 taylorgreen = F
-force_lw = 0.0
-force_lc = 1.0
+force_lw = 1.0
+force_lc = 0.0
 force_rw = 0.0
 force_rc = 0.0
 random_state = 3
@@ -134,9 +134,9 @@ random_state = 3
 /
 
 &initial_value
-max_itime = 20
+max_itime = 1
 max_walltime =   10000000.0
-dt_max = 0.01
+dt_max = 0.002
 fix_dt = F
 max_time =   10000000.
 /

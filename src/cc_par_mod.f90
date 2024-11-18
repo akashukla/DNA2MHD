@@ -58,7 +58,8 @@ MODULE par_mod
   REAL :: hyp_v=0.0 !Parker suggestion: 10.0
   LOGICAL :: nuno_closure=.true.
   !Number of modes for each coord.
-  INTEGER :: nkx0=1,nky0=1,nkz0=1,nv0=1 
+  INTEGER :: nkx0=1,nky0=1,nkz0=1,nv0=1
+  INTEGER(C_INTPTR_T) :: nx0_big=1, ny0_big=1, nz0_big=1
   INTEGER :: nh0=1,nspec=1
   !Inverse gradient scale lengths
   REAL :: omt=5.0,omn=5.0
@@ -267,6 +268,7 @@ MODULE par_mod
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:) :: b_1
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:) :: v_1
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:) :: reader
+  COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:)  :: fullsmallarray,fullbigarray
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:) :: LW,LC,RW,RC
   REAL, ALLOCATABLE, DIMENSION(:,:,:) :: LWp,LCp,RWp,RCp
   REAL, ALLOCATABLE, DIMENSION(:,:,:) :: LWp2,LCp2,RWp2,RCp2
