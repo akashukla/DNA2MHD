@@ -2,11 +2,10 @@ import dna2mhd_utils as dn
 from output2 import maxinds
 import numpy as np
 
-lpaths = ["/scratch/08929/echansen/dna2mhdruncurvetest19"]
+lpaths = ["/pscratch/sd/e/echansen/DNA2MHDruns/fullwhisti"]
+
 #lpaths = ["/scratch/08929/echansen/dna2mhdrunDPP128LC",
 #          "/scratch/08929/echansen/dna2mhdrunDPP128LCi"]
-
-a = np.random.randint(0,31,size=4)
 
 for lpath in lpaths:
     dn.plot_energy(lpath,3,show=False)

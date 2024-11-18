@@ -2,7 +2,7 @@
 #SBATCH -J DNAMHD
 #SBATCH --output=%x.out%j 
 #SBATCH --qos=regular
-#SBATCH --time=1440
+#SBATCH --time=360
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --constraint=cpu

@@ -44,6 +44,8 @@ SUBROUTINE initial_condition(which_init0)
   INTEGER :: rseed_size,ierr
   REAL :: testrandoms(10)
   REAL :: truncx,truncy,truncz,nlt
+
+  REAL :: turnoverm,nltmin,nltmax ! MPI ALL REDUCE variables
   INTEGER(int64) :: t 
 
   zerocmplx=0.0
@@ -471,18 +473,43 @@ SUBROUTINE initial_condition(which_init0)
 
     if (verbose) print *, "Through energy normalization"
 
-    turnover = 1/(2*kxmin * sqrt(sum(sum(abs(v_1)**2.0,4)*sin(spread(spread(kxgrid/(2*kxmin),2,nky0),3,lkz2+1-lkz1))**2)))
+    turnoverm = 0.0
+    nltmax = 10.0**8.0
+    nltmin = 0.0
+
+    DO i = 0,nkx0-1
+       DO j = 0,nky0-1
+          DO k = lkz1,lkz2
+
+             turnoverm = turnoverm + sum(abs(v_1(i,j,k,:))**2.0) * sin(kxgrid(i)/(2.0*kxmin))**2.0
+             nltmax = min(nltmax,minval(kmags(i,j,k)*abs(v_1(i,j,k,:)),kmags(i,j,k)*abs(v_1(i,j,k,:)).gt.10.0**(-10.0)))
+             nltmin = max(nltmin,kmags(i,j,k)*maxval(abs(v_1(i,j,k,:)),abs(v_1(i,j,k,:)).gt.10.0**(-10.0)))
+
+          ENDDO
+       ENDDO
+    ENDDO
+
+    CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+    CALL MPI_ALLREDUCE(turnoverm,turnover,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
+
+    turnover = 1.0/(2*kxmin*sqrt(turnover))
     
     print *, mype,"Turnover Time Estimate",turnover
 
-    nlt = 10/(minval(abs(spread(kmags,4,3)*v_1),abs(spread(kmags,4,3)*v_1).gt. 10**(-10)))
+    CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+    CALL MPI_ALLREDUCE(nltmax,nlt,1,MPI_DOUBLE,MPI_MIN,MPI_COMM_WORLD,ierr)
+
+    nlt = 10.0/nlt
 
     print *, mype,"Equation-Based Max Nonlinear Time Scale", nlt
 
-    nlt = 10/(maxval(abs(spread(kmags,4,3)*v_1),abs(spread(kmags,4,3)*v_1).gt. 10**(-10)))
+    CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+    CALL MPI_ALLREDUCE(nltmin,nlt,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD,ierr)
 
+    nlt = 10.0/nlt
+    
     print *, mype,"Equation-Based Min Nonlinear Time Scale", nlt
-
+    
     if (nv) b_1(:,:,:,:) = cmplx(0.0,0.0)
     
     if (taylorgreen) then

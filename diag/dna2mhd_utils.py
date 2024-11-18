@@ -161,7 +161,7 @@ def read_time_step_energy(which_itime,swap_endian=False):
    file_name = par['diagdir'][1:-1]+'/energy_out.dat'
    f = open(file_name,'rb')
    gt0=np.empty((1))
-   ntot = 12
+   ntot = 8
    mem_tot = (ntot)*8
    gt0 = np.empty(ntot)
    f.seek(8+which_itime*(8+mem_tot))
@@ -301,7 +301,7 @@ def get_time_from_energyout(swap_endian=False,tmax=2000000):
    """Returns time array taken from v_out.dat"""
    file_name = par['diagdir'][1:-1]+ '/energy_out.dat'
    f = open(file_name,'rb')
-   ntot = 12
+   ntot = 8
    mem_tot=ntot*8
    time=np.empty(0)
    continue_read=1
@@ -483,7 +483,7 @@ def getenergy(lpath,tmax=2000000):
 
     kx,ky,kz=get_grids()
     i_n=[0,1,2]
-    ntot = 12
+    ntot = 8
     savepath = lpath+'/energy_xyz.dat'
     #g=np.zeros((len(time)-1,len(kx),len(ky,),len(kz),len(i_n)), dtype='complex64') 
    #print('allocating array') 
@@ -959,24 +959,39 @@ ind specifies whether you want the x(0),y(1), or z(2) component."""
 
     return 0
 
-def plot_energy(lpath,ntp,show=True,log=False,rescale=True,xb=1,tmax=2000000):
+def center_width(data_width,data_min):
+    # Get preferred center and half-width for LinearLocator data
+
+    plot_width = 10**(np.ceil(np.log10(data_width)))
+    if plot_width > 2 * data_width:
+        plot_width = plot_width/2
+    if plot_width > 2 * data_width:
+        plot_width = plot_width/2
+    if plot_width > 2 * data_width:
+        plot_width = 10**(np.ceil(np.log10(data_width))) * 0.15
+
+    plot_center = (np.ceil(10*data_min/plot_width)+4)*plot_width/10
+    
+    return(plot_width,plot_center)
+
+def plot_energy(lpath,xb=1,tmax=2000000):
     """ Plots Scalars Written in energy_out.dat 
-    j reference for enval[i,j]: 0 - Energy, 1 - Magnetic Helicity, 2 - Magnetic Helicity Error (ignore), 3 - Magnetic Helicity Bound,
-    4 - Canonical Helicity, 5 - Canonical Helicity Error (ignore), 6 - Canonical Helicity Bound,
-    7 - Magnetic Energy, 8 - Kinetic Energy, 9 - Helicity Gauge Correction"""
+    Written in Order : Energy, Magnetic Helicity, Canonical Helicity,
+    Kinetic Energy, Magnetic Energy, 
+    Magnetic Helicity Bound, Canonical Helicity Bound, Magnetic Helicity Correction"""
     
     read_parameters(lpath)
+    if lpath[-1] == "/":
+        lpath = lpath[:-1]
+        
     if os.path.isfile(lpath+'/dumen.txt'):
         timeen,enval = load_energy(lpath)
     else:
         timeen,enval = getenergy(lpath,tmax=tmax)
 
-    shapes = {1:(1,1),2:(2,1),3:(2,2),4:(2,2),5:(2,3),6:(2,3),7:(3,3),8:(3,3),9:(3,3)}
-    s = shapes[ntp+1]
-    labels = {0:'Hamiltonian',1:'Magnetic Helicity',4:'Canonical Helicity',7:'Kinetic',8:'Magnetic',9:'MH Corr'}
-    axls = {0:'Total Energy / Guide Field Energy',1:'Helicity / Helicity Bound',4:'Helicity / Helicity Bound',7:'Energy Component / Initial Energy'}
-    fnames = {0:'energy',1:'maghcty',4:'canhcty',7:'spliten',9:'nlp'}
-
+    #shapes = {1:(1,1),2:(2,1),3:(2,2),4:(2,2),5:(2,3),6:(2,3),7:(3,3),8:(3,3),9:(3,3)}
+    #s = shapes[ntp+1]
+    
     if np.any(np.isnan(enval)):
         return(timeen,-99.0*np.ones(np.shape(enval)))
     if not os.path.exists(lpath + '/eplots/'):
@@ -984,82 +999,75 @@ def plot_energy(lpath,ntp,show=True,log=False,rescale=True,xb=1,tmax=2000000):
     xx = len(timeen)
     timeen = timeen[range(0,xx,xb)]
     enval = enval[range(0,xx,xb),:]
-    plts = [0,1,4,7]
-    for i in plts[:ntp+1]:
-        if i == 7:
-            fig,ax = plt.subplots(1)
-            ax.plot(timeen,enval[:,i]/enval[0,0],"b",label=labels[i])
-            ax.plot(timeen,enval[:,i+1]/enval[0,0],"r",label=labels[i+1])
-            ax.set_ylabel('Energy Component / Initial Energy')
-            ax.set_xlabel('Time ($\omega_c^{-1}$)')
-            ax.legend()
-            fig.suptitle('Kinetic and Magnetic Energies')
-            plt.savefig(lpath+'/eplots/'+fnames[i])
-            if show == True:
-                plt.show()
-            plt.close()
-        elif not log:
-            fig,ax = plt.subplots(1)
 
-            if (i == 0):
-                ev = enval[:,i]/(4* np.pi**3)
-                ax.plot(timeen,ev,'k')
-                r = np.max(ev) - np.min(ev)
-            elif par['mhc']:
-                if enval[0,i+2] > 10**(-16):
-                    ev = (enval[:,i]+patch_mhc(enval[:,9]))/enval[0,i+2]
-                    ev0 = enval[:,i]/enval[0,i+2]
-                else:
-                    ev = (enval[:,i]+patch_mhc(enval[:,9]))/np.amax(np.abs(enval[:,i]+enval[:,9]))
-                    ev0 = enval[:,i]/np.amax(np.abs(enval[:,i]+enval[:,9]))
-                ax.plot(timeen,ev0,"r",label="Original")
-                ax.plot(timeen,ev,"k",label="Transformed")
-                ax.legend()
-                r = max(np.max(ev)-np.min(ev),np.max(ev0)-np.min(ev0))
-            else:
-                ev = enval[:,i]/enval[0,i+2]
-                r = np.max(ev) - np.min(ev)
-            
-            r = np.max(ev) - np.min(ev)
-            r1 = 10**(np.ceil(np.log10(r)))
-            if r1 > 2 * r:
-                r1 = r1/2
-            if r1 > 2 * r:
-                r1 = r1/2
-            if r1 > 2 * r:
-                r1 = 10**(np.ceil(np.log10(r))) * 0.15
-            ax.set_ylabel(axls[i])
+    # Total Energy Plot
+    fig,ax = plt.subplots(1)
+    ev = enval[:,0]/(4* np.pi**3)
+    ax.plot(timeen,ev,"b")
+    r = np.max(ev) - np.min(ev)
+    ax.set_ylabel("Total Energy / Guide Field Energy")
+    ax.set_xlabel("Time ($\omega_c^{-1}$)")
 
-            # find integer multiple of 1/10 r1 inside the data
+    plot_width,plot_center = center_width(r,np.min(ev))
+    ax.set_ylim(bottom=plot_center-plot_width,top=plot_center+plot_width)
+    ax.yaxis.set_major_locator(LinearLocator())
+    form = ScalarFormatter()
+    ax.yaxis.set_major_formatter(form)
 
-            cen = (np.ceil(10*np.min(ev)/r1)+4)*r1/10
-            
-            ax.set_ylim(bottom=cen-r1,top=cen+r1)
-            ax.yaxis.set_major_locator(LinearLocator())
-            form = ScalarFormatter()
-            ax.yaxis.set_major_formatter(form)
-            
-            ax.set_xlabel('Time ($\omega_c^{-1}$)')
-            fig.suptitle(labels[i])
-            fig.tight_layout()
-            if np.amax(enval) > 10 ** 5:
-                ax.set_yscale('log')
-            plt.savefig(lpath+'/eplots/'+fnames[i])
-            if show == True:
-                plt.show()
-            plt.close()
-        else:
-            fig,ax = plt.subplots(1)
-            ax.plot(timeen,np.abs(enval[:,i]))
-            ax.set_xlabel('Time (1/$\omega_c$)')
-            ax.set_ylabel(labels[i])
-            ax.set_yscale('log')
-            fig.suptitle(labels[i])
-            plt.savefig(lpath+'/eplots/'+fnames[i])
-            if show == True:
-                plt.show()
-            plt.close()
+    fig.suptitle("Total Energy Evolution")
+    plt.savefig(lpath+"/eplots/energy")
+    plt.close()
+
+    # Magnetic Helicity Plot
+    fig,ax = plt.subplots(1)
+    ev = (enval[:,1]+enval[:,-1])/enval[:,-3]
+    ax.plot(timeen,ev,"b",label="Transformed")
+    ax.plot(timeen,ev-enval[:,-1]/enval[:,-3],"r",label="Original")
+    r = np.max(ev) - np.min(ev)
+    ax.set_ylabel("Helicity / Initial Helicity Bound")
+    ax.set_xlabel("Time ($\omega_c^{-1}$)")
+
+    plot_width,plot_center = center_width(r,np.min(ev))
+    ax.set_ylim(bottom=plot_center-plot_width,top=plot_center+plot_width)
+    ax.yaxis.set_major_locator(LinearLocator())
+    form = ScalarFormatter()
+    ax.yaxis.set_major_formatter(form)
+
+    fig.suptitle("Magnetic Helicity Evolution")
+    plt.savefig(lpath+"/eplots/maghcty")
+    plt.close()
+
+    # Canonical Helicity Plot
+    fig,ax = plt.subplots(1)
+    ev = (enval[:,2]+enval[:,-1])/enval[:,-2]
+    ax.plot(timeen,ev,"b",label="Transformed")
+    ax.plot(timeen,ev-enval[:,-1]/enval[:,-2],"r",label="Original")
+    r = np.max(ev) - np.min(ev)
+    ax.set_ylabel("Helicity / Initial Helicity Bound")
+    ax.set_xlabel("Time ($\omega_c^{-1}$)")
+
+    plot_width,plot_center = center_width(r,np.min(ev))
+    ax.set_ylim(bottom=plot_center-plot_width,top=plot_center+plot_width)
+    ax.yaxis.set_major_locator(LinearLocator())
+    form = ScalarFormatter()
+    ax.yaxis.set_major_formatter(form)
+
+    fig.suptitle("Canonical Helicity Evolution")
+    plt.savefig(lpath+"/eplots/canhcty")
+    plt.close()
     
+    # Magnetic vs Kinetic Energy Plot
+    fig,ax = plt.subplots(1)
+    ax.plot(timeen,enval[:,3]/enval[:,0],"r",label="Kinetic Energy")
+    ax.plot(timeen,enval[:,4]/enval[:,0],"b",label="Magnetic Energy")
+    ax.set_ylabel('Energy Component / Total Energy')
+    ax.set_xlabel('Time ($\omega_c^{-1}$)')
+    ax.set_ylim(bottom=0,top=1)
+    ax.legend()
+    fig.suptitle("Kinetic and Magnetic Energies")
+    plt.savefig(lpath+'/eplots/spliten')
+    plt.close()
+
     return timeen,enval
 
 def plot_enspec(lpath,npt=1,zz=-1,show=True,log=False,linplot=False,newload=False,fullspec=False,old=True,tmaxfac=1,tmax=2000000,version=3):
@@ -1655,12 +1663,12 @@ def mode_break(lpath,show=False,tmax=200000):
     mode_profs = np.sum(mode_ks,axis=(2,3,4))
     plt.figure(1)
     for i in range(4):
-        plt.plot(t,mode_profs[i,:],fmts[i],label=labels[i],markersize=1)
+        plt.plot(t,mode_profs[i,:]/(4*np.pi**3),fmts[i],label=labels[i],markersize=1)
     plt.xlabel('Time ($\omega_c^{-1}$)')
-    plt.ylabel('Mode Energy')
+    plt.ylabel('Mode Energy / Guide Field Energy')
     plt.title('Energy Distribution in Hall MHD Modes vs Time')
     plt.yscale('log')
-    plt.ylim(10**(-10),10**1)
+    plt.ylim(10**(-6),10**2)
     plt.legend()
 
     if not os.path.exists(lpath+'/eplots/'):
@@ -1710,7 +1718,7 @@ def mode_break(lpath,show=False,tmax=200000):
     ax.set_xlabel("$k_\perp$ ($d_i^{-1}$)")
     ax.set_yscale("log")
     ax.set_xscale("log")
-    ax.set_ylim(10**(-5),10**(-1))
+    ax.set_ylim(10**(-5),10**(1))
 
     ax.yaxis.set_major_locator(LogLocator())
     form = LogFormatterExponent()
@@ -1849,11 +1857,11 @@ def planeplotter(lpath,t,normvec=2,planenum=0,show=False):
     return ggrid[ii],ggrid[jj],bplane,vplane
 
 def enheldev(lpath,local=0):
-    te,e = plot_energy(lpath,3,show=False)
+    te,e = plot_energy(lpath)
     dt = te[-1]-te[0]
     de = e[:,0]-e[0,0]
-    dmh = (e[:,1]-e[0,1]) +(e[:,-3] - e[0,-3])
-    dch = (e[:,4]-e[0,4]) +(e[:,-3] - e[0,-3])
+    dmh = (e[:,1]-e[0,1]) +(e[:,-1] - e[0,-1])
+    dch = (e[:,2]-e[0,2]) +(e[:,-1] - e[0,-1])
     
     print(dt)
     
@@ -2104,7 +2112,7 @@ def mode_nlparam(lpath,tt,dim,show=False,tmax=200000):
     plt.ylabel("Nonlinearity Parameter")
     plt.xlabel("|k| ($d_i^{-1}$)")
     plt.title(str(dim)+"D Nonlinearity Parameter Spectrum t = "+np.format_float_positional(t[tt],0)+" ($\omega_c^{-1}$)")
-    plt.ylim(10**(-5),10**1)
+    plt.ylim(10**(-5),10**2)
     plt.yscale("log")
     plt.xscale("log")
     plt.legend()

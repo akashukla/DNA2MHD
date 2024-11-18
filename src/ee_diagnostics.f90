@@ -60,6 +60,9 @@ MODULE diagnostics
   REAL, ALLOCATABLE, DIMENSION(:,:,:,:,:) :: NLT_n
   REAL, ALLOCATABLE, DIMENSION(:) :: shell_bounds
   REAL, ALLOCATABLE, DIMENSION(:,:,:) :: nltk
+
+  REAL :: magbound,canbound
+  
   INTEGER :: num_shells
   INTEGER :: ikx_minmax
   INTEGER :: iky_minmax
@@ -73,12 +76,14 @@ MODULE diagnostics
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:) :: AVP
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:) :: WVORT
   REAL, ALLOCATABLE, DIMENSION(:,:,:) :: OSPEC
+  REAL, ALLOCATABLE, DIMENSION(:,:,:) :: WRITESPEC
   REAL :: ham0,ham1
   INTEGER :: nlt3_handle 
   !NLT Testing
   !REAL, ALLOCATABLE, DIMENSION(:,:,:,:) :: NLT_bak
   INTEGER :: test_handle1,test_handle2
   INTEGER :: ierr
+  INTEGER :: i,j,k
 
   !eshells
 
@@ -156,6 +161,7 @@ SUBROUTINE initialize_diagnostics
     ALLOCATE(RW(0:nkx0-1,0:nky0-1,lkz1:lkz2))
     ALLOCATE(RC(0:nkx0-1,0:nky0-1,lkz1:lkz2))
     ALLOCATE(OSPEC(0:nkx0-1,0:nky0-1,lkz1:lkz2))
+    ALLOCATE(WRITESPEC(0:nkx0-1,0:nky0-1,lkz1:lkz2))
   END IF
 
   if (plot_nls) CALL initialize_debug
@@ -188,6 +194,7 @@ SUBROUTINE finalize_diagnostics
     DEALLOCATE(RW)
     DEALLOCATE(RC)
     DEALLOCATE(OSPEC)
+    DEALLOCATE(WRITESPEC)
   END IF
   IF(verbose.and.(mype==0)) print *, 'Closed energy handles'
  
@@ -213,24 +220,21 @@ SUBROUTINE diag
   REAL, ALLOCATABLE, DIMENSION(:,:,:) :: energy3d_temp
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:) :: mom3d
 
+  if (itime.eq.0) CALL bound_hels
+
      IF((istep_energy.ne.0).and.(MOD(itime,istep_energy)==0))THEN
          ! IF(verbose.and.(mype.eq.0)) WRITE(*,*) "Starting energy diag.",mype
          IF (mype.eq.0) WRITE(en_handle) time
          CALL hmhdhmtn(0)
          ! if (verbose.and.(mype.eq.0)) write(*,*) "Found Hamiltonian",mype
          CALL mag_helicity()
-         CALL err_hel1(1.0,.true.,.true.,.true.)
-         CALL bound_hels(.true.)
          CALL cross_helicity()
-         CALL err_hel1(1.0,.false.,.true.,.true.)
-         
-         CALL bound_hels(.false.)
          CALL hmhdhmtn(1)
          CALL hmhdhmtn(2)
+         WRITE(en_handle) magbound
+         WRITE(en_handle) canbound
          if (mype.eq.0) WRITE(en_handle) mhelcorr
          ! if (verbose.and.(mype.eq.0)) write(*,*) "Found Helicities",mype
-         CALL resvischange("b")
-         CALL resvischange("v")
          if (track_divs) CALL divs    
          ! IF(verbose.and.(mype.eq.0)) WRITE(*,*) "Done with energy diag.",mype
      END IF
@@ -502,40 +506,6 @@ endif
 
 end subroutine hmhdhmtn
 
-subroutine resvischange(arr_label) 
-
-!! Returns the rate of change of the above Hamiltonian 
-!! From including a resistivity term in the induction equation
-!! with dimensionless resistivity eta/(B0/(e ne c)) = 1
-!! Can also be used to find change due to viscosity nu/(vA^2/omega_i) = 1
-!! with arr taken as v instead of b
-
-implicit none
-character(1) :: arr_label 
-integer :: i,j,k
-real :: k2
-real :: res
-real :: ind(2),all(2)
-
-ind = 0
-if (arr_label.eq."v") then
-   ind(1) = vnu*sum(spread(kmags(1:nkx0-1,:,:)**(2.0*hyp),4,3)*abs(v_1(1:nkx0-1,:,:,:)**2.0))
-   ind(2) = vnu*0.5 * sum(spread(kmags(0,:,:)**(2.0*hyp),3,3)*abs(v_1(0,:,:,:)**2.0))
-endif
-if (arr_label.eq."b") then
-   ind(1) = eta*sum(spread(kmags(1:nkx0-1,:,:)**(2.0*hyp),4,3)*abs(b_1(1:nkx0-1,:,:,:)**2.0))
-   ind(2) = eta*0.5* sum(spread(kmags(0,:,:)**(2.0*hyp),3,3)*abs(b_1(0,:,:,:)**2.0))
-endif
-
-CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-CALL MPI_ALLREDUCE(ind,all,2,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
-
-res = sum(all)*(16 * pi**3)
-
-if (mype.eq.0) WRITE(en_handle) res
-
-end subroutine resvischange
-
 subroutine initialize_debug
 
     CALL get_io_number
@@ -670,8 +640,7 @@ maghel = sum(mhs) * (2.0 * pi)**3.0
 
 if (mype.eq.0) WRITE(en_handle) maghel
 
-if (timer.and.(mype.eq.0)) print *,	"Magnetic Helicity",maghel+mhelcorr
-
+if (timer.and.(mype.eq.0)) print *,	"Magnetic Helicity",(maghel+mhelcorr)/magbound
 
 END SUBROUTINE mag_helicity
 
@@ -720,7 +689,7 @@ subroutine cross_helicity
   crosshel = sum(chs) * (2.0*pi)**3.0
    
   if (mype.eq.0) WRITE(en_handle) crosshel
-  if (timer.and.(mype.eq.0)) print *, "Cross Helicity",crosshel+mhelcorr
+  if (timer.and.(mype.eq.0)) print *, "Cross Helicity",(crosshel+mhelcorr)/canbound
 
 end subroutine cross_helicity
 
@@ -751,57 +720,60 @@ print *, mype,"Fractional IR Energy Change Diff",abs((LW(test1,test1,lkz1+1)-OSP
 print *, mype,"Maximum spectrum fractional change",maxval((abs(LW)-OSPEC)/OSPEC,OSPEC.gt.10.0**(-10.0))
 
 ! Writing
-WRITE(enspec_handle) (8*pi**3)* (abs(v_1(:,:,:,0))**2 + abs(v_1(:,:,:,1))**2+abs(v_1(:,:,:,2))**2)
-WRITE(enspec_handle) (8*pi**3)* (abs(b_1(:,:,:,0))**2 + abs(b_1(:,:,:,1))**2+abs(b_1(:,:,:,2))**2)
+
+WRITESPEC = (8*pi**3)* (abs(v_1(:,:,:,0))**2 + abs(v_1(:,:,:,1))**2+abs(v_1(:,:,:,2))**2)
+
+WRITE(enspec_handle) WRITESPEC
+
+WRITESPEC = (8*pi**3)* (abs(b_1(:,:,:,0))**2 + abs(b_1(:,:,:,1))**2+abs(b_1(:,:,:,2))**2)
+
+WRITE(enspec_handle) WRITESPEC
 
 OSPEC = abs(LW)
 
 end subroutine en_spec
 
-subroutine err_hel1(sf,m,b,num)
+subroutine bound_hels 
 
 implicit none
 
-REAL :: sf
-LOGICAL :: m
-LOGICAL :: b
-LOGICAL :: num
-REAL :: mherr
-REAL :: Ck,k2xderiv,kxderiv,k2yderiv,kyderiv,k2zderiv,kzderiv
-REAL :: xcont,ycont,zcont
-INTEGER :: i,j,k,ind
+LOGICAL :: magnetic
 
-mherr = 0.0
 
-if (mype.eq.0) WRITE(en_handle) 0.0
-
-end subroutine err_hel1
-
-subroutine bound_hels(m) 
-
-implicit none
-
-LOGICAL :: m
 REAL :: bound
+REAL :: magboundm,canboundm
 REAL :: boundsm(2),bounds(2)
 
-if (splitx) then
-   boundsm(1) = 2.0*sum(sum(b_1(1:nkx0-1,:,:,:)*conjg(b_1(1:nkx0-1,:,:,:)),4)/kmags(1:nkx0-1,:,:),mask=(kmags.gt.0))
-   boundsm(2) = sum(sum(abs(b_1(0,:,:,:))**2.0,dim=3)/kmags(0,:,:),mask=(kmags(0,:,:).gt.0))
-if (m.eq..false.) then 
-   boundsm(1) = boundsm(1) + 2.0*sum(sum(v_1(1:nkx0-1,:,:,:)*conjg(v_1(1:nkx0-1,:,:,:)),4)*kmags(1:nkx0-1,:,:),mask=(kmags.gt.0))
-   boundsm(2) = boundsm(2) + sum(sum(v_1(0,:,:,:)*conjg(v_1(0,:,:,:)),dim=3)*kmags(0,:,:),mask=(kmags(0,:,:).gt.0))
-   boundsm(1) = boundsm(1) + 4.0*sum(sqrt(sum(abs(v_1(1:nkx0-1,:,:,:))**2,4))*sqrt(sum(abs(b_1(1:nkx0-1,:,:,:))**2,4)),mask=(kmags.gt.0))
-   boundsm(2) = boundsm(2) + 2.0*sum(sqrt(sum(abs(v_1(0,:,:,:))**2,3))*sqrt(sum(abs(b_1(0,:,:,:))**2,3)),mask=(kmags(0,:,:).gt.0))
-endif
-endif
+
+magboundm = 0.0
+canboundm = 0.0
+
+DO j = 0,nky0 - 1
+   DO k = lkz1,lkz2
+      DO i = 1,nkx0-1
+         magboundm = magboundm + 2.0 * sum(abs(b_1(i,j,k,:))**2.0)/kmags(i,j,k)
+         canboundm = canboundm + 2.0 * sum(abs(v_1(i,j,k,:))**2.0)*kmags(i,j,k)
+         canboundm = canboundm + 4.0 * sqrt(sum(abs(b_1(i,j,k,:))**2.0))*sqrt(sum(abs(v_1(i,j,k,:))**2.0))
+      ENDDO
+      magboundm = magboundm + sum(abs(b_1(0,j,k,:))**2.0 /kmags(0,j,k),kmags(0,j,k).gt.10**(-10.0))
+      canboundm = canboundm + sum(abs(v_1(0,j,k,:))**2.0)*kmags(0,j,k)
+      canboundm = canboundm + 2.0 * sqrt(sum(abs(b_1(0,j,k,:))**2.0))*sqrt(sum(abs(v_1(0,j,k,:))**2.0))            
+   ENDDO
+ENDDO
 
 CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-CALL MPI_ALLREDUCE(boundsm,bounds,2,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
+CALL MPI_ALLREDUCE(magboundm,magbound,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
 
-bound = 8.0 * pi**3.0 * sum(bounds)
+CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+CALL MPI_ALLREDUCE(canboundm,canbound,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
 
-if (mype.eq.0) WRITE(en_handle) bound
+magbound = 8.0 * pi**3.0 * magbound
+canbound = 8.0 * pi**3.0 * canbound
+
+canbound = canbound + magbound
+
+if (mype.eq.0) WRITE(*,*) "Magnetic Helicity Bound",magbound
+if (mype.eq.0) WRITE(*,*) "Canonical Helicity Bound",canbound
 
 end subroutine bound_hels
 
@@ -827,11 +799,18 @@ subroutine mode_spec
      print *, "Max RW ", sum(0.5*abs(RW)**2)*(16.0*pi**3)
      print *, "Max RC ", sum(0.5*abs(RC)**2)*(16.0*pi**3)
   endif
-     
-  WRITE(mode_handle) 0.5 * abs(LW)**2 * (16.0*pi**3)
-  WRITE(mode_handle) 0.5 * abs(LC)**2 * (16.0*pi**3)
-  WRITE(mode_handle) 0.5 * abs(RW)**2 * (16.0*pi**3)
-  WRITE(mode_handle) 0.5 * abs(RC)**2 * (16.0*pi**3)
+
+  WRITESPEC =  0.5 * abs(LW)**2 * (16.0*pi**3)  
+  WRITE(mode_handle) WRITESPEC
+
+  WRITESPEC = 0.5 * abs(LC)**2 * (16.0*pi**3)
+  WRITE(mode_handle) WRITESPEC
+
+  WRITESPEC = 0.5 * abs(RW)**2 * (16.0*pi**3)
+  WRITE(mode_handle) WRITESPEC
+
+  WRITESPEC = 0.5 * abs(RC)**2 * (16.0*pi**3)
+  WRITE(mode_handle) WRITESPEC
 
 end subroutine mode_spec
 

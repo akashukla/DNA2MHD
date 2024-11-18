@@ -4,17 +4,17 @@ omt = 5.000
 omn =    1.000    
 Ti0Te =    1.000 
 eta = 1.0
-vnu = 0.1
+vnu = 0.0
 rey = 0.0
 /
 
 &numerical_parameters
-kxmin =   0.1
-kymin =   0.1
-kzmin =   0.05
-nkx0 = 64
-nky0 = 128
-nkz0 = 128
+kxmin =   0.02
+kymin =   0.02
+kzmin =   0.01
+nkx0 = 128
+nky0 = 256
+nkz0 = 256
 nv0 =   2
 nh0 =    1
 nspec =    1
@@ -35,10 +35,10 @@ courant =   0.5
 kxinit_min = 0
 kyinit_min = 0
 kzinit_min = 0
-kxinit_max = 64
-kyinit_max = 128
-kzinit_max = 128
-init_energy = 1.00
+kxinit_max = 128
+kyinit_max = 256
+kzinit_max = 256
+init_energy = 0.01
 init_amp_bx = 0.0
 init_amp_by = 0.0
 init_amp_bz = 0.0
@@ -48,7 +48,7 @@ init_amp_vz = 0.0
 init_kolm = 3.0
 phdf = 2.0
 phdfxy = 2.0
-force_amp = 1.00
+force_amp = 0.01
 nkxforce = 16
 nkyforce = 16
 nkzforce = 16
@@ -57,7 +57,7 @@ hyp = 1
 /
 
 &diagnostics
-diagdir = "/pscratch/sd/e/echansen/DNA2MHDruns/fullwhist"
+diagdir = "/pscratch/sd/e/echansen/DNA2MHDruns/segcheck"
 loaddir = "/pscratch/sd/e/echansen/DNA2MHDruns/fullwhist"
 istep_ffm =   20
 istep_energy3d =  500
@@ -77,10 +77,10 @@ output_nlt_n = F
 /
 
 &flags
-verbose  = T
-timer = T
+verbose  = F
+timer = F
 nonlinear  = T
-actual_nonlinear = F
+actual_nonlinear = T
 calc_dt  = T
 comp_type = 'IV'
 checkpoint_write = T
@@ -90,12 +90,12 @@ nuno_closure = T
 rhs_nl_version = 12
 linen = F
 keepzero = T
-intorder = 3
+intorder = 2
 rhs_lin_version = 12
 dealias_type = 3
 shifted = F
 splitx = T
-force_turbulence = T
+force_turbulence = F
 forceb = T
 forcetype = 31
 set_forcing = F
@@ -135,9 +135,9 @@ random_state = 3
 /
 
 &initial_value
-max_itime = 2
+max_itime = 1
 max_walltime =   10000000.0
-dt_max = 0.005
+dt_max = 0.002
 fix_dt = F
 max_time =   10000000.
 /

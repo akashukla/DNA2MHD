@@ -221,9 +221,9 @@ SUBROUTINE get_g_next(b_in, v_in,dt_new)
 ! COMPLEX, INTENT(inout) :: g_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,lv1:lv2,lh1:lh2,ls1:ls2)
  COMPLEX, INTENT(inout) :: b_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
  COMPLEX, INTENT(inout) :: v_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
- REAL :: dt_new
- REAL :: dt_new1,dt_new2,dt_new3,dt_new4
- REAL :: nmhc
+ REAL(C_DOUBLE) :: dt_new
+ REAL(C_DOUBLE) :: dt_new1,dt_new2,dt_new3,dt_new4
+ REAL(C_DOUBLE) :: nmhc
 
 !  !4th order Runge-Kutta
 !  first_stage=.true.
@@ -322,9 +322,9 @@ SUBROUTINE remove_div(b_in,v_in)
  COMPLEX, INTENT(inout) :: b_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
  COMPLEX, INTENT(inout) :: v_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
  INTEGER :: i,j,k,l,h
- COMPLEX :: div_v, div_b
- REAL :: k2
- COMPLEX :: exb(0:2),exv(0:2)
+ COMPLEX(C_DOUBLE_COMPLEX) :: div_v, div_b
+ REAL(C_DOUBLE) :: k2
+ COMPLEX(C_DOUBLE_COMPLEX) :: exb(0:2),exv(0:2)
 
  div_v = 0.0 +i_complex*0.0
  div_b = 0.0 +i_complex*0.0
@@ -374,7 +374,7 @@ SUBROUTINE get_rhs(b_in,v_in, rhs_out_b,rhs_out_v,nmhc,ndt)
 
  COMPLEX, INTENT(out) :: rhs_out_b(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
  COMPLEX, INTENT(out) :: rhs_out_v(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
- REAL, INTENT(out) :: nmhc
+ REAL(C_DOUBLE), INTENT(out) :: nmhc
  REAL :: ndt
  REAL :: sttime,lintime,nltime,disstime,forcetime
 
@@ -435,8 +435,8 @@ SUBROUTINE getmhcrk(b_in,v_in,nmhc)
  COMPLEX, INTENT(in) :: b_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
  COMPLEX, INTENT(in) :: v_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
 
- REAL, intent(out) :: nmhc
- REAL :: nmhcsm(2),nmhcs(2)
+ REAL(C_DOUBLE), intent(out) :: nmhc
+ REAL(C_DOUBLE) :: nmhcsm(2),nmhcs(2)
 
    if (splitx) nmhcsm(1) = - 2.0 * sum(real(b_in(1:nkx0-1,:,:,0)*conjg(v_in(1:nkx0-1,:,:,1))-b_in(1:nkx0-1,:,:,1)*conjg(v_in(1:nkx0-1,:,:,0))))
    if (splitx) nmhcsm(2) = - 1.0 * real(sum(b_in(0,:,:,0)*conjg(v_in(0,:,:,1))-b_in(0,:,:,1)*conjg(v_in(0,:,:,0))))
@@ -471,9 +471,9 @@ SUBROUTINE dorpi547M(b_in,v_in)
 
   COMPLEX, INTENT(INOUT) :: b_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
   COMPLEX, INTENT(INOUT) :: v_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
-  REAL :: dt_new1,dt_new2,dt_new3,dt_new4,dt_new5,dt_new6,dt_new7
-  REAL :: nmhc1,nmhc2,nmhc3,nmhc4,nmhc5,nmhc6,nmhc7,next_corr
-  REAL :: errm,err
+  REAL(C_DOUBLE) :: dt_new1,dt_new2,dt_new3,dt_new4,dt_new5,dt_new6,dt_new7
+  REAL(C_DOUBLE) :: nmhc1,nmhc2,nmhc3,nmhc4,nmhc5,nmhc6,nmhc7,next_corr
+  REAL(C_DOUBLE) :: errm,err
   
   dt = dt_max
 
@@ -488,28 +488,30 @@ SUBROUTINE dorpi547M(b_in,v_in)
   ENDIF
      
   !! Second step
-  CALL get_rhs(b_in+dt*bk1*1.0/5.0,&
-       v_in+dt*vk1*1.0/5.0,bk2,vk2,nmhc2,dt_new2)
+  bk1s = b_in+dt*bk1*1.0/5.0
+  vk1s = b_in+dt*bk1*1.0/5.0
+  CALL get_rhs(bk1s,vk1s,bk2,vk2,nmhc2,dt_new2)
      
   !! Third step
-  CALL get_rhs(b_in+dt*(3.0*bk1/40.0+9.0*bk2/40.0),&
-       v_in+dt*(3.0*vk1/40.0+9.0*vk2/40.0),bk3,vk3,nmhc3,dt_new3)
+  bk1s = b_in+dt*(3.0*bk1/40.0+9.0*bk2/40.0)
+  vk1s = v_in+dt*(3.0*vk1/40.0+9.0*vk2/40.0)
+  CALL get_rhs(bk1s,vk1s,bk3,vk3,nmhc3,dt_new3)
      
   !! Fourth step
-  CALL get_rhs(b_in+dt*(44.0/45.0*bk1-56.0/15.0*bk2+32.0/9.0*bk3),&
-       v_in+dt*(44.0/45.0*vk1-56.0/15.0*vk2+32.0/9.0*vk3),bk4,vk4,nmhc4,dt_new4)
+  bk1s = b_in+dt*(44.0/45.0*bk1-56.0/15.0*bk2+32.0/9.0*bk3)
+  vk1s = v_in+dt*(44.0/45.0*vk1-56.0/15.0*vk2+32.0/9.0*vk3)
+  CALL get_rhs(bk1s,vk1s,bk4,vk4,nmhc4,dt_new4)
      
   !! Fifth step
-  CALL get_rhs(b_in+dt*(19372.0/6561.0*bk1-25360.0/2187.0*bk2+64448.0/6561.0*bk3-212.0/729.0*bk4),&
-       v_in+dt*(19372.0/6561.0*vk1-25360.0/2187.0*vk2+64448.0/6561.0*vk3-212.0/729.0*vk4),&
-       bk5,vk5,nmhc5,dt_new5)
+  bk1s = b_in+dt*(19372.0/6561.0*bk1-25360.0/2187.0*bk2+64448.0/6561.0*bk3-212.0/729.0*bk4)
+  vk1s = v_in+dt*(19372.0/6561.0*vk1-25360.0/2187.0*vk2+64448.0/6561.0*vk3-212.0/729.0*vk4)
+  CALL get_rhs(bk1s,vk1s,bk5,vk5,nmhc5,dt_new5)
      
   !! Sixth step
-  CALL get_rhs(b_in+dt*(9017.0/3168.0*bk1 - 355.0/33.0*bk2 + 46732.0/5247.0*bk3 &
-       + 49.0/176.0*bk4-5103.0/18656.0*bk5),&
-       v_in+dt*(9017.0/3168.0*vk1 - 355.0/33.0*vk2 + 46732.0/5247.0*vk3	&
-       + 49.0/176.0*vk4-5103.0/18656.0*vk5),bk6,vk6,nmhc6,dt_new6)
-     
+  bk1s = b_in+dt*(9017.0/3168.0*bk1 - 355.0/33.0*bk2 + 46732.0/5247.0*bk3 + 49.0/176.0*bk4-5103.0/18656.0*bk5)
+  vk1s = v_in+dt*(9017.0/3168.0*vk1 - 355.0/33.0*vk2 + 46732.0/5247.0*vk3 + 49.0/176.0*vk4-5103.0/18656.0*vk5)
+  CALL get_rhs(bk1s,vk1s,bk6,vk6,nmhc6,dt_new6)
+
   b_2 = b_in + dt*(35.0/384.0*bk1+500.0/1113.0*bk3+125.0/192.0*bk4&
        -2187.0/6784.0*bk5+11.0/84.0*bk6)
   v_2 = v_in + dt*(35.0/384.0*vk1+500.0/1113.0*vk3+125.0/192.0*vk4&
@@ -524,7 +526,6 @@ SUBROUTINE dorpi547M(b_in,v_in)
        -92097.0/339200.0*bk5+187.0/2100.0*bk6+bk7/40.0)
   v_3 = v_in + dt*(5179.0/57600.0*vk1+7571.0/16695.0*vk3+393.0/640.0*vk4&
        -92097.0/339200.0*vk5+187.0/2100.0*vk6+vk7/40.0)
-
   
   errm = max(maxval(abs(b_2-b_3)),maxval(abs(v_2-v_3)))
   CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
@@ -554,9 +555,9 @@ SUBROUTINE ralston2(b_in,v_in,dt_new)
 
   COMPLEX, INTENT(INOUT) :: b_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
   COMPLEX, INTENT(INOUT) :: v_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
-  REAL, INTENT(OUT) :: dt_new
-  REAL :: dt_new1 = 0,dt_new2 = 0
-  REAL :: nmhc1,nmhc2
+  REAL(C_DOUBLE), INTENT(OUT) :: dt_new
+  REAL(C_DOUBLE) :: dt_new1 = 0,dt_new2 = 0
+  REAL(C_DOUBLE) :: nmhc1,nmhc2
   
   CALL get_rhs(b_in,v_in,bk1,vk1,nmhc1,dt_new1) 
   b_2 = b_in + (1.0/4.0)*bk1*dt
@@ -592,9 +593,9 @@ SUBROUTINE ralston3(b_in,v_in,dt_new)
   IMPLICIT NONE
   COMPLEX, INTENT(INOUT) :: b_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
   COMPLEX, INTENT(INOUT) :: v_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
-  REAL, INTENT(OUT) :: dt_new
-  REAL :: dt_new1,dt_new2,dt_new3
-  REAL :: nmhc1,nmhc2,nmhc3
+  REAL(C_DOUBLE), INTENT(OUT) :: dt_new
+  REAL(C_DOUBLE) :: dt_new1,dt_new2,dt_new3
+  REAL(C_DOUBLE) :: nmhc1,nmhc2,nmhc3
 
   CALL get_rhs(b_in,v_in,bk1,vk1,nmhc1,dt_new1)
   b_2 = b_in + (2.0/9.0)*bk1*dt
@@ -634,11 +635,11 @@ SUBROUTINE GAUSS4(b_in,v_in,dt_new)
   
   COMPLEX, INTENT(INOUT) :: b_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
   COMPLEX, INTENT(INOUT) :: v_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
-  REAL, INTENT(OUT) :: dt_new
+  REAL(C_DOUBLE), INTENT(OUT) :: dt_new
   
-  REAL :: a11,a12,a21,a22
-  REAL :: nmhc1,nmhc2,nmhc1s,nmhc2s
-  REAL :: ndt,maxdev,l1norm
+  REAL(C_DOUBLE) :: a11,a12,a21,a22
+  REAL(C_DOUBLE) :: nmhc1,nmhc2,nmhc1s,nmhc2s
+  REAL(C_DOUBLE) :: ndt,maxdev,l1norm
   INTEGER :: solvloop
 
   a11 = 1.0/4.0
@@ -648,41 +649,55 @@ SUBROUTINE GAUSS4(b_in,v_in,dt_new)
 
   ! Initial derivative guesses
   CALL get_rhs(b_in,v_in,bk1,vk1,nmhc1,ndt)
-  CALL get_rhs(b_in+dt*bk1,v_in+dt*vk1,bk2,vk2,nmhc2,ndt)
-  
+  CALL get_rhs(b_in,v_in,bk2,vk2,nmhc2,ndt)
+
   ! Start iterating
 
-  CALL get_rhs(b_in+a11*dt*bk1+a12*dt*bk2,v_in+a11*dt*vk1+a12*dt*vk2,bk1s,vk1s,nmhc1s,ndt)
-  CALL get_rhs(b_in+a21*dt*bk1+a22*dt*bk2,v_in+a21*dt*vk1+a22*dt*vk2,bk2s,vk2s,nmhc2s,ndt)
-  
-  ! Fixed point solution
-
-  l1norm = sum(abs(bk1-bk1s)+abs(vk1-vk1s)+abs(vk2-vk2s)+abs(bk2-bk2s))
-  maxdev = max(maxval(abs(bk1-bk1s)),&
-       maxval(abs(vk1-vk1s)),&
-       maxval(abs(bk2-bk2s)),&
-       maxval(abs(vk2-vk2s)))
+  maxdev = 1.0
+  l1norm = 1.0
   solvloop = 0
 
   DO WHILE ((solvloop.lt.1000).and.(maxdev.gt.10.0**(-16.0)))
-     ! Check for now to see if the fixed point iteration converges
-     if (verbose) print *, "Iteration ",solvloop,"Discrepancy ",maxdev
+
+     if (solvloop.eq.0) then
+
+        b_2 = b_in+a11*dt*bk1+a12*dt*bk2
+        v_2 = v_in+a11*dt*vk1+a12*dt*vk2
+
+        CALL get_rhs(b_2,v_2,bk1s,vk1s,nmhc1s,ndt)
+
+        b_2 = b_in+a21*dt*bk1+a22*dt*bk2
+        v_2 = v_in+a21*dt*vk1+a22*dt*vk2
+
+        CALL get_rhs(b_2,v_2,bk2s,vk2s,nmhc2s,ndt)
+
+     endif
 
      bk1 = bk1s
-     bk2 = bk2s
      vk1 = vk1s
+
+     bk2 = bk2s
      vk2 = vk2s
 
-     CALL get_rhs(b_in+a11*dt*bk1+a12*dt*bk2,v_in+a11*dt*vk1+a12*dt*vk2,bk1s,vk1s,nmhc1s,ndt)
-     CALL get_rhs(b_in+a21*dt*bk1+a22*dt*bk2,v_in+a21*dt*vk1+a22*dt*vk2,bk2s,vk2s,nmhc2s,ndt)
+     b_2 = b_in+a11*dt*bk1+a12*dt*bk2
+     v_2 = v_in+a11*dt*vk1+a12*dt*vk2
 
-     solvloop = solvloop + 1
+     CALL get_rhs(b_2,v_2,bk1s,vk1s,nmhc1s,ndt)
+     
+     b_2 = b_in+a21*dt*bk1+a22*dt*bk2
+     v_2 = v_in+a21*dt*vk1+a22*dt*vk2
+     
+     CALL get_rhs(b_2,v_2,bk2s,vk2s,nmhc2s,ndt)
+     
+     ! Fixed point solution
+     
+     l1norm = sum(abs(bk1-bk1s)+abs(vk1-vk1s)+abs(vk2-vk2s)+abs(bk2-bk2s))
      maxdev = max(maxval(abs(bk1-bk1s)),&
           maxval(abs(vk1-vk1s)),&
           maxval(abs(bk2-bk2s)),&
           maxval(abs(vk2-vk2s)))
-     l1norm = sum(abs(bk1-bk1s)+abs(vk1-vk1s)+abs(vk2-vk2s)+abs(bk2-bk2s))
-
+     solvloop = solvloop + 1
+     
      if (solvloop.eq.999) print *, "Failed to Converge After 1000 iterations Maxdev ",maxdev
 
   ENDDO
@@ -711,9 +726,9 @@ SUBROUTINE GAUSS2(b_in,v_in,dt_new)
   COMPLEX, INTENT(INOUT) :: v_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
   REAL, INTENT(OUT) :: dt_new
 
-  REAL :: a11
-  REAL :: nmhc1,nmhc1s
-  REAL :: ndt,maxdev,l1norm
+  REAL(C_DOUBLE) :: a11
+  REAL(C_DOUBLE) :: nmhc1,nmhc1s
+  REAL(C_DOUBLE) :: ndt,maxdev,l1norm
   INTEGER :: solvloop
 
   a11 = 1.0/2.0
@@ -721,10 +736,12 @@ SUBROUTINE GAUSS2(b_in,v_in,dt_new)
   ! Initial guess
   CALL get_rhs(b_in,v_in,bk1,vk1,nmhc1,ndt)
   ! Iterate
-  CALL get_rhs(b_in+a11*dt*bk1,v_in+a11*dt*vk1,bk1s,vk1s,nmhc1s,ndt)  
+  bk2 = b_in+a11*dt*bk1
+  vk2 = v_in+a11*dt*vk1
+  CALL get_rhs(bk2,vk2,bk1s,vk1s,nmhc1s,ndt)  
 
-  l1norm = sum(abs(bk1-bk1s)+abs(vk1-vk1s))
-  maxdev = max(maxval(abs(bk1-bk1s)),maxval(abs(vk1-vk1s)))
+  l1norm = 1.0
+  maxdev = 1.0
   solvloop = 0
 
   DO WHILE ((solvloop.lt.1000).and.(maxdev.gt.10.0**(-16.0)))
@@ -732,10 +749,18 @@ SUBROUTINE GAUSS2(b_in,v_in,dt_new)
 
      if (verbose) print *, "Iteration ",solvloop,"Discrepancy ",maxdev
 
+     if (solvloop.eq.0) then
+
+     endif
+     
+
      bk1 = bk1s
      vk1 = vk1s
 
-     CALL get_rhs(b_in+a11*dt*bk1,v_in+a11*dt*vk1,bk1s,vk1s,nmhc1s,ndt)
+     bk2 = b_in+a11*dt*bk1
+     vk2 = v_in+a11*dt*vk1
+
+     CALL get_rhs(bk2,vk2,bk1s,vk1s,nmhc1s,ndt)
 
      solvloop = solvloop + 1
      maxdev = max(maxval(abs(bk1-bk1s)),maxval(abs(vk1-vk1s)))
