@@ -12,9 +12,9 @@ rey = 0.0
 kxmin =   0.02
 kymin =   0.02
 kzmin =   0.01
-nkx0 = 128
-nky0 = 256
-nkz0 = 256
+nkx0 = 32
+nky0 = 64
+nkz0 = 64
 nv0 =   2
 nh0 =    1
 nspec =    1
@@ -35,9 +35,9 @@ courant =   0.5
 kxinit_min = 0
 kyinit_min = 0
 kzinit_min = 0
-kxinit_max = 128
-kyinit_max = 256
-kzinit_max = 256
+kxinit_max = 32
+kyinit_max = 64
+kzinit_max = 64
 init_energy = 0.01
 init_amp_bx = 0.0
 init_amp_by = 0.0
@@ -57,8 +57,8 @@ hyp = 1
 /
 
 &diagnostics
-diagdir = "/pscratch/sd/e/echansen/DNA2MHDruns/segcheck"
-loaddir = "/pscratch/sd/e/echansen/DNA2MHDruns/fullwhist"
+diagdir = "/pscratch/sd/e/echansen/DNA2MHDruns/mpifft3"
+loaddir = "/pscratch/sd/e/echansen/DNA2MHDruns/mpifft3"
 istep_ffm =   20
 istep_energy3d =  500
 istep_energy =  1
@@ -72,7 +72,7 @@ istep_eshells =   500
 istep_real =   200
 istep_fmom3d =  500
 istep_gamma =    0
-istep_schpt =  200
+istep_schpt =  50
 output_nlt_n = F
 /
 
@@ -135,9 +135,9 @@ random_state = 3
 /
 
 &initial_value
-max_itime = 1
+max_itime = 200
 max_walltime =   10000000.0
-dt_max = 0.002
+dt_max = 0.02
 fix_dt = F
 max_time =   10000000.
 /

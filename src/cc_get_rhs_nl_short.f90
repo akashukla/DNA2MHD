@@ -1,4 +1,4 @@
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !! 29/12/2012                                                                !!
 !!                            cc_get_rhs_nl.f90                              !!
 !!                                                                           !!
@@ -103,9 +103,9 @@ SUBROUTINE initialize_fourier_ae_mu0
 
   !WRITE(*,*) "making plans"
   CALL dfftw_plan_dft_c2r_3d(plan_c2r,nx0_big,ny0_big,nz0_big,&
-                             temp_big,store,FFTW_ESTIMATE,FFTW_BACKWARD)
+                             temp_big,store,FFTW_EXHAUSTIVE+FFTW_DESTROY_INPUT)
   CALL dfftw_plan_dft_r2c_3d(plan_r2c,nx0_big,ny0_big,nz0_big,&
-       store,temp_big,FFTW_ESTIMATE,FFTW_FORWARD)
+       store,temp_big,FFTW_EXHAUSTIVE+FFTW_DESTROY_INPUT)
 
   lky_big=ny0_big-hky_ind !Index of minimum (most negative) FILLED ky value for big arrays
   if (.not.splitx) lkx_big = nx0_big-hkx_ind
@@ -271,8 +271,11 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
     CALL ZEROPAD
     if (timer) padtime = MPI_WTIME()
     if (timer) print *, "Pad Call Time",padtime-sttime
-    
+
+    if (timer) sttime = MPI_WTIME()
     CALL dfftw_execute_dft_c2r(plan_c2r,temp_big,store)
+    if (timer) padtime = MPI_WTIME()
+    if (timer) print *, "1 IFFT Time",padtime-sttime
     curlbz = store
     
 endif !Skip b FFTs if Navier Stokes 

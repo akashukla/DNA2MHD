@@ -16,7 +16,8 @@
 #####  LIBRARIES AND INCLUDE FILES
 ###############################################################################
 # MKLLIBS = -Wl,--start-group $(MKLROOT)/lib/intel64/libmkl_intel_lp64.a $(MKLROOT)/lib/intel64/libmkl_sequential.a $(MKLROOT)/lib/intel64/libmkl_core.a -Wl,--end-group -lpthread -lm
-MKLLIBS = -qmkl
+MKLLIBS = 
+
 
 ifeq ($(PRECISION),double)
   FFTLIBS +=  -Wl,-rpath,$(FFTW_ROOT)/lib -L$(FFTW_ROOT)/lib -lfftw3_mpi -lfftw3
@@ -54,7 +55,7 @@ ifeq ($(CMPLTYPE),optim)
 endif
 
 ifeq ($(CMPLTYPE),debug)
-  OPT = -O0
+  FFLAGS = -O0
   FFLAGS += -g 
 endif
 

@@ -82,6 +82,7 @@ SUBROUTINE arrays
   IMPLICIT NONE
   
   INTEGER :: i,j,l,hypv_handle
+  INTEGER(C_INTPTR_T) :: zpad
 
   !Info for k grids
   !Note the format for the ky/kx indices:
@@ -95,7 +96,14 @@ SUBROUTINE arrays
     hkx_ind = nkx0/2-1
     lkx_ind = nkx0-hkx_ind
     hkz_ind = nkz0-1
-  endif
+ endif
+
+  if (dealias_type.eq.1) zpad = 2
+  if (((dealias_type.eq.3).or.(dealias_type.eq.4)).or.((dealias_type.eq.6).or.(dealias_type.eq.8))) zpad = dealias_type
+
+  ny0_big=zpad*nky0/2
+  nx0_big = zpad*nkx0
+  nz0_big = zpad*nkz0/2
 
   hky_ind=nky0/2-1     !Index of maximum (used,i.e. not dummy) ky value 
   lky_ind=nky0-hky_ind !Index of minimum (most negative) ky value
@@ -161,6 +169,16 @@ SUBROUTINE arrays
 !  IF(.not.allocated(g_1))&
 !      ALLOCATE(g_1(0:nkx0-1,0:nky0-1,lkz1:lkz2,lv1:lv2,lh1:lh2,ls1:ls2)) 
   IF(.not.allocated(reader)) ALLOCATE(reader(0:nkx0-1,0:nky0-1,lkz1:lkz2))
+  IF (.not.allocated(fullsmallarray)) ALLOCATE(fullsmallarray(0:nkx0-1,0:nky0-1,0:nkz0-1))
+  IF (.not.allocated(fullbigarray)) ALLOCATE(fullbigarray(0:nx0_big/2,0:ny0_big-1,0:nz0_big-1))
+
+  IF (.not.allocated(scatter_big)) ALLOCATE(scatter_big((1+nx0_big/2)*ny0_big*nz0_big/n_mpi_procs))
+  IF (.not.allocated(scatter_small)) ALLOCATE(scatter_small(nkx0*nky0*nkz0/n_mpi_procs))
+
+  IF (.not.allocated(gather_big)) ALLOCATE(gather_big((1+nx0_big/2)*ny0_big*nz0_big))
+  IF (.not.allocated(gather_small)) ALLOCATE(gather_small(nkx0*nky0*nkz0))
+  
+  
   IF(.not.allocated(b_1))&
       ALLOCATE(b_1(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)) 
   IF(.not.allocated(v_1))&
@@ -516,6 +534,15 @@ SUBROUTINE finalize_arrays
 
   !  IF(allocated(g_1)) DEALLOCATE(g_1)
   IF (allocated(reader)) DEALLOCATE(reader)
+  IF (allocated(fullbigarray)) DEALLOCATE(fullbigarray)
+  IF (allocated(fullsmallarray)) DEALLOCATE(fullsmallarray)
+
+    DEALLOCATE(gather_big)
+  DEALLOCATE(gather_small)
+
+  DEALLOCATE(scatter_big)
+  DEALLOCATE(scatter_small)
+  
   IF(allocated(b_1)) DEALLOCATE(b_1)
   IF(allocated(v_1)) DEALLOCATE(v_1)
 !  IF(allocated(gpsi)) DEALLOCATE(gpsi)

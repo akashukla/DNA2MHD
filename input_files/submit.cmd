@@ -10,4 +10,4 @@
 #SBATCH --mail-type=begin,end,fail
 #SBATCH --mail-user=ehansen99@utexas.edu
 
-srun /global/homes/e/echansen/DNA2MHD/bin2/dna
+srun -n 4 valgrind --num-callers=500 --log-file=vg.%p /global/homes/e/echansen/DNA2MHD/bin2/dna

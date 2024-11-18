@@ -235,10 +235,9 @@ SUBROUTINE diag
          WRITE(en_handle) canbound
          if (mype.eq.0) WRITE(en_handle) mhelcorr
          ! if (verbose.and.(mype.eq.0)) write(*,*) "Found Helicities",mype
-         if (track_divs) CALL divs    
-         ! IF(verbose.and.(mype.eq.0)) WRITE(*,*) "Done with energy diag.",mype
      END IF
 
+   IF (.false.) THEN
      IF((istep_energyspec.ne.0).and.(mype.eq.0).and.(MOD(itime,istep_energyspec)==0)) THEN
          ! IF(verbose) WRITE(*,*) "Starting energyspec diag.",mype
          WRITE(enspec_handle) time
@@ -246,15 +245,17 @@ SUBROUTINE diag
          WRITE(mode_handle) time
          CALL mode_spec()
          ! IF(verbose) WRITE(*,*) "Done with energyspec diag.",mype
-     END IF
+      END IF
+   ENDIF
+   
 
-  IF((istep_schpt.ne.0).and.(mype.eq.0).and.(MOD(itime,istep_schpt)==0)) THEN
+  IF((istep_schpt.ne.0).and.(MOD(itime,istep_schpt)==0)) THEN
       ! IF(verbose) WRITE(*,*) "Writing s_checkpoint.",mype
       CALL checkpoint_out(1)
       ! IF(verbose) WRITE(*,*) "Done writing s_checkpoint.",mype
   END IF
 
-  IF((istep_gout.ne.0).and.(mype.eq.0).and.(MOD(itime,istep_gout)==0)) THEN
+  IF((istep_gout.ne.0).and.(MOD(itime,istep_gout)==0)) THEN
 
       ! IF(verbose) WRITE(*,*) "Starting vbout diag.",mype
 
@@ -296,15 +297,16 @@ SUBROUTINE bv_last
   
   CALL MPI_TYPE_CREATE_SUBARRAY(4,sizes_4d,subsizes_4d,starts_4d,&
        MPI_ORDER_FORTRAN, MPI_DOUBLE_COMPLEX,MPI_4D_COMPLEX_ARRAY,ierr)
+  CALL MPI_TYPE_COMMIT(MPI_4D_COMPLEX_ARRAY,ierr)
 
   ! Open file and set view
   CALL MPI_FILE_OPEN(MPI_COMM_WORLD,trim(diagdir)//'/blast_out.dat',&
        MPI_MODE_WRONLY.or.MPI_MODE_CREATE, MPI_INFO_NULL,blast_handle,ierr)
-  CALL MPI_FILE_SET_VIEW(blast_handle,0, MPI_DOUBLE_COMPLEX,MPI_4D_COMPLEX_ARRAY,&
-       "native",MPI_INFO_NULL,ierr)
+  CALL MPI_FILE_SET_VIEW(blast_handle,0, MPI_DOUBLE_COMPLEX,&
+       MPI_4D_COMPLEX_ARRAY,"native",MPI_INFO_NULL,ierr)
 
   ! Write into file
-  CALL MPI_FILE_WRITE_SHARED(blast_handle,b_1,product(subsizes_4d),MPI_DOUBLE_COMPLEX,status,ierr)
+  CALL MPI_FILE_WRITE_ALL(blast_handle,b_1,1,MPI_4D_COMPLEX_ARRAY,MPI_STATUS_IGNORE,ierr)
   CALL MPI_FILE_GET_SIZE(blast_handle,size,ierr)
   print	*, size	
   ! Close file
@@ -312,9 +314,9 @@ SUBROUTINE bv_last
 
   CALL MPI_FILE_OPEN(MPI_COMM_WORLD,trim(diagdir)//'/vlast_out.dat',&
        MPI_MODE_WRONLY.or.MPI_MODE_CREATE, MPI_INFO_NULL,vlast_handle,ierr)
-  CALL MPI_FILE_SET_VIEW(vlast_handle,0, MPI_DOUBLE_COMPLEX, MPI_4D_COMPLEX_ARRAY,&
-       "native",MPI_INFO_NULL,ierr)
-  CALL MPI_FILE_WRITE_SHARED(vlast_handle,v_1,product(subsizes_4d),MPI_DOUBLE_COMPLEX,status,ierr)
+  CALL MPI_FILE_SET_VIEW(vlast_handle,0, MPI_DOUBLE_COMPLEX,&
+       MPI_4D_COMPLEX_ARRAY,"native",MPI_INFO_NULL,ierr)
+  CALL MPI_FILE_WRITE_ALL(vlast_handle,v_1,1,MPI_4D_COMPLEX_ARRAY,MPI_STATUS_IGNORE,ierr)
   CALL MPI_FILE_GET_SIZE(vlast_handle,size,ierr)
   print *, size
   CALL MPI_FILE_CLOSE(vlast_handle, ierr)
@@ -346,6 +348,7 @@ SUBROUTINE bv_first
 
   CALL MPI_TYPE_CREATE_SUBARRAY(4,sizes_4d,subsizes_4d,starts_4d,&
        MPI_ORDER_FORTRAN, MPI_DOUBLE_COMPLEX,MPI_4D_COMPLEX_ARRAY,ierr)
+  CALL MPI_TYPE_COMMIT(MPI_4D_COMPLEX_ARRAY,ierr)
 
   ! Open file and set view
   CALL MPI_FILE_OPEN(MPI_COMM_WORLD,trim(loaddir)//'/blast_out.dat',&
@@ -710,7 +713,7 @@ LW = (8*pi**3)* (abs(v_1(:,:,:,0))**2 + abs(v_1(:,:,:,1))**2+abs(v_1(:,:,:,2))**
 test1 = nint(3*kmax*force_frac/kxmin)+2
 test2 = nint(7*kmax*force_frac/kxmin)+2
 
-CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+! CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
 print *, mype,"Fractional IR Energy Change Diff",abs((LW(test1,test1,lkz1+1)-OSPEC(test1,test1,lkz1+1)) &
      -(LW(test2,test2,lkz1+1)-OSPEC(test2,test2,lkz1+1))) &
      /abs(LW(test2,test2,lkz1+1)-OSPEC(test2,test2,lkz1+1))
