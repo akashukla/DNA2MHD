@@ -1,10 +1,9 @@
 &physical_parameters
-nu = 0.00
 omt = 5.000
 omn =    1.000    
 Ti0Te =    1.000 
 eta = 1.0
-vnu = 0.0
+vnu = 0.01
 rey = 0.0
 /
 
@@ -57,8 +56,8 @@ hyp = 1
 /
 
 &diagnostics
-diagdir = "/pscratch/sd/e/echansen/DNA2MHDruns/mpifft3"
-loaddir = "/pscratch/sd/e/echansen/DNA2MHDruns/mpifft3"
+diagdir = "/pscratch/sd/e/echansen/DNA2MHDruns/mpifft4"
+loaddir = "/pscratch/sd/e/echansen/DNA2MHDruns/mpifft4"
 istep_ffm =   20
 istep_energy3d =  500
 istep_energy =  1
@@ -77,7 +76,7 @@ output_nlt_n = F
 /
 
 &flags
-verbose  = F
+verbose  = T
 timer = F
 nonlinear  = T
 actual_nonlinear = T
@@ -95,7 +94,7 @@ rhs_lin_version = 12
 dealias_type = 3
 shifted = F
 splitx = T
-force_turbulence = F
+force_turbulence = T
 forceb = T
 forcetype = 31
 set_forcing = F
@@ -135,9 +134,9 @@ random_state = 3
 /
 
 &initial_value
-max_itime = 200
+max_itime = 100
 max_walltime =   10000000.0
 dt_max = 0.02
 fix_dt = F
-max_time =   10000000.
+max_time =   10000000.0
 /

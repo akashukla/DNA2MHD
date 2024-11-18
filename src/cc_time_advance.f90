@@ -70,6 +70,7 @@ SUBROUTINE iv_solver
  ! if (linen) CALL ALLOCATE_SPHS
 
  rkstage = 0
+ if (verbose) print *, mype,"Starting Main Loop"
  
  DO WHILE((time.lt.max_time).and.(itime.lt.max_itime).and.(continue_run))
  
@@ -435,10 +436,19 @@ SUBROUTINE getmhcrk(b_in,v_in,nmhc)
  COMPLEX, INTENT(in) :: v_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
 
  REAL(C_DOUBLE), intent(out) :: nmhc
- REAL(C_DOUBLE) :: nmhcsm(2),nmhcs(2)
+ REAL(C_DOUBLE) :: nmhcsm(1:2),nmhcs(1:2)
+ INTEGER :: i,j,k
 
-   if (splitx) nmhcsm(1) = - 2.0 * sum(real(b_in(1:nkx0-1,:,:,0)*conjg(v_in(1:nkx0-1,:,:,1))-b_in(1:nkx0-1,:,:,1)*conjg(v_in(1:nkx0-1,:,:,0))))
-   if (splitx) nmhcsm(2) = - 1.0 * real(sum(b_in(0,:,:,0)*conjg(v_in(0,:,:,1))-b_in(0,:,:,1)*conjg(v_in(0,:,:,0))))
+ nmhcsm = 0.0
+
+ DO j = 0,nky0-1
+    DO k = lkz1,lkz2
+       nmhcsm(2) = nmhcsm(2) - 1.0 * real(b_in(0,j,k,0)*conjg(v_in(0,j,k,1))-b_in(0,j,k,1)*conjg(v_in(0,j,k,0)))
+       DO i = 1,nkx0-1
+          nmhcsm(1) = nmhcsm(1) -2.0 * real(b_in(i,j,k,0)*conjg(v_in(i,j,k,1))-b_in(i,j,k,1)*conjg(v_in(i,j,k,0)))
+       ENDDO
+    ENDDO
+ ENDDO
 
    CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
    CALL MPI_ALLREDUCE(nmhcsm,nmhcs,2,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)

@@ -44,6 +44,7 @@ SUBROUTINE initial_condition(which_init0)
   INTEGER :: rseed_size,ierr
   REAL :: testrandoms(10)
   REAL :: truncx,truncy,truncz,nlt
+  REAL :: fperpm,fperp
 
   REAL :: turnoverm,nltmin,nltmax ! MPI ALL REDUCE variables
   INTEGER(int64) :: t 
@@ -150,8 +151,13 @@ SUBROUTINE initial_condition(which_init0)
       ! Set forcing such that a smallest wavenumber mode
       ! would have energy force_amp times guide field energy divided by number of modes forced
       ! Order of magnitude estimate pending phases and forcing, of course
+
+      fperpm = sum(abs( kperps .lt. (maxval(kperps) * force_frac)))
+
+      CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+      CALL MPI_ALLREDUCE(fperpm,fperp,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
       
-      force_amp = abs(cmplx(vnu*(kmags(0,0,1))**(2.0*hyp),0)) * sqrt(1.0/3.0 * force_amp) * sqrt(8.0 * (pi ** 3))/sum(abs( kperps .lt. (maxval(kperps) * force_frac)))
+      force_amp = abs(cmplx(vnu*(kxmin)**(2.0*hyp),0)) * sqrt(1.0/3.0 * force_amp) * sqrt(8.0 * (pi ** 3))/fperp
       
       print *, "Force Amp",force_amp      
 

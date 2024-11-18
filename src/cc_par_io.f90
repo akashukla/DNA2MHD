@@ -69,12 +69,8 @@ SUBROUTINE read_parameters
   NAMELIST /rk_test/ &
       rc0,ic0,dt_rktest,rmax,imax,delta_lambda,test_rk4
 
-  IF (mype==0) WRITE(*,*) "Reading parameters."
-  IF (mype==0) WRITE(*,*)
-
-  IF(mype==0) THEN
-     WRITE(*,*) "Reading input parameters."
-  END IF
+  if (verbose) print *, "Reading parameters.",mype
+  if (verbose) print *, "Reading input parameters.",mype
   
   CALL get_io_number
   par_handle=io_number
@@ -109,6 +105,8 @@ SUBROUTINE read_parameters
   IF (ierr.gt.0) STOP 'on i/o error: incorrect rk_test NAMELIST'
 
   CLOSE(par_handle)
+
+  if (verbose) print *, mype,"Read parameters"
 
 
   !! Initialization and checks
@@ -251,6 +249,7 @@ END SUBROUTINE read_parameters
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 SUBROUTINE output_parameters
   USE par_mod
+  USE mpi 
   INTEGER :: out_handle
 
   IF (verbose.and.(mype.eq.0)) WRITE(*,*) "In Output Parameters"
@@ -505,8 +504,12 @@ SUBROUTINE output_parameters
 
    CLOSE(out_handle)
    IF (verbose) WRITE(*,*) "closed out handle"
+   
 
-   END IF !mype==0
+END IF !mype==0
+
+CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+if (verbose) print *, "Leaving Output Parameters",mype
 
 END SUBROUTINE output_parameters
 
@@ -521,7 +524,7 @@ END SUBROUTINE output_parameters
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 SUBROUTINE checkpoint_out(purpose)
   USE par_mod
-  !USE mpi
+  USE mpi
   !USE field_solver, only: get_phi
   USE nonlinearity, only: get_rhs_nl
   IMPLICIT NONE
@@ -542,7 +545,8 @@ SUBROUTINE checkpoint_out(purpose)
    IF(np_kz.gt.1) STOP "checkpoint_out not yet implemented for np_kz.gt.1"
 
 
-   if (verbose) print *, mype,"Checkpoint Out"
+   if (verbose) print *, mype,"Checkpoint Out",purpose
+   CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
   not_first=.false.
   IF(purpose==1) THEN !WRITE security checkpoint
     chp_name='/s_checkpoint.dat'
@@ -580,26 +584,22 @@ SUBROUTINE checkpoint_out(purpose)
 
       INQUIRE(file=trim(diagdir)//trim(chp_name_b),exist=not_first)
 
-      IF (.not.not_first) THEN
+      IF (.not.not_first.and.mype.eq.0) THEN
          CALL get_io_number
          b_out_handle = io_number
-         if (mype.eq.0) THEN
             OPEN(unit=b_out_handle,file=trim(diagdir)//trim(chp_name_b),&
                  form='unformatted', status='replace',access='stream')
             CLOSE(b_out_handle)
-         endif
          
       ENDIF
 
       INQUIRE(file=trim(diagdir)//trim(chp_name_v),exist=not_first)
-      IF (.not.not_first) THEN
+      IF (mype.eq.0.and..not.not_first) THEN
          CALL get_io_number
          v_out_handle = io_number
-         if (mype.eq.0) THEN
             OPEN(unit=v_out_handle,file=trim(diagdir)//trim(chp_name_v),&
                  form='unformatted', status='replace',access='stream')
             CLOSE(v_out_handle)
-         endif                  
       ENDIF
 
       chp_handle_b = b_out_handle

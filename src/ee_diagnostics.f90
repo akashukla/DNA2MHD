@@ -223,18 +223,18 @@ SUBROUTINE diag
   if (itime.eq.0) CALL bound_hels
 
      IF((istep_energy.ne.0).and.(MOD(itime,istep_energy)==0))THEN
-         ! IF(verbose.and.(mype.eq.0)) WRITE(*,*) "Starting energy diag.",mype
+         IF(verbose) WRITE(*,*) "Starting energy diag.",mype
          IF (mype.eq.0) WRITE(en_handle) time
          CALL hmhdhmtn(0)
-         ! if (verbose.and.(mype.eq.0)) write(*,*) "Found Hamiltonian",mype
+         if (verbose) write(*,*) "Found Hamiltonian",mype
          CALL mag_helicity()
          CALL cross_helicity()
          CALL hmhdhmtn(1)
          CALL hmhdhmtn(2)
-         WRITE(en_handle) magbound
-         WRITE(en_handle) canbound
+         if(mype.eq.0) WRITE(en_handle) magbound
+         if (mype.eq.0) WRITE(en_handle) canbound
          if (mype.eq.0) WRITE(en_handle) mhelcorr
-         ! if (verbose.and.(mype.eq.0)) write(*,*) "Found Helicities",mype
+         if (verbose) write(*,*) "Found Helicities",mype
      END IF
 
    IF (.false.) THEN

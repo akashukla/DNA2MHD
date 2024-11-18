@@ -766,7 +766,7 @@ if (padv3) then
   CALL MPI_SCATTER(fullsmallarray,nkx0*nky0*nkz0/n_mpi_procs,MPI_DOUBLE_COMPLEX,scatter_small,&
        nkx0*nky0*nkz0/n_mpi_procs,MPI_DOUBLE_COMPLEX,0,MPI_COMM_WORLD,ierr)
 
-  if (verbose.and.(mype.eq.0)) print *, "Scatter Small",maxval(abs(scatter_small))
+  if (verbose) print *, "Scatter Small",mype,maxval(abs(scatter_small))
 
   temp_small = reshape(scatter_small,[nkx0,nky0,nkz0/n_mpi_procs])
 
