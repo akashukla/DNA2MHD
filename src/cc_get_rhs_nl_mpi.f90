@@ -38,7 +38,6 @@ MODULE nonlinearity
 
   COMPLEX(C_DOUBLE), ALLOCATABLE, DIMENSION(:,:,:) :: b_inx0, b_iny0,  b_inz0, v_inx0, v_iny0,  v_inz0
   COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:) :: temp_small,bigmask,smallmask
-  COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE :: scatter_big(:),scatter_small(:),gather_big(:),gather_small(:)
 
   REAL(C_DOUBLE), ALLOCATABLE, DIMENSION(:,:,:) :: bx,by,bz,curlbx,curlby,curlbz
   REAL(C_DOUBLE), ALLOCATABLE, DIMENSION(:,:,:) :: vx,vy,vz,curlvx,curlvy,curlvz
@@ -417,7 +416,7 @@ if (verbose) print *, 'rhs out v nl found'
 if (calc_dt) CALL next_dt(ndt)
 if (.not.(calc_dt)) ndt = dt_max
 
-if (calc_dt) print *, 'next dt calculated ',ndt
+! if (calc_dt) print *, 'next dt calculated ',ndt
 
 END SUBROUTINE get_rhs_nl1
 
@@ -500,12 +499,6 @@ SUBROUTINE ALLOCATIONS
   ALLOCATE(v_iny0(0:nkx0-1,0:nky0-1,lkz1:lkz2))
   ALLOCATE(v_inz0(0:nkx0-1,0:nky0-1,lkz1:lkz2))
 
-  ALLOCATE(scatter_big((1+nx0_big/2)*ny0_big*nz0_big/n_mpi_procs))
-  ALLOCATE(scatter_small(nkx0*nky0*nkz0/n_mpi_procs))
-
-  ALLOCATE(gather_big((1+nx0_big/2)*ny0_big*nz0_big))
-  ALLOCATE(gather_small(nkx0*nky0*nkz0))
-
 END SUBROUTINE ALLOCATIONS
 
 SUBROUTINE DEALLOCATIONS
@@ -549,12 +542,6 @@ DEALLOCATE(curlbz)
   DEALLOCATE(v_inx0)
   DEALLOCATE(v_iny0)
   DEALLOCATE(v_inz0)
-
-  DEALLOCATE(gather_big)
-  DEALLOCATE(gather_small)
-
-  DEALLOCATE(scatter_big)
-  DEALLOCATE(scatter_small)
 
 END SUBROUTINE DEALLOCATIONS
 
@@ -687,7 +674,7 @@ SUBROUTINE UNPACK
   CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
   CALL fftw_mpi_execute_dft_r2c(plan_r2c,store,temp_big)
 
-  print *, "Post RFFT",maxval(abs(temp_big))
+  ! print *, "Post RFFT",maxval(abs(temp_big))
   if (verbose) print *, "Through RFFT"
   temp_small = cmplx(0.0,0.0)
   fullsmallarray = cmplx(0.0,0.0)

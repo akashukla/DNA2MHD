@@ -219,22 +219,18 @@ SUBROUTINE diag
          CALL hmhdhmtn(0)
          ! if (verbose.and.(mype.eq.0)) write(*,*) "Found Hamiltonian",mype
          CALL mag_helicity()
-         CALL err_hel1(1.0,.true.,.true.,.true.)
-         CALL bound_hels(.true.)
+            CALL bound_hels(.true.)
          CALL cross_helicity()
-         CALL err_hel1(1.0,.false.,.true.,.true.)
-         
+            
          CALL bound_hels(.false.)
          CALL hmhdhmtn(1)
          CALL hmhdhmtn(2)
          if (mype.eq.0) WRITE(en_handle) mhelcorr
          ! if (verbose.and.(mype.eq.0)) write(*,*) "Found Helicities",mype
-         CALL resvischange("b")
-         CALL resvischange("v")
-         if (track_divs) CALL divs    
-         ! IF(verbose.and.(mype.eq.0)) WRITE(*,*) "Done with energy diag.",mype
+            ! IF(verbose.and.(mype.eq.0)) WRITE(*,*) "Done with energy diag.",mype
      END IF
 
+   IF (.false.) THEN
      IF((istep_energyspec.ne.0).and.(mype.eq.0).and.(MOD(itime,istep_energyspec)==0)) THEN
          ! IF(verbose) WRITE(*,*) "Starting energyspec diag.",mype
          WRITE(enspec_handle) time
@@ -242,15 +238,17 @@ SUBROUTINE diag
          WRITE(mode_handle) time
          CALL mode_spec()
          ! IF(verbose) WRITE(*,*) "Done with energyspec diag.",mype
-     END IF
+      END IF
+   ENDIF
+   
 
-  IF((istep_schpt.ne.0).and.(mype.eq.0).and.(MOD(itime,istep_schpt)==0)) THEN
+  IF((istep_schpt.ne.0).and.(MOD(itime,istep_schpt)==0)) THEN
       ! IF(verbose) WRITE(*,*) "Writing s_checkpoint.",mype
       CALL checkpoint_out(1)
       ! IF(verbose) WRITE(*,*) "Done writing s_checkpoint.",mype
   END IF
 
-  IF((istep_gout.ne.0).and.(mype.eq.0).and.(MOD(itime,istep_gout)==0)) THEN
+  IF((istep_gout.ne.0).and.(MOD(itime,istep_gout)==0)) THEN
 
       ! IF(verbose) WRITE(*,*) "Starting vbout diag.",mype
 

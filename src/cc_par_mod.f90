@@ -269,6 +269,8 @@ MODULE par_mod
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:) :: v_1
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:) :: reader
   COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:)  :: fullsmallarray,fullbigarray
+  COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE :: scatter_big(:),scatter_small(:),gather_big(:),gather_small(:)
+  
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:) :: LW,LC,RW,RC
   REAL, ALLOCATABLE, DIMENSION(:,:,:) :: LWp,LCp,RWp,RCp
   REAL, ALLOCATABLE, DIMENSION(:,:,:) :: LWp2,LCp2,RWp2,RCp2

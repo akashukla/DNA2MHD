@@ -15,6 +15,7 @@
 !!                                                                           !!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 SUBROUTINE read_parameters
+
   USE par_mod
   !USE GaussQuadrature, only: mu_grid_type
   USE mpi
@@ -527,18 +528,20 @@ SUBROUTINE checkpoint_out(purpose)
   INTEGER, INTENT(in) :: purpose
   CHARACTER(len=100) :: chp_name, chp_name_b, chp_name_v
   INTEGER :: chp_handle_b, chp_handle_v, chp_handle
-  INTEGER :: l,p
+  INTEGER :: l,p,ind,ierr
   !COMPLEX :: g_out(0:nkx0-1,0:nky0-1,0:nkz0-1,0:lv0-1)
   !INTEGER :: stat(MPI_STATUS_SIZE)
   
-  INTEGER :: send_proc,recv_proc,ierr
+  INTEGER :: send_proc,recv_proc
   !LOGICAL :: g_output,not_first
   LOGICAL :: append,not_first
 
    IF(np_hank.gt.1) STOP "checkpoint_out not yet implemented for np_hank.gt.1"
    IF(np_spec.gt.1) STOP "checkpoint_out not yet implemented for np_spec.gt.1"
    IF(np_kz.gt.1) STOP "checkpoint_out not yet implemented for np_kz.gt.1"
- 
+
+
+   if (verbose) print *, mype,"Checkpoint Out"
   not_first=.false.
   IF(purpose==1) THEN !WRITE security checkpoint
     chp_name='/s_checkpoint.dat'
@@ -615,43 +618,71 @@ SUBROUTINE checkpoint_out(purpose)
       
    END IF
 
-   IF (mype.eq.0) then
       IF (.not.append) THEN
-         OPEN(unit=chp_handle,file=trim(diagdir)//trim(chp_name),&
+         if (mype.eq.0) OPEN(unit=chp_handle,file=trim(diagdir)//trim(chp_name),&
               form='unformatted', status='replace',access='stream')
-         WRITE(chp_handle) itime
-         WRITE(chp_handle) dt
-         WRITE(chp_handle) nkx0
-         WRITE(chp_handle) nky0
-         WRITE(chp_handle) nkz0
-         WRITE(chp_handle) time
-         WRITE(chp_handle) b_1
-         WRITE(chp_handle) v_1
-         CLOSE(chp_handle)
+         if (mype.eq.0) WRITE(chp_handle) itime
+         if (mype.eq.0) WRITE(chp_handle) dt
+         if (mype.eq.0) WRITE(chp_handle) nkx0
+         if (mype.eq.0) WRITE(chp_handle) nky0
+         if (mype.eq.0) WRITE(chp_handle) nkz0
+         if (mype.eq.0) WRITE(chp_handle) time
+
+         CALL GATHER_WRITE(chp_handle,b_1)
+         CALL GATHER_WRITE(chp_handle,v_1)
+
+         if (mype.eq.0) WRITE(chp_handle) mhelcorr
+
+         if (mype.eq.0) CLOSE(chp_handle)
          WRITE (*,*) "Closed ",purpose," handle",itime
       ELSE
-         OPEN(unit=chp_handle_b,file=trim(diagdir)//trim(chp_name_b),&
+         if (mype.eq.0) OPEN(unit=chp_handle_b,file=trim(diagdir)//trim(chp_name_b),&
               form='unformatted', status='unknown',access='stream',position='append')
-         WRITE(chp_handle_b) time
-         WRITE(chp_handle_b) b_1
-         CLOSE(chp_handle_b)
+         if (mype.eq.0) WRITE(chp_handle_b) time
+         CALL GATHER_WRITE(chp_handle,b_1)
+         if (mype.eq.0) CLOSE(chp_handle_b)
          
-         OPEN(unit=chp_handle_v,file=trim(diagdir)//trim(chp_name_v),&
+         if (mype.eq.0) OPEN(unit=chp_handle_v,file=trim(diagdir)//trim(chp_name_v),&
               form='unformatted', status='unknown',access='stream',position='append')
-         WRITE(chp_handle_v) time
-         WRITE(chp_handle_v) v_1
-         CLOSE(chp_handle_v)
+         if (mype.eq.0) WRITE(chp_handle_v) time
+         CALL GATHER_WRITE(chp_handle,v_1)
+         if (mype.eq.0) CLOSE(chp_handle_v)
          
          WRITE(*,*) 'Closed v and b handles',itime         
       ENDIF
-   ENDIF
    
 
       IF(verbose) WRITE(*,*) "checkpoint_out,mype",mype
 
   !CALL mpi_barrier(mpi_comm_world,ierr)
 
-END SUBROUTINE checkpoint_out
+    END SUBROUTINE checkpoint_out
+
+    SUBROUTINE GATHER_WRITE(chp_handle,array)
+
+      use par_mod
+      use mpi
+      
+      implicit none
+      integer, intent(in) :: chp_handle
+      complex(c_double_complex) :: array(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+      integer :: ind,ierr
+
+      DO ind = 0,2
+         reader = array(:,:,:,ind)
+
+         CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+         CALL MPI_GATHER(reader,nkx0*nky0*nkz0/n_mpi_procs,MPI_DOUBLE_COMPLEX,gather_small,&
+              nkx0*nky0*nkz0/n_mpi_procs,MPI_DOUBLE_COMPLEX,0,MPI_COMM_WORLD,ierr)
+            
+         if (mype.eq.0) fullsmallarray = reshape(gather_small,[nkx0,nky0,nkz0])
+         
+         if (mype.eq.0) WRITE(chp_handle) fullsmallarray
+
+      ENDDO
+         
+    END SUBROUTINE GATHER_WRITE
+    
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!                                                                           !!
@@ -760,34 +791,45 @@ SUBROUTINE CHECKPOINT_IN
 
 
   USE par_mod
+  USE mpi
   
   IMPLICIT NONE
   
   
   character(len=100) :: chp_name
   integer :: chp_handle
-  INTEGER :: nkx0_in,nky0_in,nkz0_in,ind,field
+  INTEGER :: nkx0_in,nky0_in,nkz0_in,ind,field,ierr
  
   chp_name = "/checkpoint.dat"
 
   CALL get_io_number
   chp_handle = io_number
 
-  if (mype.eq.0) then
-     OPEN(unit=chp_handle,file=trim(diagdir)//trim(chp_name),form='unformatted',status='unknown',access='stream')
+     if(mype.eq.0) OPEN(unit=chp_handle,file=trim(diagdir)//trim(chp_name),form='unformatted',status='unknown',access='stream')
 
-     READ(chp_handle) itime
-     READ(chp_handle) dt
-     READ(chp_handle) nkx0_in
-     READ(chp_handle) nky0_in
-     READ(chp_handle) nkz0_in
-     READ(chp_handle) time
+     if(mype.eq.0) READ(chp_handle) itime
+     if(mype.eq.0) READ(chp_handle) dt
+     if(mype.eq.0) READ(chp_handle) nkx0_in
+     if(mype.eq.0) READ(chp_handle) nky0_in
+     if(mype.eq.0) READ(chp_handle) nkz0_in
+     if(mype.eq.0) READ(chp_handle) time
 
-     READ(chp_handle) b_1
-     READ(chp_handle) v_1
-     CLOSE(chp_handle)
+     CALL SCATTER_READ(chp_handle,b_1)
+     CALL SCATTER_READ(chp_handle,v_1)
+
+     if (mype.eq.0) READ(chp_handle) mhelcorr
+
+     if(mype.eq.0) CLOSE(chp_handle)
+
+     CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+     CALL MPI_BCAST(itime, 1, MPI_INT, 0, MPI_COMM_WORLD, ierr)
+     CALL MPI_BCAST(nkx0_in, 1, MPI_INT, 0, MPI_COMM_WORLD, ierr)
+     CALL MPI_BCAST(nky0_in, 1, MPI_INT, 0, MPI_COMM_WORLD, ierr)
+     CALL MPI_BCAST(nkz0_in, 1, MPI_INT, 0, MPI_COMM_WORLD, ierr)
      
-  endif
+     CALL MPI_BCAST(dt, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD, ierr)
+     CALL MPI_BCAST(time, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD, ierr)
+     CALL MPI_BCAST(mhelcorr, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD, ierr)
 
   WRITE(*,*) "itime",itime
   WRITE(*,*) "dt",dt
@@ -797,5 +839,34 @@ SUBROUTINE CHECKPOINT_IN
   WRITE(*,*) "time",time
 
   itime_start = itime
-     
+
 END SUBROUTINE CHECKPOINT_IN
+
+
+SUBROUTINE SCATTER_READ(chp_handle,array)
+
+
+  use par_mod
+  use mpi
+  
+  implicit none
+  
+      integer, intent(in) :: chp_handle
+      complex(c_double_complex) :: array(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+      integer :: ind,ierr
+
+      array = cmplx(0.0,0.0)
+
+      DO ind = 0,2
+
+         if (mype.eq.0) READ(chp_handle) fullsmallarray
+
+         CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+         CALL MPI_SCATTER(fullsmallarray,nkx0*nky0*nkz0/n_mpi_procs,MPI_DOUBLE_COMPLEX,scatter_small,&
+              nkx0*nky0*nkz0/n_mpi_procs,MPI_DOUBLE_COMPLEX,0,MPI_COMM_WORLD,ierr)
+
+         array(:,:,:,ind) = reshape(scatter_small,[nkx0,nky0,nkz0/n_mpi_procs])
+         
+      ENDDO
+
+END SUBROUTINE SCATTER_READ

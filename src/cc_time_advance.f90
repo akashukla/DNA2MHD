@@ -77,7 +77,7 @@ SUBROUTINE iv_solver
 
     ! Don't call diagnostics on first iteration when doing a warm restart - no doubles in data
    if (timer) sttime = MPI_WTIME()
-   ! if ((.not.checkpoint_read).or.(itime.gt.itime_start)) CALL diag
+    if ((.not.checkpoint_read).or.(itime.gt.itime_start)) CALL diag
    if (timer) diagtime = MPI_WTIME()
    if (timer) print *, "Diag Time",diagtime - sttime,mype
    
@@ -160,7 +160,6 @@ if (mype.eq.0.and.verbose) print *, "Run stopped"
 if (force_turbulence) CALL finalize_force
 if (mype.eq.0.and.verbose) print *, "Force deallocated"
 CALL diag
-CALL bv_last
 
 if (linen) CALL DEALLOCATE_SPHS
 if (.not.linen) CALL DEALLOCATE_STEPS

@@ -171,6 +171,13 @@ SUBROUTINE arrays
   IF(.not.allocated(reader)) ALLOCATE(reader(0:nkx0-1,0:nky0-1,lkz1:lkz2))
   IF (.not.allocated(fullsmallarray)) ALLOCATE(fullsmallarray(0:nkx0-1,0:nky0-1,0:nkz0-1))
   IF (.not.allocated(fullbigarray)) ALLOCATE(fullbigarray(0:nx0_big/2,0:ny0_big-1,0:nz0_big-1))
+
+  IF (.not.allocated(scatter_big)) ALLOCATE(scatter_big((1+nx0_big/2)*ny0_big*nz0_big/n_mpi_procs))
+  IF (.not.allocated(scatter_small)) ALLOCATE(scatter_small(nkx0*nky0*nkz0/n_mpi_procs))
+
+  IF (.not.allocated(gather_big)) ALLOCATE(gather_big((1+nx0_big/2)*ny0_big*nz0_big))
+  IF (.not.allocated(gather_small)) ALLOCATE(gather_small(nkx0*nky0*nkz0))
+  
   
   IF(.not.allocated(b_1))&
       ALLOCATE(b_1(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)) 
@@ -529,6 +536,13 @@ SUBROUTINE finalize_arrays
   IF (allocated(reader)) DEALLOCATE(reader)
   IF (allocated(fullbigarray)) DEALLOCATE(fullbigarray)
   IF (allocated(fullsmallarray)) DEALLOCATE(fullsmallarray)
+
+    DEALLOCATE(gather_big)
+  DEALLOCATE(gather_small)
+
+  DEALLOCATE(scatter_big)
+  DEALLOCATE(scatter_small)
+  
   IF(allocated(b_1)) DEALLOCATE(b_1)
   IF(allocated(v_1)) DEALLOCATE(v_1)
 !  IF(allocated(gpsi)) DEALLOCATE(gpsi)
