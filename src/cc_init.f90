@@ -81,40 +81,31 @@ SUBROUTINE arrays
   !USE Gaussquadrature
   IMPLICIT NONE
   
-  INTEGER :: i,j,l,hypv_handle
+  INTEGER :: i,j,k,l,hypv_handle
   INTEGER(C_INTPTR_T) :: zpad
+  REAL :: b1r,b1i,b2r,b2i,b3r,b3i
 
   !Info for k grids
   !Note the format for the ky/kx indices:
   !Index:	0,    1,      2,. . . .       hky_ind,  nky0/2,  lky_ind, . . . nky0-1
   !ky val:	0.0,  kymin,  2*kymin . . . . kymax,    *,       -kymax, . . .  -kymin
-  if (splitx) then
-    hkx_ind = nkx0-1
-    hkz_ind = nkz0/2-1
-    lkz_ind = nkz0-hkz_ind
-  else
-    hkx_ind = nkx0/2-1
-    lkx_ind = nkx0-hkx_ind
-    hkz_ind = nkz0-1
- endif
+
+  hkx_ind = nkx0-1
+  hky_ind = nky0/2-1
+  hkz_ind = nkz0/2-1
+  lky_ind = nky0-hky_ind
+  lkz_ind = nkz0-hkz_ind
+  
 
   if (dealias_type.eq.1) zpad = 2
   if (((dealias_type.eq.3).or.(dealias_type.eq.4)).or.((dealias_type.eq.6).or.(dealias_type.eq.8))) zpad = dealias_type
 
-  ny0_big=zpad*nky0/2
+  ny0_big=  zpad*nky0/2
   nx0_big = zpad*nkx0
   nz0_big = zpad*nkz0/2
 
-  hky_ind=nky0/2-1     !Index of maximum (used,i.e. not dummy) ky value 
-  lky_ind=nky0-hky_ind !Index of minimum (most negative) ky value
-!  IF(nkz0==1) THEN
-!    hkz_ind=0
-!    lkz_ind=0
-!  ELSE
-!    hkz_ind=nkz0-1 !Index of maximum (used,i.e. not dummy) kz value
-!    lkz_ind=0 !Index of minimum (most negative) kz value
-!  END IF
-  
+  lky_big = ny0_big - hky_ind
+  lkz_big = nz0_big - hkz_ind
 
   IF(verbose.and.(mype.eq.0)) THEN
     WRITE(*,*) "hkx_ind",hkx_ind
@@ -131,12 +122,12 @@ SUBROUTINE arrays
   lbv=lv1-1             !Lower boundary index 
   IF(mype_herm==0) lbv=0     
   ubv=lv2+1             !Upper boundary index
-  IF(mype_herm==np_herm-1) ubv=lv2  
-
+  IF(mype_herm==np_herm-1) ubv=lv2 
+  
   !Info for kz grid
-  lkz0=nkz0
-  lkz1=mype*nkz0/n_mpi_procs
-  lkz2=(mype+1)*nkz0/n_mpi_procs-1
+  lkz0=nz0_big
+  lkz1=mype*nz0_big/n_mpi_procs
+  lkz2=(mype+1)*nz0_big/n_mpi_procs-1
 
   if (verbose) print *, mype,"Mype Limits",lkz1,lkz2
   
@@ -168,36 +159,37 @@ SUBROUTINE arrays
   
 !  IF(.not.allocated(g_1))&
 !      ALLOCATE(g_1(0:nkx0-1,0:nky0-1,lkz1:lkz2,lv1:lv2,lh1:lh2,ls1:ls2)) 
-  IF(.not.allocated(reader)) ALLOCATE(reader(0:nkx0-1,0:nky0-1,lkz1:lkz2))
-  IF (.not.allocated(fullsmallarray)) ALLOCATE(fullsmallarray(0:nkx0-1,0:nky0-1,0:nkz0-1))
+  IF(.not.allocated(reader)) ALLOCATE(reader(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2))
+  IF(.not.allocated(reader2)) ALLOCATE(reader2(1:1+nx0_big/2,1:ny0_big,1+lkz1:1+lkz2))
+  IF (.not.allocated(fullsmallarray)) ALLOCATE(fullsmallarray(0:nx0_big/2,0:ny0_big-1,0:nz0_big-1))
   IF (.not.allocated(fullbigarray)) ALLOCATE(fullbigarray(0:nx0_big/2,0:ny0_big-1,0:nz0_big-1))
 
   IF (.not.allocated(scatter_big)) ALLOCATE(scatter_big((1+nx0_big/2)*ny0_big*nz0_big/n_mpi_procs))
-  IF (.not.allocated(scatter_small)) ALLOCATE(scatter_small(nkx0*nky0*nkz0/n_mpi_procs))
+  IF (.not.allocated(scatter_small)) ALLOCATE(scatter_small((1+nx0_big/2)*ny0_big*nz0_big/n_mpi_procs))
 
   IF (.not.allocated(gather_big)) ALLOCATE(gather_big((1+nx0_big/2)*ny0_big*nz0_big))
-  IF (.not.allocated(gather_small)) ALLOCATE(gather_small(nkx0*nky0*nkz0))
+  IF (.not.allocated(gather_small)) ALLOCATE(gather_small((1+nx0_big/2)*ny0_big*nz0_big))
   
   
   IF(.not.allocated(b_1))&
-      ALLOCATE(b_1(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)) 
+      ALLOCATE(b_1(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2)) 
   IF(.not.allocated(v_1))&
-      ALLOCATE(v_1(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)) 
-  IF(.not.allocated(kxgrid)) ALLOCATE(kxgrid(0:nkx0-1))
-  IF(.not.allocated(kygrid)) ALLOCATE(kygrid(0:nky0-1))
+      ALLOCATE(v_1(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2)) 
+  IF(.not.allocated(kxgrid)) ALLOCATE(kxgrid(0:nx0_big/2))
+  IF(.not.allocated(kygrid)) ALLOCATE(kygrid(0:ny0_big-1))
   IF(spatial2d) THEN
     !kzgrid proportional to ky grid (see Watanabe and Sugama '04)
-    IF(.not.allocated(kzgrid)) ALLOCATE(kzgrid(0:nky0-1))
+    IF(.not.allocated(kzgrid)) ALLOCATE(kzgrid(0:nz0_big-1))
   ELSE
-    IF(.not.allocated(kzgrid)) ALLOCATE(kzgrid(0:nkz0-1))
+    IF(.not.allocated(kzgrid)) ALLOCATE(kzgrid(0:nz0_big-1))
  END IF
  
-  IF(.not.allocated(kmags)) ALLOCATE(kmags(0:nkx0-1,0:nky0-1,lkz1:lkz2))
-  IF(.not.allocated(kperps)) ALLOCATE(kperps(0:nkx0-1,0:nky0-1,lkz1:lkz2))
-  IF(.not.allocated(kzs)) ALLOCATE(kzs(0:nkx0-1,0:nky0-1,lkz1:lkz2))
+  IF(.not.allocated(kmags)) ALLOCATE(kmags(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2))
+  IF(.not.allocated(kperps)) ALLOCATE(kperps(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2))
+  IF(.not.allocated(kzs)) ALLOCATE(kzs(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2))
  ! IF(.not.allocated(gpsi)) ALLOCATE(gpsi(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
  ! IF(.not.allocated(pre)) ALLOCATE(pre(0:nkx0-1,0:nky0-1,lkz1:lkz2))
-  IF(.not.allocated(pcurleig)) ALLOCATE(pcurleig(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
+  IF(.not.allocated(pcurleig)) ALLOCATE(pcurleig(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2))
   
   !IF(.not.allocated(herm_grid)) ALLOCATE(herm_grid(0:nv0-1))
   !IF(.not.allocated(hgrid_loc)) ALLOCATE(hgrid_loc(lv1:lv2))
@@ -213,45 +205,27 @@ SUBROUTINE arrays
   !hyp_y_herm1(:) = 0.001 
 
   IF(kmin_eq_0) THEN
-    if (splitx) then
 
-    DO i=0,nkx0-1
+    DO i=0,nx0_big/2
       kxgrid(i)=i*kxmin
     END DO
     kxmax=(nkx0-1)*kxmin
 
     kzgrid(0)=0.0
-    DO i=1,nkz0/2-1
+    DO i=1,nz0_big/2-1
       kzgrid(i)=i*kzmin
-      kzgrid(nkz0-i)=-i*kzmin
+      kzgrid(nz0_big-i)=-i*kzmin
     END DO
     kzmax=(nkz0/2-1)*kzmin
-    kzgrid(nkz0/2)=kzmax+kzmin
-
-    else
-
-    DO i=0,nkz0-1
-      kzgrid(i)=i*kzmin
-    END DO 
-    kzmax=(nkz0-1)*kzmin
-
-    kxgrid(0)=0.0
-    DO i=1,nkx0/2-1
-      kxgrid(i)=i*kxmin
-      kxgrid(nkx0-i)=-i*kxmin
-    END DO
-    kxmax=(nkx0/2-1)*kxmin
-    kxgrid(nkx0/2)=kxmax+kxmin 
-
-    endif
+    kzgrid(nz0_big/2)=nz0_big/2 * kzmin
 
     kygrid(0)=0.0
-    DO i=1,nky0/2-1
+    DO i=1,ny0_big/2-1
       kygrid(i)=i*kymin
-      kygrid(nky0-i)=-i*kymin
+      kygrid(ny0_big-i)=-i*kymin
     END DO 
     kymax=(nky0/2-1)*kymin
-    kygrid(nky0/2)=kymax+kymin
+    kygrid(ny0_big/2)=ny0_big/2 * kymin
 
   ELSE !.not.kmin_eq_0, i.e. linear
     kxgrid(0)=kxmin
@@ -264,6 +238,43 @@ SUBROUTINE arrays
 
  kmax = sqrt(kxmax**2.0 + kymax**2.0 + kzmax**2.0)
 
+ DO i = 0,nx0_big/2
+    DO j = 0,ny0_big-1
+       DO k = lkz1,lkz2
+          kmags(i,j,k) = sqrt(kxgrid(i)**2 + kygrid(j)**2 + kzgrid(k)**2)
+          kperps(i,j,k) = sqrt(kxgrid(i)**2 + kygrid(j)**2)
+          kzs(i,j,k) = kzgrid(k)
+       END DO
+    END DO
+ END DO
+
+ DO i = 0,nx0_big/2
+    DO j = 0,ny0_big-1
+       DO k = lkz1,lkz2
+          IF ((kmags(i,j,k).ne.0).and.(kperps(i,j,k).ne.0)) THEN
+             b1r = -1.0 / (kperps(i,j,k)*sqrt(2.0)) * kygrid(j)
+             b2r = 1.0 / (kperps(i,j,k)*sqrt(2.0)) * kxgrid(i)
+             b3r = 0.0
+             b1i = (kygrid(j) * b3r - kzgrid(k) * b2r)/kmags(i,j,k)
+             b2i = (kzgrid(k) * b1r - kxgrid(i) * b3r)/kmags(i,j,k)
+             b3i = (kxgrid(i) * b2r - kygrid(j) * b1r)/kmags(i,j,k)
+             pcurleig(i,j,k,0) = cmplx(b1r,b1i)
+             pcurleig(i,j,k,1) = cmplx(b2r,b2i)
+             pcurleig(i,j,k,2) = cmplx(b3r,b3i)
+          ELSE
+             pcurleig(i,j,k,:) = cmplx(0.0,0.0)
+          ENDIF
+          ! if (verbose) print *, i,j,k,sum(abs(pcurleig(i,j,k,:))**2)                                                                                                  
+       ENDDO
+    ENDDO
+ ENDDO
+
+ ALLOCATE(alpha_leftwhist(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2))
+ ALLOCATE(alpha_leftcyclo(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2))
+
+ alpha_leftwhist = -kmags/2.0 - sqrt(1.0 + ((kmags**2.0) / 4.0))
+ alpha_leftcyclo = -kmags/2.0 + sqrt(1.0 + ((kmags**2.0) / 4.0))  
+ 
   !DO i=0,nv0-1
   !  herm_grid(i)=REAL(i)
   !END DO 
@@ -321,209 +332,6 @@ SUBROUTINE arrays
 
 END SUBROUTINE arrays
 
-
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!                                                                           !!
-!!                                   arrays_temp                              !!
-!!                                                                           !!
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!  Sets up indices and allocates important arrays
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-SUBROUTINE arrays_temp
-  USE par_mod
-  !USE flr_effects
-  !USE hk_effects
-  !USE Gaussquadrature
-  IMPLICIT NONE
-  
-  INTEGER :: i,l,j,hypv_handle
-
-  !Info for k grids
-  !Note the format for the ky/kz indices:
-  !Index:	0,    1,      2,. . . .       hky_ind,  nky0/2,  lky_ind, . . . nky0-1
-  !ky val:	0.0,  kymin,  2*kymin . . . . kymax,    *,       -kymax, . . .  -kymin
-  hkx_ind=nkx0-1     !Index of maximum kx value
-  hky_ind=nky0/2-1     !Index of maximum (used,i.e. not dummy) ky value 
-  lky_ind=nky0-hky_ind !Index of minimum (most negative) ky value
-  hkz_ind=nkz0/2-1 !Index of maximum (used,i.e. not dummy) kz value
-  lkz_ind=nkz0-hkz_ind !Index of minimum (most negative) kz value
-
-  IF(verbose.and.(mype.eq.0)) THEN
-    WRITE(*,*) "hkx_ind",hkx_ind
-    WRITE(*,*) "hky_ind",hky_ind
-    WRITE(*,*) "lky_ind",lky_ind
-    WRITE(*,*) "hkz_ind",hkz_ind
-    WRITE(*,*) "lkz_ind",lkz_ind
-  END IF
-
-!  !Info for v grid and parallelization
-!  lv0=nv0  !Number of hermites per processor
-!  lv1=0
-!  lv2=lv0-1    !Upper index on processor mype
-!  lbv=lv1-1             !Lower boundary index 
-!  IF(mype_herm==0) lbv=0     
-!  ubv=lv2+1             !Upper boundary index
-!  IF(mype_herm==np_herm-1) ubv=lv2  
-
-  !Info for kz grid
-  lkz0=nkz0
-  lkz1=0
-  lkz2=lkz0-1
-  !Verify the following when implementing kz parallelization
-  lbkz=lkz1
-  ubkz=lkz2
-
-!  !Info for Hankel grid
-!  lh0=nh0
-!  lh1=0
-!  lh2=lh0-1
-!  !Verify the following when implementing h parallelization
-!  !As a first implementation, no collision operator, so nhb = 0
-!  nhb  = 0
-!  lbh=lh1 - nhb
-!  ubh=lh2 + nhb
-
-
-  !Info for species grid
-  ls0=nspec
-  ls1=0
-  ls2=ls0-1
-  !Verify the following when implementing s parallelization
-  lbs=ls1
-  ubs=ls2
-
-!   lxyzvhs0=nkx0*nky0*lkz0*lv0*lh0*ls0   
-!   ev_size_loc=lxyzvhs0
-!   ev_size=lxyzvhs0*np_herm*np_hank*np_kz*np_spec
-  
-!  IF(.not.allocated(g_1))&
-!      ALLOCATE(g_1(0:nkx0-1,0:nky0-1,lkz1:lkz2,lv1:lv2,lh1:lh2,ls1:ls2)) 
-  IF(.not.allocated(b_1))&
-      ALLOCATE(b_1(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)) 
-  IF(.not.allocated(v_1))&
-      ALLOCATE(v_1(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)) 
-  IF(.not.allocated(kxgrid)) ALLOCATE(kxgrid(0:nkx0-1))
-  IF(.not.allocated(kygrid)) ALLOCATE(kygrid(0:nky0-1))
-  IF(spatial2d) THEN
-    !See Watanabe and Sugama '04
-    IF(.not.allocated(kzgrid)) ALLOCATE(kzgrid(0:nky0-1))
-  ELSE
-    IF(.not.allocated(kzgrid)) ALLOCATE(kzgrid(0:nkz0-1))
-  END IF
-!  IF(.not.allocated(herm_grid)) ALLOCATE(herm_grid(0:nv0-1))
-!  IF(.not.allocated(hgrid_loc)) ALLOCATE(hgrid_loc(lv1:lv2))
-!  IF(.not.allocated(hkgrid)) ALLOCATE(hkgrid(0:nh0-1))
-!  IF(.not.allocated(vgrid)) ALLOCATE(vgrid(0:nh0-1))
-!  IF(.not.allocated(delta_hk)) ALLOCATE(delta_hk(0:nh0-1))
-!  IF(.not.allocated(delta_v)) ALLOCATE(delta_v(0:nh0-1))
-!  IF(.not.allocated(kperp2)) ALLOCATE(kperp2(0:nkx0-1,0:nky0-1))
-!  IF(.not.allocated(hyp_x_herm1)) ALLOCATE(hyp_x_herm1(lv1:lv2)) 
-!  IF(.not.allocated(hyp_y_herm1)) ALLOCATE(hyp_y_herm1(lv1:lv2)) 
-
-!  hyp_x_herm1(:) = 0.001 
-!  hyp_y_herm1(:) = 0.001 
-
-
-  IF(kmin_eq_0) THEN
-    DO i=0,nkx0-1
-      kxgrid(i)=i*kxmin
-    END DO 
-    kxmax=(nkx0-1)*kxmin
-    !WRITE(*,*) "kx grid:", kxgrid
-
-    kygrid(0)=0.0
-    DO i=1,nky0/2-1
-      kygrid(i)=i*kymin
-      kygrid(nky0-i)=-i*kymin
-    END DO 
-    kymax=(nky0/2-1)*kymin
-    kygrid(nky0/2)=kymax+kymin  !dummy index
-    !WRITE(*,*) "ky grid:", kygrid
-
-    IF(nkz0.ge.2) THEN
-      kzgrid(0)=0.0
-      DO i=1,nkz0/2-1
-        kzgrid(i)=i*kzmin
-        kzgrid(nkz0-i)=-i*kzmin
-      END DO 
-      kzmax=(nkz0/2-1)*kzmin
-      kzgrid(nkz0/2)=kzmax+kzmin  !dummy index
-    ELSE
-      !See Watanabe and Sugama '04
-      kzgrid=kygrid*kzmin/kymin
-      kzmax=kymax*kzmin/kymin
-    END IF
-
-  ELSE !.not.kmin_eq_0, i.e. linear
-    kxgrid(0)=kxmin
-    kxmax=kxmin
-    kygrid(0)=kymin
-    kymax=kymin
-    kzgrid(0)=kzmin
-    kzmax=kzmin
-  END IF
-
-!  DO i=0,nv0-1
-!    herm_grid(i)=REAL(i)
-!  END DO 
-!
-!  DO i=lv1,lv2
-!    hgrid_loc(i)=REAL(i)
-!  END DO 
-!
-!
-!   DO i=0,nkx0-1
-!    DO j=0,nky0-1
-!      kperp2(i,j) = kxgrid(i)**2 + kygrid(j)**2
-!    ENDDO
-!   ENDDO
-!
-!  !Hankel grid
-!  IF (.not.mu_integrated) THEN
-!     IF (hankel) THEN
-!        IF(.not.allocated(T_hkv)) ALLOCATE(T_hkv(0:nh0-1,0:nh0-1))
-!        IF(.not.allocated(m1_v)) ALLOCATE(m1_v(0:nh0-1))
-!        IF(.not.allocated(m2_hk)) ALLOCATE(m2_hk(0:nh0-1))
-!        !IF(.not.allocated(f_in)) ALLOCATE(f_in(lh1:lh2))
-!        hkmax = sqrt(2*maxval(kperp2))
-!        call Gethankelgrid(hkmax,vmax,delta_hk,delta_v,hkgrid,vgrid,m1_v,m2_hk,T_hkv)
-!        !f_in(lh1:lh2) = e**(-hkgrid(lh1:lh2)**2./2)
-!        !CALL hankel_transform(f_in,.true.)
-!        !CALL hankel_transform(f_in,.false.)
-!     ELSE 
-!        CALL GetMuWeightsAndKnots(delta_v,vgrid,vmax,nh0)
-!     END IF
-!  END IF
-
-  !Set up FLR terms
-!  CALL get_J0
-!  
-!  !Set up Hankel terms
-!  CALL get_hk
-!
-!  IF(hyp_v.ne.0.0) THEN
-!    CALL get_io_number
-!    hypv_handle=io_number
-!    IF(mype==0) THEN
-!      OPEN(unit=hypv_handle,file=trim(diagdir)//'/hypv_vs_coll.dat',status='unknown')
-!      WRITE(hypv_handle,*) "#coll=",nu
-!      WRITE(hypv_handle,*) "#hypv=",hyp_v
-!      WRITE(hypv_handle,*) "#hypv_order=",hypv_order
-!      DO l=0,nv0-1
-!        WRITE(hypv_handle,*) l,nu*herm_grid(l),hyp_v*(REAL(herm_grid(l))/REAL(nv0))**hypv_order 
-!      END DO
-!      CLOSE(hypv_handle)
-!    END IF
-!  END IF
-
-  itime_start=itime
-
-END SUBROUTINE arrays_temp
-
-
-
-
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!                                                                           !!
 !!                              finalize_arrays                              !!
@@ -534,6 +342,7 @@ SUBROUTINE finalize_arrays
 
   !  IF(allocated(g_1)) DEALLOCATE(g_1)
   IF (allocated(reader)) DEALLOCATE(reader)
+  IF (allocated(reader2)) DEALLOCATE(reader2)
   IF (allocated(fullbigarray)) DEALLOCATE(fullbigarray)
   IF (allocated(fullsmallarray)) DEALLOCATE(fullsmallarray)
 

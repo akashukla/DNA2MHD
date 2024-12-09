@@ -141,15 +141,6 @@ MODULE par_mod
   LOGICAL :: enone = .true.
   LOGICAL :: nv = .false.
   LOGICAL :: test_ho = .false.
-  INTEGER :: dbio = 200 
-  INTEGER :: dvio = 201
-  INTEGER :: bdvio = 202
-  INTEGER :: vdbio = 203
-  INTEGER :: bdcbio = 204
-  INTEGER :: cbdbio = 205
-  INTEGER :: vdvio = 206
-  INTEGER :: bdbio = 207
-  INTEGER :: db2io = 208
   REAL :: hall = 1.0
   LOGICAL :: guide  = .true.
   LOGICAL :: uni = .true.
@@ -269,6 +260,7 @@ MODULE par_mod
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:) :: b_1
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:) :: v_1
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:) :: reader
+  COMPLEX, ALLOCATABLE, DIMENSION(:,:,:) :: reader2
   COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:)  :: fullsmallarray,fullbigarray
   COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE :: scatter_big(:),scatter_small(:),gather_big(:),gather_small(:)
   
@@ -405,4 +397,71 @@ MODULE par_mod
   END SUBROUTINE get_io_number
 
 
-END MODULE par_mod
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!                                clear_padding                              !!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+SUBROUTINE clear_padding(temp_big,temp_small)
+
+    IMPLICIT NONE
+
+    complex, intent(in)  :: temp_big(1:nx0_big/2+1,1:ny0_big,lkz1+1:lkz2+1)
+    complex, intent(out) :: temp_small(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2)
+    integer :: low_index, high_index,i
+
+    temp_small = cmplx(0.0,0.0)
+
+    if (n_mpi_procs.eq.1) then
+      ! In the one process case hkz_ind and lkz_ind both lie between lkz1 and lkz2                                
+      DO i = 0,nkx0-1
+
+         temp_small(i,0:hky_ind,0:hkz_ind) = temp_big(i+1,1:1+hky_ind,1:hkz_ind+1)
+         temp_small(i,0:hky_ind,lkz_big:nz0_big-1) = temp_big(i+1,1:1+hky_ind,1+lkz_big:nz0_big)
+         temp_small(i,lky_big:ny0_big-1,lkz_big:nz0_big-1) = temp_big(i+1,1+lky_big:ny0_big,1+lkz_big:nz0_big)
+         temp_small(i,lky_big:ny0_big-1,0:hkz_ind) = temp_big(i+1,1+lky_big:ny0_big,1:hkz_ind+1)
+
+      ENDDO
+   else
+      ! Two cases, lkz1 in first region (and maybe lkz2 is), or lkz2 in last (and maybe lkz1 is)
+      if (lkz1.le.hkz_ind) then
+         high_index = min(lkz2,hkz_ind)
+         DO i = 0,nkx0-1
+
+            temp_small(i,0:hky_ind,lkz1:high_index) = temp_big(i+1,1:1+hky_ind,lkz1+1:high_index+1)
+            temp_small(i,lky_big:ny0_big-1,lkz1:high_index) = temp_big(i+1,1+lky_big:ny0_big,lkz1+1:high_index+1)
+
+         ENDDO
+      else if (lkz2.ge.lkz_big) then
+         low_index = max(lkz_big,lkz1)
+         DO i = 0,nkx0-1
+
+            temp_small(i,0:hky_ind,low_index:lkz2) = temp_big(i+1,1:1+hky_ind,low_index+1:lkz2+1)
+            temp_small(i,lky_big:ny0_big-1,low_index:lkz2) = temp_big(i+1,1+lky_big:ny0_big,low_index+1:lkz2+1)
+
+         ENDDO
+      endif
+   endif
+
+ end subroutine clear_padding
+ 
+ SUBROUTINE clear_4d(array)
+
+   IMPLICIT NONE
+
+   complex, intent(inout) :: array(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2)
+
+   reader2 = array(:,:,:,0)
+   CALL clear_padding(reader2,reader)
+   array(:,:,:,0) = reader
+
+   reader2 = array(:,:,:,1)
+   CALL clear_padding(reader2,reader)
+   array(:,:,:,1) = reader
+
+   reader2 = array(:,:,:,2)
+   CALL clear_padding(reader2,reader)
+   array(:,:,:,2) = reader
+
+ END SUBROUTINE clear_4d
+
+ END MODULE par_mod

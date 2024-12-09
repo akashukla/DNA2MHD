@@ -133,9 +133,9 @@ SUBROUTINE initialize_diagnostics
    ENDIF
     energy_last=0.0
     time_last=time
-    ALLOCATE(AVP(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
-    ALLOCATE(WVORT(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
-  END IF
+    ALLOCATE(AVP(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2))
+    ALLOCATE(WVORT(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2))
+ END IF
   IF(istep_energyspec.gt.0.and.mype==0) THEN
     CALL get_io_number
     enspec_handle=io_number
@@ -156,15 +156,13 @@ SUBROUTINE initialize_diagnostics
       OPEN(unit=enspec_handle,file=trim(diagdir)//'/energyspec_out.dat',form='unformatted', status='REPLACE',access='stream')
       OPEN(unit=mode_handle,file=trim(diagdir)//'/mode_out.dat',form='unformatted', status='REPLACE',access='stream')
     END IF
-    ALLOCATE(LW(0:nkx0-1,0:nky0-1,lkz1:lkz2))
-    ALLOCATE(LC(0:nkx0-1,0:nky0-1,lkz1:lkz2))
-    ALLOCATE(RW(0:nkx0-1,0:nky0-1,lkz1:lkz2))
-    ALLOCATE(RC(0:nkx0-1,0:nky0-1,lkz1:lkz2))
-    ALLOCATE(OSPEC(0:nkx0-1,0:nky0-1,lkz1:lkz2))
-    ALLOCATE(WRITESPEC(0:nkx0-1,0:nky0-1,lkz1:lkz2))
+    ALLOCATE(LW(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2))
+    ALLOCATE(LC(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2))
+    ALLOCATE(RW(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2))
+    ALLOCATE(RC(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2))
+    ALLOCATE(OSPEC(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2))
+    ALLOCATE(WRITESPEC(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2))
   END IF
-
-  if (plot_nls) CALL initialize_debug
 
 END SUBROUTINE initialize_diagnostics
 
@@ -198,7 +196,6 @@ SUBROUTINE finalize_diagnostics
   END IF
   IF(verbose.and.(mype==0)) print *, 'Closed energy handles'
  
-  if (plot_nls) CALL finalize_debug
   IF((verbose.and.plot_nls).and.(mype.eq.0)) print *, 'Closed nl handles'
 
 END SUBROUTINE finalize_diagnostics
@@ -509,92 +506,6 @@ endif
 
 end subroutine hmhdhmtn
 
-subroutine initialize_debug
-
-    CALL get_io_number
-    dbio = io_number
-    CALL get_io_number
-    dvio = io_number 
-    CALL get_io_number
-    bdvio = io_number
-    CALL get_io_number
-    vdbio = io_number
-    CALL get_io_number
-    bdcbio = io_number
-    CALL get_io_number
-    cbdbio = io_number
-    CALL get_io_number
-    vdvio = io_number
-    CALL get_io_number
-    bdbio = io_number
-    CALL get_io_number
-    db2io = io_number
-
-
-    IF(checkpoint_read) THEN
-      INQUIRE(file=trim(diagdir)//'/dissb_out.dat',exist=file_exists)
-      INQUIRE(file=trim(diagdir)//'/dissv_out.dat',exist=file_exists)
-      INQUIRE(file=trim(diagdir)//'/bdv_out.dat',exist=file_exists)
-      INQUIRE(file=trim(diagdir)//'/vdb_out.dat',exist=file_exists)
-      INQUIRE(file=trim(diagdir)//'/bdcb_out.dat',exist=file_exists)
-      INQUIRE(file=trim(diagdir)//'/cbdb_out.dat',exist=file_exists)
-      INQUIRE(file=trim(diagdir)//'/vdv_out.dat',exist=file_exists)
-      INQUIRE(file=trim(diagdir)//'/bdb_out.dat',exist=file_exists)
-      INQUIRE(file=trim(diagdir)//'/db2_out.dat',exist=file_exists)
-
-      IF(file_exists) THEN
-        OPEN(unit=dbio,file=trim(diagdir)//'/dissb_out.dat',form='unformatted', status='REPLACE',access='stream')
-        OPEN(unit=dvio,file=trim(diagdir)//'/dissv_out.dat',form='unformatted', status='REPLACE',access='stream')
-        OPEN(unit=bdvio,file=trim(diagdir)//'/bdv_out.dat',form='unformatted', status='REPLACE',access='stream')
-        OPEN(unit=vdbio,file=trim(diagdir)//'/vdb_out.dat',form='unformatted', status='REPLACE',access='stream')
-        OPEN(unit=bdcbio,file=trim(diagdir)//'/bdcb_out.dat',form='unformatted', status='REPLACE',access='stream')
-        OPEN(unit=cbdbio,file=trim(diagdir)//'/cbdb_out.dat',form='unformatted', status='REPLACE',access='stream')
-        OPEN(unit=vdvio,file=trim(diagdir)//'/vdv_out.dat',form='unformatted', status='REPLACE',access='stream')
-        OPEN(unit=bdbio,file=trim(diagdir)//'/bdb_out.dat',form='unformatted', status='REPLACE',access='stream')
-        OPEN(unit=db2io,file=trim(diagdir)//'/db2_out.dat',form='unformatted', status='REPLACE',access='stream')
-      ELSE
-        OPEN(unit=dbio,file=trim(diagdir)//'/dissb_out.dat',form='unformatted', status='REPLACE',access='stream')
-        OPEN(unit=dvio,file=trim(diagdir)//'/dissv_out.dat',form='unformatted', status='REPLACE',access='stream')
-        OPEN(unit=bdvio,file=trim(diagdir)//'/bdv_out.dat',form='unformatted', status='REPLACE',access='stream')
-        OPEN(unit=vdbio,file=trim(diagdir)//'/vdb_out.dat',form='unformatted', status='REPLACE',access='stream')
-        OPEN(unit=bdcbio,file=trim(diagdir)//'/bdcb_out.dat',form='unformatted', status='REPLACE',access='stream')
-        OPEN(unit=cbdbio,file=trim(diagdir)//'/cbdb_out.dat',form='unformatted', status='REPLACE',access='stream')
-        OPEN(unit=vdvio,file=trim(diagdir)//'/vdv_out.dat',form='unformatted', status='REPLACE',access='stream')
-        OPEN(unit=bdbio,file=trim(diagdir)//'/bdb_out.dat',form='unformatted', status='REPLACE',access='stream')
-        OPEN(unit=db2io,file=trim(diagdir)//'/db2_out.dat',form='unformatted', status='REPLACE',access='stream')
-      END IF
-    ELSE
-        OPEN(unit=dbio,file=trim(diagdir)//'/dissb_out.dat',form='unformatted', status='REPLACE',access='stream')
-        OPEN(unit=dvio,file=trim(diagdir)//'/dissv_out.dat',form='unformatted', status='REPLACE',access='stream')
-        OPEN(unit=bdvio,file=trim(diagdir)//'/bdv_out.dat',form='unformatted', status='REPLACE',access='stream')
-        OPEN(unit=vdbio,file=trim(diagdir)//'/vdb_out.dat',form='unformatted', status='REPLACE',access='stream')
-        OPEN(unit=bdcbio,file=trim(diagdir)//'/bdcb_out.dat',form='unformatted', status='REPLACE',access='stream')
-        OPEN(unit=cbdbio,file=trim(diagdir)//'/cbdb_out.dat',form='unformatted', status='REPLACE',access='stream')
-        OPEN(unit=vdvio,file=trim(diagdir)//'/vdv_out.dat',form='unformatted', status='REPLACE',access='stream')
-        OPEN(unit=bdbio,file=trim(diagdir)//'/bdb_out.dat',form='unformatted', status='REPLACE',access='stream')
-        OPEN(unit=db2io,file=trim(diagdir)//'/db2_out.dat',form='unformatted', status='REPLACE',access='stream')
-    END IF
-
-if (verbose) print *, 'Debug files opened'
-
-end subroutine initialize_debug
-
-subroutine finalize_debug
-
-CLOSE(dbio)
-CLOSE(dvio)
-CLOSE(bdvio)
-CLOSE(vdbio)
-CLOSE(bdcbio)
-CLOSE(cbdbio)
-CLOSE(vdvio)
-CLOSE(bdbio)
-CLOSE(db2io)
-
-if (verbose.and.(mype.eq.0)) print *, 'Debug files closed' 
-
-end subroutine finalize_debug
-
 subroutine vec_potential
 
 implicit none
@@ -604,7 +515,7 @@ integer :: i,j,k,ind
 AVP = cmplx(0.0,0.0)
 
 do i = 0,nkx0-1
-  do j = 0,nky0-1
+  do j = 0,ny0_big-1
      do k = lkz1,lkz2
 
           AVP(i,j,k,0) = cmplx(0.0,1.0) * (kygrid(j)*b_1(i,j,k,2)-kzgrid(k)*b_1(i,j,k,1))/(kmags(i,j,k)**2)
@@ -631,10 +542,8 @@ mhsm = 0.0
 
 CALL vec_potential()
 
-!if (splitx) then
-   mhsm(1) = mhsm(1) + 2.0*sum(real(AVP(1:nkx0-1,:,:,:)*conjg(b_1(1:nkx0-1,:,:,:))))
-   mhsm(2) = mhsm(2) + sum(AVP(0,:,:,:)*conjg(b_1(0,:,:,:)))
-!endif
+mhsm(1) = mhsm(1) + 2.0*sum(real(AVP(1:nkx0-1,:,:,:)*conjg(b_1(1:nkx0-1,:,:,:))))
+mhsm(2) = mhsm(2) + sum(AVP(0,:,:,:)*conjg(b_1(0,:,:,:)))
 
 CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
 CALL MPI_ALLREDUCE(mhsm,mhs,2,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
@@ -655,7 +564,7 @@ integer :: ind,i,j,k
 WVORT = cmplx(0.0,0.0)
 
   do i = 0,nkx0-1
-    do j = 0,nky0-1
+    do j = 0,ny0_big-1
       do k = lkz1,lkz2
           WVORT(i,j,k,0) = kygrid(j) * v_1(i,j,k,2) - kzgrid(k) * v_1(i,j,k,1)
           WVORT(i,j,k,1) = kzgrid(k) * v_1(i,j,k,0) - kxgrid(i) * v_1(i,j,k,2)
@@ -724,13 +633,14 @@ print *, mype,"Maximum spectrum fractional change",maxval((abs(LW)-OSPEC)/OSPEC,
 
 ! Writing
 
+if (mype.eq.0) WRITE(enspec_handle) time
 WRITESPEC = (8*pi**3)* (abs(v_1(:,:,:,0))**2 + abs(v_1(:,:,:,1))**2+abs(v_1(:,:,:,2))**2)
 
-WRITE(enspec_handle) WRITESPEC
+CALL GATHER_WRITE(enspec_handle,WRITESPEC)
 
 WRITESPEC = (8*pi**3)* (abs(b_1(:,:,:,0))**2 + abs(b_1(:,:,:,1))**2+abs(b_1(:,:,:,2))**2)
 
-WRITE(enspec_handle) WRITESPEC
+CALL GATHER_WRITE(enspec_handle,WRITESPEC)
 
 OSPEC = abs(LW)
 
@@ -742,7 +652,6 @@ implicit none
 
 LOGICAL :: magnetic
 
-
 REAL :: bound
 REAL :: magboundm,canboundm
 REAL :: boundsm(2),bounds(2)
@@ -751,7 +660,7 @@ REAL :: boundsm(2),bounds(2)
 magboundm = 0.0
 canboundm = 0.0
 
-DO j = 0,nky0 - 1
+DO j = 0,ny0_big - 1
    DO k = lkz1,lkz2
       DO i = 1,nkx0-1
          magboundm = magboundm + 2.0 * sum(abs(b_1(i,j,k,:))**2.0)/kmags(i,j,k)
@@ -760,7 +669,7 @@ DO j = 0,nky0 - 1
       ENDDO
       magboundm = magboundm + sum(abs(b_1(0,j,k,:))**2.0 /kmags(0,j,k),kmags(0,j,k).gt.10**(-10.0))
       canboundm = canboundm + sum(abs(v_1(0,j,k,:))**2.0)*kmags(0,j,k)
-      canboundm = canboundm + 2.0 * sqrt(sum(abs(b_1(0,j,k,:))**2.0))*sqrt(sum(abs(v_1(0,j,k,:))**2.0))            
+      canboundm = canboundm + 2.0 * sqrt(sum(abs(b_1(0,j,k,:))**2.0))*sqrt(sum(abs(v_1(0,j,k,:))**2.0))
    ENDDO
 ENDDO
 
@@ -786,7 +695,7 @@ subroutine mode_spec
   integer :: i,j,k
   
   do i = 0, nkx0-1
-     do j = 0, nky0-1
+     do j = 0, ny0_big-1
         do k = lkz1,lkz2
            LW(i,j,k) = sum(conjg(pcurleig(i,j,k,:))*(alpha_leftwhist(i,j,k)*b_1(i,j,k,:)+v_1(i,j,k,:))/sqrt(alpha_leftwhist(i,j,k)**2+1))
            LC(i,j,k) = sum(conjg(pcurleig(i,j,k,:))*(alpha_leftcyclo(i,j,k)*b_1(i,j,k,:)+v_1(i,j,k,:))/sqrt(alpha_leftcyclo(i,j,k)**2+1))
@@ -803,17 +712,12 @@ subroutine mode_spec
      print *, "Max RC ", sum(0.5*abs(RC)**2)*(16.0*pi**3)
   endif
 
-  WRITESPEC =  0.5 * abs(LW)**2 * (16.0*pi**3)  
-  WRITE(mode_handle) WRITESPEC
+  if (mype.eq.0) write(mode_handle) time
 
-  WRITESPEC = 0.5 * abs(LC)**2 * (16.0*pi**3)
-  WRITE(mode_handle) WRITESPEC
-
-  WRITESPEC = 0.5 * abs(RW)**2 * (16.0*pi**3)
-  WRITE(mode_handle) WRITESPEC
-
-  WRITESPEC = 0.5 * abs(RC)**2 * (16.0*pi**3)
-  WRITE(mode_handle) WRITESPEC
+  CALL GATHER_WRITE(mode_handle,LW)
+  CALL GATHER_WRITE(mode_handle,LC)
+  CALL GATHER_WRITE(mode_handle,RW)
+  CALL GATHER_WRITE(mode_handle,RC)
 
 end subroutine mode_spec
 

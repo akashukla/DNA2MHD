@@ -54,7 +54,7 @@ SUBROUTINE read_parameters
       perf_test_lin,perf_test_nl,perf_test_rhs,rhs_lin_version,rhs_nl_version,intorder,linen,keepzero,dealias_type,shifted,splitx,&
       perf_test_par, version_flag, hankel, dt_slepc, nuno_closure,mu_integrated,&
       GyroLES, Gyroherm, Gyroz, Corr, &
-      plot_nls,dbio,dvio,bdvio,vdbio,bdcbio,cbdbio,vdvio,bdbio,db2io,&
+      plot_nls,&
       hall,guide,enone,nv,test_ho,uni,beltrami,helical,shear,walenp,walenn,mhc,&
       init_wave,init_null,force_trunc,bc_norm,track_divs,taylorgreen,en_leftwhist,en_leftcyclo,en_rightwhist,en_rightcyclo,debug_energy,&
       force_lw,force_lc,force_rw,force_rc,random_state
@@ -415,17 +415,6 @@ SUBROUTINE output_parameters
     IF(force_ky0eq0) WRITE(out_handle,"(A,L1)") "force_ky0eq0 = ",force_ky0eq0
     IF(force_kx0eq0) WRITE(out_handle,"(A,L1)") "force_kx0eq0 = ",force_kx0eq0
     WRITE(out_handle,"(A,L1)") "plot_nls = ",plot_nls
-    IF (plot_nls) THEN 
-    WRITE(out_handle,"(A,I4)") "dbio = ",dbio
-    WRITE(out_handle,"(A,I4)") "dvio = ",dvio
-    WRITE(out_handle,"(A,I4)") "bdvio = ",bdvio
-    WRITE(out_handle,"(A,I4)") "vdbio = ",vdbio
-    WRITE(out_handle,"(A,I4)") "bdcbio = ",bdcbio
-    WRITE(out_handle,"(A,I4)") "cbdbio = ",cbdbio
-    WRITE(out_handle,"(A,I4)") "vdvio = ",vdvio
-    WRITE(out_handle,"(A,I4)") "bdbio = ",bdbio
-    WRITE(out_handle,"(A,I4)") "db2io = ",db2io
-    ENDIF
     WRITE(out_handle,"(A,G12.4)") "hall = ",hall
     WRITE(out_handle,"(A,L1)") "guide = ",guide
     WRITE(out_handle,"(A,L1)") "uni = ",uni
@@ -629,8 +618,8 @@ SUBROUTINE checkpoint_out(purpose)
          if (mype.eq.0) WRITE(chp_handle) nkz0
          if (mype.eq.0) WRITE(chp_handle) time
 
-         CALL GATHER_WRITE(chp_handle,b_1)
-         CALL GATHER_WRITE(chp_handle,v_1)
+         CALL GATHER_WRITE_3D(chp_handle,b_1)
+         CALL GATHER_WRITE_3D(chp_handle,v_1)
 
          if (mype.eq.0) WRITE(chp_handle) mhelcorr
 
@@ -640,13 +629,13 @@ SUBROUTINE checkpoint_out(purpose)
          if (mype.eq.0) OPEN(unit=chp_handle_b,file=trim(diagdir)//trim(chp_name_b),&
               form='unformatted', status='unknown',access='stream',position='append')
          if (mype.eq.0) WRITE(chp_handle_b) time
-         CALL GATHER_WRITE(chp_handle,b_1)
+         CALL GATHER_WRITE_3D(chp_handle,b_1)
          if (mype.eq.0) CLOSE(chp_handle_b)
          
          if (mype.eq.0) OPEN(unit=chp_handle_v,file=trim(diagdir)//trim(chp_name_v),&
               form='unformatted', status='unknown',access='stream',position='append')
          if (mype.eq.0) WRITE(chp_handle_v) time
-         CALL GATHER_WRITE(chp_handle,v_1)
+         CALL GATHER_WRITE_3D(chp_handle,v_1)
          if (mype.eq.0) CLOSE(chp_handle_v)
          
          WRITE(*,*) 'Closed v and b handles',itime         
@@ -666,23 +655,38 @@ SUBROUTINE checkpoint_out(purpose)
       
       implicit none
       integer, intent(in) :: chp_handle
-      complex(c_double_complex) :: array(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
-      integer :: ind,ierr
-
-      DO ind = 0,2
-         reader = array(:,:,:,ind)
+      complex(c_double_complex) :: array(0:nx0_big,0:ny0_big-1,lkz1:lkz2)
+      integer :: ierr
 
          CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-         CALL MPI_GATHER(reader,nkx0*nky0*nkz0/n_mpi_procs,MPI_DOUBLE_COMPLEX,gather_small,&
-              nkx0*nky0*nkz0/n_mpi_procs,MPI_DOUBLE_COMPLEX,0,MPI_COMM_WORLD,ierr)
+         CALL MPI_GATHER(array,(nx0_big/2+1)*ny0_big*nz0_big/n_mpi_procs,MPI_DOUBLE_COMPLEX,gather_small,&
+              (nx0_big/2+1)*ny0_big*nz0_big/n_mpi_procs,MPI_DOUBLE_COMPLEX,0,MPI_COMM_WORLD,ierr)
             
-         if (mype.eq.0) fullsmallarray = reshape(gather_small,[nkx0,nky0,nkz0])
+         if (mype.eq.0) fullsmallarray = reshape(gather_small,[1+nx0_big/2,ny0_big,nz0_big])
          
          if (mype.eq.0) WRITE(chp_handle) fullsmallarray
 
-      ENDDO
-         
     END SUBROUTINE GATHER_WRITE
+
+    SUBROUTINE GATHER_WRITE_3D(chp_handle,array)
+
+      use par_mod
+      use mpi
+
+      implicit none
+      integer, intent(in) :: chp_handle
+      complex(c_double_complex) :: array(0:nx0_big,0:ny0_big-1,lkz1:lkz2,0:2)
+      integer :: ind
+      
+      DO ind = 0,2
+
+         reader = array(:,:,:,ind)
+         CALL GATHER_WRITE(chp_handle,reader)
+
+      ENDDO      
+
+    END SUBROUTINE GATHER_WRITE_3D
+    
     
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -852,22 +856,22 @@ SUBROUTINE SCATTER_READ(chp_handle,array)
   
   implicit none
   
-      integer, intent(in) :: chp_handle
-      complex(c_double_complex) :: array(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
-      integer :: ind,ierr
-
-      array = cmplx(0.0,0.0)
-
-      DO ind = 0,2
-
-         if (mype.eq.0) READ(chp_handle) fullsmallarray
-
-         CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-         CALL MPI_SCATTER(fullsmallarray,nkx0*nky0*nkz0/n_mpi_procs,MPI_DOUBLE_COMPLEX,scatter_small,&
-              nkx0*nky0*nkz0/n_mpi_procs,MPI_DOUBLE_COMPLEX,0,MPI_COMM_WORLD,ierr)
-
-         array(:,:,:,ind) = reshape(scatter_small,[nkx0,nky0,nkz0/n_mpi_procs])
+  integer, intent(in) :: chp_handle
+  complex(c_double_complex) :: array(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2)
+  integer :: ind,ierr
+  
+  array = cmplx(0.0,0.0)
+  
+  DO ind = 0,2
+     
+     if (mype.eq.0) READ(chp_handle) fullsmallarray
+     
+     CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+     CALL MPI_SCATTER(fullsmallarray,(1+nx0_big/2)*ny0_big*nz0_big/n_mpi_procs,MPI_DOUBLE_COMPLEX,scatter_small,&
+          (1+nx0_big/2)*ny0_big*nz0_big/n_mpi_procs,MPI_DOUBLE_COMPLEX,0,MPI_COMM_WORLD,ierr)
+     
+     array(:,:,:,ind) = reshape(scatter_small,[(1+nx0_big/2),ny0_big,nz0_big/n_mpi_procs])
          
-      ENDDO
+  ENDDO
 
 END SUBROUTINE SCATTER_READ
