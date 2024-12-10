@@ -407,7 +407,7 @@ SUBROUTINE clear_padding(temp_big,temp_small)
 
     complex, intent(in)  :: temp_big(1:nx0_big/2+1,1:ny0_big,lkz1+1:lkz2+1)
     complex, intent(out) :: temp_small(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2)
-    integer :: low_index, high_index,i
+    integer(C_INTPTR_T) :: low_index, high_index,i
 
     temp_small = cmplx(0.0,0.0)
 

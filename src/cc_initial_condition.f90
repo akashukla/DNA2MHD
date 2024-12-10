@@ -122,7 +122,7 @@ SUBROUTINE initial_condition(which_init0)
 
       DO i=xst,nx0_big/2
          DO j=yst,ny0_big-1
-            DO k=lkz1,lkz2
+            DO k=zst,lkz2
               ! Write the if statements as subroutines sometime
 
                ! if ((k.ne.nkz0/2).and.(j.ne.nky0/2)) then - this gets purged anyways

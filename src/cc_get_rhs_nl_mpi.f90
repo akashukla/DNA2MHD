@@ -49,6 +49,11 @@ MODULE nonlinearity
   type(C_PTR) :: plan_r2c,plan_c2r
   type(C_PTR) :: rinout,cinout
 
+  type(C_PTR) :: plan_1c2r,plan_c2c
+  type(C_PTR) :: rout1,cin1x,cin1y
+  COMPLEX(C_DOUBLE_COMPLEX), pointer :: tempbig1(:),testyz(:)
+  REAL(C_DOUBLE), pointer :: storex(:)
+
   COMPLEX(C_DOUBLE_COMPLEX), pointer :: temp_big(:,:,:)
   REAL(C_DOUBLE), pointer ::  store(:,:,:)
   
@@ -552,18 +557,18 @@ SUBROUTINE ZEROPAD
   logical :: zmask
   integer :: llkz1,llkz2
 
-  if (verbose) print *, "In Zeropad","Mype",mype,"MaxVal temp_small",maxval(abs(temp_small))
+  if (verbose) print *, "In Zeropad","Mype",mype,"MaxVal temp_small",maxval(abs(temp_small)),maxloc(abs(temp_small))
   temp_big=cmplx(0.0,0.0)
   
   temp_big = temp_small
-  if (verbose) print *, "In Zeropad","Mype",mype,"MaxVal temp_big",maxval(abs(temp_big))
+  if (verbose) print *, "In Zeropad","Mype",mype,"MaxVal temp_big",maxval(abs(temp_big)),maxloc(abs(temp_big))
 
   if (printpad) CALL WRITE_PADDING(1)
   !if (verbose) print *, "Padded"
   CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
   CALL fftw_mpi_execute_dft_c2r(plan_c2r,temp_big,store)
-  if (verbose) print *, "In Zeropad","Mype",mype,"MaxVal store",maxval(abs(store))
- ! if (verbose) print *, "Through IRFFT"
+  if (verbose) print *, "In Zeropad","Mype",mype,"MaxVal store",maxval(abs(store)),maxloc(abs(store))
+  ! if (verbose) print *, "Through IRFFT"
 
 END SUBROUTINE ZEROPAD
 
@@ -632,6 +637,35 @@ SUBROUTINE WRITE_PADDING(purpose)
   if (purpose.eq.2) printunpack = (.false.)
 
 END SUBROUTINE WRITE_PADDING
+
+SUBROUTINE TESTING_1D
+
+  IMPLICIT NONE
+
+  INTEGER :: i,j,k
+
+  type(C_PTR) :: planx,plan_c2c
+  type(C_PTR) :: rout1,cin1x,cin1y
+  COMPLEX(C_DOUBLE_COMPLEX), pointer :: tempbig1(:),testyz(:)
+  REAL(C_DOUBLE), pointer :: storex(:)
+  INTEGER(C_INTPTR_T) :: allx,allyz
+  
+  
+  
+  
+  DO i = 0,nx0_big/2
+     DO j = 0,ny0_big-1
+        DO k = 0,nz0_big-1
+
+        ENDDO
+     ENDDO
+  ENDDO
+  
+
+  
+
+END SUBROUTINE TESTING_1D
+
 
 END MODULE nonlinearity
 

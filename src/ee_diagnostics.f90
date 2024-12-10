@@ -661,16 +661,25 @@ magboundm = 0.0
 canboundm = 0.0
 
 DO j = 0,ny0_big - 1
+   
    DO k = lkz1,lkz2
       DO i = 1,nkx0-1
          magboundm = magboundm + 2.0 * sum(abs(b_1(i,j,k,:))**2.0)/kmags(i,j,k)
          canboundm = canboundm + 2.0 * sum(abs(v_1(i,j,k,:))**2.0)*kmags(i,j,k)
          canboundm = canboundm + 4.0 * sqrt(sum(abs(b_1(i,j,k,:))**2.0))*sqrt(sum(abs(v_1(i,j,k,:))**2.0))
       ENDDO
+   ENDDO
+   !print *, mype,j,"CanBoundx",canboundm
+   DO k = lkz1,lkz2
       magboundm = magboundm + sum(abs(b_1(0,j,k,:))**2.0 /kmags(0,j,k),kmags(0,j,k).gt.10**(-10.0))
       canboundm = canboundm + sum(abs(v_1(0,j,k,:))**2.0)*kmags(0,j,k)
+      !if (j.eq.0) print *, sum(abs(v_1(0,j,k,:))**2.0),kmags(0,j,k)
       canboundm = canboundm + 2.0 * sqrt(sum(abs(b_1(0,j,k,:))**2.0))*sqrt(sum(abs(v_1(0,j,k,:))**2.0))
    ENDDO
+   CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+   !print *, mype,j,"CanBound0 ",canboundm
+
+   
 ENDDO
 
 CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
@@ -713,7 +722,7 @@ subroutine mode_spec
   endif
 
   if (mype.eq.0) write(mode_handle) time
-
+  
   CALL GATHER_WRITE(mode_handle,LW)
   CALL GATHER_WRITE(mode_handle,LC)
   CALL GATHER_WRITE(mode_handle,RW)

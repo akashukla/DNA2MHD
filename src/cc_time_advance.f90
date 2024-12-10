@@ -339,6 +339,11 @@ SUBROUTINE remove_div(b_in,v_in)
  k2=0.0
  zero=0.0
 
+ if (mype.eq.0) then
+    exb = b_1(0,0,0,:)
+    exv = v_1(0,0,0,:)
+ endif 
+
  DO i=0,nx0_big/2
    DO j=0,ny0_big-1
      DO k=lkz1,lkz2
@@ -351,15 +356,20 @@ SUBROUTINE remove_div(b_in,v_in)
         v_in(i,j,k,2) = v_in(i,j,k,2) - div_v*kzgrid(k)/k2
         
 
-        ! The b equation is a curl, so we don't need to remove div b
+        ! The b equation is a curl, so we don't need to remove div b (except at start)
         b_in(i,j,k,0) = b_in(i,j,k,0) - div_b*kxgrid(i)/k2
         b_in(i,j,k,1) = b_in(i,j,k,1) - div_b*kygrid(j)/k2
         b_in(i,j,k,2) = b_in(i,j,k,2) - div_b*kzgrid(k)/k2
-
      
      ENDDO
    ENDDO
 ENDDO
+
+if (mype.eq.0) then
+   b_in(0,0,0,:) = exb
+   v_in(0,0,0,:) = exv
+endif
+
 
 if (verbose.and.(mype.eq.0)) print *,'Divergence Removed'
 
@@ -961,293 +971,6 @@ SUBROUTINE DEALLOCATE_STEPS
   if (allocated(vk7)) DEALLOCATE(vk7)
 
 END SUBROUTINE DEALLOCATE_STEPS
-
-SUBROUTINE LINEARENERGYSPH(b_in,v_in,dt_new)
-
-  ! Time stepping for linear energy time evolution
-  
-  IMPLICIT NONE
-  COMPLEX, INTENT(INOUT) :: b_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
-  COMPLEX, INTENT(INOUT) :: v_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
-
-
-  
-  REAL, INTENT(OUT) :: dt_new
-  REAL :: dt_new1,dt_new2,dt_new3,dt_new4,dt_new5,dt_new6,dt_new7
-  REAL :: nmhc1,nmhc2,nmhc3,nmhc4,nmhc5,nmhc6,nmhc7
-  INTEGER :: i,j,k
-  
-  ! assume at a given time that both charts work both places
-
-  breakz = .false.
-
-  ! get the initial spherical coordinates
-  CALL CARTC_SPHSZ(b_in,bsph0)
-  CALL CARTC_SPHSZ(v_in,vsph0)
-
-! integration scheme for spherical coordinates
-
-if (intorder.eq.2) then
-
-else if (intorder.eq.3) then
-
-   
-else if (intorder.eq.4) then
-
-   CALL STEP_SPHS(bsph0,vsph0,bsphk1,vsphk1,nmhc1,dt_new1)
-   bsph1 = bsph0 + (1.0/6.0) * dt * bsphk1
-   vsph1 = vsph0 + (1.0/6.0) * dt * vsphk1
-
-   CALL STEP_SPHS(bsph0+(1.0/2.0) * dt * bsphk1,vsph0 + (1.0/2.0) * dt * vsphk1,&
-        bsphk2,vsphk2,nmhc2,dt_new2)
-
-   bsph1 = bsph1 + (1.0/3.0) * dt * bsphk2
-   vsph1 = vsph1 + (1.0/3.0) * dt * vsphk2
-   
-   CALL STEP_SPHS(bsph0+(1.0/2.0) * dt * bsphk2,vsph0 + (1.0/2.0) * dt * vsphk2,&
-	bsphk1,vsphk1,nmhc3,dt_new3)
-   
-   bsph1 = bsph1 + (1.0/3.0) * dt * bsphk1
-   vsph1 = vsph1 + (1.0/3.0) * dt * vsphk1
-
-   CALL STEP_SPHS(bsph0+dt * bsphk1,vsph0 +dt * vsphk1,&
-        bsphk2,vsphk2,nmhc4,dt_new4)
-
-   bsph1 = bsph1 + (1.0/6.0) * dt * bsphk2
-   vsph1 = vsph1 + (1.0/6.0) * dt * vsphk2
-
-   mhelcorr = mhelcorr + 1.0/6.0 * (nmhc1 + 2.0 * nmhc2 + 2.0 * nmhc3 + nmhc4) * dt
-   dt_new = minval([dt_new1,dt_new2,dt_new3,dt_new4])
-   
-endif
-
-if (verbose) print *, "Finished Integration itime",itime
-if (verbose) print *, "Number of Z Fails",count(breakz)
-
-CALL SPHSZ_CARTC(bsph1,b_in)
-CALL SPHSZ_CARTC(vsph1,v_in)
-
-END SUBROUTINE LINEARENERGYSPH
-
-SUBROUTINE STEP_SPHS(bsphz,vsphz,bsphkz,vsphkz,nmhc,ndt)
-
-  ! Individual time step for the spherical coordinates
-  ! Outline: find fields with given spherical coordinates, field time derivative, coordinate time derivs
-  ! Finds derivatives using both the z chart and x chart - which used to be decided above
-  ! Mostly just calling other routines
-  
-  IMPLICIT NONE
-
-  REAL, INTENT(IN) :: bsphz(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:5)
-  REAL, INTENT(IN) :: vsphz(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:5)
-  REAL, INTENT(OUT) :: bsphkz(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:5)
-  REAL, INTENT(OUT) :: vsphkz(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:5)
-  REAL, INTENT(OUT) :: nmhc
-  REAL, INTENT(OUT) :: ndt
-  
-  CALL SPHSZ_CARTC(bsphz,b_2)
-  CALL SPHSZ_CARTC(vsphz,v_2)
-  CALL get_rhs(b_2,v_2,bk1,vk1,nmhc,ndt)
-  CALL SPHSZ_TDS(bsphz,b_2,bk1,0,bsphkz)
-  CALL SPHSZ_TDS(vsphz,v_2,vk1,2,vsphkz)
-
-END SUBROUTINE STEP_SPHS
-  
-SUBROUTINE SPHSZ_TDS(c1z,f1,k1,t,c1kz)
-
-  IMPLICIT NONE
-
-  REAL, INTENT(IN) :: c1z(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:5)
-  COMPLEX, INTENT(IN) :: f1(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
-  COMPLEX, INTENT(IN) :: k1(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
-  INTEGER, INTENT(IN) :: t ! determine if b,v used for chart breakdown; b 0, v 2
-  REAL, INTENT(OUT) :: c1kz(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:5)
-  REAL :: A(0:2),B(0:2),C(0:2),D(0:2),E(0:2),F(0:2)
-  REAL :: CC(0:5)
-  INTEGER :: i,j,k
-
-  do i = 0,nkx0-1
-     do j = 0,nky0-1
-        do k = 0,nkz0-1
-
-           A = real(f1(i,j,k,:))
-           B = aimag(f1(i,j,k,:))
-           C = real(k1(i,j,k,:))
-           D = aimag(k1(i,j,k,:))
-           CC = c1z(i,j,k,:)
-
-           c1kz(i,j,k,0) = 2.0 * sum(A*C)
-           c1kz(i,j,k,3) = 2.0 * sum(B*D)
-
-           E(0) = sqrt(CC(0))*cos(CC(1))*cos(CC(2))
-           E(1) = sqrt(CC(0))*cos(CC(1))*sin(CC(2))
-           E(2) = -sqrt(CC(0))*sin(CC(1))
-
-           F(0) = sqrt(CC(3))*cos(CC(4))*cos(CC(5))
-           F(1) = sqrt(CC(3))*cos(CC(4))*sin(CC(5))
-           F(2) = -sqrt(CC(3))*sin(CC(4))
-
-           c1kz(i,j,k,1) = (E(0)*C(0)+E(1)*C(1)+E(2)*C(2))/CC(0)
-           c1kz(i,j,k,4) = (F(0)*D(0)+F(1)*D(1)+F(2)*D(2))/CC(3)
-
-           c1kz(i,j,k,2) = (A(0) * C(1) - A(1) * C(0))/(A(0)**2.0 + A(1)**2.0)
-           c1kz(i,j,k,5) = (B(0) * D(1) - B(1) * D(0))/(B(0)**2.0 + B(1)**2.0)
-           
-           if (CC(0).lt.10.0**(-14.0)) then
-              c1kz(i,j,k,0:2) = 0.0
-           else if (abs(sin(CC(1))).lt.10.0**(-10.0)) then
-              c1kz(i,j,k,1) = 0.0
-              c1kz(i,j,k,2) = 0.0
-              breakz(i,j,k,t) = .true.
-           endif
-           
-           if (CC(3).lt.10.0**(-14.0)) then
-              c1kz(i,j,k,3:5) = 0.0
-           else if (abs(sin(CC(4))).lt.10.0**(-10.0)) then
-              c1kz(i,j,k,4) = 0.0
-              c1kz(i,j,k,5) = 0.0
-              breakz(i,j,k,t+1) = .true.
-           endif
-          
-        enddo
-     enddo
-  enddo
-  
-END SUBROUTINE SPHSZ_TDS
-
-SUBROUTINE SPHSZ_CARTC(bsph,b)
-
-  IMPLICIT NONE
-
-  REAL, INTENT(IN) :: bsph(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:5)
-  COMPLEX, INTENT(OUT) :: b(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
-
-  b(:,:,:,0) = sqrt(bsph(:,:,:,0))*sin(bsph(:,:,:,1))*cos(bsph(:,:,:,2)) &
-       + i_complex * sqrt(bsph(:,:,:,3))*sin(bsph(:,:,:,4))*cos(bsph(:,:,:,5))
-  b(:,:,:,1) = sqrt(bsph(:,:,:,0))*sin(bsph(:,:,:,1))*sin(bsph(:,:,:,2)) &
-       + i_complex * sqrt(bsph(:,:,:,3))*sin(bsph(:,:,:,4))*sin(bsph(:,:,:,5))
-  b(:,:,:,2) = sqrt(bsph(:,:,:,0))*cos(bsph(:,:,:,1)) + i_complex * sqrt(bsph(:,:,:,3))*cos(bsph(:,:,:,4))
-  
-  
-END SUBROUTINE SPHSZ_CARTC
-
-SUBROUTINE CARTC_SPHSZ(b,bsph)
-
-  IMPLICIT NONE
-
-  COMPLEX, INTENT(IN) :: b(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
-  REAL, INTENT(OUT) :: bsph(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:5)
-
-  bsph(:,:,:,0) = sum(real(b)**2.0,dim=4)
-  bsph(:,:,:,3) = sum(aimag(b)**2.0,dim=4)
-  bsph(:,:,:,1) = acos(real(b(:,:,:,2))/sqrt(bsph(:,:,:,0)))
-  bsph(:,:,:,4) = acos(aimag(b(:,:,:,2))/sqrt(bsph(:,:,:,3)))
-  bsph(:,:,:,2) = atan2(real(b(:,:,:,1)),real(b(:,:,:,0)))
-  bsph(:,:,:,5) = atan2(aimag(b(:,:,:,1)),aimag(b(:,:,:,0)))
-
-  where(isnan(bsph)) bsph = 0.0
-  
-END SUBROUTINE CARTC_SPHSZ
-
-SUBROUTINE ALLOCATE_SPHS
-
-  IMPLICIT NONE
-  ! bsph1,vsph1,bsph2,vsph2,bsph3,vsph3,bsphk1,bsphk2,bsphk3,bsphk4,bsphk5,bsphk6,bsphk7,vsphk1,vsphk2,vsphk3,vsphk4,vsphk5,vsphk6,vsphk7
-  ! b1sph1,v1sph1,b1sph2,v1sph2,b1sph3,v1sph3,b1sphk1,b1sphk2,b1sphk3,b1sphk4,b1sphk5,b1sphk6,b1sphk7,v1sphk1,v1sphk2,v1sphk3,v1sphk4,v1sphk5,v1sphk6,v1sphk7 
-
-  ! Chart determination
-
-  ALLOCATE(breakz(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:3))
-  
-  ! We still need terms for field derivatives and time step fields
-
-  ALLOCATE(b_2(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
-  ALLOCATE(v_2(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
-  ALLOCATE(bk1(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
-  ALLOCATE(vk1(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
-  
-  ! Allocate spherical coordinate integration needs
-  
-  ALLOCATE(bsph0(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:5))
-  ALLOCATE(bsph1(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:5))
-  ALLOCATE(vsph0(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:5))
-  ALLOCATE(vsph1(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:5))
-
-  ALLOCATE(bsphk1(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:5))
-  ALLOCATE(bsphk2(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:5))
-
-  ALLOCATE(vsphk1(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:5))
-  ALLOCATE(vsphk2(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:5))
-
-  ! Lots of things needed for DORPI but not Ralston RK2/3 or vanilla RK4
-
-  if (intorder.eq.5) then
-  ALLOCATE(b_3(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
-  ALLOCATE(v_3(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
-  ALLOCATE(bsph3(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:5))
-  ALLOCATE(vsph3(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:5))
-
-  ALLOCATE(bsphk3(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:5))
-  ALLOCATE(bsphk4(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:5))
-  ALLOCATE(bsphk5(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:5))
-  ALLOCATE(bsphk6(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:5))
-  ALLOCATE(bsphk7(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:5))
-
-  ALLOCATE(vsphk3(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:5))
-  ALLOCATE(vsphk4(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:5))
-  ALLOCATE(vsphk5(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:5))
-  ALLOCATE(vsphk6(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:5))
-  ALLOCATE(vsphk7(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:5))
-
-endif
-
-  
-END SUBROUTINE ALLOCATE_SPHS
-
-SUBROUTINE DEALLOCATE_SPHS
-
-  IMPLICIT NONE
-
-  DEALLOCATE(breakz)
-  
-  DEALLOCATE(b_2)
-  DEALLOCATE(v_2)
-  DEALLOCATE(bk1)
-  DEALLOCATE(vk1)
-
-  DEALLOCATE(bsph0)
-  DEALLOCATE(bsph1)
-  DEALLOCATE(vsph0)
-  DEALLOCATE(vsph1)
-
-  DEALLOCATE(bsphk1)
-  DEALLOCATE(bsphk2)
-
-  DEALLOCATE(vsphk1)
-  DEALLOCATE(vsphk2)
-
-  if (intorder.eq.5) then
-  DEALLOCATE(b_3)
-  DEALLOCATE(v_3)
-  DEALLOCATE(bsph3)
-  DEALLOCATE(vsph3)
-
-  DEALLOCATE(bsphk3)
-  DEALLOCATE(bsphk4)
-  DEALLOCATE(bsphk5)
-  DEALLOCATE(bsphk6)
-  DEALLOCATE(bsphk7)
-
-  DEALLOCATE(vsphk3)
-  DEALLOCATE(vsphk4)
-  DEALLOCATE(vsphk5)
-  DEALLOCATE(vsphk6)
-  DEALLOCATE(vsphk7)
-
-endif
-
-END SUBROUTINE DEALLOCATE_SPHS
-
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!                               get_next_rk_test                            !!

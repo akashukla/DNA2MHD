@@ -28,6 +28,11 @@ MODULE linear_rhs
   PRIVATE
   
   LOGICAL, ALLOCATABLE :: mask1(:,:,:)
+  !COMPLEX :: b_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2, 0:2)
+  !COMPLEX :: v_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2, 0:2)
+  !COMPLEX :: rhs_out_b(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2, 0:2)
+  !COMPLEX :: rhs_out_v(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2, 0:2)
+ 
 
   CONTAINS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
   
@@ -37,11 +42,12 @@ MODULE linear_rhs
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 SUBROUTINE get_rhs_lin(b_in, v_in, rhs_out_b, rhs_out_v, which_term)
   IMPLICIT NONE
- COMPLEX, INTENT(in) :: b_in(0:nkx0-1,0:nky0-1,lkz1:lkz2, 0:2)
- COMPLEX, INTENT(in) :: v_in(0:nkx0-1,0:nky0-1,lkz1:lkz2, 0:2)
- COMPLEX, INTENT(out) :: rhs_out_b(0:nkx0-1,0:nky0-1,lkz1:lkz2, 0:2)
- COMPLEX, INTENT(out) :: rhs_out_v(0:nkx0-1,0:nky0-1,lkz1:lkz2, 0:2)
- INTEGER, INTENT(in) :: which_term
+  INTEGER, INTENT(in) :: which_term
+
+  COMPLEX, INTENT(IN) :: b_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2, 0:2)
+  COMPLEX, INTENT(IN) :: v_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2, 0:2)
+  COMPLEX, INTENT(OUT) :: rhs_out_b(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2, 0:2)
+  COMPLEX, INTENT(OUT) :: rhs_out_v(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2, 0:2)
 
  IF ((rhs_lin_version==1).or.(rhs_lin_version==12)) THEN
    !If works for mu integrated as well for hankel/vperp version
@@ -56,11 +62,12 @@ END SUBROUTINE get_rhs_lin
 
 SUBROUTINE get_rhs_lin1_ae(b_in, v_in, rhs_out_b,rhs_out_v, which_term)
 
- COMPLEX, INTENT(in) :: b_in(0:nkx0-1,0:nky0-1,lkz1:lkz2, 0:2)
- COMPLEX, INTENT(in) :: v_in(0:nkx0-1,0:nky0-1,lkz1:lkz2, 0:2)
- COMPLEX, INTENT(out) :: rhs_out_b(0:nkx0-1,0:nky0-1,lkz1:lkz2, 0:2)
- COMPLEX, INTENT(out) :: rhs_out_v(0:nkx0-1,0:nky0-1,lkz1:lkz2, 0:2)
- INTEGER, INTENT(in) :: which_term
+  INTEGER, INTENT(in) :: which_term
+
+  COMPLEX, INTENT(IN) :: b_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2, 0:2)
+  COMPLEX, INTENT(IN) :: v_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2, 0:2)
+  COMPLEX, INTENT(OUT) :: rhs_out_b(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2, 0:2)
+  COMPLEX, INTENT(OUT) :: rhs_out_v(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2, 0:2)
 
  INTEGER :: i,j,k,h,ierr
  !for transpose for left ev's
@@ -75,61 +82,43 @@ SUBROUTINE get_rhs_lin1_ae(b_in, v_in, rhs_out_b,rhs_out_v, which_term)
 
  !IF(verbose.and.mype==0) WRITE(*,*) "get_rhs_lin1", 68
 
- DO i=0,nkx0-1
-   DO j=0,nky0-1
-     DO k=lkz1,lkz2
-        ! L = kxgrid(i)*kxgrid(i) + kygrid(j)*kygrid(j) + kzgrid(k)*kzgrid(k)
-        L = 0
-        
-        !eqn 14
-        !rhs_out_b(i,j,k,0) = i_complex*kzgrid(k)*v_in(i,j,k,0) + i_complex*kygrid(j)*b_in(i,j,k,2) -i_complex*kzgrid(k)*b_in(i,j,k,1)
-        !rhs_out_b(i,j,k,1) = i_complex*kzgrid(k)*v_in(i,j,k,1) + i_complex*kzgrid(k)*b_in(i,j,k,0) -i_complex*kxgrid(i)*b_in(i,j,k,2)
-        !rhs_out_b(i,j,k,2) = i_complex*kzgrid(k)*v_in(i,j,k,2) + i_complex*kxgrid(i)*b_in(i,j,k,1) -i_complex*kygrid(y)*b_in(i,j,k,0)
+    DO i=0,nkx0-1
+       DO j = 0,ny0_big-1
 
-        rhs_out_b(i,j,k,0) = i_complex*kzgrid(k)*(v_in(i,j,k,0) & 
-             - hall*(i_complex*kygrid(j)*b_in(i,j,k,2) - i_complex*kzgrid(k)*b_in(i,j,k,1))) - eta*(L**hyp)*b_in(i,j,k,0)
-        rhs_out_b(i,j,k,1) = i_complex*kzgrid(k)*(v_in(i,j,k,1) &
-             - hall*(i_complex*kzgrid(k)*b_in(i,j,k,0) - i_complex*kxgrid(i)*b_in(i,j,k,2))) - eta*(L**hyp)*b_in(i,j,k,1)
-        rhs_out_b(i,j,k,2) = i_complex*kzgrid(k)*(v_in(i,j,k,2) &
-             - hall*(i_complex*kxgrid(i)*b_in(i,j,k,1) - i_complex*kygrid(j)*b_in(i,j,k,0))) - eta*(L**hyp)*b_in(i,j,k,2)
-        ! if (verbose) print *, 'b lin equation stored'
-        ! if (verbose) print *, 'L, eta',L,eta
-      !Eqn 15
-if (rhs_lin_version==1) then
-        rhs_out_v(i,j,k,0) = i_complex*kzgrid(k)*b_in(i,j,k,0)-i_complex*kxgrid(i)*b_in(i,j,k,2) - vnu*(L**hyp)*v_in(i,j,k,0)
-        rhs_out_v(i,j,k,1) = i_complex*kzgrid(k)*b_in(i,j,k,1)-i_complex*kygrid(j)*b_in(i,j,k,2) - vnu*(L**hyp)*v_in(i,j,k,1)
-        rhs_out_v(i,j,k,2) = - vnu*(L**hyp)*v_in(i,j,k,2)
-        ! if (verbose) print *, 'v1 lin equation stored'
-        ! if (verbose) print *, 'L, vnu',L,vnu
-endif
-    ! Eq 15 v2 from prerana
-if (rhs_lin_version==12) then
-        rhs_out_v(i,j,k,0) = i_complex*kzgrid(k)*b_in(i,j,k,0) - vnu*(L**hyp)*v_in(i,j,k,0)
-        rhs_out_v(i,j,k,1) = i_complex*kzgrid(k)*b_in(i,j,k,1) - vnu*(L**hyp)*v_in(i,j,k,1)
-        rhs_out_v(i,j,k,2) = i_complex*kzgrid(k)*b_in(i,j,k,2) - vnu*(L**hyp)*v_in(i,j,k,2)
-        ! if (verbose) print *, 'v12 lin equation stored'
-        ! if (verbose) print *, 'L, vnu',L,vnu
-endif
-     END DO
-   END DO
-END DO
+          DO k = lkz1,lkz2
+
+             ! Mahajan equation 14
+             rhs_out_b(i,j,k,0) = i_complex*kzgrid(k)*(v_in(i,j,k,0) - hall*(i_complex*kygrid(j)*b_in(i,j,k,2) - i_complex*kzgrid(k)*b_in(i,j,k,1)))
+             rhs_out_b(i,j,k,1) = i_complex*kzgrid(k)*(v_in(i,j,k,1) - hall*(i_complex*kzgrid(k)*b_in(i,j,k,0) - i_complex*kxgrid(i)*b_in(i,j,k,2)))
+             rhs_out_b(i,j,k,2) = i_complex*kzgrid(k)*(v_in(i,j,k,2) - hall*(i_complex*kxgrid(i)*b_in(i,j,k,1) - i_complex*kygrid(j)*b_in(i,j,k,0)))
+             
+             ! Mahajan eqn 15b from prerana - no difference between linear versions 
+             rhs_out_v(i,j,k,0) = i_complex*kzgrid(k)*b_in(i,j,k,0)
+             rhs_out_v(i,j,k,1) = i_complex*kzgrid(k)*b_in(i,j,k,1)
+             rhs_out_v(i,j,k,2) = i_complex*kzgrid(k)*b_in(i,j,k,2)
+          END DO
+          
+       END DO
+
+    ENDDO
+    
 
 if (nv) rhs_out_b = cmplx(0.0,0.0)
 
 END SUBROUTINE get_rhs_lin1_ae
 
-
-
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!                                get_rhs_force                              !!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 SUBROUTINE get_rhs_force(rhs_out_b, rhs_out_v)
-    IMPLICIT NONE
+  IMPLICIT NONE
+
+  COMPLEX, INTENT(out) :: rhs_out_b(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2, 0:2)
+  COMPLEX, INTENT(out) :: rhs_out_v(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2, 0:2)
+  
     INTEGER :: i,j,k,h,ierr
     !REAL :: r
     REAL :: myresample,resample,th1,th2,th3,th4
-    COMPLEX, INTENT(out) :: rhs_out_b(0:nkx0-1,0:nky0-1,lkz1:lkz2, 0:2)
-    COMPLEX, INTENT(out) :: rhs_out_v(0:nkx0-1,0:nky0-1,lkz1:lkz2, 0:2)
     COMPLEX :: LW1,LC1,RW1,RC1
     REAL :: a,b,c,d,e,f,b1
 
@@ -139,12 +128,13 @@ SUBROUTINE get_rhs_force(rhs_out_b, rhs_out_v)
     CALL MPI_BCAST(resample,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
 
     mask1 = (kperps.lt.force_frac*maxval(kperps))
+    ! masking will remove high k modes
     ! mask2 = (((i.le.nkxforce).and.(j.le.nkyforce)).and.(k.le.nkzforce)).and.(forcetype.eq.12))
     
     IF ((resample.lt.dt).and.(forcetype.eq.11)) THEN
 
        DO i = 1,nkx0-1
-          DO j = 1,nky0-1
+          DO j = 1,ny0_big-1
              DO k = lkz1,lkz2
                 if (verbose) c = MPI_WTIME()
                 IF (forceb) THEN
@@ -179,7 +169,7 @@ SUBROUTINE get_rhs_force(rhs_out_b, rhs_out_v)
     IF ((resample.lt.dt).and.(forcetype.eq.21)) THEN
 
        DO i = 1,nkx0-1
-          DO j = 1,nky0-1
+          DO j = 1,ny0_big-1
              DO k = lkz1,lkz2
                 if (verbose) c = MPI_WTIME()
                 CALL random_number(th1)
@@ -250,7 +240,7 @@ SUBROUTINE get_rhs_force(rhs_out_b, rhs_out_v)
        endif
 
       DO i = 1,nkx0-1
-          DO j = 1,nky0-1
+          DO j = 1,ny0_big-1
              DO k = lkz1,lkz2
                 th1 = ((turnover - 2* time) * LWp(i,j,k) + (2*time) * LWp2(i,j,k))/turnover
                 th2 = ((turnover - 2* time) * LCp(i,j,k) + (2*time) * LCp2(i,j,k))/turnover
@@ -281,19 +271,19 @@ SUBROUTINE get_rhs_force(rhs_out_b, rhs_out_v)
 
   SUBROUTINE init_force
 
-    ALLOCATE(mask1(0:nkx0-1,0:nky0-1,lkz1:lkz2))
+    ALLOCATE(mask1(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2))
 
-    ALLOCATE(LWp(0:nkx0-1,0:nky0-1,lkz1:lkz2))
-    ALLOCATE(LWp2(0:nkx0-1,0:nky0-1,lkz1:lkz2))
+    ALLOCATE(LWp(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2))
+    ALLOCATE(LWp2(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2))
 
-    ALLOCATE(LCp(0:nkx0-1,0:nky0-1,lkz1:lkz2))
-    ALLOCATE(LCp2(0:nkx0-1,0:nky0-1,lkz1:lkz2))
+    ALLOCATE(LCp(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2))
+    ALLOCATE(LCp2(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2))
 
-    ALLOCATE(RWp(0:nkx0-1,0:nky0-1,lkz1:lkz2))
-    ALLOCATE(RWp2(0:nkx0-1,0:nky0-1,lkz1:lkz2))
+    ALLOCATE(RWp(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2))
+    ALLOCATE(RWp2(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2))
 
-    ALLOCATE(RCp(0:nkx0-1,0:nky0-1,lkz1:lkz2))
-    ALLOCATE(RCp2(0:nkx0-1,0:nky0-1,lkz1:lkz2))
+    ALLOCATE(RCp(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2))
+    ALLOCATE(RCp2(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2))
     
   END SUBROUTINE init_force
 
@@ -319,11 +309,10 @@ SUBROUTINE get_rhs_test(b_in,v_in,rhs_out_b,rhs_out_v)
 
   IMPLICIT NONE
 
-  COMPLEX,INTENT(in) :: b_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
-  COMPLEX,INTENT(in) :: v_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
-  COMPLEX,INTENT(out) :: rhs_out_b(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
-  COMPLEX,INTENT(out) :: rhs_out_v(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
-
+  COMPLEX :: b_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2)
+  COMPLEX :: v_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2)
+  COMPLEX :: rhs_out_b(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2)
+  COMPLEX :: rhs_out_v(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2)
 
   rhs_out_b = v_in
   rhs_out_v = - b_in
@@ -332,11 +321,13 @@ END SUBROUTINE get_rhs_test
 
 SUBROUTINE get_rhs_diss(b_in,v_in,rhs_out_b,rhs_out_v)
 
-  COMPLEX,INTENT(in) :: b_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
-  COMPLEX,INTENT(in) :: v_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
-  COMPLEX,INTENT(out) :: rhs_out_b(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
-  COMPLEX,INTENT(out) :: rhs_out_v(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+  COMPLEX, intent(in) :: b_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2, 0:2)
+  COMPLEX, intent(in) :: v_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2, 0:2)
+  COMPLEX, intent(out) :: rhs_out_b(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2, 0:2)
+  COMPLEX, intent(out) :: rhs_out_v(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2, 0:2)
 
+  ! Explicit calculation of dissipation
+  
   rhs_out_b = rhs_out_b - spread(eta * (kmags ** (2.0*hyp)),4,3) * b_in
   rhs_out_v = rhs_out_v - spread(vnu * (kmags ** (2.0*hyp)),4,3) * v_in
     
@@ -344,12 +335,11 @@ END SUBROUTINE get_rhs_diss
 
 SUBROUTINE get_rhs_diss2(b_in,v_in)
 
-  COMPLEX,INTENT(inout) :: b_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
-  COMPLEX,INTENT(inout) :: v_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2)
+  COMPLEX, intent(inout) :: b_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2, 0:2)
+  COMPLEX, intent(inout) :: v_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2, 0:2)
 
-  ! b_in = b_in * spread(exp(-eta * (kmags ** (2.0*hyp)) * dt),4,3)
-  ! v_in = v_in * spread(exp(-vnu * (kmags ** (2.0*hyp)) * dt),4,3)
-
+  ! Exact dissipation through integrating factor method
+  
   b_in(:,:,:,0) = b_in(:,:,:,0)*exp(-eta * (kmags ** (2.0*hyp)) * dt)
   b_in(:,:,:,1) = b_in(:,:,:,1)*exp(-eta * (kmags ** (2.0*hyp)) * dt)
   b_in(:,:,:,2) = b_in(:,:,:,2)*exp(-eta * (kmags ** (2.0*hyp)) * dt)
