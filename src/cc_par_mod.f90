@@ -423,23 +423,12 @@ SUBROUTINE clear_padding(temp_big,temp_small)
       ENDDO
    else
       ! Two cases, lkz1 in first region (and maybe lkz2 is), or lkz2 in last (and maybe lkz1 is)
-      if (lkz1.le.hkz_ind) then
-         high_index = min(lkz2,hkz_ind)
-         DO i = 0,nkx0-1
-
-            temp_small(i,0:hky_ind,lkz1:high_index) = temp_big(i+1,1:1+hky_ind,lkz1+1:high_index+1)
-            temp_small(i,lky_big:ny0_big-1,lkz1:high_index) = temp_big(i+1,1+lky_big:ny0_big,lkz1+1:high_index+1)
-
-         ENDDO
-      else if (lkz2.ge.lkz_big) then
-         low_index = max(lkz_big,lkz1)
-         DO i = 0,nkx0-1
-
-            temp_small(i,0:hky_ind,low_index:lkz2) = temp_big(i+1,1:1+hky_ind,low_index+1:lkz2+1)
-            temp_small(i,lky_big:ny0_big-1,low_index:lkz2) = temp_big(i+1,1+lky_big:ny0_big,low_index+1:lkz2+1)
-
-         ENDDO
-      endif
+      ! Both accounted for by choice of lbkz and ubkz
+      DO i = 0,nkx0-1
+         temp_small(i,0:hky_ind,lbkz:ubkz) = temp_big(i+1,1:1+hky_ind,lbkz+1:ubkz+1)
+         temp_small(i,lky_big:ny0_big-1,lbkz:ubkz) = temp_big(i+1,1+lky_big:ny0_big,lbkz+1:ubkz+1)
+      ENDDO
+      
    endif
 
  end subroutine clear_padding

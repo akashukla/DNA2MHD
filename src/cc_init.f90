@@ -130,10 +130,23 @@ SUBROUTINE arrays
   lkz2=(mype+1)*nz0_big/n_mpi_procs-1
 
   if (verbose) print *, mype,"Mype Limits",lkz1,lkz2
-  
-  !Verify the following when implementing kz parallelization
-  lbkz=lkz1
-  ubkz=lkz2
+
+  ! Define upper and lower bounds for nonzero indices in z
+  if (n_mpi_procs.eq.1) then
+     lbkz = lkz1
+     ubkz = lkz2
+  else if (lkz1.le.hkz_ind) then
+     lbkz = lkz1
+     ubkz = min(hkz_ind,lkz2)
+  else if (lkz2.ge.lkz_big) then
+     lbkz = max(lkz1,lkz_big)
+     ubkz = lkz2
+  else
+     ! No nonzero indices for lkz1 and lkz2 in the padding region                                                                                                                       
+     lbkz = lkz2
+     ubkz = lkz1
+  endif
+
 
   !Info for Hankel grid
   lh0=nh0/np_hank

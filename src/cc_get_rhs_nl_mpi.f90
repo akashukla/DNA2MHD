@@ -177,6 +177,7 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
 
   ! I dont want to change g_in, so I copy temporaly to g_in0
   !g_in0 = g_in
+  
   b_inx0 = b_in(:,:,:,0)
   b_iny0 = b_in(:,:,:,1)
   b_inz0 = b_in(:,:,:,2)
