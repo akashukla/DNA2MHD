@@ -60,6 +60,7 @@ MODULE nonlinearity
   REAL :: fft_norm  !normalization factor for inverse fft
   INTEGER(C_INTPTR_T) :: i,j,k
   INTEGER :: ierr
+  REAL :: t1, t2,t3,t4
 
   LOGICAL :: padv1,padv2,padv3,padv4
   LOGICAL :: printpad,printunpack
@@ -187,6 +188,7 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
 ! TERMS BX BY BZ
 
 
+  if (timer.and.(mype.eq.0)) t1 = MPI_WTIME()
   if (.not.nv) then ! Skip b if Navier Stokes
    !bx
    temp_small = b_inx0
@@ -277,6 +279,9 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
     ENDDO
     CALL ZEROPAD    
     curlvz = store
+
+    if (timer.and.(mype.eq.0)) t2 = MPI_WTIME()
+    if (timer.and.(mype.eq.0)) print *, "Time for Derivs and IRFFTs",t2-t1 
     
 ! EQUATION (14) 1=xcomp, 2=ycomp 3=zcomp
 !     eq14x=P1-Q1-R1+S1
@@ -309,6 +314,7 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
 
     ! To save memory, only use one store by adding terms to rhs_out as needed
 
+    if (timer.and.(mype.eq.0)) t1 = MPI_WTIME()
     if (.not.nv) then ! Skip b ffts if Navier Stokes
 
        ! x: vy bz - vz by - (curlby bz - curlbz by)
@@ -396,6 +402,9 @@ CALL UNPACK
 if (verbose) print *, "vz fft complete"
 rhs_out_v(:,:,:,2) = rhs_out_v(:,:,:,2) + temp_small
 if (verbose) print *, "vz done"
+
+if (timer.and.(mype.eq.0)) t2 = MPI_WTIME()
+if (timer.and.(mype.eq.0)) print *, "equations and RFFTs",t2-t1
 
 ! to preserve reality of the fields, remove v,b terms at nky0/2,nkz0/2
 

@@ -25,8 +25,8 @@ default	: all
 #####  CHOSSE THE DESIRED COMPILATION TYPE 
 ###############################################################################
 
- CMPLTYPE = debug
-# CMPLTYPE = optim
+# CMPLTYPE = debug
+ CMPLTYPE = optim
 
 #####  CHOSSE THE DESIRED PRECISION TYPE 
 ###############################################################################

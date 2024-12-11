@@ -544,9 +544,10 @@ SUBROUTINE checkpoint_out(purpose)
 
     append = .false.
     
-    IF (.not.not_first) THEN
+    IF (.not.not_first.and.mype.eq.0) THEN
        CALL get_io_number
        s_handle = io_number
+       print *, "Security Handle",s_handle
     ENDIF
 
     chp_handle = s_handle
@@ -557,9 +558,10 @@ SUBROUTINE checkpoint_out(purpose)
     INQUIRE(file=trim(diagdir)//trim(chp_name),exist=not_first)
 
     append = .false.
-    IF (.not.not_first) THEN
+    IF ((mype.eq.0).and.(.not.not_first)) THEN
        CALL get_io_number
        f_handle = io_number
+       print *, "Final Handle",f_handle
     ENDIF
 
     chp_handle = f_handle
@@ -576,9 +578,10 @@ SUBROUTINE checkpoint_out(purpose)
       IF (.not.not_first.and.mype.eq.0) THEN
          CALL get_io_number
          b_out_handle = io_number
-            OPEN(unit=b_out_handle,file=trim(diagdir)//trim(chp_name_b),&
-                 form='unformatted', status='replace',access='stream')
-            CLOSE(b_out_handle)
+         print *, "B_out handle",b_out_handle
+         OPEN(unit=b_out_handle,file=trim(diagdir)//trim(chp_name_b),&
+              form='unformatted', status='replace',access='stream')
+         CLOSE(b_out_handle)
          
       ENDIF
 
@@ -586,11 +589,12 @@ SUBROUTINE checkpoint_out(purpose)
       IF (mype.eq.0.and..not.not_first) THEN
          CALL get_io_number
          v_out_handle = io_number
-            OPEN(unit=v_out_handle,file=trim(diagdir)//trim(chp_name_v),&
-                 form='unformatted', status='replace',access='stream')
-            CLOSE(v_out_handle)
+         print *, "V_out_handle",v_out_handle
+         OPEN(unit=v_out_handle,file=trim(diagdir)//trim(chp_name_v),&
+              form='unformatted', status='replace',access='stream')
+         CLOSE(v_out_handle)
       ENDIF
-
+      
       chp_handle_b = b_out_handle
       chp_handle_v = v_out_handle
       
@@ -629,13 +633,13 @@ SUBROUTINE checkpoint_out(purpose)
          if (mype.eq.0) OPEN(unit=chp_handle_b,file=trim(diagdir)//trim(chp_name_b),&
               form='unformatted', status='unknown',access='stream',position='append')
          if (mype.eq.0) WRITE(chp_handle_b) time
-         CALL GATHER_WRITE_3D(chp_handle,b_1)
+         CALL GATHER_WRITE_3D(chp_handle_b,b_1)
          if (mype.eq.0) CLOSE(chp_handle_b)
          
          if (mype.eq.0) OPEN(unit=chp_handle_v,file=trim(diagdir)//trim(chp_name_v),&
               form='unformatted', status='unknown',access='stream',position='append')
          if (mype.eq.0) WRITE(chp_handle_v) time
-         CALL GATHER_WRITE_3D(chp_handle,v_1)
+         CALL GATHER_WRITE_3D(chp_handle_v,v_1)
          if (mype.eq.0) CLOSE(chp_handle_v)
          
          WRITE(*,*) 'Closed v and b handles',itime         

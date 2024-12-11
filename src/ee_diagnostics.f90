@@ -116,6 +116,7 @@ SUBROUTINE initialize_diagnostics
     IF (mype.eq.0) THEN
        CALL get_io_number
        en_handle = io_number
+       print *, "Energy Handle",en_handle
     IF(checkpoint_read) THEN
       INQUIRE(file=trim(diagdir)//'/energy_out.dat',exist=file_exists)
       IF(file_exists) THEN
@@ -139,8 +140,10 @@ SUBROUTINE initialize_diagnostics
   IF(istep_energyspec.gt.0.and.mype==0) THEN
     CALL get_io_number
     enspec_handle=io_number
+    print *, "Enspec Handle",enspec_handle
     CALL get_io_number
     mode_handle = io_number
+    print *, "Mode Handle",io_number
     !OPEN(unit=en_handle,file=trim(diagdir)//'/energy_out.dat',status='unknown') 
     IF(checkpoint_read) THEN
       INQUIRE(file=trim(diagdir)//'/energyspec_out.dat',exist=file_exists)
@@ -162,7 +165,7 @@ SUBROUTINE initialize_diagnostics
     ALLOCATE(RC(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2))
     ALLOCATE(OSPEC(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2))
     ALLOCATE(WRITESPEC(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2))
-  END IF
+ END IF
 
 END SUBROUTINE initialize_diagnostics
 
@@ -245,12 +248,11 @@ SUBROUTINE diag
       END IF
    ENDIF
    
-
   IF((istep_schpt.ne.0).and.(MOD(itime,istep_schpt)==0)) THEN
       ! IF(verbose) WRITE(*,*) "Writing s_checkpoint.",mype
       CALL checkpoint_out(1)
       ! IF(verbose) WRITE(*,*) "Done writing s_checkpoint.",mype
-  END IF
+   END IF
 
   IF((istep_gout.ne.0).and.(MOD(itime,istep_gout)==0)) THEN
 
@@ -266,7 +268,7 @@ SUBROUTINE diag
 
       ! IF(verbose) WRITE(*,*) "Done with vbout diag.",mype
 
-  END IF
+   END IF
 
 END SUBROUTINE diag
 

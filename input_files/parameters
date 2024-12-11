@@ -11,9 +11,9 @@ rey = 0.0
 kxmin =   0.02
 kymin =   0.02
 kzmin =   0.01
-nkx0 = 8
-nky0 = 16
-nkz0 = 16
+nkx0 = 32
+nky0 = 64
+nkz0 = 64
 nv0 =   2
 nh0 =    1
 nspec =    1
@@ -34,9 +34,9 @@ courant =   0.5
 kxinit_min = 0
 kyinit_min = 0
 kzinit_min = 0
-kxinit_max = 8
-kyinit_max = 16
-kzinit_max = 16
+kxinit_max = 32
+kyinit_max = 64
+kzinit_max = 64
 init_energy = 0.01
 init_amp_bx = 0.0
 init_amp_by = 0.0
@@ -76,7 +76,7 @@ output_nlt_n = F
 /
 
 &flags
-verbose  = T
+verbose  = F
 timer = F
 nonlinear  = T
 actual_nonlinear = T
@@ -134,7 +134,7 @@ random_state = 3
 /
 
 &initial_value
-max_itime = 1
+max_itime = 100
 max_walltime =   10000000.0
 dt_max = 0.02
 fix_dt = F

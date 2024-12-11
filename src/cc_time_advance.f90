@@ -82,10 +82,10 @@ SUBROUTINE iv_solver
     !IF(verbose) WRITE(*,*) "Calling diagnostics",time,itime,mype
 
     ! Don't call diagnostics on first iteration when doing a warm restart - no doubles in data
-   if (timer) sttime = MPI_WTIME()
+   if (timer.and.(mype.eq.0)) sttime = MPI_WTIME()
     if ((.not.checkpoint_read).or.(itime.gt.itime_start)) CALL diag
-   if (timer) diagtime = MPI_WTIME()
-   if (timer) print *, "Diag Time",diagtime - sttime,mype
+   if (timer.and.(mype.eq.0)) diagtime = MPI_WTIME()
+   if (timer.and.(mype.eq.0)) print *, "Diag Time",diagtime - sttime,mype
    
    !IF(verbose) WRITE(*,*) "Done with diagnostics",time,itime,mype
 
@@ -400,19 +400,19 @@ SUBROUTINE get_rhs(b_in,v_in, rhs_out_b,rhs_out_v,nmhc,ndt)
 
      if (verbose) print *, "Pre Linear","Mype",mype,"MaxVal v_1",maxval(abs(v_in))
      CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-     if (timer) sttime = MPI_WTIME()
+     if (timer.and.(mype.eq.0)) sttime = MPI_WTIME()
      CALL get_rhs_lin(b_in,v_in,rhs_out_b, rhs_out_v,0)
-     if (timer) lintime = MPI_WTIME()
-     if (timer) print *, "Linear Time",lintime-sttime
+     if (timer.and.(mype.eq.0)) lintime = MPI_WTIME()
+     if (timer.and.(mype.eq.0)) print *, "Linear Time",lintime-sttime
      
      !IF(nonlinear.and..not.linear_nlbox) CALL get_rhs_nl(b_in, v_in,rhs_out_b,rhs_out_v)
-     if (timer) sttime = MPI_WTIME()
+     if (timer.and.(mype.eq.0)) sttime = MPI_WTIME()
      if (verbose) print *, "Pre NL","Mype",mype,"MaxVal v_1",maxval(abs(rhs_out_v))
      CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
      
      IF(actual_nonlinear) CALL get_rhs_nl(b_in, v_in,rhs_out_b,rhs_out_v,ndt)
-     if (timer) nltime = MPI_WTIME()
-     if (timer) print *, "Nonlinear Time",nltime-sttime
+     if (timer.and.(mype.eq.0)) nltime = MPI_WTIME()
+     if (timer.and.(mype.eq.0)) print *, "Nonlinear Time",nltime-sttime
      
       IF (.not.(actual_nonlinear)) ndt = dt_max
      if (verbose.and.(mype.eq.0)) print *, ndt
@@ -429,16 +429,16 @@ SUBROUTINE get_rhs(b_in,v_in, rhs_out_b,rhs_out_v,nmhc,ndt)
      ! Add forcing
      CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
      IF (mod(intorder,20).ne.0) THEN
-        if (timer) sttime = MPI_WTIME()
+        if (timer.and.(mype.eq.0)) sttime = MPI_WTIME()
         if (verbose) print *, "Pre Diss","Mype",mype,"MaxVal v_1",maxval(abs(rhs_out_v))
         CALL get_rhs_diss(b_in,v_in,rhs_out_b,rhs_out_v)
-        if (timer) disstime =MPI_WTIME()
-        if (timer) print *, "Dissipation Time",disstime-sttime
-        if (timer) sttime = MPI_WTIME()
+        if (timer.and.(mype.eq.0)) disstime =MPI_WTIME()
+        if (timer.and.(mype.eq.0)) print *, "Dissipation Time",disstime-sttime
+        if (timer.and.(mype.eq.0)) sttime = MPI_WTIME()
         if (verbose) print *, "Pre Force","Mype",mype,"MaxVal v_1",maxval(abs(rhs_out_v))
         IF (force_turbulence) CALL get_rhs_force(rhs_out_b, rhs_out_v)
-        if (timer) forcetime = MPI_WTIME()
-        if (timer) print *, "Forcing Time",forcetime-sttime
+        if (timer.and.(mype.eq.0)) forcetime = MPI_WTIME()
+        if (timer.and.(mype.eq.0)) print *, "Forcing Time",forcetime-sttime
      ENDIF
      
      if (verbose.and.(mype.eq.0)) print *,'RHS found'
