@@ -134,7 +134,7 @@ random_state = 3
 /
 
 &initial_value
-max_itime = 50
+max_itime = 100
 max_walltime =   10000000.0
 dt_max = 0.02
 fix_dt = F

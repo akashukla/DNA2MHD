@@ -192,18 +192,18 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   if (timer.and.(mype.eq.0)) t1 = MPI_WTIME()
   if (.not.nv) then ! Skip b if Navier Stokes
    !bx
-   temp_small = b_inx0
-   CALL ZEROPAD
+   temp_big = b_inx0
+   CALL fftw_mpi_execute_dft_c2r(plan_c2r,temp_big,store)
    bx = store
 
    !by
-   temp_small = b_iny0
-   CALL ZEROPAD    
+   temp_big = b_iny0
+   CALL fftw_mpi_execute_dft_c2r(plan_c2r,temp_big,store)
    by = store
    
    !bz
-   temp_small = b_inz0
-   CALL ZEROPAD
+   temp_big = b_inz0
+   CALL fftw_mpi_execute_dft_c2r(plan_c2r,temp_big,store)
    bz = store
 
     ! curlbx
@@ -237,21 +237,21 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
 
 !!! TERMS  vx,vy,vz 
 !vx
-    temp_small = v_inx0
+    temp_big = v_inx0
     !Add padding for dealiasing
-    CALL ZEROPAD
+    CALL fftw_mpi_execute_dft_c2r(plan_c2r,temp_big,store)
     vx = store
 
     !vy
-    temp_small = v_iny0
+    temp_big= v_iny0
     !Add padding for dealiasing
-    CALL ZEROPAD    
+    CALL fftw_mpi_execute_dft_c2r(plan_c2r,temp_big,store)
     vy = store
 
     !vz
-    temp_small = v_inz0
+    temp_big = v_inz0
     !Add padding for dealiasing    
-    CALL ZEROPAD    
+    CALL fftw_mpi_execute_dft_c2r(plan_c2r,temp_big,store)
     vz = store
 
     ! curlvx
