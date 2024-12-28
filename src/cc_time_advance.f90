@@ -520,7 +520,7 @@ SUBROUTINE dorpi547M(b_in,v_in)
      
   !! Second step
   bk1s = b_in+dt*bk1*1.0/5.0
-  vk1s = b_in+dt*bk1*1.0/5.0
+  vk1s = v_in+dt*bk1*1.0/5.0
   CALL get_rhs(bk1s,vk1s,bk2,vk2,nmhc2,dt_new2)
      
   !! Third step
@@ -677,7 +677,7 @@ SUBROUTINE GAUSS4(b_in,v_in,dt_new)
   
   REAL(C_DOUBLE) :: a11,a12,a21,a22
   REAL(C_DOUBLE) :: nmhc1,nmhc2,nmhc1s,nmhc2s
-  REAL(C_DOUBLE) :: ndt,maxdev,l1norm
+  REAL(C_DOUBLE) :: ndt,maxdev,maxdevm
   INTEGER :: solvloop
 
   a11 = 1.0/4.0
@@ -692,7 +692,6 @@ SUBROUTINE GAUSS4(b_in,v_in,dt_new)
   ! Start iterating
 
   maxdev = 1.0
-  l1norm = 1.0
   solvloop = 0
 
   DO WHILE ((solvloop.lt.1000).and.(maxdev.gt.10.0**(-16.0)))
@@ -729,11 +728,14 @@ SUBROUTINE GAUSS4(b_in,v_in,dt_new)
      
      ! Fixed point solution
      
-     l1norm = sum(abs(bk1-bk1s)+abs(vk1-vk1s)+abs(vk2-vk2s)+abs(bk2-bk2s))
-     maxdev = max(maxval(abs(bk1-bk1s)),&
+     maxdevm = max(maxval(abs(bk1-bk1s)),&
           maxval(abs(vk1-vk1s)),&
           maxval(abs(bk2-bk2s)),&
           maxval(abs(vk2-vk2s)))
+     
+     CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+     CALL MPI_ALLREDUCE(maxdevm,maxdev,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD,ierr)
+     
      solvloop = solvloop + 1
      
      if (solvloop.eq.999) print *, "Failed to Converge After 1000 iterations Maxdev ",maxdev
@@ -767,7 +769,7 @@ SUBROUTINE GAUSS2(b_in,v_in,dt_new)
 
   REAL(C_DOUBLE) :: a11
   REAL(C_DOUBLE) :: nmhc1,nmhc1s
-  REAL(C_DOUBLE) :: ndt,maxdev,l1norm
+  REAL(C_DOUBLE) :: ndt,maxdev,maxdevm
   INTEGER :: solvloop
 
   a11 = 1.0/2.0
@@ -779,31 +781,35 @@ SUBROUTINE GAUSS2(b_in,v_in,dt_new)
   vk2 = v_in+a11*dt*vk1
   CALL get_rhs(bk2,vk2,bk1s,vk1s,nmhc1s,ndt)  
 
-  l1norm = 1.0
   maxdev = 1.0
   solvloop = 0
 
   DO WHILE ((solvloop.lt.1000).and.(maxdev.gt.10.0**(-16.0)))
      ! Check for now to see if the fixed point iteration converges
 
-     if (verbose) print *, "Iteration ",solvloop,"Discrepancy ",maxdev
+     if (verbose) print *, mype,"Iteration ",solvloop,"Discrepancy ",maxdev
 
-     if (solvloop.eq.0) then
-
-     endif
-     
-
-     bk1 = bk1s
+     if (verbose) CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+     bk1 = bk1s 
      vk1 = vk1s
 
      bk2 = b_in+a11*dt*bk1
      vk2 = v_in+a11*dt*vk1
+     if (verbose) CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+     if (verbose) print *, mype,"Through Iteration ",solvloop, "Assignment"
 
      CALL get_rhs(bk2,vk2,bk1s,vk1s,nmhc1s,ndt)
 
+     if (verbose) print *, mype,"Through Iteration ",solvloop,"Iteration"
      solvloop = solvloop + 1
-     maxdev = max(maxval(abs(bk1-bk1s)),maxval(abs(vk1-vk1s)))
-     l1norm = sum(abs(bk1-bk1s)+abs(vk1-vk1s))
+
+     if (verbose) CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+
+     maxdevm = max(maxval(abs(bk1-bk1s)),maxval(abs(vk1-vk1s)))
+     CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+     CALL MPI_ALLREDUCE(maxdevm,maxdev,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD,ierr)
+
+     if (verbose) CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
 
      if (solvloop.eq.999) print *, "Failed to Converge After 1000 iterations, Maxdev ",maxdev
 

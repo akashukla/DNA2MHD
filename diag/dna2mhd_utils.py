@@ -1860,8 +1860,8 @@ def enheldev(lpath,local=0):
     te,e = plot_energy(lpath)
     dt = te[-1]-te[0]
     de = e[:,0]-e[0,0]
-    dmh = (e[:,1]-e[0,1]) +(e[:,-1] - e[0,-1])
-    dch = (e[:,2]-e[0,2]) +(e[:,-1] - e[0,-1])
+    dmh = (e[:,1]-e[0,1]) + (e[:,-1] - e[0,-1])
+    dch = (e[:,2]-e[0,2]) + (e[:,-1] - e[0,-1])
     
     print(dt)
     
