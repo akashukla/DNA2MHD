@@ -243,8 +243,6 @@ SUBROUTINE diag
          ! IF(verbose) WRITE(*,*) "Starting energyspec diag.",mype
          WRITE(enspec_handle) time
          CALL en_spec()
-         WRITE(mode_handle) time
-         CALL mode_spec()
          ! IF(verbose) WRITE(*,*) "Done with energyspec diag.",mype
       END IF
    ENDIF
