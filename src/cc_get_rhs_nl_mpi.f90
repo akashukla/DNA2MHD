@@ -88,6 +88,8 @@ SUBROUTINE initialize_fourier_ae_mu0
 
   CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
   CALL fftw_mpi_init()
+
+  t1 = MPI_WTIME()
   
   fft_norm=1.0/(REAL(nx0_big*ny0_big*nz0_big))
 
@@ -110,13 +112,15 @@ SUBROUTINE initialize_fourier_ae_mu0
   IF(mype==0) WRITE(*,*) "lky_big",lky_big
   IF(mype==0) WRITE(*,*) "hkz_ind,lkz_ind",hkz_ind,lkz_ind
   IF(mype==0) WRITE(*,*) "lkz_big",lkz_big
-  WRITE(*,*) "local_N, lkz2+1-lkz1",local_N,lkz2+1-lkz1,mype
-  WRITE(*,*) "local_k_offset",local_k_offset,mype
 
   CALL ALLOCATIONS
 
   printpad = (.false.)
   printunpack = (.false.)
+
+  t2 = MPI_WTIME()
+
+  print *, "Time for FFT Plan",t2-t1
 
   !CALL dfftw_execute_dft_c2r(plan_c2r,tcomp,treal)
   !CALL dfftw_execute_dft_r2c(plan_r2c,treal,tcomp)

@@ -2,46 +2,50 @@ import dna2mhd_utils as dn
 from output2 import maxinds
 import numpy as np
 
-lpaths = ["/pscratch/sd/e/echansen/DNA2MHDruns/fullwhisti"]
+lpaths = ["/pscratch/sd/e/echansen/DNA2MHDruns/run128"]
 
 #lpaths = ["/scratch/08929/echansen/dna2mhdrunDPP128LC",
 #          "/scratch/08929/echansen/dna2mhdrunDPP128LCi"]
 
 for lpath in lpaths:
-    dn.plot_energy(lpath,3,show=False)
-    print("Through energy")
-    dn.plot_enspec(lpath,npt=4,zz=-1,show=False,log=True,linplot=False,newload=True,fullspec=False,old=True,tmaxfac=1,tmax=2000000)
-    dn.plot_enspec(lpath,npt=4,zz=-1,show=False,log=True,linplot=False,newload=True,fullspec=False,old=True,tmaxfac=1,tmax=2000000,version=0)
-    print("Through Energy Spec")
+    dn.plot_energy(lpath)
+    print("\nThrough energy\n")
+     
+    dn.plot_enspec(lpath,zz=-1,version=3)
+    dn.plot_enspec(lpath,zz=2,version=0)
+    print("\nThrough Energy Spec\n")
+    x = """
+    dn.nlparam(lpath)
+    print("\nThrough NL Param\n")
+    """
+    
     dn.mode_break(lpath,show=False)
-    print("Through Mode Breakdown")
+    print("\nThrough Mode Breakdown\n")
     dn.structurefunction(lpath,tmax=2*10**10)
-    print("Through Structure Functions")
+    print("\nThrough Structure Functions\n")
+    x = """
     dn.mode_nlparam(lpath,0,1)
     dn.mode_nlparam(lpath,0,3)
     dn.mode_nlparam(lpath,-1,1)
     dn.mode_nlparam(lpath,-1,3)
     print("Through Nonlinearity Parameter")
+    """
 
-x = """
-fname = {lpaths[0]:lpaths[0]+"/DNAHD.out1467543",lpaths[1]:lpaths[1]+"/DNAHD.out1472208"}
-opts = ['b','v','bdv','vdb','cbdb','bdcb','vdv','bdb']
+x = """inds = []
+for i in range(10):
+    inds.append(np.random.randint(0,16,3))
 
 for lpath in lpaths:
 
-    inds = maxinds(fname[lpath],64)
-    dn.getb(lpath)
-    dn.getv(lpath)
-    dn.read_parameters(lpath)
+    inds = []
+    for i in range(10):
+        inds.append(np.random.randint(0,16,3))
 
     for ind in inds:
-        dn.plot_profile_xi(lpath,ind[0][1],ind[0][2],ind[0][3],show=False)
-        for t in ['b','t','v']:
-            dn.plot_profile_enspec(lpath,ind[0][1],ind[0][2],ind[0][3],tbv=t,show=False)
         for i in range(3):
-            dn.plot_bv(lpath,ind[0][1],ind[0][2],ind[0][3],i,show=False,ask=False)
-            dn.plot_nls(lpath,ind[0][1],ind[0][2],ind[0][3],i,show=False,ask=False)
-            for opt in opts:
-                dn.plot_bspectrum(lpath,ind[0][1],ind[0][2],ind[0][3],i,show=False,opt=opt)
+            dn.plot_bv(lpath,ind[0],ind[1],ind[2],i,show=False)
+            dn.plot_bvspectrum(lpath,"b",ind[0],ind[1],ind[2],i,show=False)
+            dn.plot_bvspectrum(lpath,"v",ind[0],ind[1],ind[2],i,show=False)
+                
         print("Plotted ",ind)
 """

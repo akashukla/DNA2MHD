@@ -1,19 +1,20 @@
 &physical_parameters
+nu = 0.00
 omt = 5.000
 omn =    1.000    
 Ti0Te =    1.000 
 eta = 1.0
-vnu = 0.0
+vnu = 0.1
 rey = 0.0
 /
 
 &numerical_parameters
-kxmin =   0.02
-kymin =   0.02
-kzmin =   0.01
-nkx0 = 32
-nky0 = 64
-nkz0 = 64
+kxmin =   0.1
+kymin =   0.1
+kzmin =   0.02
+nkx0 = 64
+nky0 = 128
+nkz0 = 128
 nv0 =   2
 nh0 =    1
 nspec =    1
@@ -34,9 +35,9 @@ courant =   0.5
 kxinit_min = 0
 kyinit_min = 0
 kzinit_min = 0
-kxinit_max = 32
-kyinit_max = 64
-kzinit_max = 64
+kxinit_max = 64
+kyinit_max = 128
+kzinit_max = 128
 init_energy = 0.01
 init_amp_bx = 0.0
 init_amp_by = 0.0
@@ -56,8 +57,8 @@ hyp = 1
 /
 
 &diagnostics
-diagdir = "/pscratch/sd/e/echansen/DNA2MHDruns/mpifftbig4"
-loaddir = "/pscratch/sd/e/echansen/DNA2MHDruns/mpifftbig4"
+diagdir = "/pscratch/sd/e/echansen/DNA2MHDruns/run128"
+loaddir = "/pscratch/sd/e/echansen/DNA2MHDruns/run128"
 istep_ffm =   20
 istep_energy3d =  500
 istep_energy =  1
@@ -71,7 +72,7 @@ istep_eshells =   500
 istep_real =   200
 istep_fmom3d =  500
 istep_gamma =    0
-istep_schpt =  50
+istep_schpt =  200
 output_nlt_n = F
 /
 
@@ -94,7 +95,7 @@ rhs_lin_version = 12
 dealias_type = 3
 shifted = F
 splitx = T
-force_turbulence = F
+force_turbulence = T
 forceb = T
 forcetype = 31
 set_forcing = F
@@ -134,9 +135,9 @@ random_state = 3
 /
 
 &initial_value
-max_itime = 100
+max_itime = 100000
 max_walltime =   10000000.0
 dt_max = 0.01
 fix_dt = F
-max_time =   10000000.0
+max_time =   10000000.
 /

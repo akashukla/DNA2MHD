@@ -231,6 +231,7 @@ SUBROUTINE diag
          CALL cross_helicity()
          CALL hmhdhmtn(1)
          CALL hmhdhmtn(2)
+         CALL mode_energy
          if(mype.eq.0) WRITE(en_handle) magbound
          if (mype.eq.0) WRITE(en_handle) canbound
          if (mype.eq.0) WRITE(en_handle) mhelcorr
@@ -700,9 +701,10 @@ if (mype.eq.0) WRITE(*,*) "Canonical Helicity Bound",canbound
 
 end subroutine bound_hels
 
-subroutine mode_spec
+subroutine mode_energy
 
   implicit none
+  real :: modeen
   integer :: i,j,k
   
   do i = 0, nkx0-1
@@ -722,15 +724,20 @@ subroutine mode_spec
      print *, "Max RW ", sum(0.5*abs(RW)**2)*(16.0*pi**3)
      print *, "Max RC ", sum(0.5*abs(RC)**2)*(16.0*pi**3)
   endif
-
-  if (mype.eq.0) write(mode_handle) time
   
-  CALL GATHER_WRITE(mode_handle,LW)
-  CALL GATHER_WRITE(mode_handle,LC)
-  CALL GATHER_WRITE(mode_handle,RW)
-  CALL GATHER_WRITE(mode_handle,RC)
+  modeen = sum(0.5*abs(LW)**2)*(16.0*pi**3)
+  write(en_handle) modeen
 
-end subroutine mode_spec
+  modeen = sum(0.5*abs(LC)**2)*(16.0*pi**3)
+  write(en_handle) modeen
+
+  modeen = sum(0.5*abs(RW)**2)*(16.0*pi**3)
+  write(en_handle) modeen
+
+  modeen = sum(0.5*abs(RW)**2)*(16.0*pi**3)
+  write(en_handle) modeen
+  
+end subroutine mode_energy
 
 subroutine divs
 
