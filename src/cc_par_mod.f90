@@ -72,7 +72,7 @@ MODULE par_mod
   !left_ev: SLEPc uses transpose of linear operator==> finds left eigenvectors
   LOGICAL :: left_ev=.false.
   CHARACTER(len=2) :: comp_type='IV'
-  REAL :: dt_max=0.00    !initial maximum time step
+  REAL :: dt_max=0.01    !initial maximum time step
   REAL :: turnover
   LOGICAL :: fix_dt 
   REAL :: courant=0.3   !courant factor times 2 pi for dt calculation
@@ -261,8 +261,8 @@ MODULE par_mod
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:) :: v_1
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:) :: reader
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:) :: reader2
-  COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:)  :: fullsmallarray,fullbigarray
-  COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE :: scatter_big(:),scatter_small(:),gather_big(:),gather_small(:)
+  COMPLEX, ALLOCATABLE, DIMENSION(:,:,:)  :: fullsmallarray,fullbigarray
+  COMPLEX, ALLOCATABLE :: scatter_big(:),scatter_small(:),gather_big(:),gather_small(:)
   
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:) :: LW,LC,RW,RC
   REAL, ALLOCATABLE, DIMENSION(:,:,:) :: LWp,LCp,RWp,RCp
@@ -308,9 +308,11 @@ MODULE par_mod
   REAL :: time=0.0  
   REAL :: dt
   REAL :: max_time=1.0e15
-  INTEGER :: max_itime=1000000,itime=0
+  INTEGER :: max_itime=1000,itime=0
   INTEGER :: itime_start
   REAL :: max_walltime=83000.0
+  REAL :: time_start = 0.0
+  REAL :: time_tot = 10000.0
   LOGICAL :: nonlinear
   LOGICAL :: actual_nonlinear
   LOGICAL :: force_turbulence

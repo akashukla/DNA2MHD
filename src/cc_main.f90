@@ -45,12 +45,13 @@ PROGRAM dna
   IMPLICIT NONE
   
   CHARACTER(len=40) :: ic_temp
-  REAL :: time_tot
   INTEGER :: run_type
   !! Starting the MPI communication enviromen and the wallclock
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!  
   CALL init_comm
-  CALL start_wallclock
+
+  
+  time_start = MPI_WTIME()
   
   !! Reading the input parameters 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -100,9 +101,9 @@ PROGRAM dna
     !IF (performance_tests) CALL start_clock
     CALL iv_solver
     !IF (performance_tests) THEN 
-    !  CALL end_clock(time_tot)
+      time_tot = MPI_WTIME()
       IF(mype==0) THEN
-        WRITE(*,*) "Total wallclock for time loop:",time_tot
+        WRITE(*,*) "Total wallclock for time loop:",time_tot-time_start
         WRITE(*,*) "itime",itime
         OPEN(unit=999,file=trim(diagdir)//'/end_info.dat',status='unknown')
         WRITE(999,*) "Total wall clock:",time_tot

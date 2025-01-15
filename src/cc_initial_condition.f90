@@ -22,7 +22,6 @@ SUBROUTINE initial_condition(which_init0)
   USE par_mod
   USE mtrandom
   USE mpi
-  USE diagnostics, only : bv_first
 
   use iso_fortran_env, only: int64
   
@@ -111,10 +110,7 @@ SUBROUTINE initial_condition(which_init0)
       ! would have energy force_amp times guide field energy divided by number of modes forced
       ! Order of magnitude estimate pending phases and forcing, of course
 
-      fperpm = sum(abs( kperps .lt. (sqrt(kxmax**2.0 + kymax**2.0) * force_frac)))
-
-      CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-      CALL MPI_ALLREDUCE(fperpm,fperp,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
+      fperp = (force_frac * nky0)**3.0
       
       force_amp = abs(cmplx(vnu*(kxmin)**(2.0*hyp),0)) * sqrt(1.0/3.0 * force_amp) * sqrt(8.0 * (pi ** 3))/fperp
       
@@ -487,5 +483,7 @@ SUBROUTINE initial_condition(which_init0)
     s1 = knzeroen + kxzeroen
 
     if (mype.eq.0) print *, "All Mype Initial Energy",s1*8*pi**3
+
+    dt = dt_max
 
 END SUBROUTINE initial_condition
