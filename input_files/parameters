@@ -57,8 +57,8 @@ hyp = 1
 /
 
 &diagnostics
-diagdir = "/pscratch/sd/e/echansen/DNA2MHDruns/run128"
-loaddir = "/pscratch/sd/e/echansen/DNA2MHDruns/run128"
+diagdir = "/Users/ehansen/Downloads/dna2mhdruns/run64wtest"
+loaddir = "/Users/ehansen/Downloads/dna2mhdruns/run64wtest"
 istep_ffm =   20
 istep_energy3d =  500
 istep_energy =  1
