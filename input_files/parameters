@@ -9,12 +9,12 @@ rey = 0.0
 /
 
 &numerical_parameters
-kxmin =   0.1
-kymin =   0.1
-kzmin =   0.02
-nkx0 = 64
-nky0 = 128
-nkz0 = 128
+kxmin =   2.0
+kymin =   2.0
+kzmin =   1.0
+nkx0 = 32
+nky0 = 64
+nkz0 = 64
 nv0 =   2
 nh0 =    1
 nspec =    1
@@ -35,9 +35,9 @@ courant =   0.5
 kxinit_min = 0
 kyinit_min = 0
 kzinit_min = 0
-kxinit_max = 64
-kyinit_max = 128
-kzinit_max = 128
+kxinit_max = 32
+kyinit_max = 64
+kzinit_max = 64
 init_energy = 0.01
 init_amp_bx = 0.0
 init_amp_by = 0.0
@@ -45,14 +45,14 @@ init_amp_bz = 0.0
 init_amp_vx = 0.0
 init_amp_vy = 0.0
 init_amp_vz = 0.0
-init_kolm = 3.0
+init_kolm = 0.0
 phdf = 2.0
 phdfxy = 2.0
 force_amp = 0.01
 nkxforce = 16
 nkyforce = 16
 nkzforce = 16
-force_frac = 0.1
+force_frac = 0.03
 hyp = 1
 /
 
@@ -64,7 +64,7 @@ istep_energy3d =  500
 istep_energy =  1
 istep_energyspec = 200
 istep_hermite =  1000
-istep_gout =  50
+istep_gout =  0
 istep_gk =    0
 istep_gknl =    0
 istep_nlt =    0
@@ -72,7 +72,7 @@ istep_eshells =   500
 istep_real =   200
 istep_fmom3d =  500
 istep_gamma =    0
-istep_schpt =  200
+istep_schpt =  1000
 output_nlt_n = F
 /
 
@@ -80,7 +80,7 @@ output_nlt_n = F
 verbose  = F
 timer = F
 nonlinear  = T
-actual_nonlinear = T
+actual_nonlinear = F
 calc_dt  = T
 comp_type = 'IV'
 checkpoint_write = T
@@ -90,12 +90,12 @@ nuno_closure = T
 rhs_nl_version = 12
 linen = F
 keepzero = T
-intorder = 5
+intorder = 3
 rhs_lin_version = 12
 dealias_type = 3
 shifted = F
 splitx = T
-force_turbulence = T
+force_turbulence = F
 forceb = T
 forcetype = 31
 set_forcing = F
@@ -131,13 +131,10 @@ force_rc = 0.0
 random_state = 3
 /
 
-&eigensolve
-/
-
 &initial_value
-max_itime = 100000
+max_itime = 60000
 max_walltime =   10000000.0
-dt_max = 0.01
+dt_max = 0.0001
 fix_dt = F
 max_time =   10000000.
 /

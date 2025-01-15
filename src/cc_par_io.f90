@@ -23,7 +23,6 @@ SUBROUTINE read_parameters
 
   REAL :: lmax,Tf
   INTEGER :: ierr, par_handle
-  
 
   NAMELIST /diagnostics/ &
       diagdir,loaddir, istep_ffm, istep_energy3d,istep_fmom3d, istep_gamma,istep_nltest,&
@@ -59,10 +58,6 @@ SUBROUTINE read_parameters
       init_wave,init_null,force_trunc,bc_norm,track_divs,taylorgreen,en_leftwhist,en_leftcyclo,en_rightwhist,en_rightcyclo,debug_energy,&
       force_lw,force_lc,force_rw,force_rc,random_state
  
-  NAMELIST /eigensolve/ &
-      left_vec,right_vec,ev_slepc, kxmax0, kymax0, kzmax0, kscan,n_ev,&
-      left_ev, ev_prec, ev_max_it, ev_shift
-
   NAMELIST /initial_value/ &
       dt_max,  max_itime, max_time ,init_cond,init_prefactor,max_walltime,fix_dt
 
@@ -93,11 +88,8 @@ SUBROUTINE read_parameters
   IF (ierr.ne.0) STOP 'on i/o error: incorrect flags NAMELIST'
 
   REWIND(par_handle)
-  READ(par_handle, nml = eigensolve, iostat = ierr)
-  IF (ierr.ne.0) STOP 'on i/o error: incorrect eigensolve NAMELIST'
-
-  REWIND(par_handle)
   READ(par_handle, nml = initial_value, iostat = ierr)
+  print *, ierr
   IF (ierr.ne.0) STOP 'on i/o error: incorrect initial_value NAMELIST'
 
   REWIND(par_handle)
@@ -318,6 +310,7 @@ SUBROUTINE output_parameters
     WRITE(out_handle,"(A,G12.4)") "init_amp_vx = ",init_amp_vx
     WRITE(out_handle,"(A,G12.4)") "init_amp_vy = ",init_amp_vy
     WRITE(out_handle,"(A,G12.4)") "init_energy = ",init_energy
+    WRITE(out_handle,"(A,G12.4)") "force_amp = ",force_amp
     WRITE(out_handle,"(A,G12.4)") "force_frac = ",force_frac
     WRITE(out_handle,"(A,G12.4)") "init_kolm = ",init_kolm
     WRITE(out_handle,"(A,G12.4)") "phdf = ",phdf
@@ -424,8 +417,8 @@ SUBROUTINE output_parameters
     WRITE(out_handle,"(A,L1)") "walenn = ",walenn
     WRITE(out_handle,"(A,L1)") "mhc = ",mhc
     WRITE(out_handle,"(A,L1)") "shear = ",shear
-    WRITE(out_handle,"(A,I4)") "nv = ",nv
-    WRITE(out_handle,"(A,I4)") "test_ho = ",test_ho
+    WRITE(out_handle,"(A,L1)") "nv = ",nv
+    WRITE(out_handle,"(A,L1)") "test_ho = ",test_ho
     WRITE(out_handle,"(A)")    "/"
     WRITE(out_handle,"(A)")    ""
     WRITE(out_handle,"(A,L1)") "init_wave = ",init_wave
@@ -660,15 +653,18 @@ SUBROUTINE checkpoint_out(purpose)
       implicit none
       integer, intent(in) :: chp_handle
       complex(c_double_complex) :: array(0:nx0_big,0:ny0_big-1,lkz1:lkz2)
+      integer :: count
       integer :: ierr
 
-         CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-         CALL MPI_GATHER(array,(nx0_big/2+1)*ny0_big*nz0_big/n_mpi_procs,MPI_DOUBLE_COMPLEX,gather_small,&
-              (nx0_big/2+1)*ny0_big*nz0_big/n_mpi_procs,MPI_DOUBLE_COMPLEX,0,MPI_COMM_WORLD,ierr)
-            
-         if (mype.eq.0) fullsmallarray = reshape(gather_small,[1+nx0_big/2,ny0_big,nz0_big])
-         
-         if (mype.eq.0) WRITE(chp_handle) fullsmallarray
+      count = (nx0_big/2+1)*ny0_big*nz0_big/n_mpi_procs
+
+      CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+      CALL MPI_GATHER(array,count,MPI_DOUBLE_COMPLEX,gather_small,&
+           count,MPI_DOUBLE_COMPLEX,0,MPI_COMM_WORLD,ierr)
+      
+      if (mype.eq.0) fullsmallarray = reshape(gather_small,[1+nx0_big/2,ny0_big,nz0_big])
+      
+      if (mype.eq.0) WRITE(chp_handle) fullsmallarray
 
     END SUBROUTINE GATHER_WRITE
 
@@ -862,17 +858,17 @@ SUBROUTINE SCATTER_READ(chp_handle,array)
   
   integer, intent(in) :: chp_handle
   complex(c_double_complex) :: array(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2)
-  integer :: ind,ierr
+  integer :: ind,ierr,count
   
   array = cmplx(0.0,0.0)
-  
+
+  count = (1+nx0_big/2)*ny0_big*nz0_big/n_mpi_procs
   DO ind = 0,2
      
      if (mype.eq.0) READ(chp_handle) fullsmallarray
      
      CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-     CALL MPI_SCATTER(fullsmallarray,(1+nx0_big/2)*ny0_big*nz0_big/n_mpi_procs,MPI_DOUBLE_COMPLEX,scatter_small,&
-          (1+nx0_big/2)*ny0_big*nz0_big/n_mpi_procs,MPI_DOUBLE_COMPLEX,0,MPI_COMM_WORLD,ierr)
+     CALL MPI_SCATTER(fullsmallarray,count,MPI_DOUBLE_COMPLEX,scatter_small,count,MPI_DOUBLE_COMPLEX,0,MPI_COMM_WORLD,ierr)
      
      array(:,:,:,ind) = reshape(scatter_small,[(1+nx0_big/2),ny0_big,nz0_big/n_mpi_procs])
          

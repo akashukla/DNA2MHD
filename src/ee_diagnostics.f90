@@ -29,7 +29,7 @@ MODULE diagnostics
   !USE Gyro_LES
   IMPLICIT NONE
 
-  PUBLIC :: initialize_diagnostics, finalize_diagnostics, diag,bv_last,bv_first,&
+  PUBLIC :: initialize_diagnostics, finalize_diagnostics, diag,&
      !output_data, nl_test, &
      initial_wallclock,start_wallclock,&
             check_wallclock,current_wallclock!, sum3d_real
@@ -271,115 +271,6 @@ SUBROUTINE diag
 
 END SUBROUTINE diag
 
-SUBROUTINE bv_last
-
-  IMPLICIT NONE
-
-  ! Write the last b_1 and v_1 to a file for a warm restart
-  ! This is a trial using MPI routines
-  ! Code almost all from MPI 3-1 Standard
-
-  integer :: blast_handle,vlast_handle
-  integer :: sizes_4d(4),subsizes_4d(4),starts_4d(4)
-  integer :: MPI_4D_COMPLEX_ARRAY
-  TYPE(MPI_Status) :: status
-
-  INTEGER :: size
-  
-  ! Subarray type
-
-  print *, "In BV Last"
-  sizes_4d = (/nkx0,nky0,nkz0,3/)
-  subsizes_4d = (/nkx0,nky0,nkz0/n_mpi_procs,3/)
-  starts_4d = (/0,0,mype*nkz0/n_mpi_procs,0/)
-  
-  CALL MPI_TYPE_CREATE_SUBARRAY(4,sizes_4d,subsizes_4d,starts_4d,&
-       MPI_ORDER_FORTRAN, MPI_DOUBLE_COMPLEX,MPI_4D_COMPLEX_ARRAY,ierr)
-  CALL MPI_TYPE_COMMIT(MPI_4D_COMPLEX_ARRAY,ierr)
-
-  ! Open file and set view
-  CALL MPI_FILE_OPEN(MPI_COMM_WORLD,trim(diagdir)//'/blast_out.dat',&
-       MPI_MODE_WRONLY.or.MPI_MODE_CREATE, MPI_INFO_NULL,blast_handle,ierr)
-  CALL MPI_FILE_SET_VIEW(blast_handle,0, MPI_DOUBLE_COMPLEX,&
-       MPI_4D_COMPLEX_ARRAY,"native",MPI_INFO_NULL,ierr)
-
-  ! Write into file
-  CALL MPI_FILE_WRITE_ALL(blast_handle,b_1,1,MPI_4D_COMPLEX_ARRAY,MPI_STATUS_IGNORE,ierr)
-  CALL MPI_FILE_GET_SIZE(blast_handle,size,ierr)
-  print	*, size	
-  ! Close file
-  CALL MPI_FILE_CLOSE(blast_handle, ierr)
-
-  CALL MPI_FILE_OPEN(MPI_COMM_WORLD,trim(diagdir)//'/vlast_out.dat',&
-       MPI_MODE_WRONLY.or.MPI_MODE_CREATE, MPI_INFO_NULL,vlast_handle,ierr)
-  CALL MPI_FILE_SET_VIEW(vlast_handle,0, MPI_DOUBLE_COMPLEX,&
-       MPI_4D_COMPLEX_ARRAY,"native",MPI_INFO_NULL,ierr)
-  CALL MPI_FILE_WRITE_ALL(vlast_handle,v_1,1,MPI_4D_COMPLEX_ARRAY,MPI_STATUS_IGNORE,ierr)
-  CALL MPI_FILE_GET_SIZE(vlast_handle,size,ierr)
-  print *, size
-  CALL MPI_FILE_CLOSE(vlast_handle, ierr)
-
-  print *, "End bv_last"
-
-END SUBROUTINE bv_last
-
-SUBROUTINE bv_first
-
-  IMPLICIT NONE
-
-  ! Read the last b_1 and v_1 to a file for a warm restart
-  ! This is a trial using MPI routines
-  ! Code almost all from MPI 3-1 Standard
-  
-  integer :: bfirst_handle,vfirst_handle
-  integer :: sizes_4d(4),subsizes_4d(4),starts_4d(4)
-  integer :: MPI_4D_COMPLEX_ARRAY
-  TYPE(MPI_Status) :: status
-
-  INTEGER :: size
-
-  ! Subarray type 
-  print *, "In bv_first"
-  sizes_4d = (/nkx0,nky0,nkz0,3/)
-  subsizes_4d = (/nkx0,nky0,nkz0/n_mpi_procs,3/)
-  starts_4d = (/0,0,mype*nkz0/n_mpi_procs,0/)
-
-  CALL MPI_TYPE_CREATE_SUBARRAY(4,sizes_4d,subsizes_4d,starts_4d,&
-       MPI_ORDER_FORTRAN, MPI_DOUBLE_COMPLEX,MPI_4D_COMPLEX_ARRAY,ierr)
-  CALL MPI_TYPE_COMMIT(MPI_4D_COMPLEX_ARRAY,ierr)
-
-  ! Open file and set view
-  CALL MPI_FILE_OPEN(MPI_COMM_WORLD,trim(loaddir)//'/blast_out.dat',&
-       MPI_MODE_RDONLY, MPI_INFO_NULL,bfirst_handle,ierr)
-  CALL MPI_FILE_SET_VIEW(bfirst_handle,0, MPI_DOUBLE_COMPLEX,MPI_4D_COMPLEX_ARRAY,&
-       "native",MPI_INFO_NULL,ierr)
-
-  ! Write into file
-  CALL MPI_FILE_READ_SHARED(bfirst_handle,b_1,product(subsizes_4d),MPI_DOUBLE_COMPLEX,status,ierr)
-
-  if ((mype.eq.0)) print *, "Max b_1 first",maxval(abs(b_1))
-  
-  ! Close file
-  CALL MPI_FILE_CLOSE(bfirst_handle, ierr)
-
-  CALL MPI_FILE_OPEN(MPI_COMM_WORLD,trim(loaddir)//'/vlast_out.dat',&
-       MPI_MODE_RDONLY, MPI_INFO_NULL,vfirst_handle,ierr)
-  CALL MPI_FILE_SET_VIEW(vfirst_handle,0, MPI_DOUBLE_COMPLEX, MPI_4D_COMPLEX_ARRAY,&
-       "native",MPI_INFO_NULL,ierr)
-  CALL MPI_FILE_READ_SHARED(vfirst_handle,v_1,product(subsizes_4d),MPI_DOUBLE_COMPLEX,status,ierr)
-  if ((mype.eq.0)) print *, "Max v_1 first",maxval(abs(v_1))
-  CALL MPI_FILE_CLOSE(vfirst_handle, ierr)
-
-  if ((mype.eq.0)) print *, "Max b_1 first",maxval(abs(b_1))
-  if ((mype.eq.0)) print *, "Max v_1 first",maxval(abs(v_1))
-
-  print *, "End bv_first"
-
-END SUBROUTINE bv_first
-  
-
-
-
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!                           start_wallclock                                 !!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -486,9 +377,10 @@ if ((opt.eq.0).or.(opt.eq.2)) then
 endif
 
 CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-CALL MPI_ALLREDUCE(hamsm,hams,2,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
+CALL MPI_ALLREDUCE(hamsm,hams,2,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
 
-ham = sum(hams) * (8*(pi**3))
+ham = (hams(1)+hams(2)) * (8*(pi**3))
+if (verbose) print *, mype,"Hamiltonian",ham
 
 if (mype.eq.0) WRITE(en_handle) ham
 
@@ -543,17 +435,20 @@ mhsm = 0.0
 
 CALL vec_potential()
 
+if (verbose) print *, mype,"Vector Potential"
+
 mhsm(1) = mhsm(1) + 2.0*sum(real(AVP(1:nkx0-1,:,:,:)*conjg(b_1(1:nkx0-1,:,:,:))))
 mhsm(2) = mhsm(2) + sum(AVP(0,:,:,:)*conjg(b_1(0,:,:,:)))
 
 CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-CALL MPI_ALLREDUCE(mhsm,mhs,2,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
+CALL MPI_ALLREDUCE(mhsm,mhs,2,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
 
-maghel = sum(mhs) * (2.0 * pi)**3.0
+if (verbose) print *, mype,"Helicity Allreduce"
+maghel = (mhs(1) + mhs(2)) * (2.0 * pi)**3.0
 
 if (mype.eq.0) WRITE(en_handle) maghel
 
-if (timer.and.(mype.eq.0)) print *,	"Magnetic Helicity",(maghel+mhelcorr)/magbound
+if (verbose) print *,mype,"Magnetic Helicity",(maghel+mhelcorr)/magbound
 
 END SUBROUTINE mag_helicity
 
@@ -597,12 +492,12 @@ subroutine cross_helicity
   if (mype.eq.0) chsm(2) = chsm(2) + v_1(0,0,0,2)
   
   CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-  CALL MPI_ALLREDUCE(chsm,chs,2,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(chsm,chs,2,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
    
-  crosshel = sum(chs) * (2.0*pi)**3.0
+  crosshel = (chs(1)+chs(2)) * (2.0*pi)**3.0
    
   if (mype.eq.0) WRITE(en_handle) crosshel
-  if (timer.and.(mype.eq.0)) print *, "Cross Helicity",(crosshel+mhelcorr)/canbound
+  if (verbose) print *, mype,"Cross Helicity",(crosshel+mhelcorr)/canbound
 
 end subroutine cross_helicity
 
@@ -702,38 +597,57 @@ end subroutine bound_hels
 subroutine mode_energy
 
   implicit none
-  real :: modeen
+  real :: modeen,modeenm
   integer :: i,j,k
+  real :: lwm,lcm,rwm,rcm,lw,lc,rw,rc
+
+  lwm = 0.0
+  lcm = 0.0
+  rwm = 0.0
+  rcm = 0.0
   
   do i = 0, nkx0-1
      do j = 0, ny0_big-1
         do k = lkz1,lkz2
-           LW(i,j,k) = sum(conjg(pcurleig(i,j,k,:))*(alpha_leftwhist(i,j,k)*b_1(i,j,k,:)+v_1(i,j,k,:))/sqrt(alpha_leftwhist(i,j,k)**2+1))
-           LC(i,j,k) = sum(conjg(pcurleig(i,j,k,:))*(alpha_leftcyclo(i,j,k)*b_1(i,j,k,:)+v_1(i,j,k,:))/sqrt(alpha_leftcyclo(i,j,k)**2+1))
-           RW(i,j,k) = sum(pcurleig(i,j,k,:)*(-alpha_leftwhist(i,j,k)*b_1(i,j,k,:)+v_1(i,j,k,:))/sqrt(alpha_leftwhist(i,j,k)**2+1))
-           RC(i,j,k) = sum(pcurleig(i,j,k,:)*(-alpha_leftcyclo(i,j,k)*b_1(i,j,k,:)+v_1(i,j,k,:))/sqrt(alpha_leftcyclo(i,j,k)**2+1))
+           lwm = lwm + abs(sum(conjg(pcurleig(i,j,k,:))*(alpha_leftwhist(i,j,k)*b_1(i,j,k,:)+v_1(i,j,k,:))/sqrt(alpha_leftwhist(i,j,k)**2+1)))**2.0
+           lcm = lcm + abs(sum(conjg(pcurleig(i,j,k,:))*(alpha_leftcyclo(i,j,k)*b_1(i,j,k,:)+v_1(i,j,k,:))/sqrt(alpha_leftcyclo(i,j,k)**2+1)))**2.0
+           rwm = rwm + abs(sum(pcurleig(i,j,k,:)*(-alpha_leftwhist(i,j,k)*b_1(i,j,k,:)+v_1(i,j,k,:))/sqrt(alpha_leftwhist(i,j,k)**2+1)))**2.0
+           rcm = rcm + abs(sum(pcurleig(i,j,k,:)*(-alpha_leftcyclo(i,j,k)*b_1(i,j,k,:)+v_1(i,j,k,:))/sqrt(alpha_leftcyclo(i,j,k)**2+1)))**2.0
         enddo
      enddo
   enddo
 
-  if ((verbose).and.itime.lt.100) then
-     print *, "Max LW ", sum(0.5*abs(LW)**2)*(16.0*pi**3)
-     print *, "Max LC ", sum(0.5*abs(LC)**2)*(16.0*pi**3)
-     print *, "Max RW ", sum(0.5*abs(RW)**2)*(16.0*pi**3)
-     print *, "Max RC ", sum(0.5*abs(RC)**2)*(16.0*pi**3)
-  endif
+  lwm = lwm * (8.0*pi**3)
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(lwm,lw,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
+
+  if ((verbose)) print *, "Max LW", lw
   
-  modeen = sum(0.5*abs(LW)**2)*(16.0*pi**3)
-  write(en_handle) modeen
+  if (mype.eq.0) write(en_handle) lw
 
-  modeen = sum(0.5*abs(LC)**2)*(16.0*pi**3)
-  write(en_handle) modeen
+  lcm =	lcm * (8.0*pi**3)
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(lcm,lc,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
 
-  modeen = sum(0.5*abs(RW)**2)*(16.0*pi**3)
-  write(en_handle) modeen
+  if ((verbose)) print *, "Max LC",lc
+  
+  if (mype.eq.0) write(en_handle) modeen
 
-  modeen = sum(0.5*abs(RW)**2)*(16.0*pi**3)
-  write(en_handle) modeen
+  rwm =	rwm * (8.0*pi**3)
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(rwm,rw,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
+
+  if ((verbose)) print *, "Max RW",rw
+  
+  if (mype.eq.0) write(en_handle) rw
+
+  rcm =	rcm * (8.0*pi**3)
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(rcm,rc,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
+
+  if ((verbose)) print *, "Max RC",rc
+  
+  if (mype.eq.0) write(en_handle) rc
   
 end subroutine mode_energy
 

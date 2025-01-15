@@ -76,6 +76,7 @@ SUBROUTINE iv_solver
 
  rkstage = 0
  if (verbose) print *, mype,"Starting Main Loop"
+ ! print *, "Time Step Start",dt
  
  DO WHILE((time.lt.max_time).and.(itime.lt.max_itime).and.(continue_run))
  
@@ -146,16 +147,18 @@ SUBROUTINE iv_solver
    !IF(mype==0.and.dt_output) WRITE(*,*) "Before adapt: dt_max,dt",dt_max,dt
    !IF(adapt_dt_nl) CALL adapt_dt 
    !IF(mype==0.and.dt_output) WRITE(*,*) "After adapt: dt_max,dt",dt_max,dt
-   CALL check_wallclock
-   IF(current_wallclock.gt.REAL(max_walltime)) THEN
+   time_tot = MPI_WTIME()
+   IF((time_tot-time_start).gt.REAL(max_walltime)) THEN
    !  IF(mype==0) WRITE(*,*) "Maximum wall time exceeded.", current_wallclock, max_walltime
      continue_run=.false. 
    ENDIF
    IF (dt < 1.0E-5) then 
-     WRITE(*,*) "dt too small to proceed" 
+     WRITE(*,*) "dt too small to proceed" ,dt
      continue_run=.false.
    ENDIF
-  !END IF
+   !END IF
+
+   ! print *, "Time Step itime",itime,dt
 END DO
 
 if (mype.eq.0.and.verbose) print *, "Run stopped"
@@ -166,7 +169,6 @@ CALL diag
   ! if (linen) CALL DEALLOCATE_SPHS
   CALL DEALLOCATE_STEPS
 
- write(*,*) 'Simulation Time: ',current_wallclock
  IF(verbose.and.(mype.eq.0)) WRITE(*,*) "time,itime,mype",time,itime,mype
 
 END SUBROUTINE iv_solver
@@ -340,8 +342,8 @@ SUBROUTINE remove_div(b_in,v_in)
  zero=0.0
 
  if (mype.eq.0) then
-    exb = b_1(0,0,0,:)
-    exv = v_1(0,0,0,:)
+    exb = b_in(0,0,0,:)
+    exv = v_in(0,0,0,:)
  endif 
 
  DO i=0,nx0_big/2
@@ -407,7 +409,7 @@ SUBROUTINE get_rhs(b_in,v_in, rhs_out_b,rhs_out_v,nmhc,ndt)
      
      !IF(nonlinear.and..not.linear_nlbox) CALL get_rhs_nl(b_in, v_in,rhs_out_b,rhs_out_v)
      if (timer.and.(mype.eq.0)) sttime = MPI_WTIME()
-     if (verbose) print *, "Pre NL","Mype",mype,"MaxVal v_1",maxval(abs(rhs_out_v))
+     if (verbose) print *, "Pre NL","Mype",mype,"MaxVal k1",maxval(abs(rhs_out_v))
      CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
      
      IF(actual_nonlinear) CALL get_rhs_nl(b_in, v_in,rhs_out_b,rhs_out_v,ndt)
@@ -417,12 +419,12 @@ SUBROUTINE get_rhs(b_in,v_in, rhs_out_b,rhs_out_v,nmhc,ndt)
       IF (.not.(actual_nonlinear)) ndt = dt_max
      if (verbose.and.(mype.eq.0)) print *, ndt
 
-     if (verbose) print *, "Pre Div","Mype",mype,"MaxVal v_1",maxval(abs(rhs_out_v))
+     if (verbose) print *, "Pre Div","Mype",mype,"MaxVal k1",maxval(abs(rhs_out_v))
      CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
      CALL remove_div(rhs_out_b,rhs_out_v)
 
      nmhc = 0.0
-     if (verbose) print *, "Pre MHC","Mype",mype,"MaxVal v_1",maxval(abs(rhs_out_v))
+     if (verbose) print *, "Pre MHC","Mype",mype,"MaxVal k1",maxval(abs(rhs_out_v))
      CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
      IF (mhc) CALL getmhcrk(b_in,v_in,nmhc)
 
@@ -430,12 +432,12 @@ SUBROUTINE get_rhs(b_in,v_in, rhs_out_b,rhs_out_v,nmhc,ndt)
      CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
      IF (mod(intorder,20).ne.0) THEN
         if (timer.and.(mype.eq.0)) sttime = MPI_WTIME()
-        if (verbose) print *, "Pre Diss","Mype",mype,"MaxVal v_1",maxval(abs(rhs_out_v))
+        if (verbose) print *, "Pre Diss","Mype",mype,"MaxVal k1",maxval(abs(rhs_out_v))
         CALL get_rhs_diss(b_in,v_in,rhs_out_b,rhs_out_v)
         if (timer.and.(mype.eq.0)) disstime =MPI_WTIME()
         if (timer.and.(mype.eq.0)) print *, "Dissipation Time",disstime-sttime
         if (timer.and.(mype.eq.0)) sttime = MPI_WTIME()
-        if (verbose) print *, "Pre Force","Mype",mype,"MaxVal v_1",maxval(abs(rhs_out_v))
+        if (verbose) print *, "Pre Force","Mype",mype,"MaxVal k1",maxval(abs(rhs_out_v))
         IF (force_turbulence) CALL get_rhs_force(rhs_out_b, rhs_out_v)
         if (timer.and.(mype.eq.0)) forcetime = MPI_WTIME()
         if (timer.and.(mype.eq.0)) print *, "Forcing Time",forcetime-sttime
@@ -591,12 +593,14 @@ SUBROUTINE ralston2(b_in,v_in,dt_new)
   REAL(C_DOUBLE) :: dt_new1 = 0,dt_new2 = 0
   REAL(C_DOUBLE) :: nmhc1,nmhc2
   
-  CALL get_rhs(b_in,v_in,bk1,vk1,nmhc1,dt_new1) 
+  CALL get_rhs(b_in,v_in,bk1,vk1,nmhc1,dt_new1)
+
+  if (verbose) print *, "Post First Stage","Mype",mype,"Maxval k1",maxval(abs(vk1))
   b_2 = b_in + (1.0/4.0)*bk1*dt
   v_2 = v_in + (1.0/4.0)*vk1*dt
   if (verbose) print *, "Pre Second Stage","Mype",mype,"MaxVal v_1",maxval(abs(v_2))
   if (mhc) mhelcorr = mhelcorr + (1.0/4.0)*nmhc1*dt
-  print *, "Through MHC"
+  if (verbose) print *, "Through MHC"
 
   bk1s = b_in+(2.0/3.0)*bk1*dt
   vk1s = v_in+(2.0/3.0)*vk1*dt
@@ -845,7 +849,7 @@ SUBROUTINE SPLIT2(b_in,v_in)
   if (verbose) print *, "Set time step",mype
   CALL get_rhs_diss2(b_in,v_in)
   if (verbose) print *, "Through dissipation 1",mype
-  CALL get_rhs_force(bk1,vk1)
+  if (force_turbulence) CALL get_rhs_force(bk1,vk1)
   b_in = b_in + dt * bk1
   v_in = v_in + dt * vk1
   if (verbose) print *, "Through force 1",mype
@@ -858,7 +862,7 @@ SUBROUTINE SPLIT2(b_in,v_in)
   dt = 0.5 * dt2
   bk1 = 0.0
   vk1 = 0.0
-  CALL get_rhs_force(bk1,vk1)
+  if (force_turbulence) CALL get_rhs_force(bk1,vk1)
 
   b_in = b_in + dt * bk1
   v_in = v_in + dt * vk1

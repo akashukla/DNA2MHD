@@ -418,6 +418,7 @@ def plot_energy(lpath,xb=1,tmax=2000000):
     r = np.max(ev) - np.min(ev)
     ax.set_ylabel("Helicity / Initial Helicity Bound")
     ax.set_xlabel("Time ($\omega_c^{-1}$)")
+    ax.legend()
 
     plot_width,plot_center = center_width(r,np.min(ev))
     ax.set_ylim(bottom=plot_center-plot_width,top=plot_center+plot_width)
@@ -437,6 +438,7 @@ def plot_energy(lpath,xb=1,tmax=2000000):
     r = np.max(ev) - np.min(ev)
     ax.set_ylabel("Helicity / Initial Helicity Bound")
     ax.set_xlabel("Time ($\omega_c^{-1}$)")
+    ax.legend()
 
     plot_width,plot_center = center_width(r,np.min(ev))
     ax.set_ylim(bottom=plot_center-plot_width,top=plot_center+plot_width)
@@ -458,6 +460,21 @@ def plot_energy(lpath,xb=1,tmax=2000000):
     ax.legend()
     fig.suptitle("Kinetic and Magnetic Energies")
     plt.savefig(lpath+'/eplots/spliten')
+    plt.close()
+
+    # Mode Energies Plot
+    fig,ax = plt.subplots(1)
+    fmts = ['b--','b:','r--','r:']
+    labels = ['+ Helicity Whistler','+ Helicity Cyclotron','- Helicity Whistler','- Helicity Cyclotron']
+    for i in range(4):
+        ax.plot(timeen,enval[:,5+i]/(4*np.pi**3),fmts[i],label=labels[i])
+    ax.set_ylabel("Mode Energy / Guide Field Energy")
+    ax.set_xlabel("Time ($\omega_c^{-1}$)")
+    ax.set_ylim(10**(-8),np.amax(np.abs(enval[:,0])))
+    ax.set_yscale("log")
+    ax.legend()
+    fig.suptitle("Hall MHD Normal Mode Energy Distribution")
+    plt.savefig(lpath+"/eplots/modeen")
     plt.close()
 
     return timeen,enval
@@ -557,19 +574,19 @@ def plot_enspec(lpath,zz=-1,version=3,show=False):
     fig,ax = plt.subplots(1)
     ax.plot(x[a[::101]],yb[a[::101]],"k",markersize=1)
     fig,ax = enspec_format(fig,ax,"Magnetic 3D","Magnetic",xmin=xmin,xmax=xmax,ymin=ymin,ymax=ymax)
-    fig.savefig(lpath+'/eplots/'+str(itime)+'benspec'+str(zz+1)+'.png')
+    fig.savefig(lpath+'/eplots/'+str(itime[0])+'benspec'+str(zz+1)+'.png')
     plt.close()
     
     fig,ax = plt.subplots(1)
     ax.plot(x[a[::101]],yv[a[::101]],"k",markersize=1)
     fig,ax = enspec_format(fig,ax,"Kinetic 3D","Kinetic",xmin=xmin,xmax=xmax,ymin=ymin,ymax=ymax)
-    fig.savefig(lpath+'/eplots/'+str(itime)+'venspec'+str(zz+1)+'.png')
+    fig.savefig(lpath+'/eplots/'+str(itime[0])+'venspec'+str(zz+1)+'.png')
     plt.close()    
     
     fig,ax = plt.subplots(1)
     ax.plot(x[a[::101]],yt[a[::101]],"k",markersize=1)
     fig,ax = enspec_format(fig,ax,"3D","",xmin=xmin,xmax=xmax,ymin=ymin,ymax=ymax)
-    fig.savefig(lpath+'/eplots/'+str(itime)+'enspec'+str(zz+1)+'.png')
+    fig.savefig(lpath+'/eplots/'+str(itime[0])+'enspec'+str(zz+1)+'.png')
     plt.close()
     
     fig,ax = plt.subplots(1)
@@ -813,22 +830,18 @@ def nlparam(lpath):
 
     return(kperps,xi_cyclo,xi_mhd,xi_whist)
 
-def modes_from_bv(lpath):
+def modes_from_check(lpath):
     """Post Process b and v into Normal Modes"""
 
     if lpath[-1] == "/":
         lpath = lpath[:-1]
 
-    if os.path.isfile(lpath+"/timeb.npy") and os.path.isfile(lpath+"/timev.npy"):
-        timeb,b=load_bv(lpath,"b")
-        timev,v=load_bv(lpath,"v")
-    else:
-        timeb,b = getbv(lpath,"b")
-        timev,v = getbv(lpath,"v")
+    itime,dt,nkx0,nky0,nkz0,time,b1,v1,mhc = read_checkpoint(lpath)
 
-    if os.path.isfile(lpath+"/modes.npz"):
-        data = np.load(lpath+"/modes.npz")
+    if os.path.isfile(lpath+"/modes"+str(itime[0])+".npz"):
+        data = np.load(lpath+"/modes"+str(itime[0])+".npz")
         time = data["time"]
+        itime = data["itime"]
         lwk = data["lwk"]
         lck = data["lck"]
         rwk = data["rwk"]
@@ -856,56 +869,34 @@ def modes_from_bv(lpath):
         pceig = pceig / (np.sqrt(2) * np.sqrt(Kx[:,:,:,None]**2 + Ky[:,:,:,None]**2))
         pceig[0,0,:,:] = 0
 
-        b_shape = np.shape(b)
-        
-        lwk = np.zeros([b_shape[0],par['nx0_big'],par['ny0_big'],par['nz0_big']],dtype='complex64')
-        lck = np.zeros([b_shape[0],par['nx0_big'],par['ny0_big'],par['nz0_big']],dtype='complex64')
-        rwk = np.zeros([b_shape[0],par['nx0_big'],par['ny0_big'],par['nz0_big']],dtype='complex64')
-        rck = np.zeros([b_shape[0],par['nx0_big'],par['ny0_big'],par['nz0_big']],dtype='complex64')
+        lwk = np.zeros([par['nx0_big'],par['ny0_big'],par['nz0_big']],dtype='complex64')
+        lck = np.zeros([par['nx0_big'],par['ny0_big'],par['nz0_big']],dtype='complex64')
+        rwk = np.zeros([par['nx0_big'],par['ny0_big'],par['nz0_big']],dtype='complex64')
+        rck = np.zeros([par['nx0_big'],par['ny0_big'],par['nz0_big']],dtype='complex64')
 
-        for t in range(b_shape[0]):
-            for i in range(par['nx0_big']):
-                for j in range(par['ny0_big']):
-                    for k in range(par['nz0_big']):
-                        lwk[t,i,j,k] = np.dot(np.conj(pceig[i,j,k,:]),alpha_lw[i,j,k]*b[t,i,j,k,:]+v[t,i,j,k,:])/np.sqrt(alpha_lw[i,j,k]**2+1)
-                        lck[t,i,j,k] = np.dot(np.conj(pceig[i,j,k,:]),alpha_lc[i,j,k]*b[t,i,j,k,:]+v[t,i,j,k,:])/np.sqrt(alpha_lc[i,j,k]**2+1)
-                        rwk[t,i,j,k] = np.dot((pceig[i,j,k,:]),-alpha_lw[i,j,k]*b[t,i,j,k,:]+v[t,i,j,k,:])/np.sqrt(alpha_lw[i,j,k]**2+1)
-                        rck[t,i,j,k] = np.dot((pceig[i,j,k,:]),-alpha_lc[i,j,k]*b[t,i,j,k,:]+v[t,i,j,k,:])/np.sqrt(alpha_lc[i,j,k]**2+1)
+        for i in range(par['nx0_big']):
+            for j in range(par['ny0_big']):
+                for k in range(par['nz0_big']):
+                    lwk[i,j,k] = np.dot(np.conj(pceig[i,j,k,:]),alpha_lw[i,j,k]*b1[i,j,k,:]+v1[i,j,k,:])/np.sqrt(alpha_lw[i,j,k]**2+1)
+                    lck[i,j,k] = np.dot(np.conj(pceig[i,j,k,:]),alpha_lc[i,j,k]*b1[i,j,k,:]+v1[i,j,k,:])/np.sqrt(alpha_lc[i,j,k]**2+1)
+                    rwk[i,j,k] = np.dot((pceig[i,j,k,:]),-alpha_lw[i,j,k]*b1[i,j,k,:]+v1[i,j,k,:])/np.sqrt(alpha_lw[i,j,k]**2+1)
+                    rck[i,j,k] = np.dot((pceig[i,j,k,:]),-alpha_lc[i,j,k]*b1[i,j,k,:]+v1[i,j,k,:])/np.sqrt(alpha_lc[i,j,k]**2+1)
         
-        np.savez(lpath+"/modes.npz",time=timeb,lwk=lwk,lck=lck,rwk=rwk,rck=rck)
+        np.savez(lpath+"/modes"+str(itime[0])+".npz",time=time,itime=itime,lwk=lwk,lck=lck,rwk=rwk,rck=rck)
 
-    return(timeb,lwk,lck,rwk,rck)
+    return(time,itime,lwk,lck,rwk,rck)
 
 def mode_break(lpath,show=False,tmax=200000):
 
     read_parameters(lpath)
     kx,ky,kz = get_grids()
 
-    t,lwk,lck,rwk,rck = modes_from_bv(lpath)
-
-    print(t)
-    fmts = ['b--','b:','r--','r:']
-    labels = ['+ Helicity Whistler','+ Helicity Cyclotron','- Helicity Whistler','- Helicity Cyclotron']
+    time,itime,lwk,lck,rwk,rck = modes_from_check(lpath)
 
     mode_ks = np.stack((lwk,lck,rwk,rck))
-    mode_profs = np.sum(0.5 * np.abs(mode_ks)**2.0,axis=(2,3,4))
-    plt.figure(1)
-    for i in range(4):
-        plt.plot(t,mode_profs[i,:]/(4*np.pi**3),fmts[i],label=labels[i],markersize=1)
-    plt.xlabel('Time ($\omega_c^{-1}$)')
-    plt.ylabel('Mode Energy / Guide Field Energy')
-    plt.title('Energy Distribution in Hall MHD Modes vs Time')
-    plt.yscale('log')
-    plt.ylim(10**(-6),10)
-    plt.legend()
-
-    if not os.path.exists(lpath+'/eplots/'):
-        os.mkdir(lpath+'/eplots/')
-    plt.savefig(lpath+'/eplots/modeev.png')
-    if show == True:
-        plt.show()
-    plt.close()
-
+    fmts = ['b--','b:','r--','r:']
+    labels = ['+ Helicity Whistler','+ Helicity Cyclotron','- Helicity Whistler','- Helicity Cyclotron']
+    
     # Other plots: 1D spectra
     comment = """
 
@@ -938,7 +929,7 @@ def mode_break(lpath,show=False,tmax=200000):
     cmin = 0
     cmax = 0
     for i in range(4):
-        kperps,spec1df = integrated_spectrum_1d(0.5 ** np.abs(mode_ks[i,-1,:,:,:])**2.0,lpath)
+        kperps,spec1df = integrated_spectrum_1d(0.5 ** np.abs(mode_ks[i,:,:,:])**2.0,lpath)
         ax.plot(kperps,spec1df,fmts[i],label=labels[i],markersize=1)
         cmin = min(cmin,np.amin(spec1df))
         cmax = max(cmax,np.amax(spec1df))
@@ -953,13 +944,13 @@ def mode_break(lpath,show=False,tmax=200000):
     ax.yaxis.set_major_formatter(form)
     
     ax.legend()
-    fig.suptitle("Mode Energy Spectra at t = %.2f $(\omega_c^{-1})$ " % (t[-1]))
+    fig.suptitle("Mode Energy Spectra at t = %.2f $(\omega_c^{-1})$ " % (time))
     fig.savefig(lpath+"/eplots/modespec.png")
     if show == True:
         plt.show()
     plt.close()
     
-    return (t,lwk,lck,rwk,rck)
+    return (time,lwk,lck,rwk,rck)
 
 def enheldev(lpath,local=0):
     te,e = plot_energy(lpath)
@@ -994,13 +985,7 @@ def structurefunction(lpath,tmax=2*10**10):
         bk = np.load(lpath+'/b_fin.npy')
         vk = np.load(lpath+'v_fin.npy')"""
 
-    
-
-    time,lwk,lck,rwk,rck = modes_from_bv(lpath)
-    lwk = lwk[-1,:,:,:]
-    lck = lck[-1,:,:,:]
-    rwk = rwk[-1,:,:,:]
-    rck = rck[-1,:,:,:]
+    time,itime,lwk,lck,rwk,rck = modes_from_check(lpath)
     
     labels = ['+ Helicity Whistler','+ Helicity Cyclotron','- Helicity Whistler','- Helicity Cyclotron']
     stname = ["phw","phc","nhw","nhc"]
@@ -1063,8 +1048,8 @@ def structurefunction(lpath,tmax=2*10**10):
         ax[I].legend(loc=4)
         ax2[I].legend(loc=4)
         
-    fig.suptitle("Structure Functions "+"N = "+str(par["nky0"]))
-    fig2.suptitle("Structure Functions "+"N = "+str(par["nky0"]))
+    fig.suptitle("Structure Functions "+"t = %.2f $(\omega_c^{-1})$" % (time)) 
+    fig2.suptitle("Structure Functions "+"t = %.2f $(\omega_c^{-1})$ "% (time))
     fig.tight_layout()
     fig2.tight_layout()
     if lpath[-1] == '/':
@@ -1074,6 +1059,8 @@ def structurefunction(lpath,tmax=2*10**10):
     fig.savefig(lpath + "/eplots/stfns")
     fig2.savefig(lpath + "/eplots/stfns2")
     plt.close()
+
+    return(0)
         
 def mode_nlparam(lpath,tt,dim,show=False,tmax=200000):
 

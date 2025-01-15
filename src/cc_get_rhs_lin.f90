@@ -27,7 +27,8 @@ MODULE linear_rhs
 
   PRIVATE
   
-  LOGICAL, ALLOCATABLE :: mask1(:,:,:)
+  LOGICAL, ALLOCATABLE :: mask(:,:,:)
+  INTEGER, ALLOCATABLE :: mask1(:,:,:)
   !COMPLEX :: b_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2, 0:2)
   !COMPLEX :: v_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2, 0:2)
   !COMPLEX :: rhs_out_b(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2, 0:2)
@@ -122,15 +123,9 @@ SUBROUTINE get_rhs_force(rhs_out_b, rhs_out_v)
     COMPLEX :: LW1,LC1,RW1,RC1
     REAL :: a,b,c,d,e,f,b1
 
-    if (verbose) a = MPI_WTIME()
     if (mype.eq.0) call random_number(resample)
-    if (verbose) b = MPI_WTIME()
     CALL MPI_BCAST(resample,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
 
-    mask1 = (kperps.lt.force_frac*maxval(kperps))
-    ! masking will remove high k modes
-    ! mask2 = (((i.le.nkxforce).and.(j.le.nkyforce)).and.(k.le.nkzforce)).and.(forcetype.eq.12))
-    
     IF ((resample.lt.dt).and.(forcetype.eq.11)) THEN
 
        DO i = 1,nkx0-1
@@ -152,18 +147,10 @@ SUBROUTINE get_rhs_force(rhs_out_b, rhs_out_v)
                 rhs_out_v(i,nky0-j,k,0) = rhs_out_v(i,nky0-j,k,0) + (force_amp*random_normal() + i_complex*force_amp*random_normal())*mask1(i,nky0-j,k)
                 rhs_out_v(i,nky0-j,k,1) = rhs_out_v(i,nky0-j,k,1) + (force_amp*random_normal() + i_complex*force_amp*random_normal())*mask1(i,nky0-j,k)
 
-                if (verbose) d = MPI_WTIME()
-                if (verbose) e = MPI_WTIME()
              ENDDO
           ENDDO
        ENDDO
-       if (verbose) f = MPI_WTIME()
        
-       if (verbose) print *, "Forced"
-       if (verbose) print *, "Trial Time ",b-a
-       if (verbose) print *, "Rands Time / Mode ",d-c
-       if (verbose) print *, "Assignment Time / Mode",e-d
-       if (verbose) print *, "Total Time ",f-a
     ENDIF
 
     IF ((resample.lt.dt).and.(forcetype.eq.21)) THEN
@@ -181,33 +168,26 @@ SUBROUTINE get_rhs_force(rhs_out_b, rhs_out_v)
                 LC1 = exp(20.0*pi*i_complex*th2) !(random_normal()+i_complex*random_normal())
                 RW1 = exp(20.0*pi*i_complex*th3) !(random_normal()+i_complex*random_normal())
                 RC1 = exp(20.0*pi*i_complex*th4) !(random_normal()+i_complex*random_normal())
-                if (verbose) d = MPI_WTIME()
 
                 LW1 = LW1 * force_amp * sqrt(force_lw)/sqrt(force_lw + force_lc + force_rw + force_rc) * 1.0/sqrt(1 + alpha_leftwhist(i,j,k)**2)
                 LC1 = LC1 * force_amp * sqrt(force_lc)/sqrt(force_lw + force_lc + force_rw + force_rc) * 1.0/sqrt(1 + alpha_leftcyclo(i,j,k)**2)
                 RW1 = RW1 * force_amp * sqrt(force_rw)/sqrt(force_lw + force_lc + force_rw + force_rc) * 1.0/sqrt(1 + alpha_leftwhist(i,j,k)**2)
                 RC1 = RC1 * force_amp * sqrt(force_rc)/sqrt(force_lw + force_lc + force_rw + force_rc) * 1.0/sqrt(1 + alpha_leftcyclo(i,j,k)**2)
                 
-                if (verbose) e = MPI_WTIME()
                 rhs_out_b(i,j,k,:) = rhs_out_b(i,j,k,:) + ((LW1 * alpha_leftwhist(i,j,k) + LC1 * alpha_leftcyclo(i,j,k)) * pcurleig(i,j,k,:)&
                      -(RW1 * alpha_leftwhist(i,j,k) + RC1 * alpha_leftcyclo(i,j,k)) * conjg(pcurleig(i,j,k,:)))*mask1(i,j,k)
                 rhs_out_v(i,j,k,:) = rhs_out_v(i,j,k,:) + ((LW1+LC1)*pcurleig(i,j,k,:) + (RW1+RC1)*conjg(pcurleig(i,j,k,:)))*mask1(i,j,k)
-                if (verbose) f = MPI_WTIME()
              ENDDO
           ENDDO
        ENDDO
 
-       if (verbose) print *, "Forced"
-       if (verbose) print *, "Trial Time ",b-a
-       if (verbose) print *, "Rands Time / Mode ",d-c
-       if (verbose) print *, "Assignment Time / Mode",e-d
-       if (verbose) print *, "Total Time ",f-a
-
     ENDIF
 
-    IF (forcetype.eq.31) THEN ! continuous mode injection in range
+    IF (forcetype.gt.30) THEN ! continuous mode injection in range
 
        ! Reset phases every half turnover time and interpolate phases linearly between turnover times
+
+       IF (forcetype.eq.31) THEN
 
        if (time.eq.0.and.(time > last_reset)) then
 
@@ -239,6 +219,26 @@ SUBROUTINE get_rhs_force(rhs_out_b, rhs_out_v)
           
        endif
 
+    ELSE IF (forcetype.eq.32) THEN
+
+       if (time.eq.0.and.(time > last_reset)) then
+
+          last_reset = time
+
+          CALL random_number(LWp)
+          CALL random_number(LCp)
+          CALL random_number(RWp)
+          CALL random_number(RCp)
+
+          LWp2 = LWp
+          LCp2 = LCp
+          RWp2 = RWp
+          RCp2 = RCp
+          
+       endif
+
+    ENDIF
+    
       DO i = 1,nkx0-1
           DO j = 1,ny0_big-1
              DO k = lkz1,lkz2
@@ -271,6 +271,7 @@ SUBROUTINE get_rhs_force(rhs_out_b, rhs_out_v)
 
   SUBROUTINE init_force
 
+    ALLOCATE(mask(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2))
     ALLOCATE(mask1(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2))
 
     ALLOCATE(LWp(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2))
@@ -284,7 +285,21 @@ SUBROUTINE get_rhs_force(rhs_out_b, rhs_out_v)
 
     ALLOCATE(RCp(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2))
     ALLOCATE(RCp2(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2))
-    
+
+    mask = (kperps.lt.force_frac*maxval(kperps))
+    ! masking will remove high k modes
+    ! mask2 = (((i.le.nkxforce).and.(j.le.nkyforce)).and.(k.le.nkzforce)).and.(forcetype.eq.12))
+
+    mask1 = 0
+    DO i = 1,nkx0-1
+       DO j = 1,ny0_big-1
+          DO k = lkz1,lkz2
+
+             if (mask(i,j,k)) mask1(i,j,k) = 1
+          ENDDO
+       ENDDO
+    ENDDO
+      
   END SUBROUTINE init_force
 
   SUBROUTINE finalize_force
