@@ -32,7 +32,7 @@
 PROGRAM dna
   !USE calculate_time_step, ONLY:  finalize_adapt_dt!, calc_dt_lapack
   USE communications, ONLY: finalize_mpi, init_comm, comm
-  USE diagnostics, ONLY: finalize_diagnostics, start_wallclock!, nl_test 
+  USE diagnostics, ONLY: finalize_diagnostics !, nl_test 
   !USE eigen_iterative, ONLY: ev_iterative
   !USE flr_effects, ONLY: finalize_flr
   !USE hk_effects, ONLY: finalize_hk
@@ -170,6 +170,6 @@ PROGRAM dna
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   CALL finalize_mpi
 
-  print *, "Mission accomplished"
+  if (mype.eq.0) print *, "End of Simulation"
 
 END PROGRAM dna

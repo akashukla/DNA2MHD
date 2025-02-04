@@ -27,7 +27,7 @@ SUBROUTINE initial_condition(which_init0)
   
   IMPLICIT NONE
 
-  INTEGER :: i,j,k, l,zst,xst,yst,ri
+  INTEGER :: i,j,k, l,zst,xst,yst,ri,ind
   REAL :: kfactor,err
   REAL :: s1, s11,s12,s13,s4
   !REAL :: init_prefactor
@@ -45,7 +45,7 @@ SUBROUTINE initial_condition(which_init0)
   REAL :: testrandoms(10)
   REAL :: truncx,truncy,truncz,nlt
   REAL :: fperpm,fperp
-  REAL :: dt_critical
+  REAL(C_DOUBLE) :: dt_critical
 
   REAL :: turnoverm,nltmin,nltmax ! MPI ALL REDUCE variables
   INTEGER(int64) :: t 
@@ -56,8 +56,8 @@ SUBROUTINE initial_condition(which_init0)
   b_1(:,:,:,:)=cmplx(0.0,0.0)
   v_1(:,:,:,:)=cmplx(0.0,0.0)
 
-  xst = max(1,kxinit_min)
-  yst = max(1,kyinit_min)
+  xst = 1
+  yst = 1
   zst = max(1,lkz1)
 
  if (verbose) print *, mype,"b1 Extent",sum(0*b_1 + 1)
@@ -112,7 +112,7 @@ SUBROUTINE initial_condition(which_init0)
 
       fperp = (force_frac * nky0)**3.0
       
-      force_amp = abs(cmplx(vnu*(kxmin)**(2.0*hyp),0)) * sqrt(1.0/3.0 * force_amp) * sqrt(8.0 * (pi ** 3))/fperp
+      ! force_amp = abs(cmplx(vnu*(kxmin)**(2.0*hyp),0)) * sqrt(1.0/3.0 * force_amp) * sqrt(8.0 * (pi ** 3))/fperp
       
       print *, "Force Amp",force_amp      
 
@@ -213,12 +213,16 @@ SUBROUTINE initial_condition(which_init0)
                   v_1(i,j,k,1)=cmplx(0.0,0.0)
                   v_1(i,j,k,2)=cmplx(0.0,0.0)
                ELSE IF (.not.(enone)) THEN
-                  b_1(i,j,k,0)=init_amp_bx*1.0/sqrt(real(nkx0*nky0*(nkz0-1)))*1/(kperps(i,j,k)**(init_kolm/2.0)) * phaseb*cos(2*pi*thb)
-                  b_1(i,j,k,1)=init_amp_by*1.0/sqrt(real(nkx0*nky0*(nkz0-1)))*1/(kperps(i,j,k)**(init_kolm/2.0)) * phaseb*phaseby*sin(2*pi*thb)
+                  b_1(i,j,k,0)=init_amp_bx*1.0/sqrt(real(nkx0*nky0*(nkz0-1)))&
+                       *1/(kperps(i,j,k)**(init_kolm/2.0)) * phaseb*cos(2*pi*thb)
+                  b_1(i,j,k,1)=init_amp_by*1.0/sqrt(real(nkx0*nky0*(nkz0-1)))&
+                       *1/(kperps(i,j,k)**(init_kolm/2.0)) * phaseb*phaseby*sin(2*pi*thb)
                   b_1(i,j,k,2) = (-kxgrid(i)*b_1(i,j,k,0)-kygrid(j)*b_1(i,j,k,1))/kzgrid(k)
                   !b_1(i,j,k,2)=init_amp_bz
-                  v_1(i,j,k,0)=init_amp_vx*1.0/sqrt(real(nkx0*nky0*(nkz0-1)))*1/(kperps(i,j,k)**(init_kolm/2.0)) * phasev*phaseb*cos(2*pi*thv)
-                  v_1(i,j,k,1)=init_amp_vy*1.0/sqrt(real(nkx0*nky0*(nkz0-1)))*1/(kperps(i,j,k)**(init_kolm/2.0)) * phasev*phasevy*phaseb*sin(2*pi*thv)
+                  v_1(i,j,k,0)=init_amp_vx*1.0/sqrt(real(nkx0*nky0*(nkz0-1)))&
+                       *1/(kperps(i,j,k)**(init_kolm/2.0)) * phasev*phaseb*cos(2*pi*thv)
+                  v_1(i,j,k,1)=init_amp_vy*1.0/sqrt(real(nkx0*nky0*(nkz0-1)))&
+                       *1/(kperps(i,j,k)**(init_kolm/2.0)) * phasev*phasevy*phaseb*sin(2*pi*thv)
                   !v_1(i,j,k,2)=init_amp_vz
                   v_1(i,j,k,2) = (-kxgrid(i)*v_1(i,j,k,0)-kygrid(j)*v_1(i,j,k,1))/kzgrid(k)
                ELSE IF (beltrami) THEN
@@ -259,13 +263,19 @@ SUBROUTINE initial_condition(which_init0)
                      
                   ENDIF
                   
-                  b_1(i,j,k,0) = (b1w*phaseb*pcurleig(i,j,k,0) + b2w*phaseby*conjg(pcurleig(i,j,k,0)))/sqrt(b1w**2+b2w**2)
-                  b_1(i,j,k,1) = (b1w*phaseb*pcurleig(i,j,k,1) + b2w*phaseby*conjg(pcurleig(i,j,k,1)))/sqrt(b1w**2+b2w**2)
-                  b_1(i,j,k,2) = (b1w*phaseb*pcurleig(i,j,k,2) + b2w*phaseby*conjg(pcurleig(i,j,k,2)))/sqrt(b1w**2+b2w**2)
+                  b_1(i,j,k,0) = (b1w*phaseb*pcurleig(i,j,k,0) &
+                       + b2w*phaseby*conjg(pcurleig(i,j,k,0)))/sqrt(b1w**2+b2w**2)
+                  b_1(i,j,k,1) = (b1w*phaseb*pcurleig(i,j,k,1) &
+                       + b2w*phaseby*conjg(pcurleig(i,j,k,1)))/sqrt(b1w**2+b2w**2)
+                  b_1(i,j,k,2) = (b1w*phaseb*pcurleig(i,j,k,2) &
+                       + b2w*phaseby*conjg(pcurleig(i,j,k,2)))/sqrt(b1w**2+b2w**2)
                   
-                  v_1(i,j,k,0) = (v1w*phasev*pcurleig(i,j,k,0) + v2w*phasevy*conjg(pcurleig(i,j,k,0)))/sqrt(v1w**2+v2w**2)
-                  v_1(i,j,k,1) = (v1w*phasev*pcurleig(i,j,k,1) + v2w*phasevy*conjg(pcurleig(i,j,k,1)))/sqrt(v1w**2+v2w**2)
-                  v_1(i,j,k,2) = (v1w*phasev*pcurleig(i,j,k,2) + v2w*phasevy*conjg(pcurleig(i,j,k,2)))/sqrt(v1w**2+v2w**2)
+                  v_1(i,j,k,0) = (v1w*phasev*pcurleig(i,j,k,0) &
+                       + v2w*phasevy*conjg(pcurleig(i,j,k,0)))/sqrt(v1w**2+v2w**2)
+                  v_1(i,j,k,1) = (v1w*phasev*pcurleig(i,j,k,1) &
+                       + v2w*phasevy*conjg(pcurleig(i,j,k,1)))/sqrt(v1w**2+v2w**2)
+                  v_1(i,j,k,2) = (v1w*phasev*pcurleig(i,j,k,2) &
+                       + v2w*phasevy*conjg(pcurleig(i,j,k,2)))/sqrt(v1w**2+v2w**2)
                   
                   b_1(i,j,k,:) = b_1(i,j,k,:) / (kperps(i,j,k)**(init_kolm/2.0))
                   v_1(i,j,k,:) = v_1(i,j,k,:) / (kperps(i,j,k)**(init_kolm/2.0))
@@ -286,7 +296,6 @@ SUBROUTINE initial_condition(which_init0)
                   
                   b_1(i,j,k,:) = (LW1 * alpha_leftwhist(i,j,k) + LC1 * alpha_leftcyclo(i,j,k)) * pcurleig(i,j,k,:)&
                        - (RW1 * alpha_leftwhist(i,j,k) + RC1 * alpha_leftcyclo(i,j,k))*conjg(pcurleig(i,j,k,:))
-                  
                   v_1(i,j,k,:) = (LW1 + LC1) * pcurleig(i,j,k,:) + (RW1 + RC1)*conjg(pcurleig(i,j,k,:))
                   
                   b_1(i,j,k,:) = b_1(i,j,k,:) / (sqrt(en_leftwhist + en_leftcyclo + en_rightwhist + en_rightcyclo) * kperps(i,j,k)**(init_kolm/2.0))
@@ -304,19 +313,23 @@ SUBROUTINE initial_condition(which_init0)
                   IF (.not.(shear.or.helical)) THEN
                      s11 = kxgrid(i)**2 * cos(2*pi*thb)**2 + kxgrid(i)**2 * cos(2*pi*thv)**2
                      s12 = kygrid(j)**2 * sin(2*pi*thb)**2 + kygrid(j)**2 * sin(2*pi*thv)**2
-                     s13 = kxgrid(i) * kygrid(j) * (sin(4*pi*thb) * cos(2*pi*phase1y) + sin(4*pi*thv)*cos(2*pi*phase2y))
+                     s13 = kxgrid(i) * kygrid(j) * (sin(4*pi*thb) * cos(2*pi*phase1y) &
+                          + sin(4*pi*thv)*cos(2*pi*phase2y))
                      s1 = s1 + kperps(i,j,k)**(-1.0*init_kolm) * (2+(s11+s12+s13)/(kzgrid(k)**2))
                   ELSE
                      s1 = s1 + 2.0*kperps(i,j,k) ** (-1.0*init_kolm)
                   ENDIF
                   
-                  IF (helical) THEN
+                  IF (helical.and.(max(i,j,k).ne.0)) THEN
                      bt1 = 2.0*phase1y - 1.0
                      bt2 = 2.0*phase2 - 1.0
                      bt3 = 2.0*phase2y - 1.0
-                     b1r = bt1 - (kxgrid(i) * bt1 + kygrid(j) * bt2 + kzgrid(k) * bt3)/(kmags(i,j,k)**2) * kxgrid(i)
-                     b2r = bt2 - (kxgrid(i) * bt1 + kygrid(j) * bt2 + kzgrid(k) * bt3)/(kmags(i,j,k)**2) * kygrid(j)
-                     b3r = bt3 - (kxgrid(i) * bt1 + kygrid(j) * bt2 + kzgrid(k) * bt3)/(kmags(i,j,k)**2) * kzgrid(k)
+                     b1r = bt1 - (kxgrid(i) * bt1 + kygrid(j) * bt2 &
+                          + kzgrid(k) * bt3)/(kmags(i,j,k)**2) * kxgrid(i)
+                     b2r = bt2 - (kxgrid(i) * bt1 + kygrid(j) * bt2 &
+                          + kzgrid(k) * bt3)/(kmags(i,j,k)**2) * kygrid(j)
+                     b3r = bt3 - (kxgrid(i) * bt1 + kygrid(j) * bt2 &
+                          + kzgrid(k) * bt3)/(kmags(i,j,k)**2) * kzgrid(k)
                      btmag = sqrt(b1r**2 + b2r**2 + b3r**2)
                      b1i = (kygrid(j) * b3r - kzgrid(k) * b2r)/kmags(i,j,k)
                      b2i = (kzgrid(k) * b1r - kxgrid(i) * b3r)/kmags(i,j,k)
@@ -326,11 +339,15 @@ SUBROUTINE initial_condition(which_init0)
                      b_1(i,j,k,2) = cmplx(b3r,b3i)/(sqrt(2.0) * btmag * kperps(i,j,k)**(init_kolm/2.0))
                      v_1(i,j,k,:) = b_1(i,j,k,:)
                   ELSE IF (shear.and.(max(i,j).ne.0)) THEN
-                     b_1(i,j,k,0) = - kygrid(j)/sqrt(kxgrid(i)**2 + kygrid(j)**2) * phaseb * (kperps(i,j,k) **(-init_kolm/2.0))
-                     b_1(i,j,k,1) = kxgrid(i)/sqrt(kxgrid(i)**2 + kygrid(j)**2) * phaseb * (kperps(i,j,k) **(-init_kolm/2.0))
+                     b_1(i,j,k,0) = - kygrid(j)/sqrt(kxgrid(i)**2 &
+                          + kygrid(j)**2) * phaseb * (kperps(i,j,k) **(-init_kolm/2.0))
+                     b_1(i,j,k,1) = kxgrid(i)/sqrt(kxgrid(i)**2 &
+                          + kygrid(j)**2) * phaseb * (kperps(i,j,k) **(-init_kolm/2.0))
                      b_1(i,j,k,2) = cmplx(0.0,0.0)
-                     v_1(i,j,k,0) = -kygrid(j)/sqrt(kxgrid(i)**2 + kygrid(j)**2) * phasev * phaseb * (kperps(i,j,k) **(-init_kolm/2.0))
-                     v_1(i,j,k,1) = kxgrid(i)/sqrt(kxgrid(i)**2 + kygrid(j)**2) * phasev*phaseb * (kperps(i,j,k) **(-init_kolm/2.0))
+                     v_1(i,j,k,0) = -kygrid(j)/sqrt(kxgrid(i)**2 &
+                          + kygrid(j)**2) * phasev * phaseb * (kperps(i,j,k) **(-init_kolm/2.0))
+                     v_1(i,j,k,1) = kxgrid(i)/sqrt(kxgrid(i)**2 &
+                          + kygrid(j)**2) * phasev*phaseb * (kperps(i,j,k) **(-init_kolm/2.0))
                      v_1(i,j,k,2) = cmplx(0.0,0.0)
                   ELSE
                      b_1(i,j,k,0)= phaseb*cos(2*pi*thb)*1/(kperps(i,j,k)**(init_kolm/2.0))
@@ -361,33 +378,43 @@ SUBROUTINE initial_condition(which_init0)
           ENDDO
        ENDDO
     ENDDO
-
-    CALL clear_4d(b_1)
-    CALL clear_4d(v_1)
-
+    ! Filter modes in the padding region
+    DO ind = 0,2
+       b_1(:,:,:,ind) = b_1(:,:,:,ind) * paddingmask
+       v_1(:,:,:,ind) =	v_1(:,:,:,ind) * paddingmask
+    ENDDO
+    
     if (verbose) print *, "Through initial b_1 and v_1",mype
 
     ! Set energy as fraction of 4 pi^3
     if (enone) then
 
-          knzeroenm = sum(abs(b_1(1:nkx0-1,:,:,:))**2+abs(v_1(1:nkx0-1,:,:,:))**2)
-          kxzeroenm = sum(0.5*(abs(b_1(0,:,:,:))**2+abs(v_1(0,:,:,:))**2))
-
-          if (verbose) print *, mype,"Unnormalized Sum",knzeroenm+kxzeroenm
-          
-          CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-          CALL MPI_ALLREDUCE(knzeroenm,knzeroen,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
-
-          CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-          CALL MPI_ALLREDUCE(kxzeroenm,kxzeroen,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
-
-          s1 = knzeroen+kxzeroen
-          if (verbose) print *, mype,"s1",s1
-
-    
+       knzeroenm = sum(abs(b_1(1:nkx0-1,:,:,:))**2+abs(v_1(1:nkx0-1,:,:,:))**2)
+       kxzeroenm = sum(0.5*(abs(b_1(0,:,:,:))**2+abs(v_1(0,:,:,:))**2))
+       
+       if (verbose) print *, mype,"Unnormalized Sum",knzeroenm+kxzeroenm
+       
+       CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+       CALL MPI_ALLREDUCE(knzeroenm,knzeroen,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
+       
+       CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+       CALL MPI_ALLREDUCE(kxzeroenm,kxzeroen,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
+       
+       s1 = knzeroen+kxzeroen
+       if (verbose) print *, mype,"s1",s1       
+       
        b_1 = b_1 * sqrt(init_energy / (2.0*s1))
        v_1 = v_1 * sqrt(init_energy / (2.0*s1))
     endif
+
+    if (verbose) then
+       DO ind = 0,2
+          print *, "Max Bind",mype,maxval(abs(b_1(:,:,:,ind)))
+          print *, "Max Vind",mype,maxval(abs(v_1(:,:,:,ind)))
+       ENDDO
+    endif
+    
+    
 
     if (verbose) print *, "Through energy normalization"
 

@@ -4,17 +4,17 @@ omt = 5.000
 omn =    1.000    
 Ti0Te =    1.000 
 eta = 1.0
-vnu = 0.1
+vnu = 0.0
 rey = 0.0
 /
 
 &numerical_parameters
-kxmin =   2.0
-kymin =   2.0
+kxmin =   100.0
+kymin =   100.0
 kzmin =   1.0
-nkx0 = 32
-nky0 = 64
-nkz0 = 64
+nkx0 = 16
+nky0 = 32
+nkz0 = 32
 nv0 =   2
 nh0 =    1
 nspec =    1
@@ -32,12 +32,6 @@ np_kz =    1
 np_hank =    1
 np_spec =    1
 courant =   0.5
-kxinit_min = 0
-kyinit_min = 0
-kzinit_min = 0
-kxinit_max = 32
-kyinit_max = 64
-kzinit_max = 64
 init_energy = 0.01
 init_amp_bx = 0.0
 init_amp_by = 0.0
@@ -48,23 +42,23 @@ init_amp_vz = 0.0
 init_kolm = 0.0
 phdf = 2.0
 phdfxy = 2.0
-force_amp = 0.01
-nkxforce = 16
-nkyforce = 16
-nkzforce = 16
+force_amp = 0.00001
+nkxforce = 4
+nkyforce = 4
+nkzforce = 4
 force_frac = 0.03
-hyp = 1
+hyp = 4
 /
 
 &diagnostics
-diagdir = "/Users/ehansen/Downloads/dna2mhdruns/run64wtest"
-loaddir = "/Users/ehansen/Downloads/dna2mhdruns/run64wtest"
+diagdir = "/pscratch/sd/e/echansen/DNA2MHDruns/mhdload"
+loaddir = "/pscratch/sd/e/echansen/DNA2MHDruns/mhdload"
 istep_ffm =   20
 istep_energy3d =  500
 istep_energy =  1
 istep_energyspec = 200
 istep_hermite =  1000
-istep_gout =  0
+istep_gout =  10000
 istep_gk =    0
 istep_gknl =    0
 istep_nlt =    0
@@ -72,35 +66,32 @@ istep_eshells =   500
 istep_real =   200
 istep_fmom3d =  500
 istep_gamma =    0
-istep_schpt =  1000
+istep_schpt =  200
 output_nlt_n = F
 /
 
 &flags
-verbose  = F
+verbose  = T
 timer = F
 nonlinear  = T
-actual_nonlinear = F
-calc_dt  = T
+actual_nonlinear = T
+calc_dt  = F
 comp_type = 'IV'
 checkpoint_write = T
 etg_factor  =    0.000    
 em_conserve = T
 nuno_closure = T
 rhs_nl_version = 12
-linen = F
-keepzero = T
 intorder = 3
 rhs_lin_version = 12
 dealias_type = 3
 shifted = F
-splitx = T
 force_turbulence = F
 forceb = T
-forcetype = 31
+forcetype = 12
 set_forcing = F
 plot_nls = F
-hall = 1.0
+hall = 0.0
 guide = T
 enone = T
 uni = T
@@ -118,7 +109,7 @@ mhc = T
 init_wave = T
 init_null = F
 force_trunc = F
-checkpoint_read = F
+checkpoint_read = T
 en_leftwhist = 1.0
 en_leftcyclo = 0.0
 en_rightwhist = 0.0
@@ -132,9 +123,9 @@ random_state = 3
 /
 
 &initial_value
-max_itime = 60000
-max_walltime =   10000000.0
-dt_max = 0.0001
+max_itime = 301
+max_walltime =   86100.0
+dt_max = 0.0004
 fix_dt = F
 max_time =   10000000.
 /

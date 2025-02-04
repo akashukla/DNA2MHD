@@ -72,7 +72,7 @@ MODULE par_mod
   !left_ev: SLEPc uses transpose of linear operator==> finds left eigenvectors
   LOGICAL :: left_ev=.false.
   CHARACTER(len=2) :: comp_type='IV'
-  REAL :: dt_max=0.01    !initial maximum time step
+  REAL(C_DOUBLE) :: dt_max=0.01    !initial maximum time step
   REAL :: turnover
   LOGICAL :: fix_dt 
   REAL :: courant=0.3   !courant factor times 2 pi for dt calculation
@@ -240,8 +240,8 @@ MODULE par_mod
   COMPLEX, PARAMETER :: i_complex=(0.0,1.0)
 
   !MPI 
-  INTEGER :: mype=0
-  INTEGER :: n_mpi_procs
+  INTEGER(kind=4) :: mype=0
+  INTEGER(kind=4) :: n_mpi_procs
   INTEGER :: mpi_comm_cart_4d
   INTEGER :: mpi_comm_kz
   INTEGER :: mpi_comm_herm
@@ -257,16 +257,17 @@ MODULE par_mod
 
   !distribution function
   !COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:,:,:) :: g_1
-  COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:) :: b_1
-  COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:) :: v_1
-  COMPLEX, ALLOCATABLE, DIMENSION(:,:,:) :: reader
-  COMPLEX, ALLOCATABLE, DIMENSION(:,:,:) :: reader2
-  COMPLEX, ALLOCATABLE, DIMENSION(:,:,:)  :: fullsmallarray,fullbigarray
-  COMPLEX, ALLOCATABLE :: scatter_big(:),scatter_small(:),gather_big(:),gather_small(:)
+  COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:,:) :: b_1
+  COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:,:) :: v_1
+  COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:) :: reader
+  COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:) :: reader2
+  COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:)  :: fullsmallarray,fullbigarray
+  COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE :: scatter_big(:),scatter_small(:),gather_big(:),gather_small(:)
   
-  COMPLEX, ALLOCATABLE, DIMENSION(:,:,:) :: LW,LC,RW,RC
-  REAL, ALLOCATABLE, DIMENSION(:,:,:) :: LWp,LCp,RWp,RCp
-  REAL, ALLOCATABLE, DIMENSION(:,:,:) :: LWp2,LCp2,RWp2,RCp2
+  COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:) :: LW,LC,RW,RC
+  INTEGER(4), ALLOCATABLE, DIMENSION(:,:,:) :: paddingmask
+  REAL(C_DOUBLE), ALLOCATABLE, DIMENSION(:,:,:) :: LWp,LCp,RWp,RCp
+  REAL(C_DOUBLE), ALLOCATABLE, DIMENSION(:,:,:) :: LWp2,LCp2,RWp2,RCp2
   REAL :: last_reset = -1.0! time of last forcing phase change
 
   INTEGER :: rkstage
@@ -286,7 +287,7 @@ MODULE par_mod
   REAL, ALLOCATABLE, DIMENSION(:,:,:) :: alpha_leftcyclo
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:) :: pcurleig
   
-  REAL :: mhelcorr
+  REAL(C_DOUBLE) :: mhelcorr
   REAL :: precorr,preendiv
   REAL :: vdvcorr,vdvendiv
 
@@ -306,10 +307,10 @@ MODULE par_mod
   
   !For initial_value
   REAL :: time=0.0  
-  REAL :: dt
+  REAL(C_DOUBLE) :: dt
   REAL :: max_time=1.0e15
-  INTEGER :: max_itime=1000,itime=0
-  INTEGER :: itime_start
+  INTEGER(4) :: max_itime=1000,itime=0
+  INTEGER(4) :: itime_start
   REAL :: max_walltime=83000.0
   REAL :: time_start = 0.0
   REAL :: time_tot = 10000.0
@@ -355,7 +356,7 @@ MODULE par_mod
   INTEGER :: lky_big !index of lowest (most negative) ky value in big (for dealiasing) arrays
   INTEGER :: lkz_big !index of lowest (most negative) kx value in big (for dealiasing) arrays
 
-  INTEGER :: io_number=100
+  INTEGER :: io_number=200
 
   !NLT diagnostics
   !input parameters
@@ -407,8 +408,8 @@ SUBROUTINE clear_padding(temp_big,temp_small)
 
     IMPLICIT NONE
 
-    complex, intent(in)  :: temp_big(1:nx0_big/2+1,1:ny0_big,lkz1+1:lkz2+1)
-    complex, intent(out) :: temp_small(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2)
+    complex(C_DOUBLE_COMPLEX), intent(in)  :: temp_big(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2)
+    complex(C_DOUBLE_COMPLEX), intent(out) :: temp_small(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2)
     integer(C_INTPTR_T) :: low_index, high_index,i
 
     temp_small = cmplx(0.0,0.0)
@@ -439,7 +440,7 @@ SUBROUTINE clear_padding(temp_big,temp_small)
 
    IMPLICIT NONE
 
-   complex, intent(inout) :: array(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2)
+   complex(C_DOUBLE_COMPLEX), intent(inout) :: array(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2)
 
    reader2 = array(:,:,:,0)
    CALL clear_padding(reader2,reader)

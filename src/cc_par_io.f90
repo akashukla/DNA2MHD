@@ -37,7 +37,8 @@ SUBROUTINE read_parameters
       np_kz,np_spec,np_hank,&
       courant,hyp_conv,num_k_hyp_conv,hyp_conv_ky,hypx_order,hypy_order,hypz_order,&
       kxinit_min, kxinit_max, kyinit_min, kyinit_max, kzinit_min, kzinit_max,&
-      init_amp_bx,init_amp_by,init_amp_bz, init_amp_vx, init_amp_vy, init_amp_vz,init_kolm,phdf,phdfxy,hyp,init_energy, &
+      init_amp_bx,init_amp_by,init_amp_bz, init_amp_vx,&
+      init_amp_vy, init_amp_vz,init_kolm,phdf,phdfxy,hyp,init_energy, &
       nkxforce,nkyforce,nkzforce, force_amp,force_frac
   !,&
       !mu_grid_type, vmax,hyp_nu,fracx, fracy
@@ -46,16 +47,19 @@ SUBROUTINE read_parameters
       nu,omt,omn,Ti0Te,eta,vnu,rey
 
   NAMELIST /flags/ &
-      nonlinear, actual_nonlinear, force_turbulence,forceb,set_forcing,forcetype,test_nl, calc_dt, comp_type,adapt_dt_nl,&
+       nonlinear, actual_nonlinear, force_turbulence,forceb,set_forcing,&
+       forcetype,test_nl, calc_dt, comp_type,adapt_dt_nl,&
       linear_nlbox,verbose,timer,checkpoint_read,checkpoint_write,&
       em_conserve,flr_on,force_kz0eq0,force_ky0eq0,force_kx0eq0,flr_version,&
       flr_extra,flr_nonlinear,etg_factor, &!, which_nonlinear,etg_factor
-      perf_test_lin,perf_test_nl,perf_test_rhs,rhs_lin_version,rhs_nl_version,intorder,linen,keepzero,dealias_type,shifted,splitx,&
+      perf_test_lin,perf_test_nl,perf_test_rhs,rhs_lin_version,rhs_nl_version,&
+      intorder,linen,keepzero,dealias_type,shifted,splitx,&
       perf_test_par, version_flag, hankel, dt_slepc, nuno_closure,mu_integrated,&
       GyroLES, Gyroherm, Gyroz, Corr, &
       plot_nls,&
       hall,guide,enone,nv,test_ho,uni,beltrami,helical,shear,walenp,walenn,mhc,&
-      init_wave,init_null,force_trunc,bc_norm,track_divs,taylorgreen,en_leftwhist,en_leftcyclo,en_rightwhist,en_rightcyclo,debug_energy,&
+      init_wave,init_null,force_trunc,bc_norm,track_divs,taylorgreen,en_leftwhist,&
+      en_leftcyclo,en_rightwhist,en_rightcyclo,debug_energy,&
       force_lw,force_lc,force_rw,force_rc,random_state
  
   NAMELIST /initial_value/ &
@@ -187,14 +191,6 @@ SUBROUTINE read_parameters
 
   IF(test_nl.and..not.nonlinear) STOP "Error! Must USE nonlinear=T for test_nl=T."
 
-  IF (fix_dt) THEN
-     Tf = dt_max * max_itime
-     if (splitx) dt_max = (-0.669 * sqrt(kxmin**2 + kymin**2 +kzmin**2) * nkx0 + 0.669 * sqrt(4.0 + (kxmin**2 + kymin**2 + kzmin**2) * nkx0**2))/(kzmin * nkx0)
-     if (.not.splitx) dt_max = (-0.669 * sqrt(kxmin**2 + kymin**2 +kzmin**2) * nkz0 + 0.669 * sqrt(4.0 + (kxmin**2 + kymin**2 + kzmin**2) * nkz0**2))/(kzmin * nkz0)
-     if (dt_max > Tf) dt_max = Tf
-     max_itime = Tf/dt_max + 2
-  ENDIF
-  
   IF(dt_max==0.0.and..not.calc_dt) STOP "Must define dt_max or set calc_dt=T."
 
   IF(linear_nlbox) adapt_dt_nl=.false.
@@ -229,8 +225,6 @@ SUBROUTINE read_parameters
   !CALL output_parameters
 
 END SUBROUTINE read_parameters
-
-
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!                                                                           !!
@@ -528,6 +522,13 @@ SUBROUTINE checkpoint_out(purpose)
 
 
    if (verbose) print *, mype,"Checkpoint Out",purpose
+   if (verbose) then
+      DO ind = 0,2
+         print *, "Bind Max", mype,maxval(abs(b_1(:,:,:,ind)))
+         print *, "Vind Max", mype,maxval(abs(v_1(:,:,:,ind)))
+      ENDDO
+   endif
+   
    CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
   not_first=.false.
   IF(purpose==1) THEN !WRITE security checkpoint
@@ -615,8 +616,8 @@ SUBROUTINE checkpoint_out(purpose)
          if (mype.eq.0) WRITE(chp_handle) nkz0
          if (mype.eq.0) WRITE(chp_handle) time
 
-         CALL GATHER_WRITE_3D(chp_handle,b_1)
-         CALL GATHER_WRITE_3D(chp_handle,v_1)
+         CALL GATHER_WRITEB(chp_handle,0)
+         CALL GATHER_WRITEB(chp_handle,1)
 
          if (mype.eq.0) WRITE(chp_handle) mhelcorr
 
@@ -626,13 +627,13 @@ SUBROUTINE checkpoint_out(purpose)
          if (mype.eq.0) OPEN(unit=chp_handle_b,file=trim(diagdir)//trim(chp_name_b),&
               form='unformatted', status='unknown',access='stream',position='append')
          if (mype.eq.0) WRITE(chp_handle_b) time
-         CALL GATHER_WRITE_3D(chp_handle_b,b_1)
+         CALL GATHER_WRITEB(chp_handle_b,0)
          if (mype.eq.0) CLOSE(chp_handle_b)
          
          if (mype.eq.0) OPEN(unit=chp_handle_v,file=trim(diagdir)//trim(chp_name_v),&
               form='unformatted', status='unknown',access='stream',position='append')
          if (mype.eq.0) WRITE(chp_handle_v) time
-         CALL GATHER_WRITE_3D(chp_handle_v,v_1)
+         CALL GATHER_WRITEB(chp_handle_v,1)
          if (mype.eq.0) CLOSE(chp_handle_v)
          
          WRITE(*,*) 'Closed v and b handles',itime         
@@ -645,50 +646,37 @@ SUBROUTINE checkpoint_out(purpose)
 
     END SUBROUTINE checkpoint_out
 
-    SUBROUTINE GATHER_WRITE(chp_handle,array)
+    SUBROUTINE GATHER_WRITEB(chp_handle,bv)
 
-      use par_mod
       use mpi
-      
-      implicit none
-      integer, intent(in) :: chp_handle
-      complex(c_double_complex) :: array(0:nx0_big,0:ny0_big-1,lkz1:lkz2)
-      integer :: count
-      integer :: ierr
-
-      count = (nx0_big/2+1)*ny0_big*nz0_big/n_mpi_procs
-
-      CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-      CALL MPI_GATHER(array,count,MPI_DOUBLE_COMPLEX,gather_small,&
-           count,MPI_DOUBLE_COMPLEX,0,MPI_COMM_WORLD,ierr)
-      
-      if (mype.eq.0) fullsmallarray = reshape(gather_small,[1+nx0_big/2,ny0_big,nz0_big])
-      
-      if (mype.eq.0) WRITE(chp_handle) fullsmallarray
-
-    END SUBROUTINE GATHER_WRITE
-
-    SUBROUTINE GATHER_WRITE_3D(chp_handle,array)
-
       use par_mod
-      use mpi
-
       implicit none
-      integer, intent(in) :: chp_handle
-      complex(c_double_complex) :: array(0:nx0_big,0:ny0_big-1,lkz1:lkz2,0:2)
-      integer :: ind
-      
+
+      integer(4) :: chp_handle
+      integer(4) :: bv
+      integer(4) :: ind,count,ierr
+
+      reader = cmplx(0.0,0.0)
       DO ind = 0,2
+         if (bv.eq.0) reader = b_1(:,:,:,ind)
+         if (bv.eq.1) reader = v_1(:,:,:,ind)
+         count = (nx0_big/2+1)*ny0_big*nz0_big/n_mpi_procs
+         if (verbose) print *, "Maximum Array Mype",mype,maxval(abs(reader))
 
-         reader = array(:,:,:,ind)
-         CALL GATHER_WRITE(chp_handle,reader)
+         if (mype.eq.0) gather_small = cmplx(-99.0,0.0)
 
-      ENDDO      
+         CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+         CALL MPI_GATHER(reader,count,MPI_DOUBLE_COMPLEX,gather_small,&
+              count,MPI_DOUBLE_COMPLEX,0,MPI_COMM_WORLD,ierr)
 
-    END SUBROUTINE GATHER_WRITE_3D
-    
-    
+         if ((verbose).and.(mype.eq.0)) print *, "Full Array Max",maxval(abs(gather_small))
+         if (verbose) CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+         if (mype.eq.0) WRITE(chp_handle) gather_small
 
+      ENDDO
+      
+    END SUBROUTINE GATHER_WRITEB
+      
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!                                                                           !!
 !!                             checkpoint_in                                 !!
@@ -819,22 +807,22 @@ SUBROUTINE CHECKPOINT_IN
      if(mype.eq.0) READ(chp_handle) nkz0_in
      if(mype.eq.0) READ(chp_handle) time
 
-     CALL SCATTER_READ(chp_handle,b_1)
-     CALL SCATTER_READ(chp_handle,v_1)
+     CALL SCATTER_READ(chp_handle,0)
+     CALL SCATTER_READ(chp_handle,1)
 
      if (mype.eq.0) READ(chp_handle) mhelcorr
 
      if(mype.eq.0) CLOSE(chp_handle)
 
      CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-     CALL MPI_BCAST(itime, 1, MPI_INT, 0, MPI_COMM_WORLD, ierr)
-     CALL MPI_BCAST(nkx0_in, 1, MPI_INT, 0, MPI_COMM_WORLD, ierr)
-     CALL MPI_BCAST(nky0_in, 1, MPI_INT, 0, MPI_COMM_WORLD, ierr)
-     CALL MPI_BCAST(nkz0_in, 1, MPI_INT, 0, MPI_COMM_WORLD, ierr)
+     CALL MPI_BCAST(itime, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr)
+     CALL MPI_BCAST(nkx0_in, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr)
+     CALL MPI_BCAST(nky0_in, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr)
+     CALL MPI_BCAST(nkz0_in, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr)
      
-     CALL MPI_BCAST(dt, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD, ierr)
-     CALL MPI_BCAST(time, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD, ierr)
-     CALL MPI_BCAST(mhelcorr, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD, ierr)
+     CALL MPI_BCAST(dt, 1, MPI_REAL, 0, MPI_COMM_WORLD, ierr)
+     CALL MPI_BCAST(time, 1, MPI_REAL, 0, MPI_COMM_WORLD, ierr)
+     CALL MPI_BCAST(mhelcorr, 1, MPI_REAL, 0, MPI_COMM_WORLD, ierr)
 
   WRITE(*,*) "itime",itime
   WRITE(*,*) "dt",dt
@@ -842,13 +830,15 @@ SUBROUTINE CHECKPOINT_IN
   WRITE(*,*) "nky0",nky0_in
   WRITE(*,*) "nkz0",nkz0_in
   WRITE(*,*) "time",time
+  WRITE(*,*) "mhc",mhelcorr
+  print *, "energy b1 mype",mype,(sum(abs(b_1(0,:,:,:))**2.0)/2.0 +sum(abs(b_1(1:nkx0-1,:,:,:))**2.0))*(8.0*pi**3)
 
   itime_start = itime
 
 END SUBROUTINE CHECKPOINT_IN
 
 
-SUBROUTINE SCATTER_READ(chp_handle,array)
+SUBROUTINE SCATTER_READ(chp_handle,bv)
 
 
   use par_mod
@@ -857,21 +847,28 @@ SUBROUTINE SCATTER_READ(chp_handle,array)
   implicit none
   
   integer, intent(in) :: chp_handle
-  complex(c_double_complex) :: array(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2)
+  integer(4) :: bv
   integer :: ind,ierr,count
   
-  array = cmplx(0.0,0.0)
-
   count = (1+nx0_big/2)*ny0_big*nz0_big/n_mpi_procs
+  
   DO ind = 0,2
-     
-     if (mype.eq.0) READ(chp_handle) fullsmallarray
+
+     gather_small = cmplx(-99.0,0.0)
+     if (mype.eq.0) READ(chp_handle) gather_small
+
+     if ((verbose).and.(mype.eq.0)) print *, "Full Array Max",maxval(abs(gather_small))
      
      CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-     CALL MPI_SCATTER(fullsmallarray,count,MPI_DOUBLE_COMPLEX,scatter_small,count,MPI_DOUBLE_COMPLEX,0,MPI_COMM_WORLD,ierr)
+     CALL MPI_SCATTER(gather_small,count,MPI_DOUBLE_COMPLEX,scatter_small,count,MPI_DOUBLE_COMPLEX,0,MPI_COMM_WORLD,ierr)
+
+     reader = reshape(scatter_small,[(1+nx0_big/2),ny0_big,nz0_big/n_mpi_procs])
      
-     array(:,:,:,ind) = reshape(scatter_small,[(1+nx0_big/2),ny0_big,nz0_big/n_mpi_procs])
-         
+     if ((verbose)) print *, "Maximum Array Mype",mype,maxval(abs(reader))
+
+     if (bv.eq.0) b_1(:,:,:,ind) = reader
+     if (bv.eq.1) v_1(:,:,:,ind) = reader
+
   ENDDO
 
 END SUBROUTINE SCATTER_READ

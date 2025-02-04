@@ -29,10 +29,8 @@ MODULE diagnostics
   !USE Gyro_LES
   IMPLICIT NONE
 
-  PUBLIC :: initialize_diagnostics, finalize_diagnostics, diag,&
-     !output_data, nl_test, &
-     initial_wallclock,start_wallclock,&
-            check_wallclock,current_wallclock!, sum3d_real
+  PUBLIC :: initialize_diagnostics, finalize_diagnostics, diag
+     !output_data, nl_test,
 
   PRIVATE
 
@@ -272,46 +270,6 @@ SUBROUTINE diag
 END SUBROUTINE diag
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!                           start_wallclock                                 !!
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!Some stuff for testing performance
-  SUBROUTINE start_wallclock
-    IMPLICIT NONE
-
-    INTEGER :: MCLOCK
-
-    initial_wallclock=MCLOCK()
-
-  END SUBROUTINE start_wallclock
-
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!                            check_wallclock                                !!
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  SUBROUTINE check_wallclock
-
-   IMPLICIT NONE
-
-   INTEGER :: current_time,max_time
-   INTEGER :: MCLOCK
-   INTEGER :: diff
-
-   current_time=MCLOCK()  
-   diff=current_time-initial_wallclock
-   
-
-   CALL MPI_ALLREDUCE(diff,max_time,1 &
-    ,MPI_INTEGER,MPI_MAX,MPI_COMM_WORLD,ierr)
-
-   current_wallclock=REAL(max_time)/1000.0
-   !IF(mype==0) WRITE(*,*) "initial_wallclock",initial_wallclock
-   !IF(mype==0) WRITE(*,*) "current_time", current_time
-   !IF(mype==0) WRITE(*,*) "diff", diff
-   !IF(mype==0) WRITE(*,*) "current_wallclock", current_wallclock
-
-  END SUBROUTINE check_wallclock
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!                             get_indices_from_ks                           !!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   SUBROUTINE get_indices_from_ks(kx_in,ky_in,kz_in,ikx,iky,ikz,take_conjg)
@@ -380,7 +338,8 @@ CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
 CALL MPI_ALLREDUCE(hamsm,hams,2,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
 
 ham = (hams(1)+hams(2)) * (8*(pi**3))
-if (verbose) print *, mype,"Hamiltonian",ham
+if (verbose) print *, mype,"Hamiltonian",(hamsm(1)+hamsm(2)) * (8*(pi**3))
+if (verbose) print *, mype,"Total Ham",ham
 
 if (mype.eq.0) WRITE(en_handle) ham
 
@@ -435,7 +394,7 @@ mhsm = 0.0
 
 CALL vec_potential()
 
-if (verbose) print *, mype,"Vector Potential"
+! if (verbose) print *, mype,"Vector Potential"
 
 mhsm(1) = mhsm(1) + 2.0*sum(real(AVP(1:nkx0-1,:,:,:)*conjg(b_1(1:nkx0-1,:,:,:))))
 mhsm(2) = mhsm(2) + sum(AVP(0,:,:,:)*conjg(b_1(0,:,:,:)))
@@ -443,12 +402,12 @@ mhsm(2) = mhsm(2) + sum(AVP(0,:,:,:)*conjg(b_1(0,:,:,:)))
 CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
 CALL MPI_ALLREDUCE(mhsm,mhs,2,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
 
-if (verbose) print *, mype,"Helicity Allreduce"
+! if (verbose) print *, mype,"Helicity Allreduce"
 maghel = (mhs(1) + mhs(2)) * (2.0 * pi)**3.0
 
 if (mype.eq.0) WRITE(en_handle) maghel
 
-if (verbose) print *,mype,"Magnetic Helicity",(maghel+mhelcorr)/magbound
+if (verbose) print *,mype,"Magnetic Helicity",(maghel+mhelcorr)
 
 END SUBROUTINE mag_helicity
 
@@ -497,7 +456,7 @@ subroutine cross_helicity
   crosshel = (chs(1)+chs(2)) * (2.0*pi)**3.0
    
   if (mype.eq.0) WRITE(en_handle) crosshel
-  if (verbose) print *, mype,"Cross Helicity",(crosshel+mhelcorr)/canbound
+  if (verbose) print *, mype,"Cross Helicity",(crosshel+mhelcorr)
 
 end subroutine cross_helicity
 
@@ -532,11 +491,11 @@ print *, mype,"Maximum spectrum fractional change",maxval((abs(LW)-OSPEC)/OSPEC,
 if (mype.eq.0) WRITE(enspec_handle) time
 WRITESPEC = (8*pi**3)* (abs(v_1(:,:,:,0))**2 + abs(v_1(:,:,:,1))**2+abs(v_1(:,:,:,2))**2)
 
-CALL GATHER_WRITE(enspec_handle,WRITESPEC)
+!CALL GATHER_WRITE(enspec_handle,WRITESPEC)
 
 WRITESPEC = (8*pi**3)* (abs(b_1(:,:,:,0))**2 + abs(b_1(:,:,:,1))**2+abs(b_1(:,:,:,2))**2)
 
-CALL GATHER_WRITE(enspec_handle,WRITESPEC)
+!CALL GATHER_WRITE(enspec_handle,WRITESPEC)
 
 OSPEC = abs(LW)
 
@@ -597,7 +556,6 @@ end subroutine bound_hels
 subroutine mode_energy
 
   implicit none
-  real :: modeen,modeenm
   integer :: i,j,k
   real :: lwm,lcm,rwm,rcm,lw,lc,rw,rc
 
@@ -631,7 +589,7 @@ subroutine mode_energy
 
   if ((verbose)) print *, "Max LC",lc
   
-  if (mype.eq.0) write(en_handle) modeen
+  if (mype.eq.0) write(en_handle) lc
 
   rwm =	rwm * (8.0*pi**3)
   CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)

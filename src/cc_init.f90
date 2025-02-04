@@ -147,6 +147,20 @@ SUBROUTINE arrays
      ubkz = lkz1
   endif
 
+  ! Define mask for zero padding
+  IF (.not.allocated(paddingmask)) ALLOCATE(paddingmask(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2))
+  paddingmask = 0
+  if (n_mpi_procs.eq.1) then
+     ! In the one process case hkz_ind and lkz_ind both lie between lkz1 and lkz2
+     paddingmask(0:nkx0-1,0:hky_ind,0:hkz_ind) = 1
+     paddingmask(0:nkx0-1,0:hky_ind,lkz_big:nz0_big-1) = 1
+     paddingmask(0:nkx0-1,lky_big:ny0_big-1,lkz_big:nz0_big-1) = 1
+     paddingmask(0:nkx0-1,lky_big:ny0_big-1,0:hkz_ind) = 1
+  else
+     ! Use choice of lbkz and ubkz to account for zero padding
+     paddingmask(0:nkx0-1,0:hky_ind,lbkz:ubkz) = 1
+     paddingmask(0:nkx0-1,lky_big:ny0_big-1,lbkz:ubkz) = 1
+  endif
 
   !Info for Hankel grid
   lh0=nh0/np_hank
@@ -182,7 +196,6 @@ SUBROUTINE arrays
 
   IF (.not.allocated(gather_big)) ALLOCATE(gather_big((1+nx0_big/2)*ny0_big*nz0_big))
   IF (.not.allocated(gather_small)) ALLOCATE(gather_small((1+nx0_big/2)*ny0_big*nz0_big))
-  
   
   IF(.not.allocated(b_1))&
       ALLOCATE(b_1(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2)) 
@@ -359,14 +372,15 @@ SUBROUTINE finalize_arrays
   IF (allocated(fullbigarray)) DEALLOCATE(fullbigarray)
   IF (allocated(fullsmallarray)) DEALLOCATE(fullsmallarray)
 
-    DEALLOCATE(gather_big)
-  DEALLOCATE(gather_small)
+  IF (allocated(gather_big)) DEALLOCATE(gather_big)
+  IF (allocated(gather_small)) DEALLOCATE(gather_small)
 
-  DEALLOCATE(scatter_big)
-  DEALLOCATE(scatter_small)
+  IF (allocated(scatter_big)) DEALLOCATE(scatter_big)
+  IF (allocated(scatter_small)) DEALLOCATE(scatter_small)
   
   IF(allocated(b_1)) DEALLOCATE(b_1)
   IF(allocated(v_1)) DEALLOCATE(v_1)
+  IF(allocated(paddingmask)) DEALLOCATE(paddingmask)
 !  IF(allocated(gpsi)) DEALLOCATE(gpsi)
 !  IF(allocated(pre)) DEALLOCATE(pre)
   IF(allocated(pcurleig)) DEALLOCATE(pcurleig)

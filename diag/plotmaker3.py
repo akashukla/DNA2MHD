@@ -3,7 +3,7 @@ from output2 import maxinds
 import numpy as np
 
 
-lpaths = ["/pscratch/sd/e/echansen/DNA2MHDruns/run128"]
+lpaths = ["/pscratch/sd/e/echansen/DNA2MHDruns/mhdtests1"]
 
 for lpath in lpaths:
     dn.plot_energy(lpath)

@@ -1,9 +1,8 @@
 ###############################################################################
 #####                                                                     #####
-#####                     OPTIONS FOR THE HOST = ls6                      #####
+#####                     OPTIONS FOR THE HOST = perlmutter               #####
 #####                                                     March 11, 2013  #####
 ###############################################################################
-
 
 #####  LIBRARIES PATHS
 ###############################################################################
@@ -55,12 +54,13 @@ ifeq ($(CMPLTYPE),optim)
 endif
 
 ifeq ($(CMPLTYPE),debug)
-  FFLAGS = -O0
-  FFLAGS += -g 
+  FFLAGS = -g -O0
+  LDLAGS += -g -O0
 endif
 
+# use PrgEnv-intel
 ifeq ($(PRECISION),double)
-  FFLAGS += -r8 
+  FFLAGS += -r8
   LDLAGS += -r8
 endif
 

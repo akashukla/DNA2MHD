@@ -28,7 +28,7 @@ MODULE linear_rhs
   PRIVATE
   
   LOGICAL, ALLOCATABLE :: mask(:,:,:)
-  INTEGER, ALLOCATABLE :: mask1(:,:,:)
+  REAL, ALLOCATABLE :: mask1(:,:,:)
   !COMPLEX :: b_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2, 0:2)
   !COMPLEX :: v_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2, 0:2)
   !COMPLEX :: rhs_out_b(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2, 0:2)
@@ -45,10 +45,10 @@ SUBROUTINE get_rhs_lin(b_in, v_in, rhs_out_b, rhs_out_v, which_term)
   IMPLICIT NONE
   INTEGER, INTENT(in) :: which_term
 
-  COMPLEX, INTENT(IN) :: b_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2, 0:2)
-  COMPLEX, INTENT(IN) :: v_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2, 0:2)
-  COMPLEX, INTENT(OUT) :: rhs_out_b(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2, 0:2)
-  COMPLEX, INTENT(OUT) :: rhs_out_v(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2, 0:2)
+  COMPLEX(C_DOUBLE_COMPLEX), INTENT(IN) :: b_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2, 0:2)
+  COMPLEX(C_DOUBLE_COMPLEX), INTENT(IN) :: v_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2, 0:2)
+  COMPLEX(C_DOUBLE_COMPLEX), INTENT(OUT) :: rhs_out_b(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2, 0:2)
+  COMPLEX(C_DOUBLE_COMPLEX), INTENT(OUT) :: rhs_out_v(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2, 0:2)
 
  IF ((rhs_lin_version==1).or.(rhs_lin_version==12)) THEN
    !If works for mu integrated as well for hankel/vperp version
@@ -65,10 +65,10 @@ SUBROUTINE get_rhs_lin1_ae(b_in, v_in, rhs_out_b,rhs_out_v, which_term)
 
   INTEGER, INTENT(in) :: which_term
 
-  COMPLEX, INTENT(IN) :: b_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2, 0:2)
-  COMPLEX, INTENT(IN) :: v_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2, 0:2)
-  COMPLEX, INTENT(OUT) :: rhs_out_b(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2, 0:2)
-  COMPLEX, INTENT(OUT) :: rhs_out_v(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2, 0:2)
+  COMPLEX(C_DOUBLE_COMPLEX), INTENT(IN) :: b_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2, 0:2)
+  COMPLEX(C_DOUBLE_COMPLEX), INTENT(IN) :: v_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2, 0:2)
+  COMPLEX(C_DOUBLE_COMPLEX), INTENT(OUT) :: rhs_out_b(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2, 0:2)
+  COMPLEX(C_DOUBLE_COMPLEX), INTENT(OUT) :: rhs_out_v(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2, 0:2)
 
  INTEGER :: i,j,k,h,ierr
  !for transpose for left ev's
@@ -89,9 +89,12 @@ SUBROUTINE get_rhs_lin1_ae(b_in, v_in, rhs_out_b,rhs_out_v, which_term)
           DO k = lkz1,lkz2
 
              ! Mahajan equation 14
-             rhs_out_b(i,j,k,0) = i_complex*kzgrid(k)*(v_in(i,j,k,0) - hall*(i_complex*kygrid(j)*b_in(i,j,k,2) - i_complex*kzgrid(k)*b_in(i,j,k,1)))
-             rhs_out_b(i,j,k,1) = i_complex*kzgrid(k)*(v_in(i,j,k,1) - hall*(i_complex*kzgrid(k)*b_in(i,j,k,0) - i_complex*kxgrid(i)*b_in(i,j,k,2)))
-             rhs_out_b(i,j,k,2) = i_complex*kzgrid(k)*(v_in(i,j,k,2) - hall*(i_complex*kxgrid(i)*b_in(i,j,k,1) - i_complex*kygrid(j)*b_in(i,j,k,0)))
+             rhs_out_b(i,j,k,0) = i_complex*kzgrid(k)*(v_in(i,j,k,0) &
+                  - hall*(i_complex*kygrid(j)*b_in(i,j,k,2) - i_complex*kzgrid(k)*b_in(i,j,k,1)))
+             rhs_out_b(i,j,k,1) = i_complex*kzgrid(k)*(v_in(i,j,k,1) &
+                  - hall*(i_complex*kzgrid(k)*b_in(i,j,k,0) - i_complex*kxgrid(i)*b_in(i,j,k,2)))
+             rhs_out_b(i,j,k,2) = i_complex*kzgrid(k)*(v_in(i,j,k,2) &
+                  - hall*(i_complex*kxgrid(i)*b_in(i,j,k,1) - i_complex*kygrid(j)*b_in(i,j,k,0)))
              
              ! Mahajan eqn 15b from prerana - no difference between linear versions 
              rhs_out_v(i,j,k,0) = i_complex*kzgrid(k)*b_in(i,j,k,0)
@@ -114,8 +117,8 @@ END SUBROUTINE get_rhs_lin1_ae
 SUBROUTINE get_rhs_force(rhs_out_b, rhs_out_v)
   IMPLICIT NONE
 
-  COMPLEX, INTENT(out) :: rhs_out_b(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2, 0:2)
-  COMPLEX, INTENT(out) :: rhs_out_v(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2, 0:2)
+  COMPLEX(C_DOUBLE_COMPLEX), INTENT(inout) :: rhs_out_b(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2, 0:2)
+  COMPLEX(C_DOUBLE_COMPLEX), INTENT(inout) :: rhs_out_v(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2, 0:2)
   
     INTEGER :: i,j,k,h,ierr
     !REAL :: r
@@ -123,30 +126,33 @@ SUBROUTINE get_rhs_force(rhs_out_b, rhs_out_v)
     COMPLEX :: LW1,LC1,RW1,RC1
     REAL :: a,b,c,d,e,f,b1
 
+
     if (mype.eq.0) call random_number(resample)
     CALL MPI_BCAST(resample,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
 
-    IF ((resample.lt.dt).and.(forcetype.eq.11)) THEN
-
+    IF ((forcetype.eq.11).or.(forcetype.eq.12)) THEN
+       
        DO i = 1,nkx0-1
           DO j = 1,ny0_big-1
              DO k = lkz1,lkz2
                 if (verbose) c = MPI_WTIME()
                 IF (forceb) THEN
-                   rhs_out_b(i,j,k,0) = rhs_out_b(i,j,k,0) + (force_amp*random_normal() + i_complex*force_amp*random_normal())*mask1(i,j,k)
-                   rhs_out_b(i,j,k,1) = rhs_out_b(i,j,k,1) + (force_amp*random_normal() + i_complex*force_amp*random_normal())*mask1(i,j,k)
+                   rhs_out_b(i,j,k,0) = rhs_out_b(i,j,k,0) + (force_amp*random_normal() &
+                        + i_complex*force_amp*random_normal())*mask1(i,j,k)
+                   rhs_out_b(i,j,k,1) = rhs_out_b(i,j,k,1) + (force_amp*random_normal() &
+                        + i_complex*force_amp*random_normal())*mask1(i,j,k)
+                   rhs_out_b(i,j,k,2) = rhs_out_b(i,j,k,2) + (force_amp*random_normal() &
+                        + i_complex*force_amp*random_normal())*mask1(i,j,k)
                    
-                   rhs_out_b(i,nky0-j,k,0) = rhs_out_b(i,nky0-j,k,0) + (force_amp*random_normal() + i_complex*force_amp*random_normal())*mask1(i,nky0-j,k)
-                   rhs_out_b(i,nky0-j,k,1) = rhs_out_b(i,nky0-j,k,1) + (force_amp*random_normal() + i_complex*force_amp*random_normal())*mask1(i,nky0-j,k)
-
                 ENDIF
              
-                rhs_out_v(i,j,k,0) = rhs_out_v(i,j,k,0) + (force_amp*random_normal() + i_complex*force_amp*random_normal())*mask1(i,j,k)
-                rhs_out_v(i,j,k,1) = rhs_out_v(i,j,k,1) + (force_amp*random_normal() + i_complex*force_amp*random_normal())*mask1(i,j,k)
+                rhs_out_v(i,j,k,0) = rhs_out_v(i,j,k,0) + (force_amp*random_normal() &
+                     + i_complex*force_amp*random_normal())*mask1(i,j,k)
+                rhs_out_v(i,j,k,1) = rhs_out_v(i,j,k,1) + (force_amp*random_normal() &
+                     + i_complex*force_amp*random_normal())*mask1(i,j,k)
+                rhs_out_v(i,j,k,2) = rhs_out_v(i,j,k,2) + (force_amp*random_normal() &
+                     + i_complex*force_amp*random_normal())*mask1(i,j,k)
                 
-                rhs_out_v(i,nky0-j,k,0) = rhs_out_v(i,nky0-j,k,0) + (force_amp*random_normal() + i_complex*force_amp*random_normal())*mask1(i,nky0-j,k)
-                rhs_out_v(i,nky0-j,k,1) = rhs_out_v(i,nky0-j,k,1) + (force_amp*random_normal() + i_complex*force_amp*random_normal())*mask1(i,nky0-j,k)
-
              ENDDO
           ENDDO
        ENDDO
@@ -169,21 +175,28 @@ SUBROUTINE get_rhs_force(rhs_out_b, rhs_out_v)
                 RW1 = exp(20.0*pi*i_complex*th3) !(random_normal()+i_complex*random_normal())
                 RC1 = exp(20.0*pi*i_complex*th4) !(random_normal()+i_complex*random_normal())
 
-                LW1 = LW1 * force_amp * sqrt(force_lw)/sqrt(force_lw + force_lc + force_rw + force_rc) * 1.0/sqrt(1 + alpha_leftwhist(i,j,k)**2)
-                LC1 = LC1 * force_amp * sqrt(force_lc)/sqrt(force_lw + force_lc + force_rw + force_rc) * 1.0/sqrt(1 + alpha_leftcyclo(i,j,k)**2)
-                RW1 = RW1 * force_amp * sqrt(force_rw)/sqrt(force_lw + force_lc + force_rw + force_rc) * 1.0/sqrt(1 + alpha_leftwhist(i,j,k)**2)
-                RC1 = RC1 * force_amp * sqrt(force_rc)/sqrt(force_lw + force_lc + force_rw + force_rc) * 1.0/sqrt(1 + alpha_leftcyclo(i,j,k)**2)
+                LW1 = LW1 * force_amp * sqrt(force_lw)/sqrt(force_lw + force_lc &
+                     + force_rw + force_rc) * 1.0/sqrt(1 + alpha_leftwhist(i,j,k)**2)
+                LC1 = LC1 * force_amp * sqrt(force_lc)/sqrt(force_lw + force_lc &
+                     + force_rw + force_rc) * 1.0/sqrt(1 + alpha_leftcyclo(i,j,k)**2)
+                RW1 = RW1 * force_amp * sqrt(force_rw)/sqrt(force_lw + force_lc &
+                     + force_rw + force_rc) * 1.0/sqrt(1 + alpha_leftwhist(i,j,k)**2)
+                RC1 = RC1 * force_amp * sqrt(force_rc)/sqrt(force_lw + force_lc &
+                     + force_rw + force_rc) * 1.0/sqrt(1 + alpha_leftcyclo(i,j,k)**2)
                 
-                rhs_out_b(i,j,k,:) = rhs_out_b(i,j,k,:) + ((LW1 * alpha_leftwhist(i,j,k) + LC1 * alpha_leftcyclo(i,j,k)) * pcurleig(i,j,k,:)&
-                     -(RW1 * alpha_leftwhist(i,j,k) + RC1 * alpha_leftcyclo(i,j,k)) * conjg(pcurleig(i,j,k,:)))*mask1(i,j,k)
-                rhs_out_v(i,j,k,:) = rhs_out_v(i,j,k,:) + ((LW1+LC1)*pcurleig(i,j,k,:) + (RW1+RC1)*conjg(pcurleig(i,j,k,:)))*mask1(i,j,k)
+                rhs_out_b(i,j,k,:) = rhs_out_b(i,j,k,:) &
+                     + ((LW1 * alpha_leftwhist(i,j,k) + LC1 * alpha_leftcyclo(i,j,k)) * pcurleig(i,j,k,:)&
+                     -(RW1 * alpha_leftwhist(i,j,k) + RC1 * alpha_leftcyclo(i,j,k))&
+                     * conjg(pcurleig(i,j,k,:)))*mask1(i,j,k)
+                rhs_out_v(i,j,k,:) = rhs_out_v(i,j,k,:) + ((LW1+LC1)*pcurleig(i,j,k,:) &
+                     + (RW1+RC1)*conjg(pcurleig(i,j,k,:)))*mask1(i,j,k)
              ENDDO
           ENDDO
        ENDDO
 
     ENDIF
 
-    IF (forcetype.gt.30) THEN ! continuous mode injection in range
+    IF (forcetype.gt.30) THEN
 
        ! Reset phases every half turnover time and interpolate phases linearly between turnover times
 
@@ -252,14 +265,21 @@ SUBROUTINE get_rhs_force(rhs_out_b, rhs_out_v)
                 RW1 = exp(20.0*pi*i_complex*th3)
                 RC1 = exp(20.0*pi*i_complex*th4)
                 
-                LW1 = LW1 * force_amp * sqrt(force_lw)/sqrt(force_lw + force_lc + force_rw + force_rc) * 1.0/sqrt(1 + alpha_leftwhist(i,j,k)**2)
-                LC1 = LC1 * force_amp * sqrt(force_lc)/sqrt(force_lw + force_lc + force_rw + force_rc) * 1.0/sqrt(1 + alpha_leftcyclo(i,j,k)**2)
-                RW1 = RW1 * force_amp * sqrt(force_rw)/sqrt(force_lw + force_lc + force_rw + force_rc) * 1.0/sqrt(1 + alpha_leftwhist(i,j,k)**2)
-                RC1 = RC1 * force_amp * sqrt(force_rc)/sqrt(force_lw + force_lc + force_rw + force_rc) * 1.0/sqrt(1 + alpha_leftcyclo(i,j,k)**2)
+                LW1 = LW1 * force_amp * sqrt(force_lw)/sqrt(force_lw + force_lc &
+                     + force_rw + force_rc) * 1.0/sqrt(1 + alpha_leftwhist(i,j,k)**2)
+                LC1 = LC1 * force_amp * sqrt(force_lc)/sqrt(force_lw + force_lc &
+                     + force_rw + force_rc) * 1.0/sqrt(1 + alpha_leftcyclo(i,j,k)**2)
+                RW1 = RW1 * force_amp * sqrt(force_rw)/sqrt(force_lw + force_lc &
+                     + force_rw + force_rc) * 1.0/sqrt(1 + alpha_leftwhist(i,j,k)**2)
+                RC1 = RC1 * force_amp * sqrt(force_rc)/sqrt(force_lw + force_lc &
+                     + force_rw + force_rc) * 1.0/sqrt(1 + alpha_leftcyclo(i,j,k)**2)
 
-                rhs_out_b(i,j,k,:) = rhs_out_b(i,j,k,:) + ((LW1 * alpha_leftwhist(i,j,k) + LC1 * alpha_leftcyclo(i,j,k)) * pcurleig(i,j,k,:)&
-                     -(RW1 * alpha_leftwhist(i,j,k) + RC1 * alpha_leftcyclo(i,j,k)) * conjg(pcurleig(i,j,k,:)))*mask1(i,j,k)
-                rhs_out_v(i,j,k,:) = rhs_out_v(i,j,k,:) + ((LW1+LC1)*pcurleig(i,j,k,:) + (RW1+RC1)*conjg(pcurleig(i,j,k,:)))*mask1(i,j,k)
+                rhs_out_b(i,j,k,:) = rhs_out_b(i,j,k,:) + ((LW1 * alpha_leftwhist(i,j,k) &
+                     + LC1 * alpha_leftcyclo(i,j,k)) * pcurleig(i,j,k,:)&
+                     -(RW1 * alpha_leftwhist(i,j,k) + RC1 * alpha_leftcyclo(i,j,k)) &
+                     * conjg(pcurleig(i,j,k,:)))*mask1(i,j,k)
+                rhs_out_v(i,j,k,:) = rhs_out_v(i,j,k,:) + ((LW1+LC1)*pcurleig(i,j,k,:) &
+                     + (RW1+RC1)*conjg(pcurleig(i,j,k,:)))*mask1(i,j,k)
 
              ENDDO
           ENDDO
@@ -290,20 +310,47 @@ SUBROUTINE get_rhs_force(rhs_out_b, rhs_out_v)
     ! masking will remove high k modes
     ! mask2 = (((i.le.nkxforce).and.(j.le.nkyforce)).and.(k.le.nkzforce)).and.(forcetype.eq.12))
 
+    
     mask1 = 0
-    DO i = 1,nkx0-1
-       DO j = 1,ny0_big-1
-          DO k = lkz1,lkz2
 
-             if (mask(i,j,k)) mask1(i,j,k) = 1
+    if (mod(forcetype,2).eq.1) then
+       DO i = 1,nkx0-1
+          DO j = 1,ny0_big-1
+             DO k = lkz1,lkz2
+                
+                if (mask(i,j,k)) mask1(i,j,k) = 1
+             ENDDO
           ENDDO
        ENDDO
-    ENDDO
+    else
+       DO k  = 1,nkzforce
+          IF ((k.ge.lkz1).and.(k.le.lkz2)) THEN
+             DO i = 1,nkxforce
+                DO j = 1,nkyforce
+                   mask1(i,j,k) = 1
+                   mask1(i,ny0_big-j,k) = 1
+                ENDDO
+             ENDDO
+          ENDIF
+          IF (((nz0_big-k).ge.lkz1).and.((nz0_big-k).le.lkz2)) THEN
+             DO i = 1,nkxforce
+                DO j = 1,nkyforce
+                   mask1(i,j,nz0_big-k) = 1
+                   mask1(i,ny0_big-j,nz0_big-k) = 1
+                ENDDO
+             ENDDO
+          ENDIF
+          
+       ENDDO
+    endif
+
+    print *, "Force Mask", mype,maxval(mask1)
       
   END SUBROUTINE init_force
 
   SUBROUTINE finalize_force
 
+    if (allocated(mask)) DEALLOCATE(mask)
     if (allocated(mask1)) DEALLOCATE(mask1)
 
     if (allocated(LWp)) DEALLOCATE(LWp)
@@ -324,10 +371,10 @@ SUBROUTINE get_rhs_test(b_in,v_in,rhs_out_b,rhs_out_v)
 
   IMPLICIT NONE
 
-  COMPLEX :: b_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2)
-  COMPLEX :: v_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2)
-  COMPLEX :: rhs_out_b(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2)
-  COMPLEX :: rhs_out_v(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2)
+  COMPLEX(C_DOUBLE_COMPLEX) :: b_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2)
+  COMPLEX(C_DOUBLE_COMPLEX) :: v_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2)
+  COMPLEX(C_DOUBLE_COMPLEX) :: rhs_out_b(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2)
+  COMPLEX(C_DOUBLE_COMPLEX) :: rhs_out_v(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2)
 
   rhs_out_b = v_in
   rhs_out_v = - b_in
@@ -336,10 +383,10 @@ END SUBROUTINE get_rhs_test
 
 SUBROUTINE get_rhs_diss(b_in,v_in,rhs_out_b,rhs_out_v)
 
-  COMPLEX, intent(in) :: b_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2, 0:2)
-  COMPLEX, intent(in) :: v_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2, 0:2)
-  COMPLEX, intent(out) :: rhs_out_b(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2, 0:2)
-  COMPLEX, intent(out) :: rhs_out_v(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2, 0:2)
+  COMPLEX(C_DOUBLE_COMPLEX), intent(in) :: b_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2, 0:2)
+  COMPLEX(C_DOUBLE_COMPLEX), intent(in) :: v_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2, 0:2)
+  COMPLEX(C_DOUBLE_COMPLEX), intent(inout) :: rhs_out_b(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2, 0:2)
+  COMPLEX(C_DOUBLE_COMPLEX), intent(inout) :: rhs_out_v(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2, 0:2)
 
   ! Explicit calculation of dissipation
   
@@ -350,8 +397,8 @@ END SUBROUTINE get_rhs_diss
 
 SUBROUTINE get_rhs_diss2(b_in,v_in)
 
-  COMPLEX, intent(inout) :: b_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2, 0:2)
-  COMPLEX, intent(inout) :: v_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2, 0:2)
+  COMPLEX(C_DOUBLE_COMPLEX), intent(inout) :: b_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2, 0:2)
+  COMPLEX(C_DOUBLE_COMPLEX), intent(inout) :: v_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2, 0:2)
 
   ! Exact dissipation through integrating factor method
   

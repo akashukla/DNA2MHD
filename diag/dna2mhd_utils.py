@@ -361,6 +361,8 @@ def center_width(data_width,data_min):
         plot_width = 10**(np.ceil(np.log10(data_width))) * 0.15
 
     plot_center = (np.ceil(10*data_min/plot_width)+4)*plot_width/10
+
+    print(plot_width,plot_center)
     
     return(plot_width,plot_center)
 
@@ -411,30 +413,41 @@ def plot_energy(lpath,xb=1,tmax=2000000):
     plt.close()
 
     # Magnetic Helicity Plot
-    fig,ax = plt.subplots(1)
-    ev = (enval[:,1]+enval[:,-1])/enval[:,-3]
-    ax.plot(timeen,ev,"b",label="Transformed")
-    ax.plot(timeen,ev-enval[:,-1]/enval[:,-3],"r",label="Original")
-    r = np.max(ev) - np.min(ev)
-    ax.set_ylabel("Helicity / Initial Helicity Bound")
-    ax.set_xlabel("Time ($\omega_c^{-1}$)")
-    ax.legend()
-
-    plot_width,plot_center = center_width(r,np.min(ev))
-    ax.set_ylim(bottom=plot_center-plot_width,top=plot_center+plot_width)
-    ax.yaxis.set_major_locator(LinearLocator())
-    form = ScalarFormatter()
-    ax.yaxis.set_major_formatter(form)
-
-    fig.suptitle("Magnetic Helicity Evolution")
-    plt.savefig(lpath+"/eplots/maghcty")
-    plt.close()
+    if not par["nv"]:
+        if not par["init_null"]:
+            ev = (enval[:,1]+enval[:,-1])/enval[0,-3]
+            ev0 = ev-enval[:,-1]/enval[:,-3]
+        else:
+            ev = enval[:,1]+enval[:,-1]
+            ev0 = enval[:,1]
+        fig,ax = plt.subplots(1)
+        ax.plot(timeen,ev,"b",label="Transformed")
+        ax.plot(timeen,ev0,"r",label="Original")
+        r = np.max(ev) - np.min(ev)
+        ax.set_ylabel("Helicity / Initial Helicity Bound")
+        ax.set_xlabel("Time ($\omega_c^{-1}$)")
+        ax.legend()
+    
+        plot_width,plot_center = center_width(r,np.min(ev))
+        ax.set_ylim(bottom=plot_center-plot_width,top=plot_center+plot_width)
+        ax.yaxis.set_major_locator(LinearLocator())
+        form = ScalarFormatter()
+        ax.yaxis.set_major_formatter(form)
+    
+        fig.suptitle("Magnetic Helicity Evolution")
+        plt.savefig(lpath+"/eplots/maghcty")
+        plt.close()
 
     # Canonical Helicity Plot
     fig,ax = plt.subplots(1)
-    ev = (enval[:,2]+enval[:,-1])/enval[:,-2]
+    if not par["init_null"]:
+        ev = (enval[:,2]+enval[:,-1])/enval[0,-2]
+        ev0 = enval[:,2]/enval[0,-2]
+    else:
+        ev = enval[:,2]+enval[:,-1]
+        ev0 = enval[:,2]
     ax.plot(timeen,ev,"b",label="Transformed")
-    ax.plot(timeen,ev-enval[:,-1]/enval[:,-2],"r",label="Original")
+    ax.plot(timeen,ev0,"r",label="Original")
     r = np.max(ev) - np.min(ev)
     ax.set_ylabel("Helicity / Initial Helicity Bound")
     ax.set_xlabel("Time ($\omega_c^{-1}$)")
@@ -445,7 +458,7 @@ def plot_energy(lpath,xb=1,tmax=2000000):
     ax.yaxis.set_major_locator(LinearLocator())
     form = ScalarFormatter()
     ax.yaxis.set_major_formatter(form)
-
+    
     fig.suptitle("Canonical Helicity Evolution")
     plt.savefig(lpath+"/eplots/canhcty")
     plt.close()
@@ -564,8 +577,8 @@ def plot_enspec(lpath,zz=-1,version=3,show=False):
 
     xmin = x[a[1]]/2
 
-    ymax = np.amax(yt)
-    ymin = np.amin(yt[np.nonzero(yt)])
+    ymax = 10**0.0
+    ymin = 10**(-12.0)
 
     print("X Limits",xmin,xmax)
     
@@ -600,8 +613,8 @@ def plot_enspec(lpath,zz=-1,version=3,show=False):
     fig.tight_layout()
     ax.set_ylabel("Total Energy Spectra")
 
-    ymax = np.amax(ekti)
-    ymin = np.amin(ekti[np.nonzero(ekti)])
+    ymax = 10**1.0
+    ymin = 10**(-12.0)
     
     ax.set_xlim(xmin/2,2*xmax)
     ax.set_ylim(ymin/2,2*ymax)
@@ -1026,11 +1039,13 @@ def structurefunction(lpath,tmax=2*10**10):
         pt = np.nonzero(str_perp)
         pz = np.nonzero(str_par)
 
+
+        print("Maximum",np.amax(str_perp),np.amax(str_par))
+        
         ax[I].plot(xs[pt],str_perp[pt],"--",label="Transverse")
         ax[I].plot(zs[pz],str_par[pz],":",label="Parallel")
         if (I==2 or I == 3):
             ax[I].set_xlabel("r ($d_i$)")
-
         
         ax2[I].plot(str_perp[pt],"--",label="Transverse")
         ax2[I].plot(str_par[pz],":",label="Parallel")

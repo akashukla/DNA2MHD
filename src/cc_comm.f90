@@ -36,7 +36,7 @@ SUBROUTINE init_comm
   USE par_mod  
   IMPLICIT NONE
 
-  INTEGER :: ierr
+  INTEGER(kind=4) :: ierr
 
   CALL mpi_init(ierr)
   CALL mpi_comm_rank(MPI_COMM_WORLD,mype,ierr)
@@ -56,7 +56,8 @@ SUBROUTINE comm
   USE mpi
   USE par_mod
   IMPLICIT NONE
-  integer :: arr_dims(4),ierr
+  integer :: arr_dims(4)
+  integer(kind=4) :: ierr
   logical :: if_periodic(4),sub_grid(4)
   integer :: mype_cart(4)
   
@@ -149,7 +150,7 @@ END SUBROUTINE my_complex_sum_hank
 SUBROUTINE finalize_mpi
   USE mpi
   
-  INTEGER :: ierr
+  INTEGER(kind=4) :: ierr
 
   CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
   IF (verbose.and.(mype.eq.0)) print *,'MPI Barrier called'
