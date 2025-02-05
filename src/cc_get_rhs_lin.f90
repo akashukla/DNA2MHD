@@ -27,8 +27,6 @@ MODULE linear_rhs
 
   PRIVATE
   
-  LOGICAL, ALLOCATABLE :: mask(:,:,:)
-  REAL, ALLOCATABLE :: mask1(:,:,:)
   !COMPLEX :: b_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2, 0:2)
   !COMPLEX :: v_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2, 0:2)
   !COMPLEX :: rhs_out_b(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2, 0:2)

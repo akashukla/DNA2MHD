@@ -179,7 +179,7 @@ MODULE par_mod
   LOGICAL :: checkpoint_write=.true.
 !  LOGICAL :: get_chpt_from_gout=.false.
 
-  CHARACTER(len=40) :: init_cond='DEFAULT'
+  INTEGER(4) :: init_cond
   REAL :: init_prefactor=0.001
   INTEGER :: version_flag
 
@@ -266,6 +266,10 @@ MODULE par_mod
   
   COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:) :: LW,LC,RW,RC
   INTEGER(4), ALLOCATABLE, DIMENSION(:,:,:) :: paddingmask
+  ! Forcing masks
+  LOGICAL, ALLOCATABLE :: mask(:,:,:)
+  REAL, ALLOCATABLE :: mask1(:,:,:)
+  
   REAL(C_DOUBLE), ALLOCATABLE, DIMENSION(:,:,:) :: LWp,LCp,RWp,RCp
   REAL(C_DOUBLE), ALLOCATABLE, DIMENSION(:,:,:) :: LWp2,LCp2,RWp2,RCp2
   REAL :: last_reset = -1.0! time of last forcing phase change

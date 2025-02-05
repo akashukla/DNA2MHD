@@ -4,7 +4,7 @@ omt = 5.000
 omn =    1.000    
 Ti0Te =    1.000 
 eta = 1.0
-vnu = 0.0
+vnu = 50.0
 rey = 0.0
 /
 
@@ -12,9 +12,9 @@ rey = 0.0
 kxmin =   100.0
 kymin =   100.0
 kzmin =   1.0
-nkx0 = 16
-nky0 = 32
-nkz0 = 32
+nkx0 = 32
+nky0 = 64
+nkz0 = 256
 nv0 =   2
 nh0 =    1
 nspec =    1
@@ -42,7 +42,7 @@ init_amp_vz = 0.0
 init_kolm = 0.0
 phdf = 2.0
 phdfxy = 2.0
-force_amp = 0.00001
+force_amp = 0.00002
 nkxforce = 4
 nkyforce = 4
 nkzforce = 4
@@ -51,8 +51,8 @@ hyp = 4
 /
 
 &diagnostics
-diagdir = "/pscratch/sd/e/echansen/DNA2MHDruns/mhdload"
-loaddir = "/pscratch/sd/e/echansen/DNA2MHDruns/mhdload"
+diagdir = "/pscratch/sd/e/echansen/DNA2MHDruns/mhddecaystart"
+loaddir = "/pscratch/sd/e/echansen/DNA2MHDruns/mhddecaystart"
 istep_ffm =   20
 istep_energy3d =  500
 istep_energy =  1
@@ -71,10 +71,9 @@ output_nlt_n = F
 /
 
 &flags
-verbose  = T
+verbose  = F
 timer = F
 nonlinear  = T
-actual_nonlinear = T
 calc_dt  = F
 comp_type = 'IV'
 checkpoint_write = T
@@ -82,11 +81,11 @@ etg_factor  =    0.000
 em_conserve = T
 nuno_closure = T
 rhs_nl_version = 12
-intorder = 3
+intorder = 5
 rhs_lin_version = 12
 dealias_type = 3
 shifted = F
-force_turbulence = F
+force_turbulence = T
 forceb = T
 forcetype = 12
 set_forcing = F
@@ -106,10 +105,11 @@ bc_norm = F
 track_divs = F
 debug_energy = F
 mhc = T
-init_wave = T
+init_wave = F
 init_null = F
 force_trunc = F
 checkpoint_read = T
+init_cond = 0
 en_leftwhist = 1.0
 en_leftcyclo = 0.0
 en_rightwhist = 0.0
@@ -123,8 +123,8 @@ random_state = 3
 /
 
 &initial_value
-max_itime = 301
-max_walltime =   86100.0
+max_itime = 60000
+max_walltime =   129300.0
 dt_max = 0.0004
 fix_dt = F
 max_time =   10000000.

@@ -465,9 +465,9 @@ SUBROUTINE next_dt(dtn)
  ndt2xr = maxval(abs(kxgrid))*maxval(abs(vx))
  ndt2yr = maxval(abs(kygrid))*maxval(abs(vy))
  ndt2zr = maxval(abs(kzgrid))*maxval(abs(vz))
- ndt3xr = maxval(abs(kxgrid))*maxval(abs(curlbx))
- ndt3yr = maxval(abs(kygrid))*maxval(abs(curlby))
- ndt3zr = maxval(abs(kzgrid))*maxval(abs(curlbz))
+ ndt3xr = maxval(abs(kxgrid))*maxval(abs(curlbx))*hall
+ ndt3yr = maxval(abs(kygrid))*maxval(abs(curlby))*hall
+ ndt3zr = maxval(abs(kzgrid))*maxval(abs(curlbz))*hall
  ndtr = ndt1xr + ndt1yr + ndt1zr &
    + ndt2xr + ndt2yr + ndt2zr &
    + ndt3xr + ndt3yr + ndt3zr

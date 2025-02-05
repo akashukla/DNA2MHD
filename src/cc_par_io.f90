@@ -58,12 +58,12 @@ SUBROUTINE read_parameters
       GyroLES, Gyroherm, Gyroz, Corr, &
       plot_nls,&
       hall,guide,enone,nv,test_ho,uni,beltrami,helical,shear,walenp,walenn,mhc,&
-      init_wave,init_null,force_trunc,bc_norm,track_divs,taylorgreen,en_leftwhist,&
-      en_leftcyclo,en_rightwhist,en_rightcyclo,debug_energy,&
+      init_wave,init_null,force_trunc,bc_norm,track_divs,taylorgreen,init_cond,&
+      en_leftwhist,en_leftcyclo,en_rightwhist,en_rightcyclo,debug_energy,&
       force_lw,force_lc,force_rw,force_rc,random_state
  
   NAMELIST /initial_value/ &
-      dt_max,  max_itime, max_time ,init_cond,init_prefactor,max_walltime,fix_dt
+      dt_max,  max_itime, max_time ,init_prefactor,max_walltime,fix_dt
 
   NAMELIST /rk_test/ &
       rc0,ic0,dt_rktest,rmax,imax,delta_lambda,test_rk4
@@ -150,14 +150,9 @@ SUBROUTINE read_parameters
   IF(MOD(nspec,np_spec).ne.0) STOP "nspec must be divisible by np_spec!"
   IF((nspec.ne.1).and.(nspec.ne.2)) STOP "nspec must by one or two!"
 
-  IF(MOD(nkx0,2).ne.0.and.nonlinear) STOP "nkx0 must be even!"
-  IF(MOD(nky0,2).ne.0.and.nonlinear) STOP "nky0 must be even!"
-  IF(MOD(nkz0,2).ne.0.and.nonlinear.and.nkz0.ne.1) STOP "nkz0 must be even!"
-  IF(nkz0==1.and.nonlinear) THEN
-      rhs_nl_version=4
-      init_cond='SINGLE_KZ'
-      spatial2d= .true.
-  END IF
+  IF(MOD(nkx0,2).ne.0) STOP "nkx0 must be even!"
+  IF(MOD(nky0,2).ne.0) STOP "nky0 must be even!"
+  IF(MOD(nkz0,2).ne.0) STOP "nkz0 must be even!"
 
   IF((hyp_x.ne.0.0).or. &
     (hyp_y.ne.0.0).or.  &
@@ -208,8 +203,6 @@ SUBROUTINE read_parameters
   IF(nonlinear.and..not.linear_nlbox.and.istep_gamma.ne.0) THEN
     istep_gamma=0
   END IF
-
-  IF(flr_nonlinear) STOP "flr_nonlinear not allowed at this time!"
 
   IF(rhs_lin_version==2) THEN
       rhs_lin_version=1
@@ -422,6 +415,7 @@ SUBROUTINE output_parameters
     WRITE(out_handle,"(A,L1)") "bc_norm = ",bc_norm
     WRITE(out_handle,"(A,L1)") "track_divs = ",track_divs
     WRITE(out_handle,"(A,L1)") "taylorgreen = ",taylorgreen
+    WRITE(out_handle,"(A,I2)") "init_cond = ",init_cond
     WRITE(out_handle,"(A,G12.4)") "en_leftwhist = ",en_leftwhist
     WRITE(out_handle,"(A,G12.4)") "en_leftcyclo = ",en_leftcyclo
     WRITE(out_handle,"(A,G12.4)") "en_rightwhist = ",en_rightwhist
@@ -456,8 +450,6 @@ SUBROUTINE output_parameters
     WRITE(out_handle,"(A,L1)") "fix_dt = ",fix_dt
     WRITE(out_handle,"(A,G12.4)") "dt_max = ",dt_max
     WRITE(out_handle,"(A,G12.4)") "max_time = ",max_time
-    !WRITE(out_handle,"(A)") "init_cond = '",init_cond,"'"
-    IF(trim(init_cond).ne.'DEFAULT') WRITE(out_handle,"(3A)") "init_cond = '", TRIM(init_cond),"'"
     IF(init_prefactor.ne.0.001) WRITE(out_handle,"(A,G12.4)") "init_prefactor =", init_prefactor
     WRITE(out_handle,"(A)")    "/"
     WRITE(out_handle,"(A)")    ""
@@ -798,41 +790,50 @@ SUBROUTINE CHECKPOINT_IN
   CALL get_io_number
   chp_handle = io_number
 
-     if(mype.eq.0) OPEN(unit=chp_handle,file=trim(diagdir)//trim(chp_name),form='unformatted',status='unknown',access='stream')
+  if(mype.eq.0) OPEN(unit=chp_handle,file=trim(diagdir)//trim(chp_name),form='unformatted',status='unknown',access='stream')
 
-     if(mype.eq.0) READ(chp_handle) itime
-     if(mype.eq.0) READ(chp_handle) dt
-     if(mype.eq.0) READ(chp_handle) nkx0_in
-     if(mype.eq.0) READ(chp_handle) nky0_in
-     if(mype.eq.0) READ(chp_handle) nkz0_in
-     if(mype.eq.0) READ(chp_handle) time
-
-     CALL SCATTER_READ(chp_handle,0)
-     CALL SCATTER_READ(chp_handle,1)
-
-     if (mype.eq.0) READ(chp_handle) mhelcorr
-
-     if(mype.eq.0) CLOSE(chp_handle)
-
-     CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-     CALL MPI_BCAST(itime, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr)
-     CALL MPI_BCAST(nkx0_in, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr)
-     CALL MPI_BCAST(nky0_in, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr)
-     CALL MPI_BCAST(nkz0_in, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr)
+  if(mype.eq.0) READ(chp_handle) itime
+  if(mype.eq.0) READ(chp_handle) dt
+  if(mype.eq.0) READ(chp_handle) nkx0_in
+  if(mype.eq.0) READ(chp_handle) nky0_in
+  if(mype.eq.0) READ(chp_handle) nkz0_in
+  if(mype.eq.0) READ(chp_handle) time
      
-     CALL MPI_BCAST(dt, 1, MPI_REAL, 0, MPI_COMM_WORLD, ierr)
-     CALL MPI_BCAST(time, 1, MPI_REAL, 0, MPI_COMM_WORLD, ierr)
-     CALL MPI_BCAST(mhelcorr, 1, MPI_REAL, 0, MPI_COMM_WORLD, ierr)
+  CALL SCATTER_READ(chp_handle,0)
+  CALL SCATTER_READ(chp_handle,1)
+  
+  if (mype.eq.0) READ(chp_handle) mhelcorr
+  
+  if(mype.eq.0) CLOSE(chp_handle)
+  
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_BCAST(itime, 1, MPI_INTEGER4, 0, MPI_COMM_WORLD, ierr)
+  CALL MPI_BCAST(nkx0_in, 1, MPI_INTEGER4, 0, MPI_COMM_WORLD, ierr)
+  CALL MPI_BCAST(nky0_in, 1, MPI_INTEGER4, 0, MPI_COMM_WORLD, ierr)
+  CALL MPI_BCAST(nkz0_in, 1, MPI_INTEGER4, 0, MPI_COMM_WORLD, ierr)
+  
+  CALL MPI_BCAST(dt, 1, MPI_REAL8, 0, MPI_COMM_WORLD, ierr)
+  CALL MPI_BCAST(time, 1, MPI_REAL8, 0, MPI_COMM_WORLD, ierr)
+  CALL MPI_BCAST(mhelcorr, 1, MPI_REAL8, 0, MPI_COMM_WORLD, ierr)
+  
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
 
-  WRITE(*,*) "itime",itime
-  WRITE(*,*) "dt",dt
-  WRITE(*,*) "nkx0",nkx0_in
-  WRITE(*,*) "nky0",nky0_in
-  WRITE(*,*) "nkz0",nkz0_in
-  WRITE(*,*) "time",time
-  WRITE(*,*) "mhc",mhelcorr
-  print *, "energy b1 mype",mype,(sum(abs(b_1(0,:,:,:))**2.0)/2.0 +sum(abs(b_1(1:nkx0-1,:,:,:))**2.0))*(8.0*pi**3)
-
+  WRITE(*,*) "itime",itime,mype
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  WRITE(*,*) "dt",dt,mype
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  WRITE(*,*) "nkx0",nkx0_in,mype
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  WRITE(*,*) "nky0",nky0_in,mype
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  WRITE(*,*) "nkz0",nkz0_in,mype
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  WRITE(*,*) "time",time,mype
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  WRITE(*,*) "mhc",mhelcorr,mype
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  ! print *, "energy b1 mype",mype,(sum(abs(b_1(0,:,:,:))**2.0)/2.0 +sum(abs(b_1(1:nkx0-1,:,:,:))**2.0))*(8.0*pi**3)
+     
   itime_start = itime
 
 END SUBROUTINE CHECKPOINT_IN

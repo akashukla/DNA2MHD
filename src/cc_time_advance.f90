@@ -61,7 +61,6 @@ SUBROUTINE iv_solver
   INTEGER :: q,ind
   REAL :: sttime,diagtime
 
- if (force_turbulence) CALL init_force
  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
  IF(.not.checkpoint_read) dt=dt_max
  !itime=0
@@ -412,7 +411,7 @@ SUBROUTINE get_rhs(b_in,v_in, rhs_out_b,rhs_out_v,nmhc,ndt)
      if (verbose) print *, "Pre NL","Mype",mype,"MaxVal k1",maxval(abs(rhs_out_v))
      CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
      
-     IF(actual_nonlinear) CALL get_rhs_nl(b_in, v_in,rhs_out_b,rhs_out_v,ndt)
+     IF(nonlinear) CALL get_rhs_nl(b_in, v_in,rhs_out_b,rhs_out_v,ndt)
      if (timer.and.(mype.eq.0)) nltime = MPI_WTIME()
      if (timer.and.(mype.eq.0)) print *, "Nonlinear Time",nltime-sttime
      
