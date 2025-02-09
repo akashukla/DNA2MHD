@@ -81,7 +81,7 @@ MODULE diagnostics
   !REAL, ALLOCATABLE, DIMENSION(:,:,:,:) :: NLT_bak
   INTEGER :: test_handle1,test_handle2
   INTEGER :: ierr
-  INTEGER :: i,j,k
+  INTEGER(4) :: i,j,k
 
   !eshells
 
@@ -512,6 +512,8 @@ REAL :: magboundm,canboundm
 REAL :: boundsm(2),bounds(2)
 
 
+if (verbose) print *, "In Bound Hels"
+
 magboundm = 0.0
 canboundm = 0.0
 
@@ -531,11 +533,13 @@ DO j = 0,ny0_big - 1
       !if (j.eq.0) print *, sum(abs(v_1(0,j,k,:))**2.0),kmags(0,j,k)
       canboundm = canboundm + 2.0 * sqrt(sum(abs(b_1(0,j,k,:))**2.0))*sqrt(sum(abs(v_1(0,j,k,:))**2.0))
    ENDDO
-   CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+
    !print *, mype,j,"CanBound0 ",canboundm
 
    
 ENDDO
+
+if (verbose) print *, "Through Bound Loop"
 
 CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
 CALL MPI_ALLREDUCE(magboundm,magbound,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)

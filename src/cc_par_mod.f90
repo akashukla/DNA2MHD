@@ -179,7 +179,7 @@ MODULE par_mod
   LOGICAL :: checkpoint_write=.true.
 !  LOGICAL :: get_chpt_from_gout=.false.
 
-  INTEGER(4) :: init_cond
+  INTEGER(4) :: init_cond = 0
   REAL :: init_prefactor=0.001
   INTEGER :: version_flag
 

@@ -87,11 +87,11 @@ SUBROUTINE iv_solver
  
  DO WHILE((time.lt.max_time).and.(itime.lt.max_itime).and.(continue_run))
  
-    !IF(verbose) WRITE(*,*) "Calling diagnostics",time,itime,mype
+   IF(verbose) WRITE(*,*) "Calling diagnostics",time,itime,mype
 
-    ! Don't call diagnostics on first iteration when doing a warm restart - no doubles in data
+   ! Don't call diagnostics on first iteration when doing a warm restart - no doubles in data
    if (timer.and.(mype.eq.0)) sttime = MPI_WTIME()
-    if ((.not.checkpoint_read).or.(itime.gt.itime_start)) CALL diag
+   if ((.not.checkpoint_read).or.(itime.gt.itime_start)) CALL diag
    if (timer.and.(mype.eq.0)) diagtime = MPI_WTIME()
    if (timer.and.(mype.eq.0)) print *, "Diag Time",diagtime - sttime,mype
    

@@ -232,53 +232,47 @@ SUBROUTINE get_rhs_force(rhs_out_b, rhs_out_v)
 
     ELSE IF (forcetype.eq.32) THEN
 
-       if (time.eq.0.and.(time > last_reset)) then
-
-          last_reset = time
-
-          CALL random_number(LWp)
-          CALL random_number(LCp)
-          CALL random_number(RWp)
-          CALL random_number(RCp)
-
-          LWp2 = LWp
-          LCp2 = LCp
-          RWp2 = RWp
-          RCp2 = RCp
-          
-       endif
-
+       CALL random_number(LWp)
+       CALL random_number(LCp)
+       CALL random_number(RWp)
+       CALL random_number(RCp)
+       
+       LWp2 = LWp
+       LCp2 = LCp
+       RWp2 = RWp
+       RCp2 = RCp
+       
     ENDIF
     
-      DO i = 1,nkx0-1
-          DO j = 1,ny0_big-1
-             DO k = lkz1,lkz2
-                th1 = ((turnover - 2* time) * LWp(i,j,k) + (2*time) * LWp2(i,j,k))/turnover
-                th2 = ((turnover - 2* time) * LCp(i,j,k) + (2*time) * LCp2(i,j,k))/turnover
-                th3 = ((turnover - 2* time) * RWp(i,j,k) + (2*time) * RWp2(i,j,k))/turnover
-                th4 = ((turnover - 2* time) * RCp(i,j,k) + (2*time) * RCp2(i,j,k))/turnover
+    DO i = 1,nkx0-1
+       DO j = 1,ny0_big-1
+          DO k = lkz1,lkz2
+             th1 = ((turnover - 2* time) * LWp(i,j,k) + (2*time) * LWp2(i,j,k))/turnover
+             th2 = ((turnover - 2* time) * LCp(i,j,k) + (2*time) * LCp2(i,j,k))/turnover
+             th3 = ((turnover - 2* time) * RWp(i,j,k) + (2*time) * RWp2(i,j,k))/turnover
+             th4 = ((turnover - 2* time) * RCp(i,j,k) + (2*time) * RCp2(i,j,k))/turnover
 
-                LW1 = exp(20.0*pi*i_complex*th1)
-                LC1 = exp(20.0*pi*i_complex*th2)
-                RW1 = exp(20.0*pi*i_complex*th3)
-                RC1 = exp(20.0*pi*i_complex*th4)
-                
-                LW1 = LW1 * force_amp * sqrt(force_lw)/sqrt(force_lw + force_lc &
+             LW1 = exp(20.0*pi*i_complex*th1)
+             LC1 = exp(20.0*pi*i_complex*th2)
+             RW1 = exp(20.0*pi*i_complex*th3)
+             RC1 = exp(20.0*pi*i_complex*th4)
+             
+             LW1 = LW1 * force_amp * sqrt(force_lw)/sqrt(force_lw + force_lc &
                      + force_rw + force_rc) * 1.0/sqrt(1 + alpha_leftwhist(i,j,k)**2)
-                LC1 = LC1 * force_amp * sqrt(force_lc)/sqrt(force_lw + force_lc &
-                     + force_rw + force_rc) * 1.0/sqrt(1 + alpha_leftcyclo(i,j,k)**2)
-                RW1 = RW1 * force_amp * sqrt(force_rw)/sqrt(force_lw + force_lc &
-                     + force_rw + force_rc) * 1.0/sqrt(1 + alpha_leftwhist(i,j,k)**2)
+             LC1 = LC1 * force_amp * sqrt(force_lc)/sqrt(force_lw + force_lc &
+                  + force_rw + force_rc) * 1.0/sqrt(1 + alpha_leftcyclo(i,j,k)**2)
+             RW1 = RW1 * force_amp * sqrt(force_rw)/sqrt(force_lw + force_lc &
+                  + force_rw + force_rc) * 1.0/sqrt(1 + alpha_leftwhist(i,j,k)**2)
                 RC1 = RC1 * force_amp * sqrt(force_rc)/sqrt(force_lw + force_lc &
                      + force_rw + force_rc) * 1.0/sqrt(1 + alpha_leftcyclo(i,j,k)**2)
-
+                
                 rhs_out_b(i,j,k,:) = rhs_out_b(i,j,k,:) + ((LW1 * alpha_leftwhist(i,j,k) &
                      + LC1 * alpha_leftcyclo(i,j,k)) * pcurleig(i,j,k,:)&
                      -(RW1 * alpha_leftwhist(i,j,k) + RC1 * alpha_leftcyclo(i,j,k)) &
                      * conjg(pcurleig(i,j,k,:)))*mask1(i,j,k)
                 rhs_out_v(i,j,k,:) = rhs_out_v(i,j,k,:) + ((LW1+LC1)*pcurleig(i,j,k,:) &
                      + (RW1+RC1)*conjg(pcurleig(i,j,k,:)))*mask1(i,j,k)
-
+                
              ENDDO
           ENDDO
        ENDDO

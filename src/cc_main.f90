@@ -45,9 +45,11 @@ PROGRAM dna
   IMPLICIT NONE
   
   CHARACTER(len=40) :: ic_temp
-  INTEGER :: run_type
+  INTEGER :: run_type = 0
   !! Starting the MPI communication enviromen and the wallclock
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!  
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  
+  print *, "Run Started"
   CALL init_comm
 
   

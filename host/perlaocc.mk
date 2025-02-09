@@ -43,22 +43,22 @@ PREPROC =
 
 #####  COMPILERS AND LINKER TYPE
 ###############################################################################
-FC = ftn
+FC = mpifort
 LD = $(FC) 
 
 
 #####  COMPILING OPTIONS
 ###############################################################################
 ifeq ($(CMPLTYPE),optim)
-  FFLAGS   = -O2
+  FFLAGS   = -O0
 endif
 
 ifeq ($(CMPLTYPE),debug)
-  FFLAGS = -g -O0
-  LDLAGS += -g -O0
+  FFLAGS = -g -O0 -fdebug-info-for-profiling -Weverything -gdwarf-5
+  LDLAGS += -g -O0 -fdebug-info-for-profiling -Weverything -gdwarf-5
 endif
 
-# use PrgEnv-intel
+# use PrgEnv-aocc
 ifeq ($(PRECISION),double)
   FFLAGS += -r8
   LDLAGS += -r8
