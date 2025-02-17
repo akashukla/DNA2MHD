@@ -2,8 +2,8 @@ import dna2mhd_utils as dn
 from output2 import maxinds
 import numpy as np
 
-
-lpaths = ["/pscratch/sd/e/echansen/DNA2MHDruns/mhdtests1"]
+lpaths = ["/pscratch/sd/e/echansen/DNA2MHDruns/siam_whist",
+          "/pscratch/sd/e/echansen/DNA2MHDruns/siam_whist_ideal"]
 
 for lpath in lpaths:
     dn.plot_energy(lpath)

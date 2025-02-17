@@ -4,17 +4,17 @@ omt = 5.000
 omn =    1.000    
 Ti0Te =    1.000 
 eta = 1.0
-vnu = 50.0
+vnu = 0.0
 rey = 0.0
 /
 
 &numerical_parameters
-kxmin =   100.0
-kymin =   100.0
+kxmin =   10.0
+kymin =   10.0
 kzmin =   1.0
-nkx0 = 32
-nky0 = 64
-nkz0 = 256
+nkx0 = 16
+nky0 = 32
+nkz0 = 32
 nv0 =   2
 nh0 =    1
 nspec =    1
@@ -85,12 +85,12 @@ intorder = 5
 rhs_lin_version = 12
 dealias_type = 3
 shifted = F
-force_turbulence = T
+force_turbulence = F
 forceb = T
 forcetype = 12
 set_forcing = F
 plot_nls = F
-hall = 0.0
+hall = 0.01
 guide = T
 enone = T
 uni = T
@@ -108,8 +108,8 @@ mhc = T
 init_wave = F
 init_null = F
 force_trunc = F
-checkpoint_read = T
-init_cond = 0
+checkpoint_read = F
+init_cond = 25
 en_leftwhist = 1.0
 en_leftcyclo = 0.0
 en_rightwhist = 0.0
@@ -123,9 +123,9 @@ random_state = 3
 /
 
 &initial_value
-max_itime = 60000
+max_itime = 4000
 max_walltime =   129300.0
-dt_max = 0.0004
+dt_max = 0.0001
 fix_dt = F
 max_time =   10000000.
 /

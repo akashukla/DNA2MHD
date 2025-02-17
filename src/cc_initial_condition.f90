@@ -450,6 +450,9 @@ SUBROUTINE initial_condition
     b_1 = cmplx(0.0,0.0)
     v_1 = cmplx(0.0,0.0)
  ENDIF
+
+ ! Magnetic helicity correction
+ mhelcorr = 0.0
  
  IF (checkpoint_read) CALL checkpoint_in
  
@@ -461,9 +464,6 @@ SUBROUTINE initial_condition
     print *, "kzgrid max", maxval(kzgrid)
     print *, "kmags max", kmax
  endif
- 
- ! Magnetic Helicity Correction
- mhelcorr = 0.0
  
  ! Check on Initial Energy
  knzeroenm = sum(abs(b_1(1:nkx0-1,:,:,:))**2+abs(v_1(1:nkx0-1,:,:,:))**2)

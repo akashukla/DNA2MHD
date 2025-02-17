@@ -472,12 +472,12 @@ SUBROUTINE getmhcrk(b_in,v_in,nmhc)
     ENDDO
  ENDDO
 
-   CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-   CALL MPI_ALLREDUCE(nmhcsm,nmhcs,2,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
-
-   nmhc = sum(nmhcs)*(16.0*pi**3)
-
-   if (verbose.and.(mype.eq.0)) print *, "Through MHC"
+ CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+ CALL MPI_ALLREDUCE(nmhcsm,nmhcs,2,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
+ 
+ nmhc = sum(nmhcs)*(16.0*pi**3)
+ 
+ if (verbose.and.(mype.eq.0)) print *, "Through MHC"
    
 END SUBROUTINE getmhcrk
 
@@ -817,7 +817,7 @@ SUBROUTINE GAUSS2(b_in,v_in,dt_new)
   maxdev = 1.0
   solvloop = 0
 
-  DO WHILE ((solvloop.lt.1000).and.(maxdev.gt.10.0**(-16.0)))
+  DO WHILE ((solvloop.lt.199).and.(maxdev.gt.10.0**(-15.0)))
      ! Check for now to see if the fixed point iteration converges
 
      if (verbose) print *, mype,"Iteration ",solvloop,"Discrepancy ",maxdev
@@ -839,16 +839,19 @@ SUBROUTINE GAUSS2(b_in,v_in,dt_new)
      if (verbose) CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
 
      maxdevm = max(maxval(abs(bk1-bk1s)),maxval(abs(vk1-vk1s)))
+     ! print *, mype,maxdevm
+     
      CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
      CALL MPI_ALLREDUCE(maxdevm,maxdev,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD,ierr)
 
      if (verbose) CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
 
-     if (solvloop.eq.999) print *, "Failed to Converge After 1000 iterations, Maxdev ",maxdev
+     if (mype.eq.0.and.(mod(solvloop,10).eq.0.or.mod(itime,10).eq.0)) print *, "Solvloop MaxDev", itime, solvloop,maxdev
+     if (solvloop.eq.199) print *, "Failed to Converge After 200 iterations, Maxdev ",maxdev
 
   ENDDO
 
-  if (itime.eq.10) print *, "Number of Iterations Needed itime = 10 ",solvloop
+  ! if (itime.eq.10) print *, "Number of Iterations Needed itime = 10 ",solvloop
 
   ! Update the fields
   

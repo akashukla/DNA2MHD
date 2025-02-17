@@ -247,11 +247,16 @@ SUBROUTINE get_rhs_force(rhs_out_b, rhs_out_v)
     DO i = 1,nkx0-1
        DO j = 1,ny0_big-1
           DO k = lkz1,lkz2
-             th1 = ((turnover - 2* time) * LWp(i,j,k) + (2*time) * LWp2(i,j,k))/turnover
-             th2 = ((turnover - 2* time) * LCp(i,j,k) + (2*time) * LCp2(i,j,k))/turnover
-             th3 = ((turnover - 2* time) * RWp(i,j,k) + (2*time) * RWp2(i,j,k))/turnover
-             th4 = ((turnover - 2* time) * RCp(i,j,k) + (2*time) * RCp2(i,j,k))/turnover
+             ! th1 = ((turnover - 2* time) * LWp(i,j,k) + (2*time) * LWp2(i,j,k))/turnover
+             ! th2 = ((turnover - 2* time) * LCp(i,j,k) + (2*time) * LCp2(i,j,k))/turnover
+             ! th3 = ((turnover - 2* time) * RWp(i,j,k) + (2*time) * RWp2(i,j,k))/turnover
+             ! th4 = ((turnover - 2* time) * RCp(i,j,k) + (2*time) * RCp2(i,j,k))/turnover
 
+             th1 = LWp(i,j,k)
+             th2 = LCp(i,j,k)
+             th3 = RWp(i,j,k)
+             th4 = RCp(i,j,k)
+             
              LW1 = exp(20.0*pi*i_complex*th1)
              LC1 = exp(20.0*pi*i_complex*th2)
              RW1 = exp(20.0*pi*i_complex*th3)

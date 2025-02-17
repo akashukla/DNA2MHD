@@ -100,8 +100,8 @@ SUBROUTINE initialize_fourier_ae_mu0
   CALL c_f_pointer(rinout,store,[2*(nx0_big/2+1),ny0_big,local_N])
   CALL c_f_pointer(cinout,temp_big,[nx0_big/2+1,ny0_big,local_N])
 
-  plan_c2r = fftw_mpi_plan_dft_c2r_3d(nz0_big,ny0_big,nx0_big,temp_big,store,MPI_COMM_WORLD,FFTW_PATIENT)
-  plan_r2c = fftw_mpi_plan_dft_r2c_3d(nz0_big,ny0_big,nx0_big,store,temp_big,MPI_COMM_WORLD,FFTW_PATIENT)
+  plan_c2r = fftw_mpi_plan_dft_c2r_3d(nz0_big,ny0_big,nx0_big,temp_big,store,MPI_COMM_WORLD,FFTW_MEASURE)
+  plan_r2c = fftw_mpi_plan_dft_r2c_3d(nz0_big,ny0_big,nx0_big,store,temp_big,MPI_COMM_WORLD,FFTW_MEASURE)
      
   !WRITE(*,*) "making plans"
 

@@ -127,8 +127,7 @@ MODULE par_mod
   LOGICAL :: perf_test_par=.false.
   INTEGER :: perf_monitor(2)
   !Note:rhs_lin_version=2 is broken with hyp_x/y (need to debug)!!!
-  INTEGER :: rhs_lin_version
-  !INTEGER :: rhs_nl_version=2
+  INTEGER :: rhs_lin_version = 12
   INTEGER :: rhs_nl_version !Akash changed nl_version to 1
   INTEGER :: intorder = 4
   LOGICAL :: linen = .false.

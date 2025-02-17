@@ -446,9 +446,9 @@ subroutine cross_helicity
   CALL vec_potential()
   CALL vorticity()
   
-  chsm(1) = 2.0 * sum(real((AVP(1:nkx0-1,:,:,:)+v_1(1:nkx0-1,:,:,:))*conjg(b_1(1:nkx0-1,:,:,:)+WVORT(1:nkx0-1,:,:,:))))
-  chsm(2) = real(sum((AVP(0,:,:,:)+v_1(0,:,:,:))*conjg(b_1(0,:,:,:)+WVORT(0,:,:,:))))
-  if (mype.eq.0) chsm(2) = chsm(2) + v_1(0,0,0,2)
+  chsm(1) = 2.0 * sum(real((AVP(1:nkx0-1,:,:,:)+hall*v_1(1:nkx0-1,:,:,:))*conjg(b_1(1:nkx0-1,:,:,:)+hall*WVORT(1:nkx0-1,:,:,:))))
+  chsm(2) = real(sum((AVP(0,:,:,:)+hall*v_1(0,:,:,:))*conjg(b_1(0,:,:,:)+hall*WVORT(0,:,:,:))))
+  if (mype.eq.0) chsm(2) = chsm(2) + hall*v_1(0,0,0,2)
   
   CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
   CALL MPI_ALLREDUCE(chsm,chs,2,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)

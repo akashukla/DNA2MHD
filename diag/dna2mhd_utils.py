@@ -846,6 +846,8 @@ def nlparam(lpath):
 def modes_from_check(lpath):
     """Post Process b and v into Normal Modes"""
 
+    read_parameters(lpath)
+
     if lpath[-1] == "/":
         lpath = lpath[:-1]
 
@@ -864,8 +866,8 @@ def modes_from_check(lpath):
         
         Ky,Kx,Kz = np.meshgrid(ky,kx,kz)
         kmags = np.sqrt(Kx**2 + Ky**2 + Kz**2)
-        alpha_lw = -kmags/2 - np.sqrt(1+kmags**2 /4)
-        alpha_lc = -kmags/2 + np.sqrt(1+kmags**2 /4)
+        alpha_lw = -par["hall"]*kmags/2 - np.sqrt(1+(par["hall"]*kmags)**2 /4)
+        alpha_lc = -par["hall"]*kmags/2 + np.sqrt(1+(par["hall"]*kmags)**2 /4)
     
         Kvec = np.zeros([par['nx0_big'],par['ny0_big'],par['nz0_big'],3],dtype='complex64')
         Zvec = np.zeros([par['nx0_big'],par['ny0_big'],par['nz0_big'],3],dtype='complex64')
