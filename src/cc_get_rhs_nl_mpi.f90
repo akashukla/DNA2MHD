@@ -24,10 +24,10 @@ MODULE nonlinearity
   USE par_mod
   !USE hk_effects
   !USE flr_effects
+  use p3dfft
   
   use, intrinsic :: iso_c_binding
-  
-  include 'fftw3-mpi.f03'
+
   include 'mpif.h'
 
   PUBLIC :: initialize_fourier,finalize_fourier,get_rhs_nl,&
@@ -36,35 +36,22 @@ MODULE nonlinearity
   
   PRIVATE
 
-  COMPLEX(C_DOUBLE), ALLOCATABLE, DIMENSION(:,:,:) :: b_inx0, b_iny0,  b_inz0, v_inx0, v_iny0,  v_inz0
-  COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:) :: temp_small,bigmask,smallmask
+  COMPLEX(p3dfft_type), ALLOCATABLE, DIMENSION(:,:,:) :: b_inx0, b_iny0,  b_inz0, v_inx0, v_iny0,  v_inz0
+  COMPLEX(p3dfft_type), ALLOCATABLE, DIMENSION(:,:,:) :: temp_small
 
-  REAL(C_DOUBLE), ALLOCATABLE, DIMENSION(:,:,:) :: bx,by,bz,curlbx,curlby,curlbz
-  REAL(C_DOUBLE), ALLOCATABLE, DIMENSION(:,:,:) :: vx,vy,vz,curlvx,curlvy,curlvz
+  REAL(p3dfft_type), ALLOCATABLE, DIMENSION(:,:,:) :: bx,by,bz,curlbx,curlby,curlbz
+  REAL(p3dfft_type), ALLOCATABLE, DIMENSION(:,:,:) :: vx,vy,vz,curlvx,curlvy,curlvz
 
   !For fft's
 
-  INTEGER(C_INTPTR_T) :: local_N,local_k_offset,alloc_local
-  
-  type(C_PTR) :: plan_r2c,plan_c2r
-  type(C_PTR) :: rinout,cinout
-
-  type(C_PTR) :: plan_1c2r,plan_c2c
-  type(C_PTR) :: rout1,cin1x,cin1y
-  COMPLEX(C_DOUBLE_COMPLEX), pointer :: tempbig1(:),testyz(:)
-  REAL(C_DOUBLE), pointer :: storex(:)
-
-  COMPLEX(C_DOUBLE_COMPLEX), pointer :: temp_big(:,:,:)
-  REAL(C_DOUBLE), pointer ::  store(:,:,:)
+  COMPLEX(p3dfft_type), allocatable :: temp_big(:,:,:)
+  REAL(p3dfft_type), allocatable ::  store(:,:,:)
   
   REAL :: fft_norm  !normalization factor for inverse fft
-  INTEGER(C_INTPTR_T) :: i,j,k
+  INTEGER :: i,j,k
   INTEGER :: ierr
   REAL :: t1, t2,t3,t4
 
-  LOGICAL :: padv1,padv2,padv3,padv4
-  LOGICAL :: printpad,printunpack
-  
   CONTAINS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
   
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -81,29 +68,28 @@ END SUBROUTINE initialize_fourier
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!                             initialize_fourier_ae_mu0                     !!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!Note: only for adiabatic electrons (ae) and mu-integrated (mu0) version
 SUBROUTINE initialize_fourier_ae_mu0
   
-  !for dealiasing
+  ! Initialize P3DFFT
+  implicit none
 
-  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-  CALL fftw_mpi_init()
+  integer(4) :: dims(2)
+  
+  dims(1) = 2
+  dims(2) = n_mpi_procs/2
+  
+  print *, "Processor Grid",dims
 
   t1 = MPI_WTIME()
-  
+  CALL p3dfft_setup(dims,nx0_big,ny0_big,nz0_big,MPI_COMM_WORLD)
+
+  ! Get Dimensions for Complex
+  CALL p3dfft_get_dims(cstart,cend,csize,2) 
+
+  ! Get Dimensions for Real
+  CALL p3dfft_get_dims(rstart,rend,rsize,1)
+
   fft_norm=1.0/(REAL(nx0_big*ny0_big*nz0_big))
-
-  alloc_local = fftw_mpi_local_size_3d(nz0_big,ny0_big,nx0_big/2+1,MPI_COMM_WORLD,local_N,local_k_offset)
-  rinout = fftw_alloc_real(2*alloc_local)
-  cinout = fftw_alloc_complex(alloc_local)
-  
-  CALL c_f_pointer(rinout,store,[2*(nx0_big/2+1),ny0_big,local_N])
-  CALL c_f_pointer(cinout,temp_big,[nx0_big/2+1,ny0_big,local_N])
-
-  plan_c2r = fftw_mpi_plan_dft_c2r_3d(nz0_big,ny0_big,nx0_big,temp_big,store,MPI_COMM_WORLD,FFTW_PATIENT)
-  plan_r2c = fftw_mpi_plan_dft_r2c_3d(nz0_big,ny0_big,nx0_big,store,temp_big,MPI_COMM_WORLD,FFTW_PATIENT)
-     
-  !WRITE(*,*) "making plans"
 
   IF(mype==0) WRITE(*,*) "Initializing FFT"
   IF(mype==0) WRITE(*,*) "nkx0,nky0,nkz0",nkx0,nky0,nkz0
@@ -115,17 +101,9 @@ SUBROUTINE initialize_fourier_ae_mu0
 
   CALL ALLOCATIONS
 
-  printpad = (.false.)
-  printunpack = (.false.)
-
   t2 = MPI_WTIME()
 
   print *, "Time for FFT Plan",t2-t1
-
-  !CALL dfftw_execute_dft_c2r(plan_c2r,tcomp,treal)
-  !CALL dfftw_execute_dft_r2c(plan_r2c,treal,tcomp)
-  
-  !tcomp=tcomp/REAL(n1*n2*n3)
 
 END SUBROUTINE initialize_fourier_ae_mu0
 
@@ -135,10 +113,10 @@ END SUBROUTINE initialize_fourier_ae_mu0
 SUBROUTINE get_rhs_nl(b_in, v_in, rhs_out_b, rhs_out_v,ndt)
   USE par_mod
 
-  COMPLEX(C_DOUBLE_COMPLEX), INTENT(in) :: b_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2)
-  COMPLEX(C_DOUBLE_COMPLEX), INTENT(in) :: v_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2)
-  COMPLEX(C_DOUBLE_COMPLEX), INTENT(inout) :: rhs_out_b(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2)
-  COMPLEX(C_DOUBLE_COMPLEX), INTENT(inout) :: rhs_out_v(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2)
+  COMPLEX(C_DOUBLE_COMPLEX), INTENT(in) :: b_in(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2)
+  COMPLEX(C_DOUBLE_COMPLEX), INTENT(in) :: v_in(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2)
+  COMPLEX(C_DOUBLE_COMPLEX), INTENT(inout) :: rhs_out_b(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2)
+  COMPLEX(C_DOUBLE_COMPLEX), INTENT(inout) :: rhs_out_v(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2)
   REAL(C_DOUBLE) :: ndt
   
   !IF(mype==0) WRITE(*,*) "In get_rhs_nl"
@@ -164,18 +142,11 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
 
   USE par_mod
   
-  COMPLEX(C_DOUBLE_COMPLEX), INTENT(in) :: b_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2)
-  COMPLEX(C_DOUBLE_COMPLEX), INTENT(in) :: v_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2)
-  COMPLEX(C_DOUBLE_COMPLEX), INTENT(inout) :: rhs_out_b(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2)
-  COMPLEX(C_DOUBLE_COMPLEX), INTENT(inout) :: rhs_out_v(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2)
+  COMPLEX(C_DOUBLE_COMPLEX), INTENT(in) :: b_in(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2)
+  COMPLEX(C_DOUBLE_COMPLEX), INTENT(in) :: v_in(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2)
+  COMPLEX(C_DOUBLE_COMPLEX), INTENT(inout) :: rhs_out_b(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2)
+  COMPLEX(C_DOUBLE_COMPLEX), INTENT(inout) :: rhs_out_v(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2)
   REAL(C_DOUBLE) :: ndt
-
-  !COMPLEX :: temp_small(0:nkx0-1,0:nky0-1,0:nkz0-1)
-  !COMPLEX :: temp_big(0:nx0_big/2,0:ny0_big-1,0:nz0_big-1)
-  !REAL :: dxphi(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1)
-  !REAL :: dyphi(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1)
-  !REAL :: dxg(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1)
-  !REAL :: dyg(0:nx0_big-1,0:ny0_big-1,0:nz0_big-1)
 
   INTEGER :: l,h, ierr
 
@@ -195,480 +166,404 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
 
   if (timer.and.(mype.eq.0)) t1 = MPI_WTIME()
   if (.not.nv) then ! Skip b if Navier Stokes
-   !bx
-   temp_big = b_inx0
-   CALL fftw_mpi_execute_dft_c2r(plan_c2r,temp_big,store)
-   bx = store
+  !bx
+     temp_big = b_inx0
+     CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+     CALL p3dfft_btran_c2r(temp_big,store,"fff")
+     bx = store
+     if (verbose.and.(mype.eq.0)) print *, "Through bx"
+     
+     !by
+     temp_big = b_iny0
+     CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+     CALL p3dfft_btran_c2r(temp_big,store,"fff")
+     by = store
+     if (verbose.and.(mype.eq.0)) print *, "Through by"
+     
+     !bz
+     temp_big = b_inz0
+     CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+     CALL p3dfft_btran_c2r(temp_big,store,"fff")
+     bz = store     
+     if (verbose.and.(mype.eq.0)) print *, "Through bz"
+     
+     ! curlbx
+     temp_big  = cmplx(0.0,0.0)
+     DO j = cstart(2),cend(2)
+        DO k = cstart(3),cend(3)
+           temp_big(:,j,k) = i_complex * kygrid(j) * b_inz0(:,j,k) &
+                - i_complex  * kzgrid(k) * b_iny0(:,j,k)
+        ENDDO
+     ENDDO
+     if (verbose.and.(mype.eq.0)) print *, "Through assignment"
+     CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+     CALL p3dfft_btran_c2r(temp_big,store,"fff")
+     curlbx = store
+     
+     if (verbose.and.(mype.eq.0)) print *, "Through curl bx" 
+     
+     ! curlby
+     temp_big = cmplx(0.0,0.0)
+     DO k = cstart(3),cend(3)
+        DO i = cstart(1),cend(1)
+           temp_big(i,:,k) = i_complex * kzgrid(k) * b_inx0(i,:,k) &
+                - i_complex * kxgrid(i) * b_inz0(i,:,k)
+        ENDDO
+     ENDDO
+     CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+     CALL p3dfft_btran_c2r(temp_big,store,"fff")
+     curlby = store
+     
+     ! curlbz
+     temp_big = cmplx(0.0,0.0)
+     DO i = cstart(1),cend(1)
+        DO j = cstart(2),cend(2)
+           DO k = cstart(3),cend(3)
+              temp_big(i,j,k) = i_complex * kxgrid(i) * b_iny0(i,j,k) &
+                   - i_complex * kygrid(j) * b_inx0(i,j,k)
+           ENDDO
+        ENDDO
+     ENDDO
+     CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+     CALL p3dfft_btran_c2r(temp_big,store,"fff")
+     curlbz = store
 
-   !by
-   temp_big = b_iny0
-   CALL fftw_mpi_execute_dft_c2r(plan_c2r,temp_big,store)
-   by = store
-   
-   !bz
-   temp_big = b_inz0
-   CALL fftw_mpi_execute_dft_c2r(plan_c2r,temp_big,store)
-   bz = store
-
-   if (verbose) print *, "Through bz"
-
-   ! curlbx
-   temp_big  = cmplx(0.0,0.0)
-   DO j = 0,ny0_big-1
-      DO k = lkz1,lkz2
-         temp_big(1:nkx0,j+1,k+1-lkz1) = i_complex * kygrid(j) * b_inz0(0:nkx0-1,j,k) &
-              - i_complex  * kzgrid(k) * b_iny0(0:nkx0-1,j,k)
-      ENDDO
-   ENDDO
-   if (verbose) print *, "Through assignment"
-   CALL fftw_mpi_execute_dft_c2r(plan_c2r,temp_big,store)
-   curlbx = store
-
-   if (verbose) print *, "Through bx" 
-    
-   ! curlby
-   temp_big = cmplx(0.0,0.0)
-   DO k = lkz1,lkz2
-      DO i = 0,nkx0-1
-         temp_big(i+1,1:ny0_big,k+1-lkz1) = i_complex * kzgrid(k) * b_inx0(i,0:ny0_big-1,k) &
-              - i_complex * kxgrid(i) * b_inz0(i,0:ny0_big-1,k)
-      ENDDO
-   ENDDO
-   CALL fftw_mpi_execute_dft_c2r(plan_c2r,temp_big,store)
-   curlby = store
-
-   ! curlbz
-   temp_big = cmplx(0.0,0.0)
-   DO i = 0,nkx0-1
-      DO j = 0,ny0_big-1
-         DO k = lkz1,lkz2
-            temp_big(i+1,j+1,k+1-lkz1) = i_complex * kxgrid(i) * b_iny0(i,j,k) &
-                 - i_complex * kygrid(j) * b_inx0(i,j,k)
-         ENDDO
-      ENDDO
-   ENDDO
-   CALL fftw_mpi_execute_dft_c2r(plan_c2r,temp_big,store)
-   curlbz = store
-    
- endif !Skip b FFTs if Navier Stokes 
-
+     if (verbose.and.(mype.eq.0)) print *, "Through b derivatives"
+     
+  endif !Skip b FFTs if Navier Stokes 
+  
 !!! TERMS  vx,vy,vz 
-!vx
- temp_big = v_inx0
- !Add padding for dealiasing
- CALL fftw_mpi_execute_dft_c2r(plan_c2r,temp_big,store)
- vx = store
- 
- !vy
- temp_big= v_iny0
- !Add padding for dealiasing
- CALL fftw_mpi_execute_dft_c2r(plan_c2r,temp_big,store)
- vy = store
- 
- !vz
- temp_big = v_inz0
- !Add padding for dealiasing    
- CALL fftw_mpi_execute_dft_c2r(plan_c2r,temp_big,store)
- vz = store
-
- temp_big  = cmplx(0.0,0.0)
- DO j = 0,ny0_big-1
-    DO k = lkz1,lkz2
-       temp_big(1:nkx0,j+1,k+1-lkz1) = i_complex * kygrid(j) * v_inz0(0:nkx0-1,j,k) &
-            - i_complex  * kzgrid(k) * v_iny0(0:nkx0-1,j,k)
-    ENDDO
- ENDDO
- CALL fftw_mpi_execute_dft_c2r(plan_c2r,temp_big,store)
- curlvx = store
-    
- temp_big = cmplx(0.0,0.0)
- DO k = lkz1,lkz2
-    DO i = 0,nkx0-1
-       temp_big(i+1,1:ny0_big,k+1-lkz1) = i_complex * kzgrid(k) * v_inx0(i,0:ny0_big-1,k) &
-            - i_complex * kxgrid(i) * v_inz0(i,0:ny0_big-1,k)
-    ENDDO
- ENDDO
- CALL fftw_mpi_execute_dft_c2r(plan_c2r,temp_big,store)
- curlvy = store
- 
- temp_big = cmplx(0.0,0.0)
- DO i = 0,nkx0-1
-    DO j = 0,ny0_big-1
-       DO k = lkz1,lkz2
-          temp_big(i+1,j+1,k+1-lkz1) = i_complex * kxgrid(i) * v_iny0(i,j,k) &
-               - i_complex * kygrid(j) * v_inx0(i,j,k)
-       ENDDO
-       
-    ENDDO
- ENDDO
- CALL fftw_mpi_execute_dft_c2r(plan_c2r,temp_big,store)
- curlvz = store
- 
- if (verbose) print *, "Through derivatives"
- 
- if (timer.and.(mype.eq.0)) t2 = MPI_WTIME()
- if (timer.and.(mype.eq.0)) print *, "Time for Derivs and IRFFTs",t2-t1 
- 
- ! EQUATION (14) 1=xcomp, 2=ycomp 3=zcomp
- !     eq14x=P1-Q1-R1+S1
- !     eq14y=P2-Q2-R2+S2
- !     eq14z=P3-Q3-R3+S3
- !P1 = bx*dxvx+by*dyvx+bz*dzvx
- !Q1=vx*dxbx+vy*dybx+vz*dzbx
-!R1=bx*dxdybz+by*dydybz+bz*dzdybz-bx*dxdzby-by*dydzby-bz*dzdzby
-!S1=dybz*dxbx-dzby*dxbx-dxbz*dybx+dzbx*dybx+dxby*dzbx-dybx*dz*bx 
-!
-!P2 = bx*dxvy+by*dyvy+bz*dzvy
-!Q2=vx*dxby+vy*dyby+vz*dzby
-!R2=bx*dxdzbx+by*dydzbx+bz*dzdzbx-bx*dxdxbz-by*dydxbz-bz*dzdxbz
-!S2=dybz*dxby-dzby*dxby-dxbz*dyby+dzbx*dyby+dxby*dzby-dybx*dz*by 
-!
-!P3 = bx*dxvz+by*dyvz+bz*dzvz
-!Q3=vx*dxbz+vy*dybz+vz*dzbz
-!R3=bx*dxdxby+by*dydxby+bz*dzdxby-bx*dxdybx-by*dydybx-bz*dzdybx
-!S3=dybz*dxbz-dzby*dxbz-dxbz*dybz+dzbx*dybz+dxby*dzbz-dybx*dz*bz 
-
-!Use store_i to store each product                                                                                             
-!store_x = (bx*dxvx+by*dyvx+bz*dzvx) - (vx*dxbx+vy*dybx+vz*dzbx) - (bx*dxdybz+by*dydybz+bz*dzdybz-bx*dxdzby-by*dydzby-bz*dzdzby) + (dybz*dxbx-dzby*dxbx-dxbz*dybx+dzbx*dybx+dxby*dzbx-dybx*dz*bx) 
-!store_y = (bx*dxvy+by*dyvy+bz*dzvy) - (vx*dxby+vy*dyby+vz*dzby) - (bx*dxdzbx+by*dydzbx+bz*dzdzbx-bx*dxdxbz-by*dydxbz-bz*dzdxbz) + (dybz*dxby-dzby*dxby-dxbz*dyby+dzbx*dyby+dxby*dzby-dybx*dz*by)
-!store_z = (bx*dxvz+by*dyvz+bz*dzvz)- (vx*dxbz+vy*dybz+vz*dzbz)- (bx*dxdxby+by*dydxby+bz*dzdxby-bx*dxdybx-by*dydybx-bz*dzdybx)+ (dybz*dxbz-dzby*dxbz-dxbz*dybz+dzbx*dybz+dxby*dzbz-dybx*dz*bz )
-
-    ! The RHS of Mahajan 2021 equation 14 is b dot grad v - v dot grad b - b dot grad curl b + curl b dot grad b
-    ! = curl (v x b - curl b x b)
-    ! We dodge all second order b derivatives and most b derivatives by only finding F = v x b - curl b x b pseudospectrally
-    ! and then finding curl F in Fourier space
-
-    ! To save memory, only use one store by adding terms to rhs_out as needed
-
-    if (timer.and.(mype.eq.0)) t1 = MPI_WTIME()
-    if (.not.nv) then ! Skip b ffts if Navier Stokes
-
-       ! x: vy bz - vz by - (curlby bz - curlbz by)
-       store = vy * bz - vz * by - hall * (curlby * bz - curlbz * by)
-       
-       CALL UNPACK
-
-       DO k = lkz1,lkz2
-          rhs_out_b(:,:,k,1) = rhs_out_b(:,:,k,1) + i_complex * kzgrid(k) * temp_small(:,:,k)
-       ENDDO
-       DO j = 0,ny0_big-1
-          rhs_out_b(:,j,:,2) = rhs_out_b(:,j,:,2) - i_complex * kygrid(j) * temp_small(:,j,:)
-       ENDDO
-
-       ! y: vz bx - vx bz - hall * (curlbz bx - curlbx bz)
-       store = vz * bx - vx * bz - hall * (curlbz * bx - curlbx * bz)
-       
-       CALL UNPACK
-
-       DO i = 0,nkx0-1
-          rhs_out_b(i,:,:,2) = rhs_out_b(i,:,:,2) + i_complex * kxgrid(i) * temp_small(i,:,:)
-       ENDDO
-       DO k = lkz1,lkz2
-          rhs_out_b(:,:,k,0) = rhs_out_b(:,:,k,0) - i_complex * kzgrid(k) * temp_small(:,:,k)
-       ENDDO
-
-       ! z: vx by - vy bx - hall (curlbx by - curlby bx)
-       store = vx * by - vy * bx - hall*(curlbx * by - curlby * bx)
-       
-       CALL UNPACK
-
-       DO j = 0,ny0_big-1
-          rhs_out_b(:,j,:,0) = rhs_out_b(:,j,:,0) + i_complex * kygrid(j) * temp_small(:,j,:)
-       ENDDO
-       DO i = 0,nkx0-1
-          rhs_out_b(i,:,:,1) = rhs_out_b(i,:,:,1) - i_complex * kxgrid(i) * temp_small(i,:,:)
-       ENDDO
-
-endif ! Skip b if Navier Stokes
+  !vx
+  temp_big = v_inx0
+  !Add padding for dealiasing
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL p3dfft_btran_c2r(temp_big,store,"fff")
+  vx = store
   
-!! ! EQUATION (15)
-!! U1= vx*dxvx+vy*dyvx+vz*dzvx
-!! V2 = bx*dxvx+by*dyvx+bz*dzvx
-!! W1= (0.5)*dyb^2  ! TO BE DONE
-!! 
-!! U2= vx*dxvy+vy*dyvy+vz*dzvy
-!! V2 = bx*dxvy+by*dyvy+bz*dzvy
-!! W2= (0.5)*dyb^2  ! TO BE DONE
-!! 
-!! U3= vx*dxvz+vy*dyvz+vz*dzvz
-!! V3 = bx*dxvz+by*dyvz+bz*dzvz
-!! W3= (0.5)*dzb^2  ! TO BE DONE
-!! 
-!!       
-!!     
-!!      eq15x= -U1+V1 -W1
-!!      eq15y=-U2+V2-W2
-!!      eq15z=-U3+V3-W3
-
-! Above equations are - v dot grad v + b dot grad b - 1/2 grad b^2
-! Equal to v x curl v - 1/2 grad v^2 + curl b x b
-! We're incompressible, so the grad term will be projected out with pressure
-! (If compressibility gets included, then would handle v^2 pseudospectrally with one more FFT (or rewrite whole as grad))
-
-! x: vy curlvz - vz curlvy + curlby bz - curlbz by
-
-store = vy * curlvz - vz * curlvy + curlby * bz - curlbz * by
-
-CALL UNPACK
-
-rhs_out_v(:,:,:,0) = rhs_out_v(:,:,:,0) + temp_small
-
-! y: vz * curlvx - vx * curlvz + curlbz * bx - curlbx * bz
-store = vz * curlvx - vx * curlvz + curlbz * bx - curlbx * bz
-
-CALL UNPACK
-if (verbose) print *, "vy fft complete"
-rhs_out_v(:,:,:,1) = rhs_out_v(:,:,:,1) + temp_small
-if (verbose) print *, "vy done"
-
-! z: vx * curlvy - vy * curlvx + curlbx * by - curlby * bx
-store = vx * curlvy - vy * curlvx + curlbx * by - curlby * bx
-
-CALL UNPACK
-if (verbose) print *, "vz fft complete"
-rhs_out_v(:,:,:,2) = rhs_out_v(:,:,:,2) + temp_small
-if (verbose) print *, "vz done"
-
-if (timer.and.(mype.eq.0)) t2 = MPI_WTIME()
-if (timer.and.(mype.eq.0)) print *, "equations and RFFTs",t2-t1
-
-! to preserve reality of the fields, remove v,b terms at nky0/2,nkz0/2
-
-rhs_out_b(:,nky0/2,:,:) = 0
-rhs_out_v(:,nky0/2,:,:) = 0
-
-! Condition to only do this for when nkz0/2 in mype needed
-if ((nkz0/2 .ge. lkz1).and.(nkz0/2 .le. lkz2)) then
-   rhs_out_b(:,:,nkz0/2,:) = 0
-   rhs_out_v(:,:,nkz0/2,:) = 0
-endif
+  !vy
+  temp_big= v_iny0
+  !Add padding for dealiasing
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL p3dfft_btran_c2r(temp_big,store,"fff")
+  vy = store
   
-if (verbose) print *, 'rhs out v nl found'
+  !vz
+  temp_big = v_inz0
+  !Add padding for dealiasing    
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL p3dfft_btran_c2r(temp_big,store,"fff")
+  vz = store
 
-CALL next_dt(ndt)
+  if (verbose.and.(mype.eq.0)) print *, "Through v FFTs"
+  
+  temp_big  = cmplx(0.0,0.0)
+  DO j = cstart(2),cend(2)
+     DO k = cstart(3),cend(3)
+        temp_big(:,j,k) = i_complex * kygrid(j) * v_inz0(:,j,k) &
+             - i_complex  * kzgrid(k) * v_iny0(:,j,k)
+     ENDDO
+  ENDDO
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL p3dfft_btran_c2r(temp_big,store,"fff")
+  curlvx = store
+  
+  temp_big = cmplx(0.0,0.0)
+  DO k = cstart(3),cend(3)
+     DO i = cstart(1),cend(1)
+        temp_big(i,:,k) = i_complex * kzgrid(k) * v_inx0(i,:,k) &
+             - i_complex * kxgrid(i) * v_inz0(i,:,k)
+     ENDDO
+  ENDDO
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL p3dfft_btran_c2r(temp_big,store,"fff")
+  curlvy = store
+  
+  temp_big = cmplx(0.0,0.0)
+  DO i = cstart(1),cend(1)
+     DO j = cstart(2),cend(2)
+        DO k = cstart(3),cend(3)
+           temp_big(i,j,k) = i_complex * kxgrid(i) * v_iny0(i,j,k) &
+                - i_complex * kygrid(j) * v_inx0(i,j,k)
+        ENDDO
+     ENDDO
+  ENDDO
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL p3dfft_btran_c2r(temp_big,store,"fff")
+  curlvz = store
+ 
+  if (verbose.and.(mype.eq.0)) print *, "Through derivatives"
+  
+  if (timer.and.(mype.eq.0)) t2 = MPI_WTIME()
+  if (timer.and.(mype.eq.0)) print *, "Time for Derivs and IRFFTs",t2-t1 
+  
+  ! EQUATION (14) 1=xcomp, 2=ycomp 3=zcomp
+  !     eq14x=P1-Q1-R1+S1
+  !     eq14y=P2-Q2-R2+S2
+  !     eq14z=P3-Q3-R3+S3
+  !P1 = bx*dxvx+by*dyvx+bz*dzvx
+  !Q1=vx*dxbx+vy*dybx+vz*dzbx
+  !R1=bx*dxdybz+by*dydybz+bz*dzdybz-bx*dxdzby-by*dydzby-bz*dzdzby
+  !S1=dybz*dxbx-dzby*dxbx-dxbz*dybx+dzbx*dybx+dxby*dzbx-dybx*dz*bx 
+  !
+  !P2 = bx*dxvy+by*dyvy+bz*dzvy
+  !Q2=vx*dxby+vy*dyby+vz*dzby
+  !R2=bx*dxdzbx+by*dydzbx+bz*dzdzbx-bx*dxdxbz-by*dydxbz-bz*dzdxbz
+  !S2=dybz*dxby-dzby*dxby-dxbz*dyby+dzbx*dyby+dxby*dzby-dybx*dz*by 
+  !
+  !P3 = bx*dxvz+by*dyvz+bz*dzvz
+  !Q3=vx*dxbz+vy*dybz+vz*dzbz
+  !R3=bx*dxdxby+by*dydxby+bz*dzdxby-bx*dxdybx-by*dydybx-bz*dzdybx
+  !S3=dybz*dxbz-dzby*dxbz-dxbz*dybz+dzbx*dybz+dxby*dzbz-dybx*dz*bz 
+  
+  !Use store_i to store each product                                                                                             
+  !store_x = (bx*dxvx+by*dyvx+bz*dzvx) - (vx*dxbx+vy*dybx+vz*dzbx) - (bx*dxdybz+by*dydybz+bz*dzdybz-bx*dxdzby-by*dydzby-bz*dzdzby) + (dybz*dxbx-dzby*dxbx-dxbz*dybx+dzbx*dybx+dxby*dzbx-dybx*dz*bx) 
+  !store_y = (bx*dxvy+by*dyvy+bz*dzvy) - (vx*dxby+vy*dyby+vz*dzby) - (bx*dxdzbx+by*dydzbx+bz*dzdzbx-bx*dxdxbz-by*dydxbz-bz*dzdxbz) + (dybz*dxby-dzby*dxby-dxbz*dyby+dzbx*dyby+dxby*dzby-dybx*dz*by)
+  !store_z = (bx*dxvz+by*dyvz+bz*dzvz)- (vx*dxbz+vy*dybz+vz*dzbz)- (bx*dxdxby+by*dydxby+bz*dzdxby-bx*dxdybx-by*dydybx-bz*dzdybx)+ (dybz*dxbz-dzby*dxbz-dxbz*dybz+dzbx*dybz+dxby*dzbz-dybx*dz*bz )
+  
+  ! The RHS of Mahajan 2021 equation 14 is b dot grad v - v dot grad b - b dot grad curl b + curl b dot grad b
+  ! = curl (v x b - curl b x b)
+  ! We dodge all second order b derivatives and most b derivatives by only finding F = v x b - curl b x b pseudospectrally
+  ! and then finding curl F in Fourier space
+  
+  ! To save memory, only use one store by adding terms to rhs_out as needed
+  
+  if (timer.and.(mype.eq.0)) t1 = MPI_WTIME()
+  if (.not.nv) then ! Skip b ffts if Navier Stokes
+     
+     ! x: vy bz - vz by - (curlby bz - curlbz by)
+     store = vy * bz - vz * by - hall * (curlby * bz - curlbz * by)
+     
+     CALL UNPACK
+     
+     DO k = cstart(3),cend(3)
+        rhs_out_b(:,:,k,1) = rhs_out_b(:,:,k,1) + i_complex * kzgrid(k) * temp_small(:,:,k)
+     ENDDO
+     DO j = cstart(2),cend(2)
+        rhs_out_b(:,j,:,2) = rhs_out_b(:,j,:,2) - i_complex * kygrid(j) * temp_small(:,j,:)
+     ENDDO
+     
+     ! y: vz bx - vx bz - hall * (curlbz bx - curlbx bz)
+     store = vz * bx - vx * bz - hall * (curlbz * bx - curlbx * bz)
+     
+     CALL UNPACK
+     
+     DO i = cstart(1),cend(1)
+        rhs_out_b(i,:,:,2) = rhs_out_b(i,:,:,2) + i_complex * kxgrid(i) * temp_small(i,:,:)
+     ENDDO
+     DO k = cstart(3),cend(3)
+        rhs_out_b(:,:,k,0) = rhs_out_b(:,:,k,0) - i_complex * kzgrid(k) * temp_small(:,:,k)
+     ENDDO
+     
+     ! z: vx by - vy bx - hall (curlbx by - curlby bx)
+     store = vx * by - vy * bx - hall*(curlbx * by - curlby * bx)
+     
+     CALL UNPACK
+     
+     DO j = cstart(2),cend(2)
+        rhs_out_b(:,j,:,0) = rhs_out_b(:,j,:,0) + i_complex * kygrid(j) * temp_small(:,j,:)
+     ENDDO
+     DO i = cstart(1),cend(1)
+        rhs_out_b(i,:,:,1) = rhs_out_b(i,:,:,1) - i_complex * kxgrid(i) * temp_small(i,:,:)
+     ENDDO
+     
+  endif ! Skip b if Navier Stokes
+  
+  !! ! EQUATION (15)
+  !! U1= vx*dxvx+vy*dyvx+vz*dzvx
+  !! V2 = bx*dxvx+by*dyvx+bz*dzvx
+  !! W1= (0.5)*dyb^2  ! TO BE DONE
+  !! 
+  !! U2= vx*dxvy+vy*dyvy+vz*dzvy
+  !! V2 = bx*dxvy+by*dyvy+bz*dzvy
+  !! W2= (0.5)*dyb^2  ! TO BE DONE
+  !! 
+  !! U3= vx*dxvz+vy*dyvz+vz*dzvz
+  !! V3 = bx*dxvz+by*dyvz+bz*dzvz
+  !! W3= (0.5)*dzb^2  ! TO BE DONE
+  !! 
+  !!       
+  !!     
+  !!      eq15x= -U1+V1 -W1
+  !!      eq15y=-U2+V2-W2
+  !!      eq15z=-U3+V3-W3
 
-if ((mod(itime,100).eq.0).and.mype.eq.0) print *, 'next dt calculated ',ndt
-if (.not.(calc_dt)) ndt = dt_max
-
+  ! Above equations are - v dot grad v + b dot grad b - 1/2 grad b^2
+  ! Equal to v x curl v - 1/2 grad v^2 + curl b x b
+  ! We're incompressible, so the grad term will be projected out with pressure
+  ! (If compressibility gets included, then would handle v^2 pseudospectrally with one more FFT (or rewrite whole as grad))
+  
+  ! x: vy curlvz - vz curlvy + curlby bz - curlbz by
+  
+  store = vy * curlvz - vz * curlvy + curlby * bz - curlbz * by
+  
+  CALL UNPACK
+  
+  rhs_out_v(:,:,:,0) = rhs_out_v(:,:,:,0) + temp_small
+  
+  ! y: vz * curlvx - vx * curlvz + curlbz * bx - curlbx * bz
+  store = vz * curlvx - vx * curlvz + curlbz * bx - curlbx * bz
+  
+  CALL UNPACK
+  if (verbose.and.(mype.eq.0)) print *, "vy fft complete"
+  rhs_out_v(:,:,:,1) = rhs_out_v(:,:,:,1) + temp_small
+  if (verbose.and.(mype.eq.0)) print *, "vy done"
+  
+  ! z: vx * curlvy - vy * curlvx + curlbx * by - curlby * bx
+  store = vx * curlvy - vy * curlvx + curlbx * by - curlby * bx
+  
+  CALL UNPACK
+  if (verbose.and.(mype.eq.0)) print *, "vz fft complete"
+  rhs_out_v(:,:,:,2) = rhs_out_v(:,:,:,2) + temp_small
+  if (verbose.and.(mype.eq.0)) print *, "vz done"
+  
+  if (timer.and.(mype.eq.0)) t2 = MPI_WTIME()
+  if (timer.and.(mype.eq.0)) print *, "equations and RFFTs",t2-t1
+  
+  ! to preserve reality of the fields, remove v,b terms at nky0/2,nkz0/2 - padding mask should take care of this
+  
+  if (verbose.and.(mype.eq.0)) print *, 'rhs out v nl found'
+  
+  CALL next_dt(ndt)
+  
+  if ((mod(itime,100).eq.0).and.mype.eq.0) print *, 'next dt calculated ',ndt
+  if (.not.(calc_dt)) ndt = dt_max
+  
 END SUBROUTINE get_rhs_nl1
 
 SUBROUTINE next_dt(dtn)
-
- real(C_DOUBLE), intent(out) :: dtn
-
- real :: ndt1xr,ndt1yr,ndt1zr,ndt2xr,ndt2yr,ndt2zr,ndt3xr,ndt3yr,ndt3zr
- real :: ndtr
-
- ndt1xr = maxval(abs(kxgrid))*maxval(abs(bx))
- ndt1yr = maxval(abs(kygrid))*maxval(abs(by))
- ndt1zr = maxval(abs(kzgrid))*maxval(1+abs(bz))
- ndt2xr = maxval(abs(kxgrid))*maxval(abs(vx))
- ndt2yr = maxval(abs(kygrid))*maxval(abs(vy))
- ndt2zr = maxval(abs(kzgrid))*maxval(abs(vz))
- ndt3xr = maxval(abs(kxgrid))*maxval(abs(curlbx))*hall
- ndt3yr = maxval(abs(kygrid))*maxval(abs(curlby))*hall
- ndt3zr = maxval(abs(kzgrid))*maxval(abs(curlbz))*hall
- ndtr = ndt1xr + ndt1yr + ndt1zr &
-   + ndt2xr + ndt2yr + ndt2zr &
-   + ndt3xr + ndt3yr + ndt3zr
- dtn = courant/ndtr
-
+  
+  real(C_DOUBLE), intent(out) :: dtn
+  
+  real :: ndt1xr,ndt1yr,ndt1zr,ndt2xr,ndt2yr,ndt2zr,ndt3xr,ndt3yr,ndt3zr
+  real :: ndtr
+  
+  ndt1xr = maxval(abs(kxgrid))*maxval(abs(bx))
+  ndt1yr = maxval(abs(kygrid))*maxval(abs(by))
+  ndt1zr = maxval(abs(kzgrid))*maxval(1+abs(bz))
+  ndt2xr = maxval(abs(kxgrid))*maxval(abs(vx))
+  ndt2yr = maxval(abs(kygrid))*maxval(abs(vy))
+  ndt2zr = maxval(abs(kzgrid))*maxval(abs(vz))
+  ndt3xr = maxval(abs(kxgrid))*maxval(abs(curlbx))*hall
+  ndt3yr = maxval(abs(kygrid))*maxval(abs(curlby))*hall
+  ndt3zr = maxval(abs(kzgrid))*maxval(abs(curlbz))*hall
+  ndtr = ndt1xr + ndt1yr + ndt1zr &
+       + ndt2xr + ndt2yr + ndt2zr &
+       + ndt3xr + ndt3yr + ndt3zr
+  dtn = courant/ndtr
+  
 END SUBROUTINE next_dt
 
 SUBROUTINE finalize_fourier
-
-implicit none
-
-CALL DEALLOCATIONS
-
-call fftw_destroy_plan(plan_r2c)
-call fftw_destroy_plan(plan_c2r)
-
-! if (verbose) print *, "plans destroyed"
-
-CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-CALL fftw_free(cinout)
-if (verbose) print *, "temp_big freed"
-CALL fftw_free(rinout)
-
-if (verbose) print *, "store freed"
-
-CALL fftw_mpi_cleanup()
-
+  
+  implicit none
+  
+  CALL DEALLOCATIONS
+  
+  CALL p3dfft_clean
+  
 END SUBROUTINE finalize_fourier
 
 SUBROUTINE ALLOCATIONS
-
-  ALLOCATE(temp_small(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2))
-
+  
+  ALLOCATE(temp_big(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3)))
+  ALLOCATE(store(rstart(1):rend(1),rstart(2):rend(2),rstart(3):rend(3)))
+  
+  ALLOCATE(temp_small(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3)))
+  
   ! All b arrays
-  ALLOCATE(bx(1:nx0_big+2,1:ny0_big,1:local_N))
-  ALLOCATE(by(1:nx0_big+2,1:ny0_big,1:local_N))
-  ALLOCATE(bz(1:nx0_big+2,1:ny0_big,1:local_N))
+  ALLOCATE(bx(rstart(1):rend(1),rstart(2):rend(2),rstart(3):rend(3)))
+  ALLOCATE(by(rstart(1):rend(1),rstart(2):rend(2),rstart(3):rend(3)))
+  ALLOCATE(bz(rstart(1):rend(1),rstart(2):rend(2),rstart(3):rend(3)))
   
   ! All v arrays
-  ALLOCATE(vx(1:nx0_big+2,1:ny0_big,1:local_N))
-  ALLOCATE(vy(1:nx0_big+2,1:ny0_big,1:local_N))
-  ALLOCATE(vz(1:nx0_big+2,1:ny0_big,1:local_N))
-
+  ALLOCATE(vx(rstart(1):rend(1),rstart(2):rend(2),rstart(3):rend(3)))
+  ALLOCATE(vy(rstart(1):rend(1),rstart(2):rend(2),rstart(3):rend(3)))
+  ALLOCATE(vz(rstart(1):rend(1),rstart(2):rend(2),rstart(3):rend(3)))
+  
   ! all first order v arrays
-  ALLOCATE(curlvx(1:nx0_big+2,1:ny0_big,1:local_N))
-  ALLOCATE(curlvy(1:nx0_big+2,1:ny0_big,1:local_N))
-  ALLOCATE(curlvz(1:nx0_big+2,1:ny0_big,1:local_N))
+  ALLOCATE(curlvx(rstart(1):rend(1),rstart(2):rend(2),rstart(3):rend(3)))
+  ALLOCATE(curlvy(rstart(1):rend(1),rstart(2):rend(2),rstart(3):rend(3)))
+  ALLOCATE(curlvz(rstart(1):rend(1),rstart(2):rend(2),rstart(3):rend(3)))
   
   ! all first order b arrays
-  ALLOCATE(curlbx(1:nx0_big+2,1:ny0_big,1:local_N))
-  ALLOCATE(curlby(1:nx0_big+2,1:ny0_big,1:local_N))
-  ALLOCATE(curlbz(1:nx0_big+2,1:ny0_big,1:local_N))
-
-  if (padv2) then
-  ALLOCATE(bigmask(1:nx0_big/2+1,1:ny0_big,1:local_N))
-  ALLOCATE(smallmask(0:nkx0-1,0:nky0-1,0:nkz0/n_mpi_procs-1))
-endif
-
+  ALLOCATE(curlbx(rstart(1):rend(1),rstart(2):rend(2),rstart(3):rend(3)))
+  ALLOCATE(curlby(rstart(1):rend(1),rstart(2):rend(2),rstart(3):rend(3)))
+  ALLOCATE(curlbz(rstart(1):rend(1),rstart(2):rend(2),rstart(3):rend(3)))
   
-  ALLOCATE(b_inx0(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2))
-  ALLOCATE(b_iny0(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2))
-  ALLOCATE(b_inz0(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2))
-  ALLOCATE(v_inx0(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2))
-  ALLOCATE(v_iny0(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2))
-  ALLOCATE(v_inz0(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2))
-
+  
+  ALLOCATE(b_inx0(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3)))
+  ALLOCATE(b_iny0(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3)))
+  ALLOCATE(b_inz0(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3)))
+  ALLOCATE(v_inx0(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3)))
+  ALLOCATE(v_iny0(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3)))
+  ALLOCATE(v_inz0(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3)))
+  
 END SUBROUTINE ALLOCATIONS
 
 SUBROUTINE DEALLOCATIONS
-
-
-  if (allocated(temp_small)) DEALLOCATE(temp_small)
-if (verbose) print *, 'ts deallocated'
-
-! All b arrays
-
-if (allocated(bx)) DEALLOCATE(bx)
-if (verbose) print *, 'bx deallocated'
-if (allocated(by)) DEALLOCATE(by)
-if (verbose) print *, 'by deallocated'
-if (allocated(bz)) DEALLOCATE(bz)
-if (verbose) print *, 'first third deallocated'
-
-if (allocated(curlbx)) DEALLOCATE(curlbx)
-if (allocated(curlby)) DEALLOCATE(curlby)
-if (allocated(curlbz)) DEALLOCATE(curlbz)
-
-! All v arrays 
-if (allocated(vx))  DEALLOCATE(vx)
-if (allocated(vy))  DEALLOCATE(vy)
-if (allocated(vz))  DEALLOCATE(vz)
-
-if (allocated(curlvx))  DEALLOCATE(curlvx)
-if (allocated(curlvy))  DEALLOCATE(curlvy)
-if (allocated(curlvz))  DEALLOCATE(curlvz)
-
-  if (verbose) print *, "all derivatives deallocated"
-
-if (allocated(bigmask))  DEALLOCATE(bigmask)
-
-  if (verbose) print *, "big mask deallocated"
-if (allocated(smallmask))  DEALLOCATE(smallmask)
-
-  if (verbose) print *, "small mask deallocated"
   
-if (allocated(b_inx0))  DEALLOCATE(b_inx0)
-if (allocated(b_iny0))  DEALLOCATE(b_iny0)
-if (allocated(b_inz0))  DEALLOCATE(b_inz0)
-if (allocated(v_inx0))  DEALLOCATE(v_inx0)
-if (allocated(v_iny0))  DEALLOCATE(v_iny0)
-if (allocated(v_inz0))  DEALLOCATE(v_inz0)
-
+  
+  if (allocated(temp_big)) DEALLOCATE(temp_big)
+  if (allocated(store)) DEALLOCATE(store)
+  
+  if (allocated(temp_small)) DEALLOCATE(temp_small)
+  if (verbose.and.(mype.eq.0)) print *, 'ts deallocated'
+  
+  ! All b arrays
+  
+  if (allocated(bx)) DEALLOCATE(bx)
+  if (verbose.and.(mype.eq.0)) print *, 'bx deallocated'
+  if (allocated(by)) DEALLOCATE(by)
+  if (verbose.and.(mype.eq.0)) print *, 'by deallocated'
+  if (allocated(bz)) DEALLOCATE(bz)
+  if (verbose.and.(mype.eq.0)) print *, 'first third deallocated'
+  
+  if (allocated(curlbx)) DEALLOCATE(curlbx)
+  if (allocated(curlby)) DEALLOCATE(curlby)
+  if (allocated(curlbz)) DEALLOCATE(curlbz)
+  
+  ! All v arrays 
+  if (allocated(vx))  DEALLOCATE(vx)
+  if (allocated(vy))  DEALLOCATE(vy)
+  if (allocated(vz))  DEALLOCATE(vz)
+  
+  if (allocated(curlvx))  DEALLOCATE(curlvx)
+  if (allocated(curlvy))  DEALLOCATE(curlvy)
+  if (allocated(curlvz))  DEALLOCATE(curlvz)
+  
+  if (verbose.and.(mype.eq.0)) print *, "all derivatives deallocated"
+  
+  if (allocated(b_inx0))  DEALLOCATE(b_inx0)
+  if (allocated(b_iny0))  DEALLOCATE(b_iny0)
+  if (allocated(b_inz0))  DEALLOCATE(b_inz0)
+  if (allocated(v_inx0))  DEALLOCATE(v_inx0)
+  if (allocated(v_iny0))  DEALLOCATE(v_iny0)
+  if (allocated(v_inz0))  DEALLOCATE(v_inz0)
+  
 END SUBROUTINE DEALLOCATIONS
 
 SUBROUTINE UNPACK
-
+  
   IMPLICIT NONE
-
+  
   integer :: i,j,k
   integer :: lkz1_rank,lkz2_rank,ind,rank,kp
   logical :: zmask
 
   !if (verbose) print *, "Entering Unpack"
-
+  
   CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-  CALL fftw_mpi_execute_dft_r2c(plan_r2c,store,temp_big)
-
+  CALL p3dfft_ftran_r2c(store,temp_big,"fff")
+  
   ! print *, "Post RFFT",maxval(abs(temp_big))
-  if (verbose) print *, "Through RFFT"
-
+  if (verbose.and.(mype.eq.0)) print *, "Through RFFT"
+  
   temp_small = temp_big
   temp_small = temp_small * paddingmask * fft_norm
-
-  if (verbose) print *, "All Done"
+  
+  if (verbose.and.(mype.eq.0)) print *, "All Done"
   
 END SUBROUTINE UNPACK
-
-
-SUBROUTINE WRITE_PADDING(purpose)
-
-  IMPLICIT NONE
-
-  INTEGER, intent(in) :: purpose
-  INTEGER :: chp_handle
-  CHARACTER(len=100) :: chp_name
-
-  CALL get_io_number
-  chp_handle = io_number
-
-  if (purpose.eq.1) chp_name = "/padding.dat"
-  if (purpose.eq.2) chp_name = "/unpack.dat"
-
-  OPEN(unit=chp_handle,file=trim(diagdir)//trim(chp_name),&
-       form='unformatted', status='replace',access='stream')
-  
-   if (purpose.eq.1) then 
-      if (padv1) WRITE(chp_handle) temp_big
-      if (padv3.and.(mype.eq.0)) WRITE(chp_handle) fullbigarray
-   endif
-
-   if (purpose.eq.2) then
-      if (padv1) WRITE(chp_handle) temp_small
-      if (padv3.and.(mype.eq.0)) WRITE(chp_handle) fullsmallarray
-   endif
-  
-
-  CLOSE(chp_handle)
-
-  if (purpose.eq.1) printpad = (.false.)
-  if (purpose.eq.2) printunpack = (.false.)
-
-END SUBROUTINE WRITE_PADDING
-
-SUBROUTINE TESTING_1D
-
-  IMPLICIT NONE
-
-  INTEGER :: i,j,k
-
-  type(C_PTR) :: planx,plan_c2c
-  type(C_PTR) :: rout1,cin1x,cin1y
-  COMPLEX(C_DOUBLE_COMPLEX), pointer :: tempbig1(:),testyz(:)
-  REAL(C_DOUBLE), pointer :: storex(:)
-  INTEGER(C_INTPTR_T) :: allx,allyz
-  
-  
-  
-  
-  DO i = 0,nx0_big/2
-     DO j = 0,ny0_big-1
-        DO k = 0,nz0_big-1
-
-        ENDDO
-     ENDDO
-  ENDDO
-  
-
-  
-
-END SUBROUTINE TESTING_1D
-
 
 END MODULE nonlinearity
 

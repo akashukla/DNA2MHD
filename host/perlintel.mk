@@ -17,15 +17,10 @@
 # MKLLIBS = -Wl,--start-group $(MKLROOT)/lib/intel64/libmkl_intel_lp64.a $(MKLROOT)/lib/intel64/libmkl_sequential.a $(MKLROOT)/lib/intel64/libmkl_core.a -Wl,--end-group -lpthread -lm
 MKLLIBS = 
 
-
-ifeq ($(PRECISION),double)
-  FFTLIBS +=  -Wl,-rpath,$(FFTW_ROOT)/lib -L$(FFTW_ROOT)/lib -lfftw3_mpi -lfftw3
-else
-  FFTLIBS +=  -Wl,-rpath,$(FFTW_ROOT)/lib -L$(FFTW_ROOT)/lib -lfftw3_mpif -lfftw3f
-endif
+FFTLIBS +=  -L$(P3DFFT_INTEL)/lib -L$(FFTW_ROOT)/lib -lp3dfft -lfftw3_mpi -lfftw3
 
 LIBS = $(MKLLIBS) $(FFTLIBS)
-INCPATHS = -I$(FFTW_ROOT)/include
+INCPATHS = -I$(P3DFFT_INTEL)/include -I$(FFTW_ROOT)/include
 
 ifeq ($(SLEPC),yes)
 

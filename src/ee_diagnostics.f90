@@ -132,8 +132,8 @@ SUBROUTINE initialize_diagnostics
    ENDIF
     energy_last=0.0
     time_last=time
-    ALLOCATE(AVP(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2))
-    ALLOCATE(WVORT(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2))
+    ALLOCATE(AVP(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2))
+    ALLOCATE(WVORT(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2))
  END IF
   IF(istep_energyspec.gt.0.and.mype==0) THEN
     CALL get_io_number
@@ -157,12 +157,12 @@ SUBROUTINE initialize_diagnostics
       OPEN(unit=enspec_handle,file=trim(diagdir)//'/energyspec_out.dat',form='unformatted', status='REPLACE',access='stream')
       OPEN(unit=mode_handle,file=trim(diagdir)//'/mode_out.dat',form='unformatted', status='REPLACE',access='stream')
     END IF
-    ALLOCATE(LW(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2))
-    ALLOCATE(LC(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2))
-    ALLOCATE(RW(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2))
-    ALLOCATE(RC(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2))
-    ALLOCATE(OSPEC(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2))
-    ALLOCATE(WRITESPEC(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2))
+    ALLOCATE(LW(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3)))
+    ALLOCATE(LC(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3)))
+    ALLOCATE(RW(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3)))
+    ALLOCATE(RC(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3)))
+    ALLOCATE(OSPEC(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3)))
+    ALLOCATE(WRITESPEC(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3)))
  END IF
 
 END SUBROUTINE initialize_diagnostics
@@ -321,17 +321,17 @@ hamsm = 0.0
 if ((opt.eq.0).or.(opt.eq.1)) then
    !if (splitx) hamsm(1) = hamsm(1) + sum(abs(v_1(1:nkx0-1,:,:,:))**2)
    !if (splitx) hamsm(2) = hamsm(2) + 0.5 * sum(abs(v_1(0,:,:,:))**2)
-   hamsm(1) = hamsm(1) + sum(abs(v_1(1:nkx0-1,:,:,:))**2)
-   hamsm(2) = hamsm(2) + 0.5 * sum(abs(v_1(0,:,:,:))**2)
+   hamsm(1) = hamsm(1) + sum(abs(v_1(xst:cend(1),:,:,:))**2)
+   if (cstart(1).eq.1) hamsm(2) = hamsm(2) + 0.5 * sum(abs(v_1(1,:,:,:))**2)
 
 endif
 if ((opt.eq.0).or.(opt.eq.2)) then
    !if (splitx) hamsm(1) = hamsm(1) + sum(abs(b_1(1:nkx0-1,:,:,:))**2)
    !if (splitx) hamsm(2) = hamsm(2) + 0.5 * sum(abs(b_1(0,:,:,:))**2)
 
-   hamsm(1) = hamsm(1) + sum(abs(b_1(1:nkx0-1,:,:,:))**2)
-   hamsm(2) = hamsm(2) + 0.5 * sum(abs(b_1(0,:,:,:))**2)
-   if (mype.eq.0) hamsm(2) = hamsm(2) + real(b_1(0,0,0,2))
+   hamsm(1) = hamsm(1) + sum(abs(b_1(xst:cend(1),:,:,:))**2)
+   if (cstart(1).eq.1) hamsm(2) = hamsm(2) + 0.5 * sum(abs(b_1(1,:,:,:))**2)
+   if (mype.eq.0) hamsm(2) = hamsm(2) + real(b_1(1,1,1,2))
 endif
 
 CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
@@ -346,15 +346,12 @@ if (mype.eq.0) WRITE(en_handle) ham
 if (opt.eq.0) then
    if (itime.eq.0) ham0 = ham
 
-!   if (verbose.and.(mype.eq.0)) print *, "Initial Hamiltonian",ham
-
-if (mod(itime,istep_energyspec).eq.0.and.itime.gt.0) then
-   ham1 = ham
-   write(*,"(A20,E10.3)") "Energy Fractional Change",(ham1-ham0)/(ham0)
-   ham0 = ham1
+   if (mype.eq.0.and.mod(itime,istep_energyspec).eq.0.and.itime.gt.0) then
+      ham1 = ham
+      write(*,"(A20,E10.3)") "Energy Fractional Change",(ham1-ham0)/(ham0)
+      ham0 = ham1
+   endif
 endif
-endif
-
 
 end subroutine hmhdhmtn
 
@@ -366,20 +363,19 @@ integer :: i,j,k,ind
 ! Ak = (i k x Bk)/k^2
 AVP = cmplx(0.0,0.0)
 
-do i = 0,nkx0-1
-  do j = 0,ny0_big-1
-     do k = lkz1,lkz2
+do i = cstart(1),cend(1)
+  do j = cstart(2),cend(2)
+     do k = cstart(3),cend(3)
 
-          AVP(i,j,k,0) = cmplx(0.0,1.0) * (kygrid(j)*b_1(i,j,k,2)-kzgrid(k)*b_1(i,j,k,1))/(kmags(i,j,k)**2)
-          AVP(i,j,k,1) = cmplx(0.0,1.0) * (kzgrid(k)*b_1(i,j,k,0)-kxgrid(i)*b_1(i,j,k,2))/(kmags(i,j,k)**2)
-          AVP(i,j,k,2) = cmplx(0.0,1.0) * (kxgrid(i)*b_1(i,j,k,1)-kygrid(j)*b_1(i,j,k,0))/(kmags(i,j,k)**2)
+        AVP(i,j,k,0) = cmplx(0.0,1.0) * (kygrid(j)*b_1(i,j,k,2)-kzgrid(k)*b_1(i,j,k,1))/(kmags(i,j,k)**2)
+        AVP(i,j,k,1) = cmplx(0.0,1.0) * (kzgrid(k)*b_1(i,j,k,0)-kxgrid(i)*b_1(i,j,k,2))/(kmags(i,j,k)**2)
+        AVP(i,j,k,2) = cmplx(0.0,1.0) * (kxgrid(i)*b_1(i,j,k,1)-kygrid(j)*b_1(i,j,k,0))/(kmags(i,j,k)**2)
 
-    enddo
-   enddo
+     enddo
+  enddo
 enddo
 
 if (mype.eq.0) AVP(0,0,0,:) = cmplx(0.0,0.0)
-
 
 end subroutine vec_potential
 
@@ -396,8 +392,8 @@ CALL vec_potential()
 
 ! if (verbose) print *, mype,"Vector Potential"
 
-mhsm(1) = mhsm(1) + 2.0*sum(real(AVP(1:nkx0-1,:,:,:)*conjg(b_1(1:nkx0-1,:,:,:))))
-mhsm(2) = mhsm(2) + sum(AVP(0,:,:,:)*conjg(b_1(0,:,:,:)))
+mhsm(1) = mhsm(1) + 2.0*sum(real(AVP(xst:cend(1),:,:,:)*conjg(b_1(xst:cend(1),:,:,:))))
+if (cstart(1).eq.1) mhsm(2) = mhsm(2) + sum(AVP(1,:,:,:)*conjg(b_1(1,:,:,:)))
 
 CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
 CALL MPI_ALLREDUCE(mhsm,mhs,2,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
@@ -407,7 +403,7 @@ maghel = (mhs(1) + mhs(2)) * (2.0 * pi)**3.0
 
 if (mype.eq.0) WRITE(en_handle) maghel
 
-if (verbose) print *,mype,"Magnetic Helicity",(maghel+mhelcorr)
+if (verbose.and.(mype.eq.0)) print *,mype,"Magnetic Helicity",(maghel+mhelcorr)
 
 END SUBROUTINE mag_helicity
 
@@ -418,9 +414,9 @@ integer :: ind,i,j,k
 
 WVORT = cmplx(0.0,0.0)
 
-  do i = 0,nkx0-1
-    do j = 0,ny0_big-1
-      do k = lkz1,lkz2
+  do i = cstart(1),cend(1)
+    do j = cstart(2),cend(2)
+      do k = cstart(3),cend(3)
           WVORT(i,j,k,0) = kygrid(j) * v_1(i,j,k,2) - kzgrid(k) * v_1(i,j,k,1)
           WVORT(i,j,k,1) = kzgrid(k) * v_1(i,j,k,0) - kxgrid(i) * v_1(i,j,k,2)
           WVORT(i,j,k,2) = kxgrid(i) * v_1(i,j,k,1) - kygrid(j) * v_1(i,j,k,0)
@@ -446,9 +442,9 @@ subroutine cross_helicity
   CALL vec_potential()
   CALL vorticity()
   
-  chsm(1) = 2.0 * sum(real((AVP(1:nkx0-1,:,:,:)+v_1(1:nkx0-1,:,:,:))*conjg(b_1(1:nkx0-1,:,:,:)+WVORT(1:nkx0-1,:,:,:))))
-  chsm(2) = real(sum((AVP(0,:,:,:)+v_1(0,:,:,:))*conjg(b_1(0,:,:,:)+WVORT(0,:,:,:))))
-  if (mype.eq.0) chsm(2) = chsm(2) + v_1(0,0,0,2)
+  chsm(1) = 2.0 * sum(real((AVP(xst:cend(1),:,:,:)+v_1(xst:cend(1),:,:,:))*conjg(b_1(xst:cend(1),:,:,:)+WVORT(xst:cend(1),:,:,:))))
+  if (cstart(1).eq.1) chsm(2) = real(sum((AVP(1,:,:,:)+v_1(1,:,:,:))*conjg(b_1(1,:,:,:)+WVORT(1,:,:,:))))
+  if (mype.eq.0) chsm(2) = chsm(2) + v_1(1,1,1,2)
   
   CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
   CALL MPI_ALLREDUCE(chsm,chs,2,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
@@ -456,7 +452,7 @@ subroutine cross_helicity
   crosshel = (chs(1)+chs(2)) * (2.0*pi)**3.0
    
   if (mype.eq.0) WRITE(en_handle) crosshel
-  if (verbose) print *, mype,"Cross Helicity",(crosshel+mhelcorr)
+  if (verbose.and.(mype.eq.0)) print *, mype,"Cross Helicity",(crosshel+mhelcorr)
 
 end subroutine cross_helicity
 
@@ -505,41 +501,36 @@ subroutine bound_hels
 
 implicit none
 
-LOGICAL :: magnetic
-
 REAL :: bound
 REAL :: magboundm,canboundm
 REAL :: boundsm(2),bounds(2)
 
 
-if (verbose) print *, "In Bound Hels"
+if (verbose.and.(mype.eq.0)) print *, "In Bound Hels"
 
 magboundm = 0.0
 canboundm = 0.0
 
-DO j = 0,ny0_big - 1
+DO j = cstart(2),cend(2)
    
-   DO k = lkz1,lkz2
-      DO i = 1,nkx0-1
+   DO k = cstart(3),cend(3)
+      DO i = xst,cend(1)
          magboundm = magboundm + 2.0 * sum(abs(b_1(i,j,k,:))**2.0)/kmags(i,j,k)
          canboundm = canboundm + 2.0 * sum(abs(v_1(i,j,k,:))**2.0)*kmags(i,j,k)
          canboundm = canboundm + 4.0 * sqrt(sum(abs(b_1(i,j,k,:))**2.0))*sqrt(sum(abs(v_1(i,j,k,:))**2.0))
       ENDDO
    ENDDO
-   !print *, mype,j,"CanBoundx",canboundm
-   DO k = lkz1,lkz2
-      magboundm = magboundm + sum(abs(b_1(0,j,k,:))**2.0 /kmags(0,j,k),kmags(0,j,k).gt.10**(-10.0))
-      canboundm = canboundm + sum(abs(v_1(0,j,k,:))**2.0)*kmags(0,j,k)
-      !if (j.eq.0) print *, sum(abs(v_1(0,j,k,:))**2.0),kmags(0,j,k)
-      canboundm = canboundm + 2.0 * sqrt(sum(abs(b_1(0,j,k,:))**2.0))*sqrt(sum(abs(v_1(0,j,k,:))**2.0))
-   ENDDO
-
-   !print *, mype,j,"CanBound0 ",canboundm
-
+   if (cstart(1).eq.1) then 
+      DO k = cstart(3),cend(3)
+         magboundm = magboundm + sum(abs(b_1(1,j,k,:))**2.0 /kmags(1,j,k),kmags(1,j,k).gt.10**(-10.0))
+         canboundm = canboundm + sum(abs(v_1(1,j,k,:))**2.0)*kmags(1,j,k)
+         canboundm = canboundm + 2.0 * sqrt(sum(abs(b_1(1,j,k,:))**2.0))*sqrt(sum(abs(v_1(1,j,k,:))**2.0))
+      ENDDO
+   endif
    
 ENDDO
 
-if (verbose) print *, "Through Bound Loop"
+if (verbose.and.(mype.eq.0)) print *, "Through Bound Loop"
 
 CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
 CALL MPI_ALLREDUCE(magboundm,magbound,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
@@ -567,15 +558,22 @@ subroutine mode_energy
   lcm = 0.0
   rwm = 0.0
   rcm = 0.0
-  
-  do i = 0, nkx0-1
-     do j = 0, ny0_big-1
-        do k = lkz1,lkz2
-           lwm = lwm + abs(sum(conjg(pcurleig(i,j,k,:))*(alpha_leftwhist(i,j,k)*b_1(i,j,k,:)+v_1(i,j,k,:))/sqrt(alpha_leftwhist(i,j,k)**2+1)))**2.0
-           lcm = lcm + abs(sum(conjg(pcurleig(i,j,k,:))*(alpha_leftcyclo(i,j,k)*b_1(i,j,k,:)+v_1(i,j,k,:))/sqrt(alpha_leftcyclo(i,j,k)**2+1)))**2.0
-           rwm = rwm + abs(sum(pcurleig(i,j,k,:)*(-alpha_leftwhist(i,j,k)*b_1(i,j,k,:)+v_1(i,j,k,:))/sqrt(alpha_leftwhist(i,j,k)**2+1)))**2.0
-           rcm = rcm + abs(sum(pcurleig(i,j,k,:)*(-alpha_leftcyclo(i,j,k)*b_1(i,j,k,:)+v_1(i,j,k,:))/sqrt(alpha_leftcyclo(i,j,k)**2+1)))**2.0
+
+  do j = cstart(2),cend(2)
+     do k = cstart(3),cend(3)
+        do i = xst,cend(1)
+           lwm = lwm + 2.0*abs(sum(conjg(pcurleig(i,j,k,:))*(alpha_leftwhist(i,j,k)*b_1(i,j,k,:)+v_1(i,j,k,:))/sqrt(alpha_leftwhist(i,j,k)**2+1)))**2.0
+           lcm = lcm + 2.0*abs(sum(conjg(pcurleig(i,j,k,:))*(alpha_leftcyclo(i,j,k)*b_1(i,j,k,:)+v_1(i,j,k,:))/sqrt(alpha_leftcyclo(i,j,k)**2+1)))**2.0
+           rwm = rwm + 2.0*abs(sum(pcurleig(i,j,k,:)*(-alpha_leftwhist(i,j,k)*b_1(i,j,k,:)+v_1(i,j,k,:))/sqrt(alpha_leftwhist(i,j,k)**2+1)))**2.0
+           rcm = rcm + 2.0*abs(sum(pcurleig(i,j,k,:)*(-alpha_leftcyclo(i,j,k)*b_1(i,j,k,:)+v_1(i,j,k,:))/sqrt(alpha_leftcyclo(i,j,k)**2+1)))**2.0
         enddo
+        if (cstart(1).eq.1) then
+           lwm = lwm + abs(sum(conjg(pcurleig(1,j,k,:))*(alpha_leftwhist(1,j,k)*b_1(1,j,k,:)+v_1(1,j,k,:))/sqrt(alpha_leftwhist(1,j,k)**2+1)))**2.0
+           lcm = lcm + abs(sum(conjg(pcurleig(1,j,k,:))*(alpha_leftcyclo(1,j,k)*b_1(1,j,k,:)+v_1(1,j,k,:))/sqrt(alpha_leftcyclo(1,j,k)**2+1)))**2.0
+           rwm = rwm + abs(sum(pcurleig(1,j,k,:)*(-alpha_leftwhist(1,j,k)*b_1(1,j,k,:)+v_1(1,j,k,:))/sqrt(alpha_leftwhist(1,j,k)**2+1)))**2.0
+           rcm = rcm + abs(sum(pcurleig(1,j,k,:)*(-alpha_leftcyclo(1,j,k)*b_1(1,j,k,:)+v_1(1,j,k,:))/sqrt(alpha_leftcyclo(1,j,k)**2+1)))**2.0
+        endif
+        
      enddo
   enddo
 
@@ -583,7 +581,7 @@ subroutine mode_energy
   CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
   CALL MPI_ALLREDUCE(lwm,lw,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
 
-  if ((verbose)) print *, "Max LW", lw
+  if ((verbose.and.(mype.eq.0))) print *, "Max LW", lw
   
   if (mype.eq.0) write(en_handle) lw
 
@@ -591,7 +589,7 @@ subroutine mode_energy
   CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
   CALL MPI_ALLREDUCE(lcm,lc,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
 
-  if ((verbose)) print *, "Max LC",lc
+  if ((verbose.and.(mype.eq.0))) print *, "Max LC",lc
   
   if (mype.eq.0) write(en_handle) lc
 
@@ -599,7 +597,7 @@ subroutine mode_energy
   CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
   CALL MPI_ALLREDUCE(rwm,rw,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
 
-  if ((verbose)) print *, "Max RW",rw
+  if ((verbose.and.(mype.eq.0))) print *, "Max RW",rw
   
   if (mype.eq.0) write(en_handle) rw
 
@@ -607,7 +605,7 @@ subroutine mode_energy
   CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
   CALL MPI_ALLREDUCE(rcm,rc,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
 
-  if ((verbose)) print *, "Max RC",rc
+  if ((verbose.and.(mype.eq.0))) print *, "Max RC",rc
   
   if (mype.eq.0) write(en_handle) rc
   
@@ -616,12 +614,12 @@ end subroutine mode_energy
 subroutine divs
 
   implicit none
-  complex :: divv(0:nkx0-1,0:nky0-1,0:nkz0-1),divb(0:nkx0-1,0:nky0-1,0:nkz0-1)
+  complex :: divv(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3)),divb(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3))
   integer :: i,j,k
 
-  do i = 0,nkx0-1
-     do j = 0,nky0-1
-        do k = lkz1,lkz2
+  do i = cstart(1),cend(1)
+     do j = cstart(2),cend(2)
+        do k = cstart(3),cend(3)
            divv(i,j,k) = kxgrid(i) * v_1(i,j,k,0) + kygrid(j) * v_1(i,j,k,1) + kzgrid(k) * v_1(i,j,k,2)
            divb(i,j,k) = kxgrid(i) * b_1(i,j,k,0) + kygrid(j) * b_1(i,j,k,1) +	kzgrid(k) * b_1(i,j,k,2)
         enddo

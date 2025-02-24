@@ -28,7 +28,7 @@ SUBROUTINE initial_condition
   
   IMPLICIT NONE
 
-  INTEGER :: i,j,k, l,zst,xst,yst,ri,ind
+  INTEGER :: i,j,k, l,ind,ri
   REAL :: kfactor,err
   REAL :: s1, s11,s12,s13,s4
   !REAL :: init_prefactor
@@ -38,14 +38,14 @@ SUBROUTINE initial_condition
   REAL :: b1r,b1i,b2r,b2i,b3r,b3i
   
   REAL :: zerocmplx
-  REAL :: kxzeroen,knzeroen,kxzeroenm,knzeroenm
+  REAL :: kxzeroen=0.0,knzeroen=0.0,kxzeroenm=0.0,knzeroenm=0.0
 
   INTEGER, DIMENSION(:), ALLOCATABLE :: rseed
   INTEGER :: rseed_size,ierr
   REAL :: testrandoms(10)
   REAL :: truncx,truncy,truncz,nlt
   REAL :: fperpm,fperp
-  REAL(C_DOUBLE) :: dt_critical
+  REAL(C_DOUBLE) :: dt_criticalm,dtc
 
   REAL :: turnoverm,nltmin,nltmax ! MPI ALL REDUCE variables
   INTEGER(int64) :: t 
@@ -56,11 +56,11 @@ SUBROUTINE initial_condition
   b_1(:,:,:,:)=cmplx(0.0,0.0)
   v_1(:,:,:,:)=cmplx(0.0,0.0)
 
-  if (force_turbulence) CALL init_force
+  xst = max(cstart(1),2)
+  yst = max(cstart(2),2)
+  zst = max(cstart(3),2)
 
-  xst = 1
-  yst = 1
-  zst = max(1,lkz1)
+  if (force_turbulence) CALL init_force
 
  if (verbose) print *, mype,"b1 Extent",sum(0*b_1 + 1)
 
@@ -108,11 +108,11 @@ SUBROUTINE initial_condition
  eta = eta * vnu
  if(mype.eq.0) print *, 'Viscosity',vnu
  
- print *, "Force Amp",force_amp      
- 
- DO i=xst,nx0_big/2
-    DO j=yst,ny0_big-1
-       DO k=zst,lkz2
+if (mype.eq.0) print *, "Force Amp",force_amp      
+
+ DO i=xst,cend(1)
+    DO j=yst,cend(2)
+       DO k=zst,cend(3)
           ! Write the if statements as subroutines sometime
           
           ! if ((k.ne.nkz0/2).and.(j.ne.nky0/2)) then - this gets purged anyways
@@ -361,8 +361,9 @@ SUBROUTINE initial_condition
  ! Set energy as fraction of 4 pi^3
  if (init_cond.ge.2) then
     
-    knzeroenm = sum(abs(b_1(1:nkx0-1,:,:,:))**2+abs(v_1(1:nkx0-1,:,:,:))**2)
-    kxzeroenm = sum(0.5*(abs(b_1(0,:,:,:))**2+abs(v_1(0,:,:,:))**2))
+    knzeroenm = sum(abs(b_1(xst:cend(1),:,:,:))**2+abs(v_1(xst:cend(1),:,:,:))**2)
+    ! Account for zeros
+    if (cstart(1).eq.1) kxzeroenm = sum(0.5*(abs(b_1(1,:,:,:))**2+abs(v_1(1,:,:,:))**2))
     
     if (verbose) print *, mype,"Unnormalized Sum",knzeroenm+kxzeroenm
     
@@ -373,7 +374,7 @@ SUBROUTINE initial_condition
     CALL MPI_ALLREDUCE(kxzeroenm,kxzeroen,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
     
     s1 = knzeroen+kxzeroen
-    if (verbose) print *, mype,"s1",s1       
+    if (verbose) print *, mype,"s1",s1
     
     b_1 = b_1 * sqrt(init_energy / (2.0*s1))
     v_1 = v_1 * sqrt(init_energy / (2.0*s1))
@@ -392,9 +393,9 @@ SUBROUTINE initial_condition
  nltmax = 10.0**8.0
  nltmin = 0.0
  
- DO i = 0,nkx0-1
-    DO j = 0,ny0_big-1
-       DO k = lkz1,lkz2
+ DO i = cstart(1),cend(1)
+    DO j = cstart(2),cend(2)
+       DO k = cstart(3),cend(3)
 
           turnoverm = turnoverm + sum(abs(v_1(i,j,k,:))**2.0) * sin(kxgrid(i)/(2.0*kxmin))**2.0
           nltmax = min(nltmax,minval(kmags(i,j,k)*abs(v_1(i,j,k,:)),kmags(i,j,k)*abs(v_1(i,j,k,:)).gt.10.0**(-10.0)))
@@ -409,19 +410,19 @@ SUBROUTINE initial_condition
  
  turnover = 1.0/(2*kxmin*sqrt(turnover))
  
- print *, mype,"Turnover Time Estimate",turnover
+ if (mype.eq.0) print *, mype,"Turnover Time Estimate",turnover
  
  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
  CALL MPI_ALLREDUCE(nltmax,nlt,1,MPI_DOUBLE,MPI_MIN,MPI_COMM_WORLD,ierr)
  
- nlt = 10.0/nlt
+ if (mype.eq.0) nlt = 10.0/nlt
  
  print *, mype,"Equation-Based Max Nonlinear Time Scale", nlt
  
  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
  CALL MPI_ALLREDUCE(nltmin,nlt,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD,ierr)
  
- nlt = 10.0/nlt
+ if (mype.eq.0) nlt = 10.0/nlt
  
  print *, mype,"Equation-Based Min Nonlinear Time Scale", nlt
  
@@ -430,11 +431,13 @@ SUBROUTINE initial_condition
  if (init_cond.eq.3) then
     ! Initializes Fourier components of Taylor Green vortex u = sin x cos y cos z , v = - cos x sin y cos z
     v_1 = cmplx(0.0,0.0)
-    if (mype.eq.0) then 
-       v_1(1,1,0,0) = 1.0
-       v_1(1,nky0-1,0,0) = 1.0
-       v_1(1,1,0,1) = -1.0
-       v_1(1,nky0-1,0,1) = 1.0
+
+    if (((cstart(1).le.2).and.(cend(1).ge.2)).and.((cstart(2).le.2).and.(cend(2).ge.2))) then
+       v_1(2,2,0,0) = 1.0
+       v_1(2,2,0,1) = -1.0
+    else if (((cstart(1).le.2).and.(cend(1).ge.2)).and.(cend(2).eq.nky0)) then
+       v_1(2,nky0,0,0) = 1.0
+       v_1(2,nky0,0,1) = 1.0
     endif
     
     v_1 = -v_1 * cmplx(0.0,0.125)
@@ -454,9 +457,12 @@ SUBROUTINE initial_condition
  IF (checkpoint_read) CALL checkpoint_in
  
     ! Linear stability maximum time step
- dt_critical = 2.0/(maxval(kzgrid)*(maxval(hall*kmags)/2 + sqrt(1 + 0.25*maxval(hall*kmags)**2.0)))
- print *, "Gauss2 Critical Time Step", dt_critical
- if (calc_dt.and.(.not.(test_ho)).and.(hall.ne.0.0)) dt_max = minval([dt_max,dt_critical/2.0])
+ dt_criticalm = 2.0/(maxval(kzgrid)*(maxval(hall*kmags)/2 + sqrt(1 + 0.25*maxval(hall*kmags)**2.0)))
+
+ CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+ CALL MPI_ALLREDUCE(dt_criticalm,dtc,1,MPI_REAL8,MPI_MIN,MPI_COMM_WORLD,ierr)
+ if (mype.eq.0) print *, "Gauss2 Critical Time Step", dtc
+ if (calc_dt.and.(.not.(test_ho)).and.(hall.ne.0.0)) dt_max = minval([dt_max,dtc/2.0])
  if (verbose.and.(mype.eq.0)) then
     print *, "kzgrid max", maxval(kzgrid)
     print *, "kmags max", kmax
@@ -466,8 +472,9 @@ SUBROUTINE initial_condition
  mhelcorr = 0.0
  
  ! Check on Initial Energy
- knzeroenm = sum(abs(b_1(1:nkx0-1,:,:,:))**2+abs(v_1(1:nkx0-1,:,:,:))**2)
- kxzeroenm = sum(0.5*(abs(b_1(0,:,:,:))**2+abs(v_1(0,:,:,:))**2))
+ 
+ knzeroenm = sum(abs(b_1(xst:cend(1),:,:,:))**2+abs(v_1(xst:cend(1),:,:,:))**2)
+ if (cstart(1).eq.1) kxzeroenm = sum(0.5*(abs(b_1(1,:,:,:))**2+abs(v_1(1,:,:,:))**2))
  
  print *, mype, "Mype Energy",8*pi**3 * (knzeroenm+kxzeroenm)
  

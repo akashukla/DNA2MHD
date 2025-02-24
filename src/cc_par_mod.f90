@@ -268,7 +268,7 @@ MODULE par_mod
   INTEGER(4), ALLOCATABLE, DIMENSION(:,:,:) :: paddingmask
   ! Forcing masks
   LOGICAL, ALLOCATABLE :: mask(:,:,:)
-  REAL, ALLOCATABLE :: mask1(:,:,:)
+  INTEGER(4), ALLOCATABLE :: mask1(:,:,:)
   
   REAL(C_DOUBLE), ALLOCATABLE, DIMENSION(:,:,:) :: LWp,LCp,RWp,RCp
   REAL(C_DOUBLE), ALLOCATABLE, DIMENSION(:,:,:) :: LWp2,LCp2,RWp2,RCp2
@@ -301,7 +301,9 @@ MODULE par_mod
   INTEGER :: lv1,lv2,lbv,ubv
   !kz
   INTEGER :: lkz0
-  INTEGER :: lkz1,lkz2,lbkz,ubkz
+  INTEGER :: lkz1,lkz2,lbkz,ubkz,lbky,ubky,lbkx,ubkx
+  INTEGER :: xst,yst,zst ! starting value of index if greater than 2 - i.e. smallest nonzero x index
+  INTEGER(4) :: rstart(3),rend(3),rsize(3),cstart(3),cend(3),csize(3)
   !Hankel
   INTEGER :: lh0
   INTEGER :: lh1,lh2,lbh,ubh,nhb
@@ -402,62 +404,5 @@ MODULE par_mod
     io_number=io_number+1
 
   END SUBROUTINE get_io_number
-
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!                                clear_padding                              !!
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-SUBROUTINE clear_padding(temp_big,temp_small)
-
-    IMPLICIT NONE
-
-    complex(C_DOUBLE_COMPLEX), intent(in)  :: temp_big(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2)
-    complex(C_DOUBLE_COMPLEX), intent(out) :: temp_small(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2)
-    integer(C_INTPTR_T) :: low_index, high_index,i
-
-    temp_small = cmplx(0.0,0.0)
-
-    if (n_mpi_procs.eq.1) then
-      ! In the one process case hkz_ind and lkz_ind both lie between lkz1 and lkz2                                
-      DO i = 0,nkx0-1
-
-         temp_small(i,0:hky_ind,0:hkz_ind) = temp_big(i+1,1:1+hky_ind,1:hkz_ind+1)
-         temp_small(i,0:hky_ind,lkz_big:nz0_big-1) = temp_big(i+1,1:1+hky_ind,1+lkz_big:nz0_big)
-         temp_small(i,lky_big:ny0_big-1,lkz_big:nz0_big-1) = temp_big(i+1,1+lky_big:ny0_big,1+lkz_big:nz0_big)
-         temp_small(i,lky_big:ny0_big-1,0:hkz_ind) = temp_big(i+1,1+lky_big:ny0_big,1:hkz_ind+1)
-
-      ENDDO
-   else
-      ! Two cases, lkz1 in first region (and maybe lkz2 is), or lkz2 in last (and maybe lkz1 is)
-      ! Both accounted for by choice of lbkz and ubkz
-      DO i = 0,nkx0-1
-         temp_small(i,0:hky_ind,lbkz:ubkz) = temp_big(i+1,1:1+hky_ind,lbkz+1:ubkz+1)
-         temp_small(i,lky_big:ny0_big-1,lbkz:ubkz) = temp_big(i+1,1+lky_big:ny0_big,lbkz+1:ubkz+1)
-      ENDDO
-      
-   endif
-
- end subroutine clear_padding
- 
- SUBROUTINE clear_4d(array)
-
-   IMPLICIT NONE
-
-   complex(C_DOUBLE_COMPLEX), intent(inout) :: array(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2)
-
-   reader2 = array(:,:,:,0)
-   CALL clear_padding(reader2,reader)
-   array(:,:,:,0) = reader
-
-   reader2 = array(:,:,:,1)
-   CALL clear_padding(reader2,reader)
-   array(:,:,:,1) = reader
-
-   reader2 = array(:,:,:,2)
-   CALL clear_padding(reader2,reader)
-   array(:,:,:,2) = reader
-
- END SUBROUTINE clear_4d
 
  END MODULE par_mod

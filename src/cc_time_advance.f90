@@ -43,10 +43,10 @@ MODULE time_advance
   LOGICAL, ALLOCATABLE, DIMENSION(:,:,:,:) :: breakz ! if a chart fails; considered unlikely but possible
   INTEGER :: ierr
 
-  !COMPLEX :: b_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2)
-  !COMPLEX :: v_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2)
-  !COMPLEX :: rhs_out_b(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2)
-  !COMPLEX :: rhs_out_v(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2)
+  !COMPLEX :: b_in(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2)
+  !COMPLEX :: v_in(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2)
+  !COMPLEX :: rhs_out_b(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2)
+  !COMPLEX :: rhs_out_v(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2)
 
   CONTAINS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
   
@@ -79,7 +79,6 @@ SUBROUTINE iv_solver
  endif
  
  CALL ALLOCATE_STEPS
- ! if (linen) CALL ALLOCATE_SPHS
 
  rkstage = 0
  if (verbose) print *, mype,"Starting Main Loop"
@@ -109,9 +108,6 @@ SUBROUTINE iv_solver
    !! intorder 41 is Gauss 4th order collocation; may have trouble converging for nonideal
    !! intorder 81 is Stormer-Verlet 8th order - do not use for now
    
-   ! IF (linen) THEN
-   !   CALL LINEARENERGYSPH(b_1,v_1,dt_next)
-   !   dt = minval([dt_next,dt_max])
    
    ! Implicit + Strucuture Conserving Integrators with Splitting for Nonideal fluid
    IF (intorder.eq.20) THEN
@@ -166,7 +162,6 @@ if (force_turbulence) CALL finalize_force
 if (mype.eq.0.and.verbose) print *, "Force deallocated"
 CALL diag
 
-  ! if (linen) CALL DEALLOCATE_SPHS
   CALL DEALLOCATE_STEPS
 
  IF(verbose.and.(mype.eq.0)) WRITE(*,*) "time,itime,mype",time,itime,mype
@@ -227,8 +222,8 @@ SUBROUTINE get_g_next(b_in, v_in,dt_new)
 
   ! COMPLEX, INTENT(inout) :: g_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,lv1:lv2,lh1:lh2,ls1:ls2)
 
-  COMPLEX(C_DOUBLE_COMPLEX) :: b_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2)
-  COMPLEX(C_DOUBLE_COMPLEX) :: v_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2)
+  COMPLEX(C_DOUBLE_COMPLEX) :: b_in(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2)
+  COMPLEX(C_DOUBLE_COMPLEX) :: v_in(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2)
     
  REAL(C_DOUBLE) :: dt_new
  REAL(C_DOUBLE) :: dt_new1,dt_new2,dt_new3,dt_new4
@@ -328,8 +323,8 @@ END SUBROUTINE get_g_next
 
 SUBROUTINE remove_div(b_in,v_in)
 
-  COMPLEX(C_DOUBLE_COMPLEX) :: b_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2)
-  COMPLEX(C_DOUBLE_COMPLEX) :: v_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2)
+  COMPLEX(C_DOUBLE_COMPLEX) :: b_in(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2)
+  COMPLEX(C_DOUBLE_COMPLEX) :: v_in(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2)
 
   INTEGER :: i,j,k,l,h
   COMPLEX(C_DOUBLE_COMPLEX) :: div_v, div_b
@@ -342,13 +337,13 @@ SUBROUTINE remove_div(b_in,v_in)
  zero=0.0
 
  if (mype.eq.0) then
-    exb = b_in(0,0,0,:)
-    exv = v_in(0,0,0,:)
+    exb = b_in(1,1,1,:)
+    exv = v_in(1,1,1,:)
  endif 
 
- DO i=0,nx0_big/2
-   DO j=0,ny0_big-1
-     DO k=lkz1,lkz2
+ DO i=cstart(1),cend(1)
+   DO j=cstart(2),cend(2)
+     DO k=cstart(3),cend(3)
         k2 = kxgrid(i)**2 + kygrid(j)**2 + kzgrid(k)**2
         div_v = kxgrid(i)*v_in(i,j,k,0) + kygrid(j)*v_in(i,j,k,1) + kzgrid(k)*v_in(i,j,k,2)
         div_b = kxgrid(i)*b_in(i,j,k,0) + kygrid(j)*b_in(i,j,k,1) + kzgrid(k)*b_in(i,j,k,2)
@@ -367,10 +362,9 @@ SUBROUTINE remove_div(b_in,v_in)
 ENDDO
 
 if (mype.eq.0) then
-   b_in(0,0,0,:) = exb
-   v_in(0,0,0,:) = exv
+   b_in(1,1,1,:) = exb
+   v_in(1,1,1,:) = exv
 endif
-
 
 if (verbose.and.(mype.eq.0)) print *,'Divergence Removed'
 
@@ -381,17 +375,15 @@ END SUBROUTINE remove_div
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 SUBROUTINE get_rhs(b_in,v_in, rhs_out_b,rhs_out_v,nmhc,ndt)
   
-  COMPLEX(C_DOUBLE_COMPLEX), intent(in) :: b_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2)
-  COMPLEX(C_DOUBLE_COMPLEX), intent(in) :: v_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2)
-  COMPLEX(C_DOUBLE_COMPLEX), intent(out) :: rhs_out_b(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2)
-  COMPLEX(C_DOUBLE_COMPLEX), intent(out) :: rhs_out_v(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2)
+  COMPLEX(C_DOUBLE_COMPLEX), intent(in) :: b_in(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2)
+  COMPLEX(C_DOUBLE_COMPLEX), intent(in) :: v_in(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2)
+  COMPLEX(C_DOUBLE_COMPLEX), intent(out) :: rhs_out_b(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2)
+  COMPLEX(C_DOUBLE_COMPLEX), intent(out) :: rhs_out_v(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2)
 
   REAL(C_DOUBLE), INTENT(out) :: nmhc
   REAL(C_DOUBLE) :: ndt
   REAL :: sttime,lintime,nltime,disstime,forcetime
   
-!  COMPLEX, INTENT(in) :: g_in(0:nkx0-1,0:nky0-1,lkz1:lkz2,lv1:lv2,lh1:lh2,ls1:ls2)
-!  COMPLEX, INTENT(out) :: rhs_out(0:nkx0-1,0:nky0-1,lkz1:lkz2,lv1:lv2,lh1:lh2,ls1:ls2)
   INTEGER :: i,j,k
 
   IF (test_ho) THEN
@@ -451,33 +443,33 @@ SUBROUTINE get_rhs(b_in,v_in, rhs_out_b,rhs_out_v,nmhc,ndt)
 END SUBROUTINE get_rhs
 
 SUBROUTINE getmhcrk(b_in,v_in,nmhc)
-
+  
   IMPLICIT NONE
-
-  COMPLEX(C_DOUBLE_COMPLEX) :: b_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2)
-  COMPLEX(C_DOUBLE_COMPLEX) :: v_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2)
-
+  
+  COMPLEX(C_DOUBLE_COMPLEX) :: b_in(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2)
+  COMPLEX(C_DOUBLE_COMPLEX) :: v_in(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2)
+  
   REAL(C_DOUBLE), intent(out) :: nmhc
   REAL(C_DOUBLE) :: nmhcsm(1:2),nmhcs(1:2)
   INTEGER :: i,j,k
-
+  
  nmhcsm = 0.0
 
- DO j = 0,ny0_big-1
-    DO k = lkz1,lkz2
-       nmhcsm(2) = nmhcsm(2) - 1.0 * real(b_in(0,j,k,0)*conjg(v_in(0,j,k,1))-b_in(0,j,k,1)*conjg(v_in(0,j,k,0)))
-       DO i = 1,nkx0-1
+ DO j = cstart(2),cend(2)
+    DO k = cstart(3),cend(3)
+       nmhcsm(2) = nmhcsm(2) - 1.0 * real(b_in(1,j,k,0)*conjg(v_in(1,j,k,1))-b_in(1,j,k,1)*conjg(v_in(1,j,k,0)))
+       DO i = xst,cend(1)
           nmhcsm(1) = nmhcsm(1) -2.0 * real(b_in(i,j,k,0)*conjg(v_in(i,j,k,1))-b_in(i,j,k,1)*conjg(v_in(i,j,k,0)))
        ENDDO
     ENDDO
  ENDDO
 
-   CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-   CALL MPI_ALLREDUCE(nmhcsm,nmhcs,2,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
-
-   nmhc = sum(nmhcs)*(16.0*pi**3)
-
-   if (verbose.and.(mype.eq.0)) print *, "Through MHC"
+ CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+ CALL MPI_ALLREDUCE(nmhcsm,nmhcs,2,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
+ 
+ nmhc = sum(nmhcs)*(16.0*pi**3)
+ 
+ if (verbose.and.(mype.eq.0)) print *, "Through MHC"
    
 END SUBROUTINE getmhcrk
 
@@ -500,8 +492,8 @@ SUBROUTINE dorpi547M(b_in,v_in)
   
   IMPLICIT NONE
 
-  COMPLEX(C_DOUBLE_COMPLEX) :: b_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2)
-  COMPLEX(C_DOUBLE_COMPLEX) :: v_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2)
+  COMPLEX(C_DOUBLE_COMPLEX) :: b_in(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2)
+  COMPLEX(C_DOUBLE_COMPLEX) :: v_in(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2)
 
   REAL(C_DOUBLE) :: dt_new1,dt_new2,dt_new3,dt_new4,dt_new5,dt_new6,dt_new7
   REAL(C_DOUBLE) :: nmhc1,nmhc2,nmhc3,nmhc4,nmhc5,nmhc6,nmhc7,next_corr
@@ -615,8 +607,8 @@ SUBROUTINE ralston2(b_in,v_in,dt_new)
   
   IMPLICIT NONE
 
-  COMPLEX(C_DOUBLE_COMPLEX) :: b_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2)
-  COMPLEX(C_DOUBLE_COMPLEX) :: v_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2)
+  COMPLEX(C_DOUBLE_COMPLEX) :: b_in(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2)
+  COMPLEX(C_DOUBLE_COMPLEX) :: v_in(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2)
 
   REAL(C_DOUBLE), INTENT(OUT) :: dt_new
   REAL(C_DOUBLE) :: dt_new1 = 0,dt_new2 = 0
@@ -660,8 +652,8 @@ SUBROUTINE ralston3(b_in,v_in,dt_new)
 
   IMPLICIT NONE
 
-  COMPLEX(C_DOUBLE_COMPLEX) :: b_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2)
-  COMPLEX(C_DOUBLE_COMPLEX) :: v_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2)
+  COMPLEX(C_DOUBLE_COMPLEX) :: b_in(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2)
+  COMPLEX(C_DOUBLE_COMPLEX) :: v_in(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2)
   
   REAL(C_DOUBLE), INTENT(OUT) :: dt_new
   REAL(C_DOUBLE) :: dt_new1,dt_new2,dt_new3
@@ -703,8 +695,8 @@ SUBROUTINE GAUSS4(b_in,v_in,dt_new)
   
   IMPLICIT NONE
 
-  COMPLEX(C_DOUBLE_COMPLEX) :: b_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2)
-  COMPLEX(C_DOUBLE_COMPLEX) :: v_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2)
+  COMPLEX(C_DOUBLE_COMPLEX) :: b_in(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2)
+  COMPLEX(C_DOUBLE_COMPLEX) :: v_in(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2)
   
   REAL(C_DOUBLE), INTENT(OUT) :: dt_new
   
@@ -771,11 +763,11 @@ SUBROUTINE GAUSS4(b_in,v_in,dt_new)
      
      solvloop = solvloop + 1
      
-     if (solvloop.eq.999) print *, "Failed to Converge After 1000 iterations Maxdev ",maxdev
+     if (solvloop.eq.999.and.(mype.eq.0)) print *, "Failed to Converge After 1000 iterations Maxdev ",maxdev
 
   ENDDO
 
-  if (itime.eq.10) print *, "Number of Iterations Needed itime = 10 ",solvloop
+  if (itime.eq.10.and.(mype.eq.0)) print *, "Number of Iterations Needed itime = 10 ",solvloop
 
   ! Update the fields
   
@@ -795,8 +787,8 @@ SUBROUTINE GAUSS2(b_in,v_in,dt_new)
 
   IMPLICIT NONE
 
-  COMPLEX(C_DOUBLE_COMPLEX) :: b_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2)
-  COMPLEX(C_DOUBLE_COMPLEX) :: v_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2)
+  COMPLEX(C_DOUBLE_COMPLEX) :: b_in(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2)
+  COMPLEX(C_DOUBLE_COMPLEX) :: v_in(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2)
 
   REAL(C_DOUBLE), INTENT(OUT) :: dt_new
 
@@ -812,7 +804,7 @@ SUBROUTINE GAUSS2(b_in,v_in,dt_new)
   ! Iterate
   bk2 = b_in+a11*dt*bk1
   vk2 = v_in+a11*dt*vk1
-  CALL get_rhs(bk2,vk2,bk1s,vk1s,nmhc1s,ndt)  
+  CALL get_rhs(bk2,vk2,bk1s,vk1s,nmhc1s,ndt)
 
   maxdev = 1.0
   solvloop = 0
@@ -844,11 +836,11 @@ SUBROUTINE GAUSS2(b_in,v_in,dt_new)
 
      if (verbose) CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
 
-     if (solvloop.eq.999) print *, "Failed to Converge After 1000 iterations, Maxdev ",maxdev
+     if (solvloop.eq.999.and.(mype.eq.0)) print *, "Failed to Converge After 1000 iterations, Maxdev ",maxdev
 
   ENDDO
 
-  if (itime.eq.10) print *, "Number of Iterations Needed itime = 10 ",solvloop
+  if (itime.eq.10.and.(mype.eq.0)) print *, "Number of Iterations Needed itime = 10 ",solvloop
 
   ! Update the fields
   
@@ -865,8 +857,8 @@ SUBROUTINE SPLIT2(b_in,v_in)
   
   IMPLICIT NONE
 
-  COMPLEX(C_DOUBLE_COMPLEX) :: b_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2)
-  COMPLEX(C_DOUBLE_COMPLEX) :: v_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2)
+  COMPLEX(C_DOUBLE_COMPLEX) :: b_in(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2)
+  COMPLEX(C_DOUBLE_COMPLEX) :: v_in(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2)
 
   REAL(C_DOUBLE) :: ndt
   REAL :: dt2
@@ -910,8 +902,8 @@ SUBROUTINE SPLIT4(b_in,v_in)
 
   IMPLICIT NONE
 
-  COMPLEX(C_DOUBLE_COMPLEX) :: b_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2)
-  COMPLEX(C_DOUBLE_COMPLEX) :: v_in(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2)
+  COMPLEX(C_DOUBLE_COMPLEX) :: b_in(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2)
+  COMPLEX(C_DOUBLE_COMPLEX) :: v_in(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2)
     
   REAL(C_DOUBLE) :: dt2
 
@@ -935,37 +927,37 @@ SUBROUTINE ALLOCATE_STEPS
   IMPLICIT NONE
 
   
-  ALLOCATE(b_2(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2))
-  ALLOCATE(v_2(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2))
+  ALLOCATE(b_2(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2))
+  ALLOCATE(v_2(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2))
 
-  ALLOCATE(bk1(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2))
-  ALLOCATE(vk1(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2))
+  ALLOCATE(bk1(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2))
+  ALLOCATE(vk1(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2))
 
-  ALLOCATE(bk2(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2))
-  ALLOCATE(vk2(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2))
+  ALLOCATE(bk2(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2))
+  ALLOCATE(vk2(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2))
 
-  ALLOCATE(bk1s(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2))
-  ALLOCATE(vk1s(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2))
+  ALLOCATE(bk1s(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2))
+  ALLOCATE(vk1s(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2))
 
-  ALLOCATE(bk2s(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2))
-  ALLOCATE(vk2s(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2))
+  ALLOCATE(bk2s(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2))
+  ALLOCATE(vk2s(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2))
 
   if (intorder.eq.5) then
 
-     ALLOCATE(b_3(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2))
-     ALLOCATE(v_3(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2))
+     ALLOCATE(b_3(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2))
+     ALLOCATE(v_3(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2))
      
-     ALLOCATE(bk3(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2))
-     ALLOCATE(vk3(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2))
+     ALLOCATE(bk3(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2))
+     ALLOCATE(vk3(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2))
      
-     ALLOCATE(bk4(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2))
-     ALLOCATE(vk4(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2))
+     ALLOCATE(bk4(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2))
+     ALLOCATE(vk4(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2))
      
-     ALLOCATE(bk5(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2))
-     ALLOCATE(vk5(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2))
+     ALLOCATE(bk5(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2))
+     ALLOCATE(vk5(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2))
      
-     ALLOCATE(bk6(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2))
-     ALLOCATE(vk6(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2))
+     ALLOCATE(bk6(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2))
+     ALLOCATE(vk6(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2))
      
   endif
   

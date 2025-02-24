@@ -501,7 +501,6 @@ SUBROUTINE checkpoint_out(purpose)
   CHARACTER(len=100) :: chp_name, chp_name_b, chp_name_v
   INTEGER :: chp_handle_b, chp_handle_v, chp_handle
   INTEGER :: l,p,ind,ierr
-  !COMPLEX :: g_out(0:nkx0-1,0:nky0-1,0:nkz0-1,0:lv0-1)
   !INTEGER :: stat(MPI_STATUS_SIZE)
   
   INTEGER :: send_proc,recv_proc
@@ -652,7 +651,7 @@ SUBROUTINE checkpoint_out(purpose)
       DO ind = 0,2
          if (bv.eq.0) reader = b_1(:,:,:,ind)
          if (bv.eq.1) reader = v_1(:,:,:,ind)
-         count = (nx0_big/2+1)*ny0_big*nz0_big/n_mpi_procs
+         count = product(csize)
          if (verbose) print *, "Maximum Array Mype",mype,maxval(abs(reader))
 
          if (mype.eq.0) gather_small = cmplx(-99.0,0.0)
@@ -851,7 +850,7 @@ SUBROUTINE SCATTER_READ(chp_handle,bv)
   integer(4) :: bv
   integer :: ind,ierr,count
   
-  count = (1+nx0_big/2)*ny0_big*nz0_big/n_mpi_procs
+  count = product(csize)
   
   DO ind = 0,2
 
