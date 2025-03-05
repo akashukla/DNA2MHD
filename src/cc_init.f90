@@ -21,6 +21,8 @@ SUBROUTINE init_run
   !USE calculate_time_step, ONLY: calc_initial_dt, initialize_adapt_dt
   USE diagnostics, ONLY: initialize_diagnostics
   USE par_mod
+  use mpi
+  
   !USE hk_effects
   !USE GaussQuadrature
   IMPLICIT NONE
@@ -74,6 +76,8 @@ END SUBROUTINE init_run
 SUBROUTINE arrays
   USE nonlinearity, ONLY: initialize_fourier
   USE par_mod
+  use mpi
+  
   !USE flr_effects
   !USE hk_effects
   !USE Gaussquadrature
@@ -82,6 +86,7 @@ SUBROUTINE arrays
   INTEGER :: i,j,k,l,hypv_handle
   INTEGER(C_INTPTR_T) :: zpad
   REAL :: b1r,b1i,b2r,b2i,b3r,b3i
+  INTEGER(4) :: sizes(4),subsizes(4),starts(4),ierr
 
   !Info for k grids
   !Note the format for the ky/kx indices:
@@ -116,23 +121,36 @@ SUBROUTINE arrays
   lkz_big = lkz_big+1  
 
   IF(verbose.and.(mype.eq.0)) THEN
-    WRITE(*,*) "hkx_ind",hkx_ind
-    WRITE(*,*) "hky_ind",hky_ind
-    WRITE(*,*) "lky_ind",lky_ind
-    WRITE(*,*) "hkz_ind",hkz_ind
-    WRITE(*,*) "lkz_ind",lkz_ind
- END IF
- 
- ! Initialize Fourier needed for P3DFFT pencil decomposition
- CALL initialize_fourier
- IF (verbose.and.(mype.eq.0)) WRITE(*,*) "Called initial fourier.",mype 
- 
+     WRITE(*,*) "hkx_ind",hkx_ind
+     WRITE(*,*) "hky_ind",hky_ind
+     WRITE(*,*) "lky_ind",lky_ind
+     WRITE(*,*) "hkz_ind",hkz_ind
+     WRITE(*,*) "lkz_ind",lkz_ind
+  END IF
+  
+  ! Initialize Fourier needed for P3DFFT pencil decomposition
+  CALL initialize_fourier
+  IF (verbose.and.(mype.eq.0)) WRITE(*,*) "Called initial fourier.",mype 
+  
+  ! Define MPI subarray type for output
+  sizes = [1+nx0_big/2,ny0_big,nz0_big,3_4]
+  subsizes = [(1+cend(i)-cstart(i), integer :: i = 1,3),3_4]
+  starts = [(cstart(i)-1, integer :: i=1,3),0_4]
+  lcount = product(subsizes)
+  arrbyte = product(sizes)*16
+  
+  call mpi_barrier(MPI_COMM_WORLD,ierr)
+  call mpi_type_create_subarray(4,sizes,subsizes,starts,MPI_ORDER_FORTRAN,&
+       MPI_COMPLEX16,carray4,ierr)
+  call mpi_barrier(MPI_COMM_WORLD,ierr)
+  call mpi_type_commit(carray4,ierr)
+  
   !Info for kz grid
   lkz0=nz0_big
-
-  if (verbose) print *, mype,"Mype Limits x",cstart(1),cend(1)
-  if (verbose) print *, mype,"Mype Limits y",cstart(2),cend(2)
-  if (verbose) print *, mype,"Mype Limits z",cstart(3),cend(3)
+  
+  if (verbose.and.(mype.eq.0)) print *, mype,"Mype Limits x",cstart(1),cend(1)
+  if (verbose.and.(mype.eq.0)) print *, mype,"Mype Limits y",cstart(2),cend(2)
+  if (verbose.and.(mype.eq.0)) print *, mype,"Mype Limits z",cstart(3),cend(3)
 
   ! complex kz is not distributed 
 
@@ -281,8 +299,8 @@ SUBROUTINE arrays
  ALLOCATE(alpha_leftwhist(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3)))
  ALLOCATE(alpha_leftcyclo(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3)))
 
- alpha_leftwhist = -kmags/2.0 - sqrt(1.0 + ((kmags**2.0) / 4.0))
- alpha_leftcyclo = -kmags/2.0 + sqrt(1.0 + ((kmags**2.0) / 4.0))  
+ alpha_leftwhist = -hall*kmags/2.0 - sqrt(1.0 + (((hall*kmags)**2.0) / 4.0))
+ alpha_leftcyclo = -hall*kmags/2.0 + sqrt(1.0 + (((hall*kmags)**2.0) / 4.0))  
  
 END SUBROUTINE arrays
 
@@ -293,6 +311,11 @@ END SUBROUTINE arrays
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 SUBROUTINE finalize_arrays
   USE par_mod
+  USE mpi
+
+  implicit none
+
+  integer(4) :: ierr
 
   !  IF(allocated(g_1)) DEALLOCATE(g_1)
   IF (allocated(reader)) DEALLOCATE(reader)
@@ -324,6 +347,10 @@ SUBROUTINE finalize_arrays
   IF(allocated(alpha_leftcyclo)) DEALLOCATE(alpha_leftcyclo)
   
   IF(verbose.and.(mype.eq.0)) print *, 'Deallocated kgrids'
+
+  call mpi_barrier(MPI_COMM_WORLD,ierr)
+  call mpi_type_free(carray4,ierr)
+  if (verbose.and.(mype.eq.0)) print *, "Freed subarray output type"
 
 END SUBROUTINE finalize_arrays
 

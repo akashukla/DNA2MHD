@@ -48,8 +48,8 @@ PROGRAM dna
   INTEGER :: run_type = 0
   !! Starting the MPI communication enviromen and the wallclock
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
   
-  print *, "Run Started"
   CALL init_comm
 
   
@@ -162,11 +162,11 @@ PROGRAM dna
   !!!!!!!!!!!!!!!!!!!!!!!
   IF (verbose.and.(mype.eq.0)) WRITE(*,*) "Finalizing diagnostics.",mype
   CALL finalize_diagnostics
-  IF (nonlinear) CALL finalize_fourier
   !CALL finalize_adapt_dt
   !CALL finalize_flr
   !CALL finalize_hk
   CALL finalize_arrays
+  IF (nonlinear) CALL finalize_fourier
 
   !! Shuts down the MPI enviroment 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

@@ -3,15 +3,15 @@ nu = 0.00
 omt = 5.000
 omn =    1.000    
 Ti0Te =    1.000 
-eta = 1.0
-vnu = 1.0
+eta = 0.0
+vnu = 0.0
 rey = 0.0
 /
 
 &numerical_parameters
-kxmin =   100.0
-kymin =   100.0
-kzmin =   1.0
+kxmin =   0.05
+kymin =   0.05
+kzmin =   0.01
 nkx0 = 64
 nky0 = 128
 nkz0 = 128
@@ -51,11 +51,11 @@ hyp = 4
 /
 
 &diagnostics
-diagdir = "/pscratch/sd/e/echansen/DNA2MHDruns/p3dfftstart"
-loaddir = "/pscratch/sd/e/echansen/DNA2MHDruns/p3dfftstart"
+diagdir = "/pscratch/sd/e/echansen/DNA2MHDruns/siamtest"
+loaddir = "/pscratch/sd/e/echansen/DNA2MHDruns/siamtest"
 istep_ffm =   20
 istep_energy3d =  500
-istep_energy =  1
+istep_energy =  10
 istep_energyspec = 200
 istep_hermite =  1000
 istep_gout =  10000
@@ -66,7 +66,7 @@ istep_eshells =   500
 istep_real =   200
 istep_fmom3d =  500
 istep_gamma =    0
-istep_schpt =  200
+istep_schpt =  1000
 output_nlt_n = F
 /
 
@@ -81,19 +81,20 @@ etg_factor  =    0.000
 em_conserve = T
 nuno_closure = T
 rhs_nl_version = 12
-intorder = 3
-rhs_lin_version = 12
+intorder = 20
 dealias_type = 3
 shifted = F
-force_turbulence = T
+force_turbulence = F
 forceb = T
-forcetype = 11
+forcetype = 22
 set_forcing = F
 plot_nls = F
-hall = 0.0
+hall = 1.0
+nv = F
+mhc = T
 force_trunc = F
 checkpoint_read = F
-init_cond = 25
+init_cond = 20
 en_leftwhist = 1.0
 en_leftcyclo = 0.0
 en_rightwhist = 0.0
@@ -107,9 +108,9 @@ random_state = 3
 /
 
 &initial_value
-max_itime = 3
-max_walltime =   129300.0
-dt_max = 0.0004
+max_itime = 11
+max_walltime =   86200.0
+dt_max = 0.01
 fix_dt = F
 max_time =   10000000.
 /

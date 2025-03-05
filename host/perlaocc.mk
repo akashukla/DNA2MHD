@@ -19,13 +19,13 @@ MKLLIBS =
 
 
 ifeq ($(PRECISION),double)
-  FFTLIBS +=  -Wl,-rpath,$(FFTW_ROOT)/lib -L$(FFTW_ROOT)/lib -lfftw3_mpi -lfftw3
-else
-  FFTLIBS +=  -Wl,-rpath,$(FFTW_ROOT)/lib -L$(FFTW_ROOT)/lib -lfftw3_mpif -lfftw3f
+  FFTLIBS +=  -L$(P3DFFT_AOCC)/lib -L$(FFTW_ROOT)/lib -lp3dfft -lfftw3_mpi -lfftw3
+else # no single precision option
+  -L$(P3DFFT_AOCC)/lib -L$(FFTW_ROOT)/lib -lp3dfft -lfftw3_mpi -lfftw3
 endif
 
 LIBS = $(MKLLIBS) $(FFTLIBS)
-INCPATHS = -I$(FFTW_ROOT)/include
+INCPATHS =  -I$(P3DFFT_AOCC)/include -I$(FFTW_ROOT)/include
 
 ifeq ($(SLEPC),yes)
 
@@ -43,19 +43,20 @@ PREPROC =
 
 #####  COMPILERS AND LINKER TYPE
 ###############################################################################
-FC = mpifort
+FC = mpif90
 LD = $(FC) 
 
 
 #####  COMPILING OPTIONS
 ###############################################################################
 ifeq ($(CMPLTYPE),optim)
-  FFLAGS   = -O0
+  FFLAGS   = -O2
+LDLAGS += -O2
 endif
 
 ifeq ($(CMPLTYPE),debug)
-  FFLAGS = -g -O0 -fdebug-info-for-profiling -Weverything -gdwarf-5
-  LDLAGS += -g -O0 -fdebug-info-for-profiling -Weverything -gdwarf-5
+  FFLAGS = -g -O2 -fdebug-info-for-profiling -Weverything -gdwarf-5
+  LDLAGS += -g -O2 -fdebug-info-for-profiling -Weverything -gdwarf-5
 endif
 
 # use PrgEnv-aocc

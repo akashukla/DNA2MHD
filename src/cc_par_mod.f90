@@ -59,7 +59,11 @@ MODULE par_mod
   LOGICAL :: nuno_closure=.true.
   !Number of modes for each coord.
   INTEGER :: nkx0=1,nky0=1,nkz0=1,nv0=1
-  INTEGER(C_INTPTR_T) :: nx0_big=1, ny0_big=1, nz0_big=1
+  INTEGER(4) :: nx0_big=1, ny0_big=1, nz0_big=1
+  
+  INTEGER(4) :: carray4,lcount ! MPI array data type and local number of array elements
+  INTEGER(8) :: arrbyte ! Total number of bytes in each array
+  
   INTEGER :: nh0=1,nspec=1
   !Inverse gradient scale lengths
   REAL :: omt=5.0,omn=5.0
@@ -149,13 +153,14 @@ MODULE par_mod
   LOGICAL :: helical = .false.
   LOGICAL :: walenp = .false.
   LOGICAL :: walenn = .false.
-  LOGICAL :: mhc = .false.
+  LOGICAL :: mhc = .true.
   LOGICAL :: init_wave = .false.
   LOGICAL :: init_null = .false.
   LOGICAL :: force_trunc = .false.
   LOGICAL :: bc_norm = .false.
   LOGICAL :: track_divs = .true.
   LOGICAL :: debug_energy = .true.
+  LOGICAL :: checkguide = .false.
   LOGICAL :: taylorgreen = .false.
   INTEGER :: random_state = 0
   

@@ -1,4 +1,4 @@
-#/usr/bin/env python
+ #/usr/bin/env python
 # File: steps_updated.py
 
 #from start_nl import *
@@ -328,22 +328,22 @@ def plot_bv(lpath,ix,iy,iz,ind,show=True):
     fig,ax=plt.subplots(2)
     ax[0].plot(timeb,b[:,ix,iy,iz,ind].real,label='Re')
     ax[0].plot(timeb,b[:,ix,iy,iz,ind].imag,label='Im')
-    ax[0].set_ylabel('b_%s'%ind_string)
+    ax[0].set_ylabel('b_%s'%ind_string,size="large")
     ax[1].plot(timev,v[:,ix,iy,iz,ind].real,label='Re')
     ax[1].plot(timev,v[:,ix,iy,iz,ind].imag,label='Im')
-    ax[1].set_ylabel('v_%s'%ind_string)
+    ax[1].set_ylabel('v_%s'%ind_string,size="large")
     ax[0].set_ylim(-3*np.median(np.abs(b[:,ix,iy,iz,ind])),3*np.median(np.abs(3*b[:,ix,iy,iz,ind])))
     ax[1].set_ylim(-3*np.median(np.abs(v[:,ix,iy,iz,ind])),3*np.median(np.abs(3*v[:,ix,iy,iz,ind])))
     ax[0].legend()
     ax[1].legend()
     kx,ky,kz=get_grids()
-    fig.suptitle('kx,ky,kz = %1.2f,%1.2f,%1.2f'%(kx[ix],ky[iy],kz[iz]))
-    fig.supxlabel('Time ($\omega_c^{-1}$)')
+    fig.suptitle('kx,ky,kz = %1.2f,%1.2f,%1.2f'%(kx[ix],ky[iy],kz[iz]),size="large")
+    fig.supxlabel('Time ($\omega_c^{-1}$)',size="large")
     if lpath[-1] != '/':
         lpath = lpath + '/'
     if not os.path.exists(lpath + 'bvs/'):
         os.mkdir(lpath + 'bvs/')
-    plt.savefig(lpath+'bvs/bv_%s_%d_%d_%d'%(ind_string,ix,iy,iz))
+    plt.savefig(lpath+'bvs/bv_%s_%d_%d_%d'%(ind_string,ix,iy,iz),bbox_inches='tight')
     if show == True:
         plt.show()
 
@@ -378,7 +378,7 @@ def plot_energy(lpath,xb=1,tmax=2000000):
     if lpath[-1] == "/":
         lpath = lpath[:-1]
         
-    if os.path.isfile(lpath+'/timeenergy.npy'):
+    if False : # os.path.isfile(lpath+'/timeenergy.npy'):
         timeen,enval = load_energy(lpath)
     else:
         timeen,enval = getenergy(lpath,tmax=tmax)
@@ -397,46 +397,80 @@ def plot_energy(lpath,xb=1,tmax=2000000):
     # Total Energy Plot
     fig,ax = plt.subplots(1)
     ev = enval[:,0]/(4* np.pi**3)
-    ax.plot(timeen,ev,"b")
+    ax.plot(timeen,ev,"ks",markersize=1)
     r = np.max(ev) - np.min(ev)
-    ax.set_ylabel("Total Energy / Guide Field Energy")
-    ax.set_xlabel("Time ($\omega_c^{-1}$)")
-
-    plot_width,plot_center = center_width(r,np.min(ev))
-    ax.set_ylim(bottom=plot_center-plot_width,top=plot_center+plot_width)
+    ax.set_ylabel("Total Energy / Guide Field Energy",size="large")
+    ax.set_xlabel("Time ($\omega_c^{-1}$)",size="large")
+    
+    ax.set_ylim(bottom=min(0.5*(ev[0]),0.8*(np.amin(ev))),top=max(1.2*np.amax(ev),1.5*ev[0]))
+    
     ax.yaxis.set_major_locator(LinearLocator())
     form = ScalarFormatter()
     ax.yaxis.set_major_formatter(form)
 
     fig.suptitle("Total Energy Evolution")
-    plt.savefig(lpath+"/eplots/energy")
+    plt.savefig(lpath+"/eplots/energy",bbox_inches='tight')
+
+    ax.set_yscale("log")
+    plt.savefig(lpath+"/eplots/energylog",bbox_inches='tight')
     plt.close()
 
+    # Energy Discrepancy Plot
+    fig,ax = plt.subplots(1)
+    ev = np.abs((enval[:,0]-enval[0,0])/(4*np.pi**3))
+    ax.plot(timeen,ev,color="tomato",marker="s",markersize=1)
+    ax.set_ylabel("Energy - Initial Energy / Guide Field Energy",size="large")
+    ax.set_xlabel("Time ($\omega_c^{-1}$)",size="large")
+    ax.set_ylim(10**(-20.0),10**0.0)
+    plt.tight_layout()
+    
+    ax.set_yscale("log")
+    fig.suptitle("Error in Energy Conservation")
+    plt.savefig(lpath+"/eplots/energyerr",bbox_inches='tight')
+    plt.close()    
+
     # Magnetic Helicity Plot
-    if not par["nv"]:
-        if not par["init_null"]:
-            ev = (enval[:,1]+enval[:,-1])/enval[0,-3]
-            ev0 = ev-enval[:,-1]/enval[:,-3]
-        else:
-            ev = enval[:,1]+enval[:,-1]
-            ev0 = enval[:,1]
-        fig,ax = plt.subplots(1)
-        ax.plot(timeen,ev,"b",label="Transformed")
-        ax.plot(timeen,ev0,"r",label="Original")
-        r = np.max(ev) - np.min(ev)
-        ax.set_ylabel("Helicity / Initial Helicity Bound")
-        ax.set_xlabel("Time ($\omega_c^{-1}$)")
-        ax.legend()
+    if not par["init_null"]:
+        ev = (enval[:,1]+enval[:,-1])/enval[0,-3]
+        ev0 = ev-enval[:,-1]/enval[0,-3]
+    else:
+        ev = enval[:,1]+enval[:,-1]
+        ev0 = enval[:,1]
+    fig,ax = plt.subplots(1)
+    ax.plot(timeen,ev,"bs",markersize=1,label="Transformed")
+    ax.plot(timeen,ev0,"rs",markersize=1,label="Original")
+    r = np.max(ev) - np.min(ev)
+    ax.set_ylabel("Helicity / Initial Helicity Bound",size="large")
+    ax.set_xlabel("Time ($\omega_c^{-1}$)",size="large")
+    ax.legend(loc = "upper right")
     
-        plot_width,plot_center = center_width(r,np.min(ev))
-        ax.set_ylim(bottom=plot_center-plot_width,top=plot_center+plot_width)
-        ax.yaxis.set_major_locator(LinearLocator())
-        form = ScalarFormatter()
-        ax.yaxis.set_major_formatter(form)
-    
-        fig.suptitle("Magnetic Helicity Evolution")
-        plt.savefig(lpath+"/eplots/maghcty")
-        plt.close()
+    ax.set_ylim(bottom=min(0.5*(ev[0]),(np.amin(ev0))),top=max(np.amax(ev0),1.5*ev[0]))
+    ax.yaxis.set_major_locator(LinearLocator())
+    form = ScalarFormatter()
+    ax.yaxis.set_major_formatter(form)
+
+    fig.suptitle("Magnetic Helicity Evolution")
+    plt.savefig(lpath+"/eplots/maghcty",bbox_inches='tight')
+    plt.close()
+
+    if not par["init_null"]:
+        ev = np.abs((enval[:,1]+enval[:,-1])/enval[0,-3])
+        ev0 = np.abs(ev-enval[:,-1]/enval[0,-3])
+    else:
+        ev = np.abs(enval[:,1]+enval[:,-1])
+        ev0 = np.abs(enval[:,1])
+    fig,ax = plt.subplots(1)
+    ax.plot(timeen,ev,"bs",markersize=1,label="Transformed")
+    ax.plot(timeen,ev0,"rs",markersize=1,label="Original")
+    r = np.max(ev) - np.min(ev)
+    ax.set_ylabel("Helicity / Initial Helicity Bound",size="large")
+    ax.set_xlabel("Time ($\omega_c^{-1}$)",size="large")
+    ax.legend(loc = "upper right")
+
+
+    ax.set_yscale("log")
+    plt.savefig(lpath+"/eplots/maghctylog",bbox_inches='tight')
+    plt.close()
 
     # Canonical Helicity Plot
     fig,ax = plt.subplots(1)
@@ -446,33 +480,66 @@ def plot_energy(lpath,xb=1,tmax=2000000):
     else:
         ev = enval[:,2]+enval[:,-1]
         ev0 = enval[:,2]
-    ax.plot(timeen,ev,"b",label="Transformed")
-    ax.plot(timeen,ev0,"r",label="Original")
+    ax.plot(timeen,ev,"bs",markersize=1,label="Transformed")
+    ax.plot(timeen,ev0,"rs",markersize=1,label="Original")
     r = np.max(ev) - np.min(ev)
-    ax.set_ylabel("Helicity / Initial Helicity Bound")
-    ax.set_xlabel("Time ($\omega_c^{-1}$)")
-    ax.legend()
+    ax.set_ylabel("Helicity / Initial Helicity Bound",size="large")
+    ax.set_xlabel("Time ($\omega_c^{-1}$)",size="large")
+    ax.legend(loc="upper right")
 
-    plot_width,plot_center = center_width(r,np.min(ev))
-    ax.set_ylim(bottom=plot_center-plot_width,top=plot_center+plot_width)
+    ax.set_ylim(bottom=min(0.5*(ev[0]),(np.amin(ev0))),top=max(np.amax(ev0),1.5*ev[0]))
     ax.yaxis.set_major_locator(LinearLocator())
     form = ScalarFormatter()
     ax.yaxis.set_major_formatter(form)
     
     fig.suptitle("Canonical Helicity Evolution")
-    plt.savefig(lpath+"/eplots/canhcty")
+    plt.savefig(lpath+"/eplots/canhcty",bbox_inches='tight')
     plt.close()
+    
+    if not par["init_null"]:
+        ev = np.abs((enval[:,2]+enval[:,-1])/enval[0,-2])
+        ev0 = np.abs(enval[:,2]/enval[0,-2])
+    else:
+        ev = np.abs(enval[:,2]+enval[:,-1])
+        ev0 = np.abs(enval[:,2])
+    fig,ax = plt.subplots(1)
+    ax.plot(timeen,ev,"bs",markersize=1,label="Transformed")
+    ax.plot(timeen,ev0,"rs",markersize=1,label="Original")
+    r = np.max(ev) - np.min(ev)
+    ax.set_ylabel("Helicity / Initial Helicity Bound",size="large")
+    ax.set_xlabel("Time ($\omega_c^{-1}$)",size="large")
+    ax.legend(loc = "upper right")
+
+    ax.set_yscale("log")
+    plt.savefig(lpath+"/eplots/canhctylog",bbox_inches='tight')
+    plt.close()
+
+    # Helicity Discrepancies
+    fig,ax = plt.subplots(1)
+    evm = np.abs(enval[:,1]+enval[:,-1]-enval[0,1])
+    evc = np.abs(enval[:,2]+enval[:,-1]-enval[0,2])
+    ax.plot(timeen,evm,color="tomato",marker="s",markersize=1,label="Magnetic")
+    ax.plot(timeen,evc,color="mediumturquoise",marker="s",markersize=1,label="Canonical")
+    ax.set_ylabel("Helicity - Initial Helicity",size="large")
+    ax.set_xlabel("Time ($\omega_c^{-1}$)",size="large")
+    ax.set_ylim(10**(-20.0),10**0.0)
+    ax.set_yscale("log")
+    ax.legend(loc="upper right")
+    fig.suptitle("Error in Helicity Conservation")
+    plt.tight_layout()
+    plt.savefig(lpath+"/eplots/helicityerr",bbox_inches='tight')
+    plt.close()    
     
     # Magnetic vs Kinetic Energy Plot
     fig,ax = plt.subplots(1)
-    ax.plot(timeen,enval[:,3]/enval[:,0],"r",label="Kinetic Energy")
-    ax.plot(timeen,enval[:,4]/enval[:,0],"b",label="Magnetic Energy")
-    ax.set_ylabel('Energy Component / Total Energy')
-    ax.set_xlabel('Time ($\omega_c^{-1}$)')
+    ax.plot(timeen,enval[:,3]/enval[:,0],"rs",markersize=1,label="Kinetic Energy")
+    ax.plot(timeen,enval[:,4]/enval[:,0],"bs",markersize=1,label="Magnetic Energy")
+    ax.set_ylabel('Energy Component / Total Energy',size="large")
+    ax.set_xlabel('Time ($\omega_c^{-1}$)',size="large")
     ax.set_ylim(bottom=0,top=1)
     ax.legend()
     fig.suptitle("Kinetic and Magnetic Energies")
-    plt.savefig(lpath+'/eplots/spliten')
+    plt.savefig(lpath+'/eplots/spliten',bbox_inches='tight')
     plt.close()
 
     # Mode Energies Plot
@@ -481,13 +548,13 @@ def plot_energy(lpath,xb=1,tmax=2000000):
     labels = ['+ Helicity Whistler','+ Helicity Cyclotron','- Helicity Whistler','- Helicity Cyclotron']
     for i in range(4):
         ax.plot(timeen,enval[:,5+i]/(4*np.pi**3),fmts[i],label=labels[i])
-    ax.set_ylabel("Mode Energy / Guide Field Energy")
-    ax.set_xlabel("Time ($\omega_c^{-1}$)")
+    ax.set_ylabel("Mode Energy / Guide Field Energy",size="large")
+    ax.set_xlabel("Time ($\omega_c^{-1}$)",size="large")
     ax.set_ylim(10**(-8),np.amax(np.abs(enval[:,0])))
     ax.set_yscale("log")
     ax.legend()
     fig.suptitle("Hall MHD Normal Mode Energy Distribution")
-    plt.savefig(lpath+"/eplots/modeen")
+    plt.savefig(lpath+"/eplots/modeen",bbox_inches='tight')
     plt.close()
 
     return timeen,enval
@@ -550,13 +617,13 @@ def plot_enspec(lpath,zz=-1,version=3,show=False):
         ax.set_yscale("log")
         if zz == -1:
             fig.suptitle(prefix1+" Energy Spectrum "+ff(time,2)+"($\omega_c^{-1}$)")
-            ax.set_ylabel(prefix2+" Energy Spectrum")
-            fig.supxlabel("|k| ($d_i^{-1}$)")
+            ax.set_ylabel(prefix2+" Energy Spectrum",size="large")
+            fig.supxlabel("|k| ($d_i^{-1}$)",size="large")
         else:
             fig.suptitle(prefix1+" Perpendicular Energy Spectrum "+ff(time,2)+"($\omega_c^{-1}$)")
-            ax.set_ylabel(prefix2+" Perpendicular Energy Spectrum")
-            fig.supxlabel("|$k_\perp$| ($d_i^{-1}$)")
-        fig.tight_layout()
+            ax.set_ylabel(prefix2+" Perpendicular Energy Spectrum",size="large")
+            fig.supxlabel("|$k_\perp$| ($d_i^{-1}$)",size="large")
+        plt.tight_layout()
         return(fig,ax)
 
     ek = ekb + ekv
@@ -578,43 +645,43 @@ def plot_enspec(lpath,zz=-1,version=3,show=False):
     xmin = x[a[1]]/2
 
     ymax = 10**0.0
-    ymin = 10**(-12.0)
+    ymin = 10**(-20.0)
 
     print("X Limits",xmin,xmax)
     
     # Obtain needed phase information to correct initial spectrum
     
     fig,ax = plt.subplots(1)
-    ax.plot(x[a[::101]],yb[a[::101]],"k",markersize=1)
+    ax.plot(x[a[::101]],yb[a[::101]],"ks",markersize=1)
     fig,ax = enspec_format(fig,ax,"Magnetic 3D","Magnetic",xmin=xmin,xmax=xmax,ymin=ymin,ymax=ymax)
-    fig.savefig(lpath+'/eplots/'+str(itime[0])+'benspec'+str(zz+1)+'.png')
+    fig.savefig(lpath+'/eplots/'+str(itime[0])+'benspec'+str(zz+1)+'.png',bbox_inches='tight')
     plt.close()
     
     fig,ax = plt.subplots(1)
-    ax.plot(x[a[::101]],yv[a[::101]],"k",markersize=1)
+    ax.plot(x[a[::101]],yv[a[::101]],"ks",markersize=1)
     fig,ax = enspec_format(fig,ax,"Kinetic 3D","Kinetic",xmin=xmin,xmax=xmax,ymin=ymin,ymax=ymax)
-    fig.savefig(lpath+'/eplots/'+str(itime[0])+'venspec'+str(zz+1)+'.png')
+    fig.savefig(lpath+'/eplots/'+str(itime[0])+'venspec'+str(zz+1)+'.png',bbox_inches='tight')
     plt.close()    
     
     fig,ax = plt.subplots(1)
-    ax.plot(x[a[::101]],yt[a[::101]],"k",markersize=1)
+    ax.plot(x[a[::101]],yt[a[::101]],"ks",markersize=1)
     fig,ax = enspec_format(fig,ax,"3D","",xmin=xmin,xmax=xmax,ymin=ymin,ymax=ymax)
-    fig.savefig(lpath+'/eplots/'+str(itime[0])+'enspec'+str(zz+1)+'.png')
+    fig.savefig(lpath+'/eplots/'+str(itime[0])+'enspec'+str(zz+1)+'.png',bbox_inches='tight')
     plt.close()
     
     fig,ax = plt.subplots(1)
     kperps,ekti = integrated_spectrum_1d(ek,lpath,v=version)
-    ax.plot(kperps,ekti,"k",label="Total")
-    kperps,ekbi = integrated_spectrum_1d(ekb,lpath,v=version)
-    ax.plot(kperps,ekbi,"b",label="Magnetic")
-    kperps,ekvi = integrated_spectrum_1d(ekv,lpath,v=version)
-    ax.plot(kperps,ekbi,"v",label="Kinetic")
+    ax.plot(kperps,ekti,"ks",markersize=1,label="Total")
+    #kperps,ekbi = integrated_spectrum_1d(ekb,lpath,v=version)
+    #ax.plot(kperps,ekbi,"b",label="Magnetic")
+    #kperps,ekvi = integrated_spectrum_1d(ekv,lpath,v=version)
+    #ax.plot(kperps,ekbi,"v",label="Kinetic")
     fig.suptitle("Integrated Total Energy Spectra")
-    fig.tight_layout()
-    ax.set_ylabel("Total Energy Spectra")
+    plt.tight_layout()
+    ax.set_ylabel("Total Energy Spectra",size="large")
 
     ymax = 10**1.0
-    ymin = 10**(-12.0)
+    ymin = 10**(-16.0)
     
     ax.set_xlim(xmin/2,2*xmax)
     ax.set_ylim(ymin/2,2*ymax)
@@ -625,11 +692,10 @@ def plot_enspec(lpath,zz=-1,version=3,show=False):
     ax.yaxis.set_major_formatter(form)
     ax.yaxis.set_minor_formatter(form2)
             
-    ax.set_xlabel("$k_{\perp}$")
+    ax.set_xlabel("$k_{\perp} (d_i^{-1})$",size="large")
     ax.set_yscale("log")
     ax.set_xscale("log")
-    ax.legend()
-    fig.savefig(lpath+'/eplots/t1denspec'+str(version)+'.png')
+    fig.savefig(lpath+'/eplots/t1denspec'+str(version)+'.png',bbox_inches="tight")
     if show == True:
         plt.show()
     else:
@@ -668,8 +734,8 @@ def analytical_omega(lpath,ix,iy,iz):
     read_parameters(lpath)
     kx,ky,kz = get_grids()
     k = np.sqrt(kx[ix]**2 + ky[iy]**2 + kz[iz]**2)
-    wp = kz[iz] * np.sqrt((1+0.5*k**2) + np.sqrt((1+0.5*k**2)**2 - 1))
-    wm = kz[iz] * np.sqrt((1+0.5*k**2) - np.sqrt((1+0.5*k**2)**2 - 1))
+    wp = kz[iz] * np.sqrt((1+0.5*(par["hall"]*k)**2) + np.sqrt((1+0.5*(par["hall"]*k)**2)**2 - 1))
+    wm = kz[iz] * np.sqrt((1+0.5*(par["hall"]*k)**2) - np.sqrt((1+0.5*(par["hall"]*k)**2)**2 - 1))
     #wp = kz[iz]*(-np.sqrt(kx[ix]**2+ky[iy]**2+kz[iz]**2)/2 + np.sqrt(1+ (kx[ix]**2+ky[iy]**2+kz[iz]**2)/4))
     #wm = kz[iz]*(-np.sqrt(kx[ix]**2+ky[iy]**2+kz[iz]**2)/2 - np.sqrt(1+ (kx[ix]**2+ky[iy]**2+kz[iz]**2)/4))
     return wp,wm
@@ -761,8 +827,8 @@ def plot_bvspectrum(lpath,bv,ix,iy,iz,ind,show=False):
     ax.set_ylim(0.0,MM)
     ax.set_xlim(max(-6.3,-10*w1),min(6.3,10*w1))
     
-    ax.set_ylabel('|FFT('+bv+'_%s)|'%ind_string )
-    ax.set_xlabel('frequency')
+    ax.set_ylabel('|FFT('+bv+'_%s)|'%ind_string ,size="large")
+    ax.set_xlabel('frequency',size="large")
     fig.suptitle('kx,ky,kz = %1.2f,%1.2f,%1.2f'%(kx[ix],ky[iy],kz[iz]))
     if lpath[-1] != '/':
         lpath =lpath +'/'
@@ -832,8 +898,8 @@ def nlparam(lpath):
     plt.plot(kmags.flatten(),xi_cyclo.flatten(),'bs',label="Cyclotron",markersize=1)
     plt.plot(kmags.flatten(),xi_mhd.flatten(),'ks',label="MHD",markersize=1)
     plt.plot(kmags.flatten(),xi_whist.flatten(),'rs',label="Whister",markersize=1)
-    plt.ylabel("Nonlinearity Parameter")
-    plt.xlabel("|k| ($d_i^{-1}$)")
+    plt.ylabel("Nonlinearity Parameter",size="large")
+    plt.xlabel("|k| ($d_i^{-1}$)",size="large")
     plt.title("3D Nonlinearity Parameter Spectrum t = "+np.format_float_positional(t,1)+" ($\omega_c^{-1}$)")
     plt.ylim(10**(-5),10**1)
     plt.yscale("log")
@@ -845,6 +911,8 @@ def nlparam(lpath):
 
 def modes_from_check(lpath):
     """Post Process b and v into Normal Modes"""
+
+    read_parameters(lpath)
 
     if lpath[-1] == "/":
         lpath = lpath[:-1]
@@ -864,8 +932,8 @@ def modes_from_check(lpath):
         
         Ky,Kx,Kz = np.meshgrid(ky,kx,kz)
         kmags = np.sqrt(Kx**2 + Ky**2 + Kz**2)
-        alpha_lw = -kmags/2 - np.sqrt(1+kmags**2 /4)
-        alpha_lc = -kmags/2 + np.sqrt(1+kmags**2 /4)
+        alpha_lw = -(par["hall"]*kmags)/2 - np.sqrt(1+(par["hall"]*kmags)**2 /4)
+        alpha_lc = -(par["hall"]*kmags)/2 + np.sqrt(1+(par["hall"]*kmags)**2 /4)
     
         Kvec = np.zeros([par['nx0_big'],par['ny0_big'],par['nz0_big'],3],dtype='complex64')
         Zvec = np.zeros([par['nx0_big'],par['ny0_big'],par['nz0_big'],3],dtype='complex64')
@@ -941,24 +1009,25 @@ def mode_break(lpath,show=False,tmax=200000):
 
     cmin = 0
     cmax = 0
-    for i in range(4):
-        kperps,spec1df = integrated_spectrum_1d(0.5 ** np.abs(mode_ks[i,:,:,:])**2.0,lpath)
-        ax.plot(kperps,spec1df,fmts[i],label=labels[i],markersize=1)
-        cmin = min(cmin,np.amin(spec1df))
-        cmax = max(cmax,np.amax(spec1df))
-    ax.set_ylabel("Final Mode Energy Spectrum")
-    ax.set_xlabel("$k_\perp$ ($d_i^{-1}$)")
+
+    kperps,spec1df1 = integrated_spectrum_1d(0.5 * np.abs(mode_ks[0,:,:,:])**2.0,lpath)
+    kperps,spec1df2 = integrated_spectrum_1d(0.5 * np.abs(mode_ks[1,:,:,:])**2.0,lpath)
+    kperps,spec1df3 = integrated_spectrum_1d(0.5 * np.abs(mode_ks[2,:,:,:])**2.0,lpath)
+    kperps,spec1df4 = integrated_spectrum_1d(0.5 * np.abs(mode_ks[3,:,:,:])**2.0,lpath)
+
+    ax.plot(kperps,spec1df1,fmts[0],label=labels[0],markersize=1)
+    ax.plot(kperps,spec1df2,fmts[1],label=labels[1],markersize=1)
+    ax.plot(kperps,spec1df3,fmts[2],label=labels[2],markersize=1)
+    ax.plot(kperps,spec1df4,fmts[3],label=labels[3],markersize=1)
+    
+    ax.set_ylabel("Final Mode Energy Spectrum",size="large")
+    ax.set_xlabel("$k_\perp$ ($d_i^{-1}$)",size="large")
     ax.set_yscale("log")
     ax.set_xscale("log")
-    ax.set_ylim(10**(-6),2*cmax)
 
-    ax.yaxis.set_major_locator(LogLocator())
-    form = LogFormatterExponent()
-    ax.yaxis.set_major_formatter(form)
-    
-    ax.legend()
+    ax.legend(loc="upper right")
     fig.suptitle("Mode Energy Spectra at t = %.2f $(\omega_c^{-1})$ " % (time))
-    fig.savefig(lpath+"/eplots/modespec.png")
+    fig.savefig(lpath+"/eplots/modespec.png",bbox_inches="tight")
     if show == True:
         plt.show()
     plt.close()
@@ -1013,6 +1082,16 @@ def structurefunction(lpath,tmax=2*10**10):
     ax = ax.flatten()
     fig2,ax2 = plt.subplots(2,2)
     ax2 = ax2.flatten()
+
+    fig3,ax3 = plt.subplots(2,2)
+    ax3 = ax3.flatten()
+
+    fig3,ax3 = plt.subplots(2,2)
+    ax3 = ax3.flatten()
+
+    fig4,ax4 = plt.subplots(2,2)
+    ax4 = ax4.flatten()
+
     
     for I,ms in enumerate(modespecs):
         mm = convert_spec_to_real(lpath,ms/1j) # Divide by 1j because mode amplitudes are anti-Hermitian
@@ -1024,13 +1103,14 @@ def structurefunction(lpath,tmax=2*10**10):
             nx = 2*par["nkx0"]
         else:
             nx = par["nkx0"]
-            
+
+        # perpendicular structure function
         str_perp = np.zeros(nx)
         for j in range(nx//2):
             if j != 0:
                 str_perp[j] = np.average((np.roll(mm,j,0)-mm)**2)
             
-            # parallel structure function
+        # parallel structure function
         str_par = np.zeros(par["nkz0"])
         for k in range(par["nkz0"]//2):
             if k != 0:
@@ -1042,37 +1122,79 @@ def structurefunction(lpath,tmax=2*10**10):
 
         print("Maximum",np.amax(str_perp),np.amax(str_par))
         
-        ax[I].plot(xs[pt],str_perp[pt],"--",label="Transverse")
-        ax[I].plot(zs[pz],str_par[pz],":",label="Parallel")
+        ax[I].plot(xs[pt],str_perp[pt],marker="s",markersize=1,color="tomato",label="Transverse",linestyle="")
+        ax[I].plot(zs[pz],str_par[pz],marker="s",markersize=1,color="mediumturquoise",label="Parallel",linestyle="")
         if (I==2 or I == 3):
             ax[I].set_xlabel("r ($d_i$)")
         
-        ax2[I].plot(str_perp[pt],"--",label="Transverse")
-        ax2[I].plot(str_par[pz],":",label="Parallel")
+        ax2[I].plot(str_perp[pt],marker="s",markersize=1,color="tomato",label="Transverse",linestyle="")
+        ax2[I].plot(str_par[pz],marker="s",markersize=1,color="mediumturquoise",label="Parallel",linestyle="")
+
+        ax3[I].plot(str_perp[pt],xs[pt],marker="s",markersize=1,color="tomato",label="Transverse",linestyle="")
+        ax3[I].plot(str_par[pz],zs[pz],marker="s",markersize=1,color="mediumturquoise",label="Parallel",linestyle="")
         if (I==2 or I == 3):
-            ax2[I].set_xlabel("r (Grid Position)")
+            ax[I].set_xlabel("r ($d_i$)",size="large")
+            ax2[I].set_xlabel("r (Grid Position)",size="large")
+            ax3[I].set_xlabel("Structure Function",size="large")
+            ax4[I].set_xlabel("x ($d_i$)",size="large")
+            
+        strmin = max(np.amin(str_perp[pt]),np.amin(str_par[pz]))
+        strmax = min(np.amax(str_perp[pt]),np.amax(str_par[pz]))
+
+        # Find where GS parameter is well defined
+
+        # Interpolate before struct fn saturates
+        x1 = str_perp[pt]
+        y1 = xs[pt]
+        x2 = str_par[pz]
+        y2 = zs[pz]
+
+        sat_mask1 = np.nonzero(x1 < 0.9 * np.amax(x1))
+        sat_mask2 = np.nonzero(x1 < 0.9 * np.amax(x2))
+        
+        a = np.argwhere((str_perp > strmin) * (str_par> strmin) * (str_perp<strmax) * (str_par<strmax))
+        pgs = np.nonzero((str_perp > strmin) * (str_par> strmin) * (str_perp<strmax) * (str_par<strmax))
+        if np.size(a) > 2:
+            ax4[I].plot(xs[pgs],xs[pgs]/(zs[pgs]*np.sqrt(str_perp[pgs])),color="mediumturquoise",marker="s",markersize=1,linestyle="")
+            
         ax[I].set_title(labels[I])
         ax[I].set_xscale("log")
         ax[I].set_yscale("log")
         ax2[I].set_title(labels[I])
         ax2[I].set_xscale("log")
         ax2[I].set_yscale("log")
+        ax3[I].set_title(labels[I])
+        ax3[I].set_xscale("log")
+        ax3[I].set_yscale("log")
+        ax4[I].set_title(labels[I])
+        ax4[I].set_xscale("log")
+        ax4[I].set_xlim(np.amin(xs),np.amax(xs))
+        ax4[I].set_ylim(10**(-3),10**3)
+        ax4[I].set_yscale("log")
         if (I < 2):
             ax[I].tick_params(axis='x',which='both',bottom=False,top=False,labelbottom=False,labeltop=False)
             ax2[I].tick_params(axis='x',which='both',bottom=False,top=False,labelbottom=False,labeltop=False)
-        ax[I].legend(loc=4)
-        ax2[I].legend(loc=4)
+            ax3[I].tick_params(axis='x',which='both',bottom=False,top=False,labelbottom=False,labeltop=False)
+            ax4[I].tick_params(axis='x',which='both',bottom=False,top=False,labelbottom=False,labeltop=False)
+        ax[I].legend(loc="lower right")
+        ax2[I].legend(loc="lower right")
         
     fig.suptitle("Structure Functions "+"t = %.2f $(\omega_c^{-1})$" % (time)) 
     fig2.suptitle("Structure Functions "+"t = %.2f $(\omega_c^{-1})$ "% (time))
-    fig.tight_layout()
-    fig2.tight_layout()
+    fig3.suptitle("Goldreich Sridhar Nonlinearity Parameter Calculation")
+    fig4.suptitle("Goldreich Sridhar Nonlinearity Parameter")
+    plt.tight_layout()
+    plt.tight_layout()
+    plt.tight_layout()
+    plt.tight_layout()
     if lpath[-1] == '/':
         lpath = lpath[:-1]
     if not os.path.exists(lpath + '/eplots/'):
         os.mkdir(lpath + '/eplots/')    
-    fig.savefig(lpath + "/eplots/stfns")
-    fig2.savefig(lpath + "/eplots/stfns2")
+    fig.savefig(lpath + "/eplots/stfns",bbox_inches="tight")
+    fig2.savefig(lpath + "/eplots/stfns2",bbox_inches="tight")
+    fig3.savefig(lpath + "/eplots/gs95pcalc",bbox_inches="tight")
+    fig4.savefig(lpath+"/eplots/gs95p",bbox_inches="tight")
     plt.close()
 
     return(0)
@@ -1119,8 +1241,8 @@ def mode_nlparam(lpath,tt,dim,show=False,tmax=200000):
         else:
             plt.plot(kmags[:,:,1].flatten(),xi.flatten(),fmts[i],label=labels[i])
     
-    plt.ylabel("Nonlinearity Parameter")
-    plt.xlabel("|k| ($d_i^{-1}$)")
+    plt.ylabel("Nonlinearity Parameter",size="large")
+    plt.xlabel("|k| ($d_i^{-1}$)",size="large")
     plt.title(str(dim)+"D Nonlinearity Parameter Spectrum t = "+np.format_float_positional(t[tt],0)+" ($\omega_c^{-1}$)")
     plt.ylim(10**(-5),10**2)
     plt.yscale("log")

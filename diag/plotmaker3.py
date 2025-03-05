@@ -3,7 +3,9 @@ from output2 import maxinds
 import numpy as np
 
 
-lpaths = ["/pscratch/sd/e/echansen/DNA2MHDruns/mhdtests1"]
+lpaths = [#"/pscratch/sd/e/echansen/DNA2MHDruns/siam_allwhistideal2",
+          "/pscratch/sd/e/echansen/DNA2MHDruns/siam_allwhistidealrk4",
+          "/pscratch/sd/e/echansen/DNA2MHDruns/siam_allwhist101"]
 
 for lpath in lpaths:
     dn.plot_energy(lpath)
@@ -21,6 +23,8 @@ for lpath in lpaths:
     print("\nThrough Mode Breakdown\n")
     dn.structurefunction(lpath,tmax=2*10**10)
     print("\nThrough Structure Functions\n")
+
+    
     x = """
     dn.mode_nlparam(lpath,0,1)
     dn.mode_nlparam(lpath,0,3)

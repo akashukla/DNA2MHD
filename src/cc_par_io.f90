@@ -68,8 +68,8 @@ SUBROUTINE read_parameters
   NAMELIST /rk_test/ &
       rc0,ic0,dt_rktest,rmax,imax,delta_lambda,test_rk4
 
-  if (verbose) print *, "Reading parameters.",mype
-  if (verbose) print *, "Reading input parameters.",mype
+  if (verbose.and.(mype.eq.0)) print *, "Reading parameters.",mype
+  if (verbose.and.(mype.eq.0)) print *, "Reading input parameters.",mype
   
   CALL get_io_number
   par_handle=io_number
@@ -93,7 +93,7 @@ SUBROUTINE read_parameters
 
   REWIND(par_handle)
   READ(par_handle, nml = initial_value, iostat = ierr)
-  print *, ierr
+  if (verbose.and.mype.eq.0) print *, "IV Error", ierr
   IF (ierr.ne.0) STOP 'on i/o error: incorrect initial_value NAMELIST'
 
   REWIND(par_handle)
@@ -102,7 +102,7 @@ SUBROUTINE read_parameters
 
   CLOSE(par_handle)
 
-  if (verbose) print *, mype,"Read parameters"
+  if (verbose.and.(mype.eq.0)) print *, mype,"Read parameters"
 
 
   !! Initialization and checks
@@ -477,7 +477,7 @@ SUBROUTINE output_parameters
 END IF !mype==0
 
 CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-if (verbose) print *, "Leaving Output Parameters",mype
+if (verbose.and.(mype.eq.0)) print *, "Leaving Output Parameters",mype
 
 END SUBROUTINE output_parameters
 
@@ -506,19 +506,14 @@ SUBROUTINE checkpoint_out(purpose)
   INTEGER :: send_proc,recv_proc
   !LOGICAL :: g_output,not_first
   LOGICAL :: append,not_first
+  INTEGER(8) :: offset,fsize
 
    IF(np_hank.gt.1) STOP "checkpoint_out not yet implemented for np_hank.gt.1"
    IF(np_spec.gt.1) STOP "checkpoint_out not yet implemented for np_spec.gt.1"
    IF(np_kz.gt.1) STOP "checkpoint_out not yet implemented for np_kz.gt.1"
 
 
-   if (verbose) print *, mype,"Checkpoint Out",purpose
-   if (verbose) then
-      DO ind = 0,2
-         print *, "Bind Max", mype,maxval(abs(b_1(:,:,:,ind)))
-         print *, "Vind Max", mype,maxval(abs(v_1(:,:,:,ind)))
-      ENDDO
-   endif
+   if (verbose.and.(mype.eq.0)) print *, mype,"Checkpoint Out",purpose
    
    CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
   not_first=.false.
@@ -533,7 +528,7 @@ SUBROUTINE checkpoint_out(purpose)
        CALL get_io_number
        s_handle = io_number
        print *, "Security Handle",s_handle
-    ENDIF
+    ENDIF    
 
     chp_handle = s_handle
 
@@ -583,90 +578,112 @@ SUBROUTINE checkpoint_out(purpose)
       chp_handle_b = b_out_handle
       chp_handle_v = v_out_handle
       
-  !ELSE IF(purpose==5) THEN !WRITE out nonlinearity-start new file
-  !    chp_name='/gnl_out.dat'
-  !    !g_output=.true.
-  !    b_output=.true.
-  !    v_output=.true.
-  !ELSE IF(purpose==6) THEN !WRITE out nonlinearity to possibly existing g_out file
-  !    chp_name='/gnl_out.dat'
-  !    !g_output=.true.
-  !    b_output=.true.
-  !    v_output=.true.
-      !    INQUIRE(file=trim(diagdir)//trim(chp_name),exist=not_first)
-      
    END IF
 
-      IF (.not.append) THEN
-         if (mype.eq.0) OPEN(unit=chp_handle,file=trim(diagdir)//trim(chp_name),&
-              form='unformatted', status='replace',access='stream')
-         if (mype.eq.0) WRITE(chp_handle) itime
-         if (mype.eq.0) WRITE(chp_handle) dt
-         if (mype.eq.0) WRITE(chp_handle) nkx0
-         if (mype.eq.0) WRITE(chp_handle) nky0
-         if (mype.eq.0) WRITE(chp_handle) nkz0
-         if (mype.eq.0) WRITE(chp_handle) time
-
-         CALL GATHER_WRITEB(chp_handle,0)
-         CALL GATHER_WRITEB(chp_handle,1)
-
-         if (mype.eq.0) WRITE(chp_handle) mhelcorr
-
-         if (mype.eq.0) CLOSE(chp_handle)
-         WRITE (*,*) "Closed ",purpose," handle",itime
-      ELSE
-         if (mype.eq.0) OPEN(unit=chp_handle_b,file=trim(diagdir)//trim(chp_name_b),&
-              form='unformatted', status='unknown',access='stream',position='append')
-         if (mype.eq.0) WRITE(chp_handle_b) time
-         CALL GATHER_WRITEB(chp_handle_b,0)
-         if (mype.eq.0) CLOSE(chp_handle_b)
-         
-         if (mype.eq.0) OPEN(unit=chp_handle_v,file=trim(diagdir)//trim(chp_name_v),&
-              form='unformatted', status='unknown',access='stream',position='append')
-         if (mype.eq.0) WRITE(chp_handle_v) time
-         CALL GATHER_WRITEB(chp_handle_v,1)
-         if (mype.eq.0) CLOSE(chp_handle_v)
-         
-         WRITE(*,*) 'Closed v and b handles',itime         
-      ENDIF
+   ! Delete existing file for checkpoints
+   IF (.not.append.and.not_first) THEN
+      call mpi_file_open(MPI_COMM_WORLD,trim(diagdir)//trim(chp_name),&
+           MPI_MODE_RDONLY+MPI_MODE_DELETE_ON_CLOSE,MPI_INFO_NULL,&
+           chp_handle,ierr)
+      call mpi_file_close(chp_handle,ierr)
+   ENDIF
    
+   IF (.not.append) THEN
 
-      IF(verbose) WRITE(*,*) "checkpoint_out,mype",mype
+      CALL MPI_FILE_OPEN(MPI_COMM_WORLD,trim(diagdir)//trim(chp_name),MPI_MODE_CREATE+MPI_MODE_WRONLY,MPI_INFO_NULL,&
+           chp_handle,ierr)
 
-  !CALL mpi_barrier(mpi_comm_world,ierr)
+      ! Check to make sure MPI isn't going to hit another handle defined in the code
+      if (verbose.and.(purpose.eq.1).and.(mype.eq.0)) print *, mype,"security handle",chp_handle
+      if (verbose.and.(purpose.eq.2).and.(mype.eq.0)) print *, mype,"checkpoint handle",chp_handle
 
-    END SUBROUTINE checkpoint_out
-
-    SUBROUTINE GATHER_WRITEB(chp_handle,bv)
-
-      use mpi
-      use par_mod
-      implicit none
-
-      integer(4) :: chp_handle
-      integer(4) :: bv
-      integer(4) :: ind,count,ierr
-
-      reader = cmplx(0.0,0.0)
-      DO ind = 0,2
-         if (bv.eq.0) reader = b_1(:,:,:,ind)
-         if (bv.eq.1) reader = v_1(:,:,:,ind)
-         count = product(csize)
-         if (verbose) print *, "Maximum Array Mype",mype,maxval(abs(reader))
-
-         if (mype.eq.0) gather_small = cmplx(-99.0,0.0)
-
-         CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-         CALL MPI_GATHER(reader,count,MPI_DOUBLE_COMPLEX,gather_small,&
-              count,MPI_DOUBLE_COMPLEX,0,MPI_COMM_WORLD,ierr)
-
-         if ((verbose).and.(mype.eq.0)) print *, "Full Array Max",maxval(abs(gather_small))
-         if (verbose) CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-         if (mype.eq.0) WRITE(chp_handle) gather_small
-
-      ENDDO
+      if (mype.eq.0) then
+         call mpi_file_write(chp_handle,itime,1,MPI_INTEGER4,MPI_STATUS_IGNORE,ierr)
+         call mpi_file_write(chp_handle,dt,1,MPI_REAL8,MPI_STATUS_IGNORE,ierr)
+         call mpi_file_write(chp_handle,nkx0,1,MPI_INTEGER4,MPI_STATUS_IGNORE,ierr)
+         call mpi_file_write(chp_handle,nky0,1,MPI_INTEGER4,MPI_STATUS_IGNORE,ierr)
+         call mpi_file_write(chp_handle,nkz0,1,MPI_INTEGER4,MPI_STATUS_IGNORE,ierr)
+         call mpi_file_write(chp_handle,time,1,MPI_REAL8,MPI_STATUS_IGNORE,ierr)
+      endif   
       
-    END SUBROUTINE GATHER_WRITEB
+      offset = 32
+      call mpi_file_set_view(chp_handle,offset,&
+           MPI_COMPLEX16,carray4,"native",MPI_INFO_NULL,ierr)
+      call mpi_file_write_all(chp_handle,b_1,lcount,MPI_COMPLEX16,MPI_STATUS_IGNORE,ierr)
+      
+      offset = 32 + arrbyte
+      call mpi_file_set_view(chp_handle,offset,&
+           MPI_COMPLEX16,carray4,"native",MPI_INFO_NULL,ierr)
+      call mpi_file_write_all(chp_handle,v_1,lcount,MPI_COMPLEX16,MPI_STATUS_IGNORE,ierr)
+      
+      offset = 32 + 2*arrbyte
+      call mpi_file_set_view(chp_handle,offset,&
+           MPI_REAL8,MPI_REAL8,"native",MPI_INFO_NULL,ierr)
+      if (mype.eq.0) call mpi_file_write(chp_handle,mhelcorr,1,MPI_REAL8,MPI_STATUS_IGNORE,ierr)
+      
+      call mpi_barrier(MPI_COMM_WORLD,ierr)
+      call mpi_file_close(chp_handle,ierr)
+
+      if (verbose.and.checkguide) then
+         if (mype.eq.0) print *, "Checkpoint Guide"
+         CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+         DO ind = 0,2
+            print *, "Maxval Bind",maxval(abs(b_1(:,:,:,ind))),mype
+            print *, "Maxval Vind",maxval(abs(v_1(:,:,:,ind))),mype
+            CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+         ENDDO
+      endif
+
+      if (mype.eq.0) WRITE (*,*) "Closed ",purpose," handle",itime
+      
+   ELSE
+
+      call mpi_file_open(MPI_COMM_WORLD,trim(diagdir)//trim(chp_name_b),&
+           MPI_MODE_WRONLY+MPI_MODE_APPEND,MPI_INFO_NULL,chp_handle_b,ierr)
+
+      if (verbose.and.(mype.eq.0)) print *, mype,"gout b handle",chp_handle_b
+
+      ! Get file size to append onto end of file
+      call mpi_file_get_size(chp_handle_b,fsize,ierr)
+
+      call mpi_barrier(MPI_COMM_WORLD,ierr)
+      
+      if (mype.eq.0) call mpi_file_write(chp_handle_b,time,1,MPI_REAL8,MPI_STATUS_IGNORE,ierr)
+
+      offset = fsize+8
+      call mpi_barrier(MPI_COMM_WORLD,ierr)
+      call mpi_file_set_view(chp_handle_b,offset,MPI_COMPLEX16,carray4,"native",MPI_INFO_NULL,ierr)
+      call mpi_file_write_all(chp_handle_b,b_1,lcount,MPI_COMPLEX16,MPI_STATUS_IGNORE,ierr)
+
+      call mpi_barrier(MPI_COMM_WORLD,ierr)
+      call mpi_file_close(chp_handle_b,ierr)
+
+      call mpi_file_open(MPI_COMM_WORLD,trim(diagdir)//trim(chp_name_v),&
+           MPI_MODE_WRONLY+MPI_MODE_APPEND,MPI_INFO_NULL,chp_handle_v,ierr)
+
+      if (verbose.and.(mype.eq.0)) print *, mype,"gout v handle",chp_handle_v
+      
+      call mpi_file_get_size(chp_handle_v,fsize,ierr)
+
+      call mpi_barrier(MPI_COMM_WORLD,ierr)
+
+      if (mype.eq.0) call mpi_file_write(chp_handle_v,time,1,MPI_REAL8,MPI_STATUS_IGNORE,ierr)
+
+      offset = fsize+8
+      call mpi_barrier(MPI_COMM_WORLD,ierr)
+      call mpi_file_set_view(chp_handle_v,offset,MPI_COMPLEX16,carray4,"native",MPI_INFO_NULL,ierr)
+      call mpi_file_write_all(chp_handle_v,v_1,lcount,MPI_COMPLEX16,MPI_STATUS_IGNORE,ierr)
+
+      call mpi_barrier(MPI_COMM_WORLD,ierr)
+      call mpi_file_close(chp_handle_v,ierr)
+      
+   ENDIF
+   
+   IF(verbose.and.(mype.eq.0)) WRITE(*,*) "checkpoint_out,mype",mype
+
+   !CALL mpi_barrier(mpi_comm_world,ierr)
+   
+ END SUBROUTINE checkpoint_out
       
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!                                                                           !!
@@ -783,92 +800,79 @@ SUBROUTINE CHECKPOINT_IN
   character(len=100) :: chp_name
   integer :: chp_handle
   INTEGER :: nkx0_in,nky0_in,nkz0_in,ind,field,ierr
+  integer(8) :: offset
+
+  ! Prerequisite in code - define carray4,lcount    
  
   chp_name = "/s_checkpoint.dat"
 
   CALL get_io_number
   chp_handle = io_number
 
-  if(mype.eq.0) OPEN(unit=chp_handle,file=trim(diagdir)//trim(chp_name),form='unformatted',status='unknown',access='stream')
+  if (verbose.and.(mype.eq.0)) print *, mype,chp_handle
+  CALL MPI_FILE_OPEN(MPI_COMM_WORLD,trim(loaddir)//trim(chp_name),MPI_MODE_RDONLY,MPI_INFO_NULL,&
+       chp_handle,ierr)
 
-  if(mype.eq.0) READ(chp_handle) itime
-  if(mype.eq.0) READ(chp_handle) dt
-  if(mype.eq.0) READ(chp_handle) nkx0_in
-  if(mype.eq.0) READ(chp_handle) nky0_in
-  if(mype.eq.0) READ(chp_handle) nkz0_in
-  if(mype.eq.0) READ(chp_handle) time
-     
-  CALL SCATTER_READ(chp_handle,0)
-  CALL SCATTER_READ(chp_handle,1)
+  ! Check to make sure MPI isn't going to hit another handle defined in the code
   
-  if (mype.eq.0) READ(chp_handle) mhelcorr
-  
-  if(mype.eq.0) CLOSE(chp_handle)
-  
-  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-  CALL MPI_BCAST(itime, 1, MPI_INTEGER4, 0, MPI_COMM_WORLD, ierr)
-  CALL MPI_BCAST(nkx0_in, 1, MPI_INTEGER4, 0, MPI_COMM_WORLD, ierr)
-  CALL MPI_BCAST(nky0_in, 1, MPI_INTEGER4, 0, MPI_COMM_WORLD, ierr)
-  CALL MPI_BCAST(nkz0_in, 1, MPI_INTEGER4, 0, MPI_COMM_WORLD, ierr)
-  
-  CALL MPI_BCAST(dt, 1, MPI_REAL8, 0, MPI_COMM_WORLD, ierr)
-  CALL MPI_BCAST(time, 1, MPI_REAL8, 0, MPI_COMM_WORLD, ierr)
-  CALL MPI_BCAST(mhelcorr, 1, MPI_REAL8, 0, MPI_COMM_WORLD, ierr)
+  if (verbose.and.(mype.eq.0)) print *, mype,chp_handle
+
+  call mpi_file_read_all(chp_handle,itime,1,MPI_INTEGER4,MPI_STATUS_IGNORE,ierr)
+  call mpi_file_read_all(chp_handle,dt,1,MPI_REAL8,MPI_STATUS_IGNORE,ierr)
+  call mpi_file_read_all(chp_handle,nkx0_in,1,MPI_INTEGER4,MPI_STATUS_IGNORE,ierr)
+  call mpi_file_read_all(chp_handle,nky0_in,1,MPI_INTEGER4,MPI_STATUS_IGNORE,ierr)
+  call mpi_file_read_all(chp_handle,nkz0_in,1,MPI_INTEGER4,MPI_STATUS_IGNORE,ierr)
+  call mpi_file_read_all(chp_handle,time,1,MPI_REAL8,MPI_STATUS_IGNORE,ierr)
+
+  offset = 32
+  call mpi_file_set_view(chp_handle,offset,&
+       MPI_COMPLEX16,carray4,"native",MPI_INFO_NULL,ierr)
+  call mpi_file_read_all(chp_handle,b_1,lcount,MPI_COMPLEX16,MPI_STATUS_IGNORE,ierr)
+
+  offset = 32 + arrbyte
+  call mpi_file_set_view(chp_handle,offset,&
+       MPI_COMPLEX16,carray4,"native",MPI_INFO_NULL,ierr)
+  call mpi_file_read_all(chp_handle,v_1,lcount,MPI_COMPLEX16,MPI_STATUS_IGNORE,ierr)
+
+  offset = 32 + 2*arrbyte
+  call mpi_file_set_view(chp_handle,offset,&
+       MPI_REAL8,MPI_REAL8,"native",MPI_INFO_NULL,ierr)
+  call mpi_file_read_all(chp_handle,mhelcorr,1,MPI_REAL8,MPI_STATUS_IGNORE,ierr)
+
+  call mpi_barrier(MPI_COMM_WORLD,ierr)
+  call mpi_file_close(chp_handle,ierr)
   
   CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
 
-  WRITE(*,*) "itime",itime,mype
-  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-  WRITE(*,*) "dt",dt,mype
-  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-  WRITE(*,*) "nkx0",nkx0_in,mype
-  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-  WRITE(*,*) "nky0",nky0_in,mype
-  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-  WRITE(*,*) "nkz0",nkz0_in,mype
-  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-  WRITE(*,*) "time",time,mype
-  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-  WRITE(*,*) "mhc",mhelcorr,mype
-  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  if (verbose) then
+     WRITE(*,*) "itime",itime,mype
+     CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+     WRITE(*,*) "dt",dt,mype
+     CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+     WRITE(*,*) "nkx0",nkx0_in,mype
+     CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+     WRITE(*,*) "nky0",nky0_in,mype
+     CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+     WRITE(*,*) "nkz0",nkz0_in,mype
+     CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+     WRITE(*,*) "time",time,mype
+     CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+     WRITE(*,*) "mhc",mhelcorr,mype
+     CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  endif
+
+  if (verbose.and.checkguide) then
+     if (mype.eq.0) print *, "Checkpoint Guide"
+     CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+     DO ind = 0,2
+        print *, "Maxval Bind",maxval(abs(b_1(:,:,:,ind))),mype
+        print *, "Maxval Vind",maxval(abs(v_1(:,:,:,ind))),mype
+        CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+     ENDDO    
+  endif
+  
   ! print *, "energy b1 mype",mype,(sum(abs(b_1(0,:,:,:))**2.0)/2.0 +sum(abs(b_1(1:nkx0-1,:,:,:))**2.0))*(8.0*pi**3)
      
   itime_start = itime
 
 END SUBROUTINE CHECKPOINT_IN
-
-
-SUBROUTINE SCATTER_READ(chp_handle,bv)
-
-
-  use par_mod
-  use mpi
-  
-  implicit none
-  
-  integer, intent(in) :: chp_handle
-  integer(4) :: bv
-  integer :: ind,ierr,count
-  
-  count = product(csize)
-  
-  DO ind = 0,2
-
-     gather_small = cmplx(-99.0,0.0)
-     if (mype.eq.0) READ(chp_handle) gather_small
-
-     if ((verbose).and.(mype.eq.0)) print *, "Full Array Max",maxval(abs(gather_small))
-     
-     CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-     CALL MPI_SCATTER(gather_small,count,MPI_DOUBLE_COMPLEX,scatter_small,count,MPI_DOUBLE_COMPLEX,0,MPI_COMM_WORLD,ierr)
-
-     reader = reshape(scatter_small,[(1+nx0_big/2),ny0_big,nz0_big/n_mpi_procs])
-     
-     if ((verbose)) print *, "Maximum Array Mype",mype,maxval(abs(reader))
-
-     if (bv.eq.0) b_1(:,:,:,ind) = reader
-     if (bv.eq.1) v_1(:,:,:,ind) = reader
-
-  ENDDO
-
-END SUBROUTINE SCATTER_READ

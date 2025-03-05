@@ -221,10 +221,10 @@ SUBROUTINE diag
   if (itime.eq.0) CALL bound_hels
 
      IF((istep_energy.ne.0).and.(MOD(itime,istep_energy)==0))THEN
-         IF(verbose) WRITE(*,*) "Starting energy diag.",mype
+         IF(verbose.and.(mype.eq.0)) WRITE(*,*) "Starting energy diag.",mype
          IF (mype.eq.0) WRITE(en_handle) time
          CALL hmhdhmtn(0)
-         if (verbose) write(*,*) "Found Hamiltonian",mype
+         if (verbose.and.(mype.eq.0)) write(*,*) "Found Hamiltonian",mype
          CALL mag_helicity()
          CALL cross_helicity()
          CALL hmhdhmtn(1)
@@ -233,7 +233,7 @@ SUBROUTINE diag
          if(mype.eq.0) WRITE(en_handle) magbound
          if (mype.eq.0) WRITE(en_handle) canbound
          if (mype.eq.0) WRITE(en_handle) mhelcorr
-         if (verbose) write(*,*) "Found Helicities",mype
+         if (verbose.and.(mype.eq.0)) write(*,*) "Found Helicities",mype
      END IF
 
    IF (.false.) THEN
@@ -338,8 +338,8 @@ CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
 CALL MPI_ALLREDUCE(hamsm,hams,2,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
 
 ham = (hams(1)+hams(2)) * (8*(pi**3))
-if (verbose) print *, mype,"Hamiltonian",(hamsm(1)+hamsm(2)) * (8*(pi**3))
-if (verbose) print *, mype,"Total Ham",ham
+if (verbose.and.(mype.eq.0)) print *, mype,"Hamiltonian",(hamsm(1)+hamsm(2)) * (8*(pi**3))
+if (verbose.and.(mype.eq.0)) print *, mype,"Total Ham",ham
 
 if (mype.eq.0) WRITE(en_handle) ham
 
@@ -375,7 +375,7 @@ do i = cstart(1),cend(1)
   enddo
 enddo
 
-if (mype.eq.0) AVP(0,0,0,:) = cmplx(0.0,0.0)
+if (mype.eq.0) AVP(1,1,1,:) = cmplx(0.0,0.0)
 
 end subroutine vec_potential
 
@@ -442,9 +442,9 @@ subroutine cross_helicity
   CALL vec_potential()
   CALL vorticity()
   
-  chsm(1) = 2.0 * sum(real((AVP(xst:cend(1),:,:,:)+v_1(xst:cend(1),:,:,:))*conjg(b_1(xst:cend(1),:,:,:)+WVORT(xst:cend(1),:,:,:))))
-  if (cstart(1).eq.1) chsm(2) = real(sum((AVP(1,:,:,:)+v_1(1,:,:,:))*conjg(b_1(1,:,:,:)+WVORT(1,:,:,:))))
-  if (mype.eq.0) chsm(2) = chsm(2) + v_1(1,1,1,2)
+  chsm(1) = 2.0 * sum(real((AVP(xst:cend(1),:,:,:)+hall*v_1(xst:cend(1),:,:,:))*conjg(b_1(xst:cend(1),:,:,:)+hall*WVORT(xst:cend(1),:,:,:))))
+  if (cstart(1).eq.1) chsm(2) = real(sum((AVP(1,:,:,:)+hall*v_1(1,:,:,:))*conjg(b_1(1,:,:,:)+hall*WVORT(1,:,:,:))))
+  if (mype.eq.0) chsm(2) = chsm(2) + hall*v_1(1,1,1,2)
   
   CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
   CALL MPI_ALLREDUCE(chsm,chs,2,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
@@ -522,7 +522,7 @@ DO j = cstart(2),cend(2)
    ENDDO
    if (cstart(1).eq.1) then 
       DO k = cstart(3),cend(3)
-         magboundm = magboundm + sum(abs(b_1(1,j,k,:))**2.0 /kmags(1,j,k),kmags(1,j,k).gt.10**(-10.0))
+         magboundm = magboundm + sum(abs(b_1(1,j,k,:))**2.0 /kmags(1,j,k),mask=kmags(1,j,k).gt.10**(-10.0))
          canboundm = canboundm + sum(abs(v_1(1,j,k,:))**2.0)*kmags(1,j,k)
          canboundm = canboundm + 2.0 * sqrt(sum(abs(b_1(1,j,k,:))**2.0))*sqrt(sum(abs(v_1(1,j,k,:))**2.0))
       ENDDO
@@ -577,7 +577,7 @@ subroutine mode_energy
      enddo
   enddo
 
-  lwm = lwm * (8.0*pi**3)
+  lwm = lwm * (4.0*pi**3)
   CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
   CALL MPI_ALLREDUCE(lwm,lw,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
 
@@ -585,7 +585,7 @@ subroutine mode_energy
   
   if (mype.eq.0) write(en_handle) lw
 
-  lcm =	lcm * (8.0*pi**3)
+  lcm =	lcm * (4.0*pi**3)
   CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
   CALL MPI_ALLREDUCE(lcm,lc,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
 
@@ -593,7 +593,7 @@ subroutine mode_energy
   
   if (mype.eq.0) write(en_handle) lc
 
-  rwm =	rwm * (8.0*pi**3)
+  rwm =	rwm * (4.0*pi**3)
   CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
   CALL MPI_ALLREDUCE(rwm,rw,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
 
@@ -601,7 +601,7 @@ subroutine mode_energy
   
   if (mype.eq.0) write(en_handle) rw
 
-  rcm =	rcm * (8.0*pi**3)
+  rcm =	rcm * (4.0*pi**3)
   CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
   CALL MPI_ALLREDUCE(rcm,rc,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
 

@@ -42,14 +42,9 @@ SUBROUTINE get_rhs_lin(b_in, v_in, rhs_out_b, rhs_out_v, which_term)
   COMPLEX(C_DOUBLE_COMPLEX), INTENT(OUT) :: rhs_out_b(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3), 0:2)
   COMPLEX(C_DOUBLE_COMPLEX), INTENT(OUT) :: rhs_out_v(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3), 0:2)
 
- IF ((rhs_lin_version==1).or.(rhs_lin_version==12)) THEN
-   !If works for mu integrated as well for hankel/vperp version
-    if (verbose) print *, "enter lin rhs"
-    CALL get_rhs_lin1_ae(b_in, v_in, rhs_out_b, rhs_out_v, which_term)
- ELSE IF(rhs_lin_version==2) THEN
-   !CALL get_rhs_lin2(g_in,g_bounds,phi_in,rhs_out,which_term)
-   STOP 'get_rhs_lin2 needs to be benchmarked and updated to 6D g.'
- END IF
+  !If works for mu integrated as well for hankel/vperp version
+  if (verbose.and.(mype.eq.0)) print *, "enter lin rhs"
+  CALL get_rhs_lin1_ae(b_in, v_in, rhs_out_b, rhs_out_v, which_term)
  
 END SUBROUTINE get_rhs_lin
 
@@ -186,50 +181,32 @@ SUBROUTINE get_rhs_force(rhs_out_b, rhs_out_v)
 
     IF (forcetype.ge.30) THEN
 
-       ! Reset phases every half turnover time and interpolate phases linearly between turnover times
-
-       if (time.eq.0.and.(time > last_reset)) then
-
-          last_reset = time
-          CALL random_number(LWp)
-          CALL random_number(LWp2)
-
-          CALL random_number(LCp)
-          CALL random_number(LCp2)
-
-          CALL random_number(RWp)
-          CALL random_number(RWp2)
-
-          CALL random_number(RCp)
-          CALL random_number(RCp2)          
+       
+       CALL random_number(LWp)
+       CALL random_number(LWp2)
+       
+       CALL random_number(LCp)
+       CALL random_number(LCp2)
+       
+       CALL random_number(RWp)
+       CALL random_number(RWp2)
+       
+       CALL random_number(RCp)
+       CALL random_number(RCp2)          
           
-       else if ((mod(time,turnover/2).lt.dt).and.(time > last_reset)) then
-
-          last_reset = time
-          LWp = LWp2
-          LCp = LCp2
-          RWp = RWp2
-          RCp = RCp2
-
-          CALL random_number(LWp2)
-          CALL random_number(LCp2)
-          CALL random_number(RWp2)
-          CALL random_number(RCp2)          
-          
-       endif
-
        DO i = cstart(1),cend(1)
           DO j = cstart(2),cend(2)
              DO k = cstart(3),cend(3)
-                th1 = ((turnover - 2* time) * LWp(i,j,k) + (2*time) * LWp2(i,j,k))/turnover
-                th2 = ((turnover - 2* time) * LCp(i,j,k) + (2*time) * LCp2(i,j,k))/turnover
-                th3 = ((turnover - 2* time) * RWp(i,j,k) + (2*time) * RWp2(i,j,k))/turnover
-                th4 = ((turnover - 2* time) * RCp(i,j,k) + (2*time) * RCp2(i,j,k))/turnover
+                !th1 = ((turnover - 2* time) * LWp(i,j,k) + (2*time) * LWp2(i,j,k))/turnover
+                !th2 = ((turnover - 2* time) * LCp(i,j,k) + (2*time) * LCp2(i,j,k))/turnover
+                !th3 = ((turnover - 2* time) * RWp(i,j,k) + (2*time) * RWp2(i,j,k))/turnover
+                !th4 = ((turnover - 2* time) * RCp(i,j,k) + (2*time) * RCp2(i,j,k))/turnover
+
                 
-                LW1 = exp(20.0*pi*i_complex*th1)
-                LC1 = exp(20.0*pi*i_complex*th2)
-                RW1 = exp(20.0*pi*i_complex*th3)
-                RC1 = exp(20.0*pi*i_complex*th4)
+                LW1 = exp(20.0*pi*i_complex*LWp(i,j,k))*1.2533
+                LC1 = exp(20.0*pi*i_complex*LCp(i,j,k))*1.2533
+                RW1 = exp(20.0*pi*i_complex*RWp(i,j,k))*1.2533
+                RC1 = exp(20.0*pi*i_complex*RCp(i,j,k))*1.2533
                 
                 LW1 = LW1 * force_amp * sqrt(force_lw)/sqrt(force_lw + force_lc &
                      + force_rw + force_rc) * 1.0/sqrt(1 + alpha_leftwhist(i,j,k)**2)

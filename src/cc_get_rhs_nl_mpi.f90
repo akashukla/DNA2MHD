@@ -75,10 +75,10 @@ SUBROUTINE initialize_fourier_ae_mu0
 
   integer(4) :: dims(2)
   
-  dims(1) = 2
-  dims(2) = n_mpi_procs/2
+  dims(1) = 4
+  dims(2) = n_mpi_procs/4
   
-  print *, "Processor Grid",dims
+  if (mype.eq.0) print *, "Processor Grid",dims
 
   t1 = MPI_WTIME()
   CALL p3dfft_setup(dims,nx0_big,ny0_big,nz0_big,MPI_COMM_WORLD)
@@ -103,7 +103,7 @@ SUBROUTINE initialize_fourier_ae_mu0
 
   t2 = MPI_WTIME()
 
-  print *, "Time for FFT Plan",t2-t1
+  if (mype.eq.0) print *, "Time for FFT Plan",t2-t1
 
 END SUBROUTINE initialize_fourier_ae_mu0
 

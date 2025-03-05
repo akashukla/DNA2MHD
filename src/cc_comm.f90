@@ -42,12 +42,9 @@ SUBROUTINE init_comm
   CALL mpi_comm_rank(MPI_COMM_WORLD,mype,ierr)
   CALL mpi_comm_size(MPI_COMM_WORLD,n_mpi_procs,ierr)
 
-  print *, mype,n_mpi_procs
-  
   IF(mype==0) WRITE(*,*) "number of processors", n_mpi_procs
 
 END SUBROUTINE init_comm
-
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!                                   comm                                    !!

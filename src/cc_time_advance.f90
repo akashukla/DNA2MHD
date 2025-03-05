@@ -66,27 +66,20 @@ SUBROUTINE iv_solver
  !itime=0
  !time=0.0
 
- WRITE(*,*) "max_itime=",max_itime,mype
- WRITE(*,*) "max_time=",max_time,mype
+ if (mype.eq.0) WRITE(*,*) "max_itime=",max_itime,mype
+ if (mype.eq.0) WRITE(*,*) "max_time=",max_time,mype
 
  CALL remove_div(b_1,v_1)
 
- if (verbose) then
-    DO ind = 0,2
-       print *, "Max bind",maxval(abs(b_1(:,:,:,ind)))
-       print *, "Max vind",maxval(abs(v_1(:,:,:,ind)))
-    ENDDO
- endif
- 
  CALL ALLOCATE_STEPS
 
  rkstage = 0
- if (verbose) print *, mype,"Starting Main Loop"
+ if (verbose.and.(mype.eq.0)) print *, mype,"Starting Main Loop"
  ! print *, "Time Step Start",dt
  
  DO WHILE((time.lt.max_time).and.(itime.lt.max_itime).and.(continue_run))
  
-   IF(verbose) WRITE(*,*) "Calling diagnostics",time,itime,mype
+   IF(verbose.and.(mype.eq.0)) WRITE(*,*) "Calling diagnostics",time,itime,mype
 
    ! Don't call diagnostics on first iteration when doing a warm restart - no doubles in data
    if (timer.and.(mype.eq.0)) sttime = MPI_WTIME()
@@ -96,8 +89,8 @@ SUBROUTINE iv_solver
    
    !IF(verbose) WRITE(*,*) "Done with diagnostics",time,itime,mype
 
-   IF(verbose) WRITE(*,*) "iv_solver: before get_g_next",time,itime,mype
-   IF(verbose) WRITE(*,*) "iv_solver: before get_g_next dt=",dt
+   IF(verbose.and.(mype.eq.0)) WRITE(*,*) "iv_solver: before get_g_next",time,itime,mype
+   IF(verbose.and.(mype.eq.0)) WRITE(*,*) "iv_solver: before get_g_next dt=",dt
    !CALL save_b(b_1)
    !CALL save_time(itime)
 
@@ -148,8 +141,8 @@ SUBROUTINE iv_solver
    !  IF(mype==0) WRITE(*,*) "Maximum wall time exceeded.", current_wallclock, max_walltime
      continue_run=.false. 
    ENDIF
-   IF (dt < 1.0E-5) then 
-     WRITE(*,*) "dt too small to proceed" ,dt
+   IF (dt < 1.0E-5) then
+      if (mype.eq.0)  WRITE(*,*) "dt too small to proceed" ,dt
      continue_run=.false.
    ENDIF
    !END IF
@@ -160,7 +153,7 @@ END DO
 if (mype.eq.0.and.verbose) print *, "Run stopped"
 if (force_turbulence) CALL finalize_force
 if (mype.eq.0.and.verbose) print *, "Force deallocated"
-CALL diag
+ CALL diag
 
   CALL DEALLOCATE_STEPS
 
@@ -391,7 +384,7 @@ SUBROUTINE get_rhs(b_in,v_in, rhs_out_b,rhs_out_v,nmhc,ndt)
      ndt = dt_max
   ELSE
 
-     if (verbose) print *, "Pre Linear","Mype",mype,"MaxVal v_1",maxval(abs(v_in))
+     if (verbose.and.(mype.eq.0)) print *, "Pre Linear","Mype",mype,"MaxVal v_1",maxval(abs(v_in))
      CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
      if (timer.and.(mype.eq.0)) sttime = MPI_WTIME()
      CALL get_rhs_lin(b_in,v_in,rhs_out_b, rhs_out_v,0)
@@ -400,7 +393,7 @@ SUBROUTINE get_rhs(b_in,v_in, rhs_out_b,rhs_out_v,nmhc,ndt)
      
      !IF(nonlinear.and..not.linear_nlbox) CALL get_rhs_nl(b_in, v_in,rhs_out_b,rhs_out_v)
      if (timer.and.(mype.eq.0)) sttime = MPI_WTIME()
-     if (verbose) print *, "Pre NL","Mype",mype,"MaxVal k1",maxval(abs(rhs_out_v))
+     if (verbose.and.(mype.eq.0)) print *, "Pre NL","Mype",mype,"MaxVal k1",maxval(abs(rhs_out_v))
      CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
      
      IF(nonlinear) CALL get_rhs_nl(b_in, v_in,rhs_out_b,rhs_out_v,ndt)
@@ -411,7 +404,7 @@ SUBROUTINE get_rhs(b_in,v_in, rhs_out_b,rhs_out_v,nmhc,ndt)
      if (verbose.and.(mype.eq.0)) print *, ndt
 
      nmhc = 0.0
-     if (verbose) print *, "Pre MHC","Mype",mype,"MaxVal k1",maxval(abs(rhs_out_v))
+     if (verbose.and.(mype.eq.0)) print *, "Pre MHC","Mype",mype,"MaxVal k1",maxval(abs(rhs_out_v))
      CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
      IF (mhc) CALL getmhcrk(b_in,v_in,nmhc)
 
@@ -419,18 +412,18 @@ SUBROUTINE get_rhs(b_in,v_in, rhs_out_b,rhs_out_v,nmhc,ndt)
      CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
      IF (mod(intorder,20).ne.0) THEN
         if (timer.and.(mype.eq.0)) sttime = MPI_WTIME()
-        if (verbose) print *, "Pre Diss","Mype",mype,"MaxVal k1",maxval(abs(rhs_out_v))
+        if (verbose.and.(mype.eq.0)) print *, "Pre Diss","Mype",mype,"MaxVal k1",maxval(abs(rhs_out_v))
         CALL get_rhs_diss(b_in,v_in,rhs_out_b,rhs_out_v)
         if (timer.and.(mype.eq.0)) disstime =MPI_WTIME()
         if (timer.and.(mype.eq.0)) print *, "Dissipation Time",disstime-sttime
         if (timer.and.(mype.eq.0)) sttime = MPI_WTIME()
-        if (verbose) print *, "Pre Force","Mype",mype,"MaxVal k1",maxval(abs(rhs_out_v))
+        if (verbose.and.(mype.eq.0)) print *, "Pre Force","Mype",mype,"MaxVal k1",maxval(abs(rhs_out_v))
         IF (force_turbulence) CALL get_rhs_force(rhs_out_b, rhs_out_v)
         if (timer.and.(mype.eq.0)) forcetime = MPI_WTIME()
         if (timer.and.(mype.eq.0)) print *, "Forcing Time",forcetime-sttime
      ENDIF
      
-     if (verbose) print *, "Pre Div","Mype",mype,"MaxVal k1",maxval(abs(rhs_out_v))
+     if (verbose.and.(mype.eq.0)) print *, "Pre Div","Mype",mype,"MaxVal k1",maxval(abs(rhs_out_v))
      CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
      CALL remove_div(rhs_out_b,rhs_out_v)
      
@@ -438,7 +431,6 @@ SUBROUTINE get_rhs(b_in,v_in, rhs_out_b,rhs_out_v,nmhc,ndt)
 
   ENDIF
   rkstage = rkstage + 1
-  
 
 END SUBROUTINE get_rhs
 
@@ -455,14 +447,18 @@ SUBROUTINE getmhcrk(b_in,v_in,nmhc)
   
  nmhcsm = 0.0
 
- DO j = cstart(2),cend(2)
-    DO k = cstart(3),cend(3)
-       nmhcsm(2) = nmhcsm(2) - 1.0 * real(b_in(1,j,k,0)*conjg(v_in(1,j,k,1))-b_in(1,j,k,1)*conjg(v_in(1,j,k,0)))
-       DO i = xst,cend(1)
-          nmhcsm(1) = nmhcsm(1) -2.0 * real(b_in(i,j,k,0)*conjg(v_in(i,j,k,1))-b_in(i,j,k,1)*conjg(v_in(i,j,k,0)))
-       ENDDO
-    ENDDO
- ENDDO
+ !DO j = cstart(2),cend(2)
+ !   DO k = cstart(3),cend(3)
+ !      if (cstart(1).eq.1) nmhcsm(2) = nmhcsm(2) - 1.0 * real(b_in(1,j,k,0)*conjg(v_in(1,j,k,1))-b_in(1,j,k,1)*conjg(v_in(1,j,k,0)))
+ !      DO i = xst,cend(1)
+ !         nmhcsm(1) = nmhcsm(1) -2.0 * real(b_in(i,j,k,0)*conjg(v_in(i,j,k,1))-b_in(i,j,k,1)*conjg(v_in(i,j,k,0)))
+ !      ENDDO
+ !   ENDDO
+ !ENDDO
+
+ nmhcsm(1) = -2.0 * sum(real(b_in(xst:cend(1),:,:,0)*conjg(v_in(xst:cend(1),:,:,1)) &
+      - b_in(xst:cend(1),:,:,1)*conjg(v_in(xst:cend(1),:,:,0))))
+ if (cstart(1).eq.1) nmhcsm(2) = -1.0* sum(real(b_in(1,:,:,0)*conjg(v_in(1,:,:,1))-b_in(1,:,:,1)*conjg(v_in(1,:,:,0)))) 
 
  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
  CALL MPI_ALLREDUCE(nmhcsm,nmhcs,2,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
@@ -616,17 +612,17 @@ SUBROUTINE ralston2(b_in,v_in,dt_new)
   
   CALL get_rhs(b_in,v_in,bk1,vk1,nmhc1,dt_new1)
 
-  if (verbose) print *, "Post First Stage","Mype",mype,"Maxval k1",maxval(abs(vk1))
+  if (verbose.and.(mype.eq.0)) print *, "Post First Stage","Mype",mype,"Maxval k1",maxval(abs(vk1))
   b_2 = b_in + (1.0/4.0)*bk1*dt
   v_2 = v_in + (1.0/4.0)*vk1*dt
-  if (verbose) print *, "Pre Second Stage","Mype",mype,"MaxVal v_1",maxval(abs(v_2))
+  if (verbose.and.(mype.eq.0)) print *, "Pre Second Stage","Mype",mype,"MaxVal v_1",maxval(abs(v_2))
   if (mhc) mhelcorr = mhelcorr + (1.0/4.0)*nmhc1*dt
-  if (verbose) print *, "Through MHC"
+  if (verbose.and.(mype.eq.0)) print *, "Through MHC"
 
   bk1s = b_in+(2.0/3.0)*bk1*dt
   vk1s = v_in+(2.0/3.0)*vk1*dt
 
-  if (verbose) print *, "Pre Second Stage","Mype",mype,"MaxVal v_1",maxval(abs(vk1s))
+  if (verbose.and.(mype.eq.0)) print *, "Pre Second Stage","Mype",mype,"MaxVal v_1",maxval(abs(vk1s))
   
   CALL get_rhs(bk1s,vk1s,bk2,vk2,nmhc2,dt_new2)
   
@@ -662,7 +658,7 @@ SUBROUTINE ralston3(b_in,v_in,dt_new)
   CALL get_rhs(b_in,v_in,bk1,vk1,nmhc1,dt_new1)
   b_2 = b_in + (2.0/9.0)*bk1*dt
   v_2 = v_in + (2.0/9.0)*vk1*dt
-  if (verbose)   print *, "First Stage"
+  if (verbose.and.(mype.eq.0))   print *, "First Stage"
   if (mhc) mhelcorr = mhelcorr + (2.0/9.0)*nmhc1*dt
 
   bk1s = b_in+(1.0/2.0)*bk1*dt
@@ -812,29 +808,24 @@ SUBROUTINE GAUSS2(b_in,v_in,dt_new)
   DO WHILE ((solvloop.lt.1000).and.(maxdev.gt.10.0**(-16.0)))
      ! Check for now to see if the fixed point iteration converges
 
-     if (verbose) print *, mype,"Iteration ",solvloop,"Discrepancy ",maxdev
+     if (verbose.and.mype.eq.0) print *, mype,"Iteration ",solvloop,"Discrepancy ",maxdev
 
-     if (verbose) CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
      bk1 = bk1s 
      vk1 = vk1s
 
      bk2 = b_in+a11*dt*bk1
      vk2 = v_in+a11*dt*vk1
-     if (verbose) CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-     if (verbose) print *, mype,"Through Iteration ",solvloop, "Assignment"
+     if (verbose.and.mype.eq.0) print *, mype,"Through Iteration ",solvloop, "Assignment"
 
      CALL get_rhs(bk2,vk2,bk1s,vk1s,nmhc1s,ndt)
 
-     if (verbose) print *, mype,"Through Iteration ",solvloop,"Iteration"
+     if (verbose.and.mype.eq.0) print *, mype,"Through Iteration ",solvloop,"Iteration"
      solvloop = solvloop + 1
 
-     if (verbose) CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
 
      maxdevm = max(maxval(abs(bk1-bk1s)),maxval(abs(vk1-vk1s)))
      CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
      CALL MPI_ALLREDUCE(maxdevm,maxdev,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD,ierr)
-
-     if (verbose) CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
 
      if (solvloop.eq.999.and.(mype.eq.0)) print *, "Failed to Converge After 1000 iterations, Maxdev ",maxdev
 
@@ -867,18 +858,18 @@ SUBROUTINE SPLIT2(b_in,v_in)
 !   if (.not.present(dtm)) dtm = dt_max
   
   dt = 0.5 * dt2
-  if (verbose) print *, "Set time step",mype
+  if (verbose.and.mype.eq.0) print *, "Set time step",mype
   CALL get_rhs_diss2(b_in,v_in)
-  if (verbose) print *, "Through dissipation 1",mype
+  if (verbose.and.mype.eq.0) print *, "Through dissipation 1",mype
   if (force_turbulence) CALL get_rhs_force(bk1,vk1)
   b_in = b_in + dt * bk1
   v_in = v_in + dt * vk1
-  if (verbose) print *, "Through force 1",mype
+  if (verbose.and.mype.eq.0) print *, "Through force 1",mype
 
   dt = dt2
   if (intorder.eq.20) CALL GAUSS2(b_in,v_in,ndt)
   if (intorder.eq.40) CALL GAUSS4(b_in,v_in,ndt)
-  if (verbose) print *, "Through ideal",mype
+  if (verbose.and.mype.eq.0) print *, "Through ideal",mype
 
   dt = 0.5 * dt2
   bk1 = 0.0

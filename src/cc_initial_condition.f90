@@ -62,8 +62,6 @@ SUBROUTINE initial_condition
 
   if (force_turbulence) CALL init_force
 
- if (verbose) print *, mype,"b1 Extent",sum(0*b_1 + 1)
-
  !init_prefactor=0.001
  !Default Initialization
  !      CALL RANDOM_SEED
@@ -93,23 +91,6 @@ SUBROUTINE initial_condition
  
  if (enone) s1 = 0.0
  
- if (rey.eq.0) then
-    ! Set viscosity to set relative rate of dissipation at high scales 
-    rey = kxmin/vnu * sqrt(force_amp * 8*pi **3 ) * (nkx0)**(2.0*hyp)
-    vnu = vnu / (kmax**(2.0*hyp))
- else
-    ! Set viscosity from Reynolds number
-    vnu = kxmin/(rey * kxmin**(2*hyp)) * sqrt(force_amp * 8*pi **3 )
- endif
- 
- if ((mype.eq.0)) print *, "Perp Reynolds Number",rey
- 
- ! Set resistivity from Magnetic Prandtl number
- eta = eta * vnu
- if(mype.eq.0) print *, 'Viscosity',vnu
- 
-if (mype.eq.0) print *, "Force Amp",force_amp      
-
  DO i=xst,cend(1)
     DO j=yst,cend(2)
        DO k=zst,cend(3)
@@ -192,6 +173,7 @@ if (mype.eq.0) print *, "Force Amp",force_amp
           phasevy = cmplx(cos(2*pi*phase2y),sin(2*pi*phase2y))
                
           CALL RANDOM_NUMBER(showphase)
+          showphase = 2.0
           if ((max_itime.lt.100).and.(showphase.lt.10.0/real(nkx0*nky0*nkz0))) then
              print *, i,j,k
              print *, phase1y
@@ -214,18 +196,16 @@ if (mype.eq.0) print *, "Force Amp",force_amp
           ! 1 - guess bx,by,vx,vy, start incompressible with init_kolm spectrum; no energy normalization; make divergence free by solving for bz
           ! 2 - use phase and make divergence free by solving for bz
           ! 3 - Taylor Green Vortex, significant for Navier Stokes
-          ! > 10 - use random phase k x z /(sqrt(2) kperp) + i k x (k x z)/(sqrt(2) kperp k) combos
-          ! 11: pure helical
-          ! 12: minus helical
-          ! 13: shear Alfven wave k x z
-          ! 14: pseudo Alfven wave k x (k x z)
-          ! 15: b = v
-          ! 16: b = -v
-          ! 17: combination of up/down shear pseudo Alfven waves, require energy fractions
+          ! <= 10 - use random phase k x z /(sqrt(2) kperp) + i k x (k x z)/(sqrt(2) kperp k) combos
+          ! 4: pure helical
+          ! 5: minus helical
+          ! 6: shear Alfven wave k x z
+          ! 7: pseudo Alfven wave k x (k x z)
+          ! 8: b = v
+          ! 9: b = -v
+          ! 10: combination of up/down shear pseudo Alfven waves, require energy fractions
           
-          ! >20 - Hall MHD wave decompositon, require energy fraction in each
-
-          ! 2 - 
+          ! >10 - Hall MHD wave decompositon, require energy fraction in each
 
           IF (init_cond.eq.1) THEN ! Requires guesses of bx,by,vx,vy
              b_1(i,j,k,0)=init_amp_bx*1.0/sqrt(real(nkx0*nky0*(nkz0-1)))&
@@ -240,14 +220,14 @@ if (mype.eq.0) print *, "Force Amp",force_amp
                   *1/(kperps(i,j,k)**(init_kolm/2.0)) * phasev*phasevy*phaseb*sin(2*pi*thv)
              !v_1(i,j,k,2)=init_amp_vz
              v_1(i,j,k,2) = (-kxgrid(i)*v_1(i,j,k,0)-kygrid(j)*v_1(i,j,k,1))/kzgrid(k)
-          ELSE IF (init_cond.ge.2) THEN ! Remove divergence by solving divergence free condition
+          ELSE IF (init_cond.eq.2) THEN ! Remove divergence by solving divergence free condition
              b_1(i,j,k,0)= phaseb*cos(2*pi*thb)*1/(kperps(i,j,k)**(init_kolm/2.0))
              b_1(i,j,k,1)= phaseb*phaseby*sin(2*pi*thb)*1/(kperps(i,j,k)**(init_kolm/2.0))
              b_1(i,j,k,2) = (-kxgrid(i)*b_1(i,j,k,0)-kygrid(j)*b_1(i,j,k,1))/kzgrid(k)
              v_1(i,j,k,0)= phasev*phaseb*cos(2*pi*thv)*1/(kperps(i,j,k)**(init_kolm/2.0))
              v_1(i,j,k,1)= phasev*phaseb*phaseby*sin(2*pi*thv)*1/(kperps(i,j,k)**(init_kolm/2.0))
              v_1(i,j,k,2) = (-kxgrid(i)*v_1(i,j,k,0)-kygrid(j)*v_1(i,j,k,1))/kzgrid(k)
-          ELSE IF (init_cond.ge.10) THEN
+          ELSE IF (init_cond.le.10) THEN
              ! These initial conditions write a Beltrami decomposition for b,v in terms of curl eigenstates (b1r,\pm b1i) as given below
              
              CALL RANDOM_NUMBER(b1w)
@@ -260,28 +240,28 @@ if (mype.eq.0) print *, "Force Amp",force_amp
              CALL MPI_BCAST(v1w,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
              CALL MPI_BCAST(v2w,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
              
-             IF (init_cond.eq.11) THEN
+             IF (init_cond.eq.4) THEN
                 b2w = 0.0
                 v2w = 0.0
                 phasev = phaseb
                 v1w = b1w
-             ELSE IF (init_cond.eq.12) THEN
+             ELSE IF (init_cond.eq.5) THEN
                 b1w = 0.0
                 v1w = 0.0
                 phasevy = phaseby
                 v2w = b2w                
-             ELSE IF (init_cond.eq.13) THEN ! k x z Alfven shear wave
+             ELSE IF (init_cond.eq.6) THEN ! k x z Alfven shear wave
                 phaseby = phaseb
                 phasevy = phasev
                 b1w = b2w
                 v1w = v2w
-             ELSE IF (init_cond.eq.14) THEN ! k x (k x z) pseudo Alfven wave
+             ELSE IF (init_cond.eq.7) THEN ! k x (k x z) pseudo Alfven wave
                 phaseby = -phaseb
                 phasevy = -phasev
                 b1w = b2w
                 v1w = v2w
-             ELSE IF ((init_cond.eq.15).or.(init_cond.eq.16)) THEN
-                if (init_cond.eq.15) then
+             ELSE IF ((init_cond.eq.8).or.(init_cond.eq.9)) THEN
+                if (init_cond.eq.8) then
                    phasev = phaseb
                    phasevy = phaseby
                 else 
@@ -290,23 +270,8 @@ if (mype.eq.0) print *, "Force Amp",force_amp
                 endif
                 v1w = b1w
                 v2w = b2w
-             ELSE IF (init_cond.ge.17) THEN
-                
-                b_1(i,j,k,:) = phaseb * sqrt(en_leftwhist) * (pcurleig(i,j,k,:)+conjg(pcurleig(i,j,k,:))) &
-                     + phasev * sqrt(en_leftcyclo) * (pcurleig(i,j,k,:)+conjg(pcurleig(i,j,k,:))) &
-                     + phaseby * sqrt(en_rightwhist) * (pcurleig(i,j,k,:)-conjg(pcurleig(i,j,k,:))) &
-                     + phasevy * sqrt(en_rightcyclo) * (pcurleig(i,j,k,:)-conjg(pcurleig(i,j,k,:)))
-
-                v_1(i,j,k,:) = phaseb *	sqrt(en_leftwhist) * (pcurleig(i,j,k,:)+conjg(pcurleig(i,j,k,:))) &
-                     - phasev *	sqrt(en_leftcyclo) * (pcurleig(i,j,k,:)+conjg(pcurleig(i,j,k,:))) &
-                     + phaseby * sqrt(en_rightwhist) * (pcurleig(i,j,k,:)-conjg(pcurleig(i,j,k,:))) &
-                     - phasevy * sqrt(en_rightcyclo) * (pcurleig(i,j,k,:)-conjg(pcurleig(i,j,k,:)))
-
-                b_1(i,j,k,:) = b_1(i,j,k,:) / (sqrt(en_leftwhist + en_leftcyclo + en_rightwhist + en_rightcyclo) * kperps(i,j,k)**(init_kolm/2.0))
-                v_1(i,j,k,:) = v_1(i,j,k,:) / (sqrt(en_leftwhist + en_leftcyclo + en_rightwhist + en_rightcyclo) * kperps(i,j,k)**(init_kolm/2.0))
-
              ENDIF
-             
+
              b_1(i,j,k,0) = (b1w*phaseb*pcurleig(i,j,k,0) &
                   + b2w*phaseby*conjg(pcurleig(i,j,k,0)))/sqrt(b1w**2+b2w**2)
              b_1(i,j,k,1) = (b1w*phaseb*pcurleig(i,j,k,1) &
@@ -323,8 +288,26 @@ if (mype.eq.0) print *, "Force Amp",force_amp
              
              b_1(i,j,k,:) = b_1(i,j,k,:) / (kperps(i,j,k)**(init_kolm/2.0))
              v_1(i,j,k,:) = v_1(i,j,k,:) / (kperps(i,j,k)**(init_kolm/2.0))
+
              
-          ELSE IF (init_cond.ge.20) THEN
+             IF (init_cond.eq.10) THEN ! Mixture of shear, pseudoAlfven waves
+             
+                b_1(i,j,k,:) = phaseb * sqrt(en_leftwhist) * (pcurleig(i,j,k,:)+conjg(pcurleig(i,j,k,:))) &
+                     + phasev * sqrt(en_leftcyclo) * (pcurleig(i,j,k,:)+conjg(pcurleig(i,j,k,:))) &
+                     + phaseby * sqrt(en_rightwhist) * (pcurleig(i,j,k,:)-conjg(pcurleig(i,j,k,:))) &
+                     + phasevy * sqrt(en_rightcyclo) * (pcurleig(i,j,k,:)-conjg(pcurleig(i,j,k,:)))
+
+                v_1(i,j,k,:) = phaseb *	sqrt(en_leftwhist) * (pcurleig(i,j,k,:)+conjg(pcurleig(i,j,k,:))) &
+                     - phasev *	sqrt(en_leftcyclo) * (pcurleig(i,j,k,:)+conjg(pcurleig(i,j,k,:))) &
+                     + phaseby * sqrt(en_rightwhist) * (pcurleig(i,j,k,:)-conjg(pcurleig(i,j,k,:))) &
+                     - phasevy * sqrt(en_rightcyclo) * (pcurleig(i,j,k,:)-conjg(pcurleig(i,j,k,:)))
+
+                b_1(i,j,k,:) = b_1(i,j,k,:) / (sqrt(en_leftwhist + en_leftcyclo + en_rightwhist + en_rightcyclo) * kperps(i,j,k)**(init_kolm/2.0))
+                v_1(i,j,k,:) = v_1(i,j,k,:) / (sqrt(en_leftwhist + en_leftcyclo + en_rightwhist + en_rightcyclo) * kperps(i,j,k)**(init_kolm/2.0))
+
+             ENDIF
+             
+          ELSE ! Mixture of Hall MHD waves
              
              LW1 = sqrt(en_leftwhist) * phaseb/sqrt(1 + alpha_leftwhist(i,j,k)**2)
              LC1 = sqrt(en_leftcyclo) * phasev/sqrt(1 + alpha_leftcyclo(i,j,k)**2)
@@ -356,7 +339,7 @@ if (mype.eq.0) print *, "Force Amp",force_amp
  ENDIF
  
  
- if (verbose) print *, "Through initial b_1 and v_1",mype
+ if (verbose.and.(mype.eq.0)) print *, "Through initial b_1 and v_1",mype
  
  ! Set energy as fraction of 4 pi^3
  if (init_cond.ge.2) then
@@ -365,7 +348,7 @@ if (mype.eq.0) print *, "Force Amp",force_amp
     ! Account for zeros
     if (cstart(1).eq.1) kxzeroenm = sum(0.5*(abs(b_1(1,:,:,:))**2+abs(v_1(1,:,:,:))**2))
     
-    if (verbose) print *, mype,"Unnormalized Sum",knzeroenm+kxzeroenm
+    if (verbose.and.(mype.eq.0)) print *, mype,"Unnormalized Sum",knzeroenm+kxzeroenm
     
     CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
     CALL MPI_ALLREDUCE(knzeroenm,knzeroen,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
@@ -374,102 +357,94 @@ if (mype.eq.0) print *, "Force Amp",force_amp
     CALL MPI_ALLREDUCE(kxzeroenm,kxzeroen,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
     
     s1 = knzeroen+kxzeroen
-    if (verbose) print *, mype,"s1",s1
+    if (verbose.and.(mype.eq.0)) print *, mype,"s1",s1
     
     b_1 = b_1 * sqrt(init_energy / (2.0*s1))
     v_1 = v_1 * sqrt(init_energy / (2.0*s1))
  endif
  
- if (verbose) then
-    DO ind = 0,2
-       print *, "Max Bind",mype,maxval(abs(b_1(:,:,:,ind)))
-       print *, "Max Vind",mype,maxval(abs(v_1(:,:,:,ind)))
-    ENDDO
- endif
+ if (verbose.and.(mype.eq.0)) print *, "Through energy normalization"
 
- if (verbose) print *, "Through energy normalization"
+  if (init_cond.eq.3) then
+     ! Initializes Fourier components of Taylor Green vortex u = sin x cos y cos z , v = - cos x sin y cos z
+     v_1 = cmplx(0.0,0.0)
+     
+     if (((cstart(1).le.2).and.(cend(1).ge.2)).and.((cstart(2).le.2).and.(cend(2).ge.2))) then
+        v_1(2,2,0,0) = 1.0
+        v_1(2,2,0,1) = -1.0
+     else if (((cstart(1).le.2).and.(cend(1).ge.2)).and.(cend(2).eq.nky0)) then
+        v_1(2,nky0,0,0) = 1.0
+        v_1(2,nky0,0,1) = 1.0
+     endif
+     
+     v_1 = -v_1 * cmplx(0.0,0.125)
+  endif
  
- turnoverm = 0.0
- nltmax = 10.0**8.0
- nltmin = 0.0
+  mhelcorr = 0.0
+  if (checkpoint_read) call checkpoint_in
  
- DO i = cstart(1),cend(1)
-    DO j = cstart(2),cend(2)
-       DO k = cstart(3),cend(3)
-
-          turnoverm = turnoverm + sum(abs(v_1(i,j,k,:))**2.0) * sin(kxgrid(i)/(2.0*kxmin))**2.0
-          nltmax = min(nltmax,minval(kmags(i,j,k)*abs(v_1(i,j,k,:)),kmags(i,j,k)*abs(v_1(i,j,k,:)).gt.10.0**(-10.0)))
-          nltmin = max(nltmin,kmags(i,j,k)*maxval(abs(v_1(i,j,k,:)),abs(v_1(i,j,k,:)).gt.10.0**(-10.0)))
-          
-       ENDDO
-    ENDDO
- ENDDO
+  turnoverm = 0.0
+  nltmax = 10.0**8.0
+  nltmin = 0.0
+  
+  DO i = cstart(1),cend(1)
+     DO j = cstart(2),cend(2)
+        DO k = cstart(3),cend(3)
+           
+           turnoverm = turnoverm + sum(abs(v_1(i,j,k,:))**2.0) * sin(kxgrid(i)/(2.0*kxmin))**2.0
+           nltmax = min(nltmax,minval(kmags(i,j,k)*abs(v_1(i,j,k,:)),kmags(i,j,k)*abs(v_1(i,j,k,:)).gt.10.0**(-10.0)))
+           nltmin = max(nltmin,kmags(i,j,k)*maxval(abs(v_1(i,j,k,:)),abs(v_1(i,j,k,:)).gt.10.0**(-10.0)))
+           
+        ENDDO
+     ENDDO
+  ENDDO
+  
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(turnoverm,turnover,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
+  
+  turnover = 1.0/(2*kxmin*sqrt(turnover))
+  
+  if (mype.eq.0) print *, mype,"Turnover Time Estimate",turnover
+  
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(nltmax,nlt,1,MPI_DOUBLE,MPI_MIN,MPI_COMM_WORLD,ierr)
+  
+  if (mype.eq.0) nlt = 10.0/nlt
+  
+  if (mype.eq.0) print *, mype,"Equation-Based Max Nonlinear Time Scale", nlt
+  
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(nltmin,nlt,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD,ierr)
+  
+  if (mype.eq.0) nlt = 10.0/nlt
+  
+  if (mype.eq.0) print *, mype,"Equation-Based Min Nonlinear Time Scale", nlt
+  
+  ! if (nv) b_1(:,:,:,:) = cmplx(0.0,0.0)
+  
+  ! Scale forcing to represent energy gained per time step |F| |v| ~ energy gain per step as fraction of initial energy
+  ! |v| ~ sqrt(|v|^2) ~ sqrt(energy/2)
  
- CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
- CALL MPI_ALLREDUCE(turnoverm,turnover,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,ierr)
- 
- turnover = 1.0/(2*kxmin*sqrt(turnover))
- 
- if (mype.eq.0) print *, mype,"Turnover Time Estimate",turnover
- 
- CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
- CALL MPI_ALLREDUCE(nltmax,nlt,1,MPI_DOUBLE,MPI_MIN,MPI_COMM_WORLD,ierr)
- 
- if (mype.eq.0) nlt = 10.0/nlt
- 
- print *, mype,"Equation-Based Max Nonlinear Time Scale", nlt
- 
- CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
- CALL MPI_ALLREDUCE(nltmin,nlt,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD,ierr)
- 
- if (mype.eq.0) nlt = 10.0/nlt
- 
- print *, mype,"Equation-Based Min Nonlinear Time Scale", nlt
- 
- if (nv) b_1(:,:,:,:) = cmplx(0.0,0.0)
- 
- if (init_cond.eq.3) then
-    ! Initializes Fourier components of Taylor Green vortex u = sin x cos y cos z , v = - cos x sin y cos z
-    v_1 = cmplx(0.0,0.0)
-
-    if (((cstart(1).le.2).and.(cend(1).ge.2)).and.((cstart(2).le.2).and.(cend(2).ge.2))) then
-       v_1(2,2,0,0) = 1.0
-       v_1(2,2,0,1) = -1.0
-    else if (((cstart(1).le.2).and.(cend(1).ge.2)).and.(cend(2).eq.nky0)) then
-       v_1(2,nky0,0,0) = 1.0
-       v_1(2,nky0,0,1) = 1.0
-    endif
-    
-    v_1 = -v_1 * cmplx(0.0,0.125)
- endif
- 
- ! Scale forcing to represent energy gained per time step |F| |v| ~ energy gain per step as fraction of initial energy
-    ! |v| ~ sqrt(|v|^2) ~ sqrt(energy/2)
- 
- ! if (force_turbulence) force_amp = force_amp * sqrt(4.0 * pi**3.0 * init_energy)
- ! if (verbose) print *, mype,"Force amp",force_amp
- 
- IF (init_cond.eq.0) THEN
-    b_1 = cmplx(0.0,0.0)
-    v_1 = cmplx(0.0,0.0)
- ENDIF
- 
- IF (checkpoint_read) CALL checkpoint_in
- 
-    ! Linear stability maximum time step
- dt_criticalm = 2.0/(maxval(kzgrid)*(maxval(hall*kmags)/2 + sqrt(1 + 0.25*maxval(hall*kmags)**2.0)))
-
- CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
- CALL MPI_ALLREDUCE(dt_criticalm,dtc,1,MPI_REAL8,MPI_MIN,MPI_COMM_WORLD,ierr)
- if (mype.eq.0) print *, "Gauss2 Critical Time Step", dtc
- if (calc_dt.and.(.not.(test_ho)).and.(hall.ne.0.0)) dt_max = minval([dt_max,dtc/2.0])
- if (verbose.and.(mype.eq.0)) then
-    print *, "kzgrid max", maxval(kzgrid)
-    print *, "kmags max", kmax
+  ! if (force_turbulence) force_amp = force_amp * sqrt(4.0 * pi**3.0 * init_energy)
+  ! if (verbose) print *, mype,"Force amp",force_amp
+  
+  IF (init_cond.eq.0) THEN
+     b_1 = cmplx(0.0,0.0)
+     v_1 = cmplx(0.0,0.0)
+  ENDIF
+  
+  ! Linear stability maximum time step
+  dt_criticalm = 2.0/(maxval(kzgrid)*(maxval(hall*kmags)/2 + sqrt(1 + 0.25*maxval(hall*kmags)**2.0)))
+  
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(dt_criticalm,dtc,1,MPI_REAL8,MPI_MIN,MPI_COMM_WORLD,ierr)
+  if (mype.eq.0) print *, "Gauss2 Critical Time Step", dtc
+  if (calc_dt.and.(.not.(test_ho)).and.(hall.ne.0.0)) dt_max = minval([dt_max,dtc/2.0])
+  if (verbose.and.(mype.eq.0)) then
+     print *, "kzgrid max", maxval(kzgrid)
+     print *, "kmags max", kmax
  endif
  
- ! Magnetic Helicity Correction
- mhelcorr = 0.0
  
  ! Check on Initial Energy
  
@@ -487,6 +462,20 @@ if (mype.eq.0) print *, "Force Amp",force_amp
  s1 = knzeroen + kxzeroen
  
  if (mype.eq.0) print *, "All Mype Initial Energy",s1*8*pi**3
+
+ CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+ 
+ if (rey.eq.0) then
+    rey = kxmin/vnu * sqrt(s1) * (nkx0)**(2.0*hyp)
+    vnu = vnu / (kmax**(2.0*hyp))
+ else
+    vnu = kxmin/(rey * kxmin**(2*hyp)) * sqrt(force_amp * 8*pi **3 )
+ endif
+
+ eta = eta * vnu
+ if (mype.eq.0) print *, "Perp Reynolds Number",rey
+ if (mype.eq.0) print *, 'Viscosity',vnu
+ if (mype.eq.0) print *, "Force Amp",force_amp
  
  dt = dt_max
  
