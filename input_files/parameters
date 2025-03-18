@@ -32,7 +32,7 @@ np_kz =    1
 np_hank =    1
 np_spec =    1
 courant =   0.5
-init_energy = 0.01
+init_energy = 0.001
 init_amp_bx = 0.0
 init_amp_by = 0.0
 init_amp_bz = 0.0
@@ -42,23 +42,23 @@ init_amp_vz = 0.0
 init_kolm = 0.0
 phdf = 2.0
 phdfxy = 2.0
-force_amp = 0.00002
+force_amp = 0.0
 nkxforce = 4
 nkyforce = 4
 nkzforce = 4
 force_frac = 0.03
-hyp = 4
+hyp = 1
 /
 
 &diagnostics
-diagdir = "/pscratch/sd/e/echansen/DNA2MHDruns/siamtest"
-loaddir = "/pscratch/sd/e/echansen/DNA2MHDruns/siamtest"
+diagdir = "/pscratch/sd/e/echansen/DNA2MHDruns/austinsherwoodpar"
+loaddir = "/pscratch/sd/e/echansen/DNA2MHDruns/austinsherwoodpar"
 istep_ffm =   20
 istep_energy3d =  500
 istep_energy =  10
 istep_energyspec = 200
 istep_hermite =  1000
-istep_gout =  10000
+istep_gout =  5000
 istep_gk =    0
 istep_gknl =    0
 istep_nlt =    0
@@ -71,9 +71,10 @@ output_nlt_n = F
 /
 
 &flags
-verbose  = T
+verbose  = F
 timer = F
 nonlinear  = T
+actual_nonlinear = T
 calc_dt  = F
 comp_type = 'IV'
 checkpoint_write = T
@@ -82,6 +83,7 @@ em_conserve = T
 nuno_closure = T
 rhs_nl_version = 12
 intorder = 20
+precondition = F
 dealias_type = 3
 shifted = F
 force_turbulence = F
@@ -94,11 +96,11 @@ nv = F
 mhc = T
 force_trunc = F
 checkpoint_read = F
-init_cond = 20
-en_leftwhist = 1.0
-en_leftcyclo = 0.0
-en_rightwhist = 0.0
-en_rightcyclo = 0.0
+init_cond = 32
+en_leftwhist = 0.1
+en_leftcyclo = 0.4
+en_rightwhist = 0.4
+en_rightcyclo = 0.1
 taylorgreen = F
 force_lw = 1.0
 force_lc = 0.0
@@ -108,9 +110,9 @@ random_state = 3
 /
 
 &initial_value
-max_itime = 11
+max_itime = 25000
 max_walltime =   86200.0
-dt_max = 0.01
+dt_max = 0.04
 fix_dt = F
 max_time =   10000000.
 /

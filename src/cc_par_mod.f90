@@ -135,8 +135,7 @@ MODULE par_mod
   !INTEGER :: rhs_nl_version=2
   INTEGER :: rhs_nl_version !Akash changed nl_version to 1
   INTEGER :: intorder = 4
-  LOGICAL :: linen = .false.
-  LOGICAL :: keepzero = .true. ! Retain nl calculation for modes at start at zero energy
+  LOGICAL :: precondition = .true.
   INTEGER :: dealias_type = 3
   LOGICAL :: shifted = .true.
   LOGICAL :: splitx = .true.
@@ -182,6 +181,7 @@ MODULE par_mod
   LOGICAL :: timer = .false.        ! Timing specific output only
   LOGICAL :: checkpoint_read=.false. !READ checkpoint for restart
   LOGICAL :: checkpoint_write=.true.
+  
 !  LOGICAL :: get_chpt_from_gout=.false.
 
   INTEGER(4) :: init_cond = 0
@@ -394,6 +394,9 @@ MODULE par_mod
   REAL :: eta ! Magnetic Prandtl number, mag diffusion constant eta * vnu
   REAL :: rey = 0 ! Reynolds Number; if rey > 0 set vnu = 1/rey
   INTEGER :: hyp
+
+  INTEGER(4) :: mype1,mype2,mype3
+  INTEGER(4) :: wave1x=0,wave1y=0,wave1z=0,wave2x=0,wave2y=0,wave2z=0,wave3x=0,wave3y=0,wave3z=0
   
 
   CONTAINS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 

@@ -23,7 +23,7 @@ MODULE linear_rhs
   !USE flr_effects
   !USE hk_effects
 
-  PUBLIC :: get_rhs_lin,get_rhs_lin2,finalize_force,init_force,get_rhs_diss,get_rhs_diss2,get_rhs_force,get_rhs_test !,get_v_boundaries,get_v_boundaries2
+  PUBLIC :: get_rhs_lin,get_rhs_lin2,finalize_force,init_force,get_rhs_diss,get_rhs_diss2,get_rhs_force,get_rhs_test,remove_div,hmhdnewton !,get_v_boundaries,get_v_boundaries2
 
   PRIVATE
   
@@ -70,9 +70,10 @@ SUBROUTINE get_rhs_lin1_ae(b_in, v_in, rhs_out_b,rhs_out_v, which_term)
 
  !IF(verbose.and.mype==0) WRITE(*,*) "get_rhs_lin1", 68
 
-    DO i=cstart(1),cend(1)
-       DO j = cstart(2),cend(2)
-          DO k = cstart(3),cend(3)
+ 
+  DO j = cstart(2),cend(2)
+     DO k = cstart(3),cend(3)
+        DO i=cstart(1),cend(1)
              ! Mahajan equation 14
              rhs_out_b(i,j,k,0) = i_complex*kzgrid(k)*(v_in(i,j,k,0) &
                   - hall*(i_complex*kygrid(j)*b_in(i,j,k,2) - i_complex*kzgrid(k)*b_in(i,j,k,1)))
@@ -94,6 +95,59 @@ if (nv) rhs_out_b = cmplx(0.0,0.0)
 
 END SUBROUTINE get_rhs_lin1_ae
 
+SUBROUTINE remove_div(b_in,v_in)
+
+  !! Project divergence out of magnetic and velocity field perturbations
+
+  COMPLEX(C_DOUBLE_COMPLEX) :: b_in(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2)
+  COMPLEX(C_DOUBLE_COMPLEX) :: v_in(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2)
+
+  INTEGER :: i,j,k,l,h
+  COMPLEX(C_DOUBLE_COMPLEX) :: div_v, div_b
+  REAL(C_DOUBLE) :: k2
+  COMPLEX(C_DOUBLE_COMPLEX) :: exb(0:2),exv(0:2)
+
+  div_v = 0.0 +i_complex*0.0
+  div_b = 0.0 +i_complex*0.0
+  k2=0.0
+  zero=0.0
+  
+  if (mype.eq.0) then
+     exb = b_in(1,1,1,:)
+     exv = v_in(1,1,1,:)
+  endif
+  
+  DO i=cstart(1),cend(1)
+     DO j=cstart(2),cend(2)
+        DO k=cstart(3),cend(3)
+           k2 = kxgrid(i)**2 + kygrid(j)**2 + kzgrid(k)**2
+           div_v = kxgrid(i)*v_in(i,j,k,0) + kygrid(j)*v_in(i,j,k,1) + kzgrid(k)*v_in(i,j,k,2)
+           div_b = kxgrid(i)*b_in(i,j,k,0) + kygrid(j)*b_in(i,j,k,1) + kzgrid(k)*b_in(i,j,k,2)
+           
+           v_in(i,j,k,0) = v_in(i,j,k,0) - div_v*kxgrid(i)/k2
+           v_in(i,j,k,1) = v_in(i,j,k,1) - div_v*kygrid(j)/k2
+           v_in(i,j,k,2) = v_in(i,j,k,2) - div_v*kzgrid(k)/k2
+           
+           ! The b equation is a curl, so we don't need to remove div b (except at start)
+           b_in(i,j,k,0) = b_in(i,j,k,0) - div_b*kxgrid(i)/k2
+           b_in(i,j,k,1) = b_in(i,j,k,1) - div_b*kygrid(j)/k2
+           b_in(i,j,k,2) = b_in(i,j,k,2) - div_b*kzgrid(k)/k2
+           
+        ENDDO
+     ENDDO
+  ENDDO
+  
+  if (mype.eq.0) then
+     b_in(1,1,1,:) = exb
+     v_in(1,1,1,:) = exv
+  endif
+  
+  if (verbose.and.(mype.eq.0)) print *,'Divergence Removed'
+  
+END SUBROUTINE remove_div
+
+
+
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!                                get_rhs_force                              !!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -114,11 +168,11 @@ SUBROUTINE get_rhs_force(rhs_out_b, rhs_out_v)
     CALL MPI_BCAST(resample,1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
 
     IF ((forcetype.eq.11).or.(forcetype.eq.12)) THEN
-       
+
        DO i = cstart(1),cend(1)
+       DO k = cstart(3),cend(3)
           DO j = cstart(2),cend(2)
-             DO k = cstart(3),cend(3)
-                if (verbose) c = MPI_WTIME()
+                 if (verbose) c = MPI_WTIME()
                 IF (forceb) THEN
                    rhs_out_b(i,j,k,0) = rhs_out_b(i,j,k,0) + (force_amp*random_normal() &
                         + i_complex*force_amp*random_normal())*mask1(i,j,k)
@@ -144,9 +198,9 @@ SUBROUTINE get_rhs_force(rhs_out_b, rhs_out_v)
 
     IF ((forcetype.ge.20)) THEN
 
-       DO i = cstart(1),cend(1)
-          DO j = cstart(2),cend(2)
-             DO k = cstart(3),cend(3)
+       DO k = cstart(3),cend(3)
+          DO i = cstart(1),cend(1)
+             DO j = cstart(2),cend(2)
                 if (verbose) c = MPI_WTIME()
                 CALL random_number(th1)
                 CALL random_number(th2)
@@ -337,5 +391,91 @@ SUBROUTINE get_rhs_diss2(b_in,v_in)
 
 END SUBROUTINE get_rhs_diss2
 
-END MODULE linear_rhs
+SUBROUTINE hmhdnewton(step0b,step0v,step12b,step12v)
 
+  ! Given the results of fixed point iteration step0b,step0v,step12b,step12v
+  ! Solve for the next iteration based on the linear dynamics of the system
+  ! i.e. given x0 and F(x0)
+  ! We exploit the known normal mode decomposition to perform the matrix inversion
+  
+  IMPLICIT NONE
+
+  complex(8), intent(inout) :: step0b(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2)
+  complex(8), intent(inout) :: step0v(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2)
+  complex(8), intent(in) :: step12b(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2)
+  complex(8), intent(in) :: step12v(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2)
+
+  complex(8) :: LWk,LCk,RWk,RCk,stepdifferenceb(0:2),stepdifferencev(0:2)
+  integer(4) :: i,j,k
+  integer(4) :: zerofoundm = 0,zerofound,ierr,zerodiffm = 0,zerodiff
+  real(8) :: maxdevmb = 0,maxdevb,maxdevmv = 0,maxdevv
+
+  maxdevmb = maxval(abs(step12b-step0b))
+  maxdevmv = maxval(abs(step12v-step0v))
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(maxdevmb,maxdevb,1,MPI_REAL8,MPI_MAX,MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(maxdevmv,maxdevv,1,MPI_REAL8,MPI_MAX,MPI_COMM_WORLD,ierr)
+  
+  if ((verbose).and.(mype.eq.0)) print *, "Max Deviation",maxdevb,maxdevv
+  
+  DO i = cstart(1),cend(1)
+     DO j = cstart(2),cend(2)
+        DO k = cstart(3),cend(3)
+           stepdifferenceb = step12b(i,j,k,:)-step0b(i,j,k,:)
+           stepdifferencev = step12v(i,j,k,:)-step0v(i,j,k,:)
+           if (max(maxval(abs(stepdifferenceb)),maxval(abs(stepdifferencev))).gt.0) zerodiffm = 1
+
+           ! Compute dot products to get normal mode decomposition
+
+           LWk = sum(conjg(pcurleig(i,j,k,:))*(alpha_leftwhist(i,j,k)*stepdifferenceb + stepdifferencev))/(sqrt(1.0+alpha_leftwhist(i,j,k)**2.0))
+           LCk = sum(conjg(pcurleig(i,j,k,:))*(-stepdifferenceb/alpha_leftwhist(i,j,k) + stepdifferencev))/(sqrt(1.0+(1.0/alpha_leftwhist(i,j,k))**2.0))
+           RWk = sum(pcurleig(i,j,k,:)*(-alpha_leftwhist(i,j,k)*stepdifferenceb + stepdifferencev))/(sqrt(1.0+alpha_leftwhist(i,j,k)**2.0))
+           RCk = sum(pcurleig(i,j,k,:)*(stepdifferenceb/alpha_leftwhist(i,j,k) + stepdifferencev))/(sqrt(1.0+(1.0/alpha_leftwhist(i,j,k))**2.0))
+
+           ! Invert for correction normal mode amplitudes
+           LWk = LWk/(cmplx(1.0,-0.5*dt*kzgrid(k)*alpha_leftwhist(i,j,k)))
+           LCk = LCk/(cmplx(1.0,0.5*dt*kzgrid(k)/alpha_leftwhist(i,j,k)))
+           RWk = RWk/(cmplx(1.0,0.5*dt*kzgrid(k)*alpha_leftwhist(i,j,k)))
+           RCk = RCk/(cmplx(1.0,-0.5*dt*kzgrid(k)/alpha_leftwhist(i,j,k)))
+
+           if (max(abs(LWk),abs(LCk),abs(RWk),abs(RCk)).gt.0) zerofoundm = 1
+
+           ! Add normal mode corrections
+           step0b(i,j,k,:) = step0b(i,j,k,:) + LWk * alpha_leftwhist(i,j,k) * pcurleig(i,j,k,:)/sqrt(alpha_leftwhist(i,j,k)**2.0+1.0)
+           step0b(i,j,k,:) = step0b(i,j,k,:) - LCk * 1.0/alpha_leftwhist(i,j,k) * pcurleig(i,j,k,:)/sqrt((1.0/alpha_leftwhist(i,j,k))**2.0+1.0)
+           step0b(i,j,k,:) = step0b(i,j,k,:) - RWk * alpha_leftwhist(i,j,k) * conjg(pcurleig(i,j,k,:))/sqrt(alpha_leftwhist(i,j,k)**2.0+1.0)
+           step0b(i,j,k,:) = step0b(i,j,k,:) + RCk * 1.0/alpha_leftwhist(i,j,k) * conjg(pcurleig(i,j,k,:))/sqrt((1.0/alpha_leftwhist(i,j,k))**2.0+1.0)
+
+           step0v(i,j,k,:) = step0v(i,j,k,:) + LWk * pcurleig(i,j,k,:)/sqrt(alpha_leftwhist(i,j,k)**2.0+1.0)
+           step0v(i,j,k,:) = step0v(i,j,k,:) + LCk * pcurleig(i,j,k,:)/sqrt((1.0/alpha_leftwhist(i,j,k))**2.0+1.0)
+           step0v(i,j,k,:) = step0v(i,j,k,:) + RWk * conjg(pcurleig(i,j,k,:))/sqrt(alpha_leftwhist(i,j,k)**2.0+1.0)
+           step0v(i,j,k,:) = step0v(i,j,k,:) + RCk * conjg(pcurleig(i,j,k,:))/sqrt((1.0/alpha_leftwhist(i,j,k))**2.0+1.0)
+
+        ENDDO
+     ENDDO
+  ENDDO
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(zerofoundm,zerofound,1,MPI_INTEGER4,MPI_SUM,MPI_COMM_WORLD,ierr)
+  if ((verbose).and.(mype.eq.0).and.zerofound.gt.0) print *, "Only trivial solution found ",n_mpi_procs-zerofound,"nodes"
+  if ((verbose).and.zerofoundm.eq.0) print * , "Trivial found", cstart(1),cstart(2)
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(zerodiffm,zerodiff,1,MPI_INTEGER4,MPI_SUM,MPI_COMM_WORLD,ierr)
+  if ((verbose).and.(mype.eq.0).and.zerodiff.gt.0) print *, "All differences found equal ",n_mpi_procs-zerodiff,"nodes"
+  if ((verbose).and.zerodiffm.eq.0) print * , "Trivial found",	cstart(1),cstart(2)
+
+  maxdevmb = maxval(abs(step12b-step0b))
+  maxdevmv = maxval(abs(step12v-step0v))
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(maxdevmb,maxdevb,1,MPI_REAL8,MPI_MAX,MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(maxdevmv,maxdevv,1,MPI_REAL8,MPI_MAX,MPI_COMM_WORLD,ierr)
+
+  if ((verbose).and.(mype.eq.0)) print *, "Max Deviation",maxdevb,maxdevv
+
+  if ((verbose).and.zerofoundm.eq.1) print *, cstart(1),cstart(2),maxval(abs(step12b-step0b)),maxloc(abs(step12b-step0b))
+  
+
+END SUBROUTINE hmhdnewton
+
+END MODULE linear_rhs

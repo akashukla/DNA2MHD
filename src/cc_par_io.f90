@@ -53,7 +53,7 @@ SUBROUTINE read_parameters
       em_conserve,flr_on,force_kz0eq0,force_ky0eq0,force_kx0eq0,flr_version,&
       flr_extra,flr_nonlinear,etg_factor, &!, which_nonlinear,etg_factor
       perf_test_lin,perf_test_nl,perf_test_rhs,rhs_lin_version,rhs_nl_version,&
-      intorder,linen,keepzero,dealias_type,shifted,splitx,&
+      intorder,precondition,dealias_type,shifted,splitx,&
       perf_test_par, version_flag, hankel, dt_slepc, nuno_closure,mu_integrated,&
       GyroLES, Gyroherm, Gyroz, Corr, &
       plot_nls,&
@@ -385,8 +385,6 @@ SUBROUTINE output_parameters
     WRITE(out_handle,"(A,I4)") "rhs_lin_version = ",rhs_lin_version
     WRITE(out_handle,"(A,I4)") "rhs_nl_version = ",rhs_nl_version
     WRITE(out_handle,"(A,I1)") "intorder = ",intorder
-    WRITE(out_handle,"(A,L1)") "linen = ",linen
-    WRITE(out_handle,"(A,L1)") "keepzero = ",keepzero
     WRITE(out_handle,"(A,I4)") "dealias_type = ",dealias_type
     WRITE(out_handle,"(A,L1)") "shifted = ",shifted
     WRITE(out_handle,"(A,L1)") "splitx = ",splitx
@@ -423,7 +421,19 @@ SUBROUTINE output_parameters
     WRITE(out_handle,"(A,G12.4)") "force_lw = ",force_lw
     WRITE(out_handle,"(A,G12.4)") "force_lc = ",force_lc
     WRITE(out_handle,"(A,G12.4)") "force_rw = ",force_rw
-    WRITE(out_handle,"(A,G12.4)") "force_rc = ",force_rc    
+    WRITE(out_handle,"(A,G12.4)") "force_rc = ",force_rc
+    
+    WRITE(out_handle,"(A,I4)") "wave1x = ",wave1x
+    WRITE(out_handle,"(A,I4)") "wave1y = ",wave1y
+    WRITE(out_handle,"(A,I4)") "wave1z = ",wave1z
+
+    WRITE(out_handle,"(A,I4)") "wave2x = ",wave2x
+    WRITE(out_handle,"(A,I4)") "wave2y = ",wave2y
+    WRITE(out_handle,"(A,I4)") "wave2z = ",wave2z
+
+    WRITE(out_handle,"(A,I4)") "wave3x = ",wave3x
+    WRITE(out_handle,"(A,I4)") "wave3y = ",wave3y
+    WRITE(out_handle,"(A,I4)") "wave3z = ",wave3z
 
     IF (verbose) WRITE(*,*) "Eigensolve "
 

@@ -1268,3 +1268,71 @@ def patch_mhc(mhc):
 
     return(mhc1)
 
+def threewaveenergy(lpath):
+
+    if par["init_cond"] >= 31:
+
+        read_parameters(lpath)
+        kxgrid,kygrid,kzgrid = get_grids()
+        if lpath[-1] == "/":
+            lpath = lpath[:-1]
+            
+        f = open(lpath+"/threewave_out.dat","rb")
+        timeenergies = np.fromfile(f,dtype="float64",count=-1)
+
+        kxs = []
+        kys = []
+        kzs = []
+        ks = []
+
+        for i in range(3):
+            kx = kxgrid[par["wave"+str(i)+"x"]-1]
+            kxs.append(kx)
+            ky = kygrid[par["wave"+str(i)+"y"]-1]
+            kys.append(ky)
+            kz = kzgrid[par["wave"+str(i)+"z"]-1]
+            kzs.append(kz)
+            ks.append(np.sqrt(kx**2 + ky**2 + kz**2))
+        
+        if par["init_cond"] <= 33:
+            wave1 = 1
+            wave2 = 5
+            wave3 = 9
+        elif par["init_cond"] <= 35:
+            wave1 = 1
+            wave2 = 5
+            wave3 = 10
+
+        waves = [wave1,wave2,wave3]
+
+        ii = np.argsort(ks)
+
+        waves_ii = waves[ii]
+        colors = ["mediumturquoise","tomato","olivegreen"]
+
+        plt.figure()
+        for i in range(3):
+            plt.plot(timeenergies[::13],timeenergies[waves_ii[i]::13],color=colors[i],label=(kxs[ii],kys[ii],kzs[ii]))
+        plt.legend(loc="upper right")
+        plt.savefig(lpath+"/threewaves")
+
+        for i in range(3):
+            plt.figure()
+            plt.plot(timeenergies[::13],timeenergies[4*i+1::13],color="b",linestyle="--",label="Positive Whistler")
+            plt.plot(timeenergies[::13],timeenergies[4*i+2::13],color="b",linestyle=":",label="Positive Cyclotron")
+            plt.plot(timeenergies[::13],timeenergies[4*i+3::13],color="r",linestyle="--",label="Negative Whistler")
+            plt.plot(timeenergies[::13],timeenergies[4*i+4::13],color="r",linestyle=":",label="Negative Cyclotron")
+            plt.legend()
+            plt.xlabel("Time ($\omega_c^{-1}$)")
+            plt.ylabel("Wave Energy")
+            plt.yscale("log")
+            plt.title("Wave Energies k "+ff(kxs[i],2)+" "+
+                      ff(kys[i],2)+" "+ff(kzs[i],2))
+            plt.legend(loc="upper right")
+            plt.savefig("wavebreakdown"+str(i+1))
+            plt.close()
+
+        return(timeenergies)
+    else:
+        print("Not a three wave simulation")
+        return(None)

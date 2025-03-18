@@ -314,55 +314,6 @@ SUBROUTINE get_g_next(b_in, v_in,dt_new)
 
 END SUBROUTINE get_g_next
 
-SUBROUTINE remove_div(b_in,v_in)
-
-  COMPLEX(C_DOUBLE_COMPLEX) :: b_in(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2)
-  COMPLEX(C_DOUBLE_COMPLEX) :: v_in(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2)
-
-  INTEGER :: i,j,k,l,h
-  COMPLEX(C_DOUBLE_COMPLEX) :: div_v, div_b
-  REAL(C_DOUBLE) :: k2
-  COMPLEX(C_DOUBLE_COMPLEX) :: exb(0:2),exv(0:2)
-
- div_v = 0.0 +i_complex*0.0
- div_b = 0.0 +i_complex*0.0
- k2=0.0
- zero=0.0
-
- if (mype.eq.0) then
-    exb = b_in(1,1,1,:)
-    exv = v_in(1,1,1,:)
- endif 
-
- DO i=cstart(1),cend(1)
-   DO j=cstart(2),cend(2)
-     DO k=cstart(3),cend(3)
-        k2 = kxgrid(i)**2 + kygrid(j)**2 + kzgrid(k)**2
-        div_v = kxgrid(i)*v_in(i,j,k,0) + kygrid(j)*v_in(i,j,k,1) + kzgrid(k)*v_in(i,j,k,2)
-        div_b = kxgrid(i)*b_in(i,j,k,0) + kygrid(j)*b_in(i,j,k,1) + kzgrid(k)*b_in(i,j,k,2)
-
-        v_in(i,j,k,0) = v_in(i,j,k,0) - div_v*kxgrid(i)/k2
-        v_in(i,j,k,1) = v_in(i,j,k,1) - div_v*kygrid(j)/k2
-        v_in(i,j,k,2) = v_in(i,j,k,2) - div_v*kzgrid(k)/k2
-        
-        ! The b equation is a curl, so we don't need to remove div b (except at start)
-        b_in(i,j,k,0) = b_in(i,j,k,0) - div_b*kxgrid(i)/k2
-        b_in(i,j,k,1) = b_in(i,j,k,1) - div_b*kygrid(j)/k2
-        b_in(i,j,k,2) = b_in(i,j,k,2) - div_b*kzgrid(k)/k2
-     
-     ENDDO
-   ENDDO
-ENDDO
-
-if (mype.eq.0) then
-   b_in(1,1,1,:) = exb
-   v_in(1,1,1,:) = exv
-endif
-
-if (verbose.and.(mype.eq.0)) print *,'Divergence Removed'
-
-END SUBROUTINE remove_div
-
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!                                    get_rhs                                !!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -396,7 +347,7 @@ SUBROUTINE get_rhs(b_in,v_in, rhs_out_b,rhs_out_v,nmhc,ndt)
      if (verbose.and.(mype.eq.0)) print *, "Pre NL","Mype",mype,"MaxVal k1",maxval(abs(rhs_out_v))
      CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
      
-     IF(nonlinear) CALL get_rhs_nl(b_in, v_in,rhs_out_b,rhs_out_v,ndt)
+     IF(actual_nonlinear) CALL get_rhs_nl(b_in, v_in,rhs_out_b,rhs_out_v,ndt)
      if (timer.and.(mype.eq.0)) nltime = MPI_WTIME()
      if (timer.and.(mype.eq.0)) print *, "Nonlinear Time",nltime-sttime
      
@@ -795,42 +746,74 @@ SUBROUTINE GAUSS2(b_in,v_in,dt_new)
 
   a11 = 1.0/2.0
 
-  ! Initial guess
+  ! Initial guess of bk1 and vk1
+  ! Find first stage RHS on first iteration
+  ! Otherwise, use previous solution
+  ! Implement this later
+
   CALL get_rhs(b_in,v_in,bk1,vk1,nmhc1,ndt)
-  ! Iterate
+
   bk2 = b_in+a11*dt*bk1
   vk2 = v_in+a11*dt*vk1
-  CALL get_rhs(bk2,vk2,bk1s,vk1s,nmhc1s,ndt)
 
-  maxdev = 1.0
+  CALL get_rhs(bk2,vk2,bk1s,vk1s,nmhc1s,ndt)
+  maxdevm = max(maxval(abs(bk1-bk1s)),maxval(abs(vk1-vk1s)))
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(maxdevm,maxdev,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD,ierr)
   solvloop = 0
 
-  DO WHILE ((solvloop.lt.1000).and.(maxdev.gt.10.0**(-16.0)))
-     ! Check for now to see if the fixed point iteration converges
+  if (precondition) then
 
-     if (verbose.and.mype.eq.0) print *, mype,"Iteration ",solvloop,"Discrepancy ",maxdev
+     DO WHILE((solvloop.lt.1000).and.(maxdev.ge.10.0**(-16.0))) ! Newton's method with linear problem Jacobian
 
-     bk1 = bk1s 
-     vk1 = vk1s
+        if (verbose.and.mype.eq.0) print *, mype,"Iteration ",solvloop,"Discrepancy ",maxdev
+        
+        CALL hmhdnewton(bk1,vk1,bk1s,vk1s)
+        
+        bk2 = b_in + a11*dt*bk1
+        vk2 = v_in + a11*dt*vk1
+        
+        CALL get_rhs(bk2,vk2,bk1s,vk1s,nmhc1s,ndt)
+        
+        solvloop = solvloop + 1
+        maxdevm = max(maxval(abs(bk1-bk1s)),maxval(abs(vk1-vk1s)))
+        CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+        CALL MPI_ALLREDUCE(maxdevm,maxdev,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD,ierr)
 
-     bk2 = b_in+a11*dt*bk1
-     vk2 = v_in+a11*dt*vk1
-     if (verbose.and.mype.eq.0) print *, mype,"Through Iteration ",solvloop, "Assignment"
+        if (verbose.and.mype.eq.0) print *, mype,"Iteration ",solvloop,"Discrepancy ",maxdev
+        if (solvloop.eq.999.and.(mype.eq.0)) print *, "Failed to Converge After 1000 iterations, Maxdev ",maxdev
+        
+     ENDDO
 
-     CALL get_rhs(bk2,vk2,bk1s,vk1s,nmhc1s,ndt)
+  else ! Fixed point iteration
 
-     if (verbose.and.mype.eq.0) print *, mype,"Through Iteration ",solvloop,"Iteration"
-     solvloop = solvloop + 1
-
-
-     maxdevm = max(maxval(abs(bk1-bk1s)),maxval(abs(vk1-vk1s)))
-     CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-     CALL MPI_ALLREDUCE(maxdevm,maxdev,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD,ierr)
-
-     if (solvloop.eq.999.and.(mype.eq.0)) print *, "Failed to Converge After 1000 iterations, Maxdev ",maxdev
-
-  ENDDO
-
+     DO WHILE ((solvloop.lt.1000).and.(maxdev.gt.10.0**(-16.0)))
+        ! Check for now to see if the fixed point iteration converges                                                                                                                                                                               
+        
+        if (verbose.and.mype.eq.0) print *, mype,"Iteration ",solvloop,"Discrepancy ",maxdev
+        
+        bk1 = bk1s
+        vk1 = vk1s
+        
+        bk2 = b_in+a11*dt*bk1
+        vk2 = v_in+a11*dt*vk1
+        
+        CALL get_rhs(bk2,vk2,bk1s,vk1s,nmhc1s,ndt)
+        
+        if (verbose.and.mype.eq.0) print *, mype,"Through Iteration ",solvloop,"Iteration"
+        solvloop = solvloop + 1
+        
+        maxdevm = max(maxval(abs(bk1-bk1s)),maxval(abs(vk1-vk1s)))
+        CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+        CALL MPI_ALLREDUCE(maxdevm,maxdev,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD,ierr)
+        
+        if (verbose.and.mype.eq.0) print *, mype,"Iteration ",solvloop,"Discrepancy ",maxdev
+        if (solvloop.eq.999.and.(mype.eq.0)) print *, "Failed to Converge After 1000 iterations, Maxdev ",maxdev
+        
+     ENDDO
+     
+  endif
+     
   if (itime.eq.10.and.(mype.eq.0)) print *, "Number of Iterations Needed itime = 10 ",solvloop
 
   ! Update the fields

@@ -38,25 +38,25 @@ PREPROC =
 
 #####  COMPILERS AND LINKER TYPE
 ###############################################################################
-FC = mpif90
+FC = mpif90 
 LD = $(FC) 
 
 
 #####  COMPILING OPTIONS
 ###############################################################################
 ifeq ($(CMPLTYPE),optim)
-  FFLAGS   = -O2
+  FFLAGS   = -O2 
 endif
 
 ifeq ($(CMPLTYPE),debug)
-  FFLAGS = -debug extended -O2 
-  LDLAGS += -debug extended -O2 
+  FFLAGS = -g -Ofast
+  LDLAGS += -g -Ofast
 endif
 
 # use PrgEnv-intel
 ifeq ($(PRECISION),double)
-  FFLAGS += -r8
-  LDLAGS += -r8
+  FFLAGS += -r8 -diag-disable=10448
+  LDLAGS += -r8 -diag-disable=10448
 endif
 
 

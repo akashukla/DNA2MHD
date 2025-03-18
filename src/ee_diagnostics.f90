@@ -110,60 +110,60 @@ SUBROUTINE initialize_diagnostics
 
 
   IF(istep_energy.gt.0) THEN
-    !OPEN(unit=en_handle,file=trim(diagdir)//'/energy_out.dat',status='unknown')
-    IF (mype.eq.0) THEN
-       CALL get_io_number
-       en_handle = io_number
-       print *, "Energy Handle",en_handle
-    IF(checkpoint_read) THEN
-      INQUIRE(file=trim(diagdir)//'/energy_out.dat',exist=file_exists)
-      IF(file_exists) THEN
-        OPEN(unit=en_handle,file=trim(diagdir)//'/energy_out.dat',form='unformatted', status='unknown',access='stream',position='append')
-      ELSE
-        OPEN(unit=en_handle,file=trim(diagdir)//'/energy_out.dat',form='unformatted', status='REPLACE',access='stream')
-        ! WRITE(en_handle,*) "#time,entropy,phi^2 energy,dE/dt total,flux,coll,hcoll,hyps,N.L.,hyp_conv,dE/dt"
-      END IF
-    ELSE
-      OPEN(unit=en_handle,file=trim(diagdir)//'/energy_out.dat',form='unformatted', status='REPLACE',access='stream')
-      ! WRITE(en_handle,*) "#time,entropy,phi^2 energy,dE/dt total,flux,coll,hcoll,hyps,N.L.,hyp_conv,dE/dt"
-     ! WRITE(en_handle,*) &
-      !   "#time,Hamiltonian,restvty.,viscsty."
-   END IF
-   ENDIF
-    energy_last=0.0
-    time_last=time
-    ALLOCATE(AVP(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2))
-    ALLOCATE(WVORT(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2))
- END IF
+     !OPEN(unit=en_handle,file=trim(diagdir)//'/energy_out.dat',status='unknown')
+     IF (mype.eq.0) THEN
+        CALL get_io_number
+        en_handle = io_number
+        print *, "Energy Handle",en_handle
+        IF(checkpoint_read) THEN
+           INQUIRE(file=trim(diagdir)//'/energy_out.dat',exist=file_exists)
+           IF(file_exists) THEN
+              OPEN(unit=en_handle,file=trim(diagdir)//'/energy_out.dat',form='unformatted', status='unknown',access='stream',position='append')
+           ELSE
+              OPEN(unit=en_handle,file=trim(diagdir)//'/energy_out.dat',form='unformatted', status='REPLACE',access='stream')
+              ! WRITE(en_handle,*) "#time,entropy,phi^2 energy,dE/dt total,flux,coll,hcoll,hyps,N.L.,hyp_conv,dE/dt"
+           END IF
+        ELSE
+           OPEN(unit=en_handle,file=trim(diagdir)//'/energy_out.dat',form='unformatted', status='REPLACE',access='stream')
+           ! WRITE(en_handle,*) "#time,entropy,phi^2 energy,dE/dt total,flux,coll,hcoll,hyps,N.L.,hyp_conv,dE/dt"
+           ! WRITE(en_handle,*) &
+           !   "#time,Hamiltonian,restvty.,viscsty."
+        END IF
+     ENDIF
+     energy_last=0.0
+     time_last=time
+     ALLOCATE(AVP(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2))
+     ALLOCATE(WVORT(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2))
+  END IF
   IF(istep_energyspec.gt.0.and.mype==0) THEN
-    CALL get_io_number
-    enspec_handle=io_number
-    print *, "Enspec Handle",enspec_handle
-    CALL get_io_number
-    mode_handle = io_number
-    print *, "Mode Handle",io_number
-    !OPEN(unit=en_handle,file=trim(diagdir)//'/energy_out.dat',status='unknown') 
-    IF(checkpoint_read) THEN
-      INQUIRE(file=trim(diagdir)//'/energyspec_out.dat',exist=file_exists)
-      INQUIRE(file=trim(diagdir)//'/mode_out.dat',exist=file_exists)
-      IF(file_exists) THEN
-        OPEN(unit=enspec_handle,file=trim(diagdir)//'/energyspec_out.dat',form='unformatted', status='unknown',access='stream',position='append')
-        OPEN(unit=mode_handle,file=trim(diagdir)//'/mode_out.dat',form='unformatted', status='unknown',access='stream',position='append')
-      ELSE
+     CALL get_io_number
+     enspec_handle=io_number
+     print *, "Enspec Handle",enspec_handle
+     CALL get_io_number
+     mode_handle = io_number
+     print *, "Mode Handle",io_number
+     !OPEN(unit=en_handle,file=trim(diagdir)//'/energy_out.dat',status='unknown') 
+     IF(checkpoint_read) THEN
+        INQUIRE(file=trim(diagdir)//'/energyspec_out.dat',exist=file_exists)
+        INQUIRE(file=trim(diagdir)//'/mode_out.dat',exist=file_exists)
+        IF(file_exists) THEN
+           OPEN(unit=enspec_handle,file=trim(diagdir)//'/energyspec_out.dat',form='unformatted', status='unknown',access='stream',position='append')
+           OPEN(unit=mode_handle,file=trim(diagdir)//'/mode_out.dat',form='unformatted', status='unknown',access='stream',position='append')
+        ELSE
+           OPEN(unit=enspec_handle,file=trim(diagdir)//'/energyspec_out.dat',form='unformatted', status='REPLACE',access='stream')
+           OPEN(unit=mode_handle,file=trim(diagdir)//'/mode_out.dat',form='unformatted', status='REPLACE',access='stream')
+        END IF
+     ELSE
         OPEN(unit=enspec_handle,file=trim(diagdir)//'/energyspec_out.dat',form='unformatted', status='REPLACE',access='stream')
         OPEN(unit=mode_handle,file=trim(diagdir)//'/mode_out.dat',form='unformatted', status='REPLACE',access='stream')
-      END IF
-    ELSE
-      OPEN(unit=enspec_handle,file=trim(diagdir)//'/energyspec_out.dat',form='unformatted', status='REPLACE',access='stream')
-      OPEN(unit=mode_handle,file=trim(diagdir)//'/mode_out.dat',form='unformatted', status='REPLACE',access='stream')
-    END IF
-    ALLOCATE(LW(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3)))
-    ALLOCATE(LC(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3)))
-    ALLOCATE(RW(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3)))
-    ALLOCATE(RC(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3)))
-    ALLOCATE(OSPEC(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3)))
-    ALLOCATE(WRITESPEC(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3)))
- END IF
+     END IF
+     ALLOCATE(LW(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3)))
+     ALLOCATE(LC(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3)))
+     ALLOCATE(RW(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3)))
+     ALLOCATE(RC(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3)))
+     ALLOCATE(OSPEC(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3)))
+     ALLOCATE(WRITESPEC(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3)))
+  END IF
 
 END SUBROUTINE initialize_diagnostics
 
@@ -234,6 +234,8 @@ SUBROUTINE diag
          if (mype.eq.0) WRITE(en_handle) canbound
          if (mype.eq.0) WRITE(en_handle) mhelcorr
          if (verbose.and.(mype.eq.0)) write(*,*) "Found Helicities",mype
+
+         if (init_cond.ge.31) call threewaveenergy 
      END IF
 
    IF (.false.) THEN
@@ -630,6 +632,70 @@ subroutine divs
   if (timer.and.(mype.eq.0)) print *, "Max Abs Div b " ,maxval(abs(divb))
 
 end subroutine divs
+
+subroutine threewaveenergy
+
+  implicit none
+
+  integer(4) :: threehandle,ierr
+  real(8) :: lwm,lcm,rwm,rcm
+  integer(4) :: wavemypes(3),wavexs(3),waveys(3),wavezs(3),ix,iy,iz,xzerofactor=2,i
+  integer(8) :: offset
+  character(len=200) :: threename = "/threewave_out.dat"
+  integer(4) :: fourenergy,threesize
+  logical :: deletefile
+
+  if (itime.eq.0) then
+     call mpi_file_open(MPI_COMM_WORLD,trim(diagdir)//trim(threename),&
+          MPI_MODE_RDONLY+MPI_MODE_DELETE_ON_CLOSE,MPI_INFO_NULL,&
+          threehandle,ierr)
+     call mpi_file_close(threehandle,ierr)
+  endif
+
+  CALL MPI_FILE_OPEN(MPI_COMM_WORLD,trim(diagdir)//trim(threename),MPI_MODE_CREATE+MPI_MODE_WRONLY,MPI_INFO_NULL,threehandle,ierr)
+  CALL MPI_FILE_GET_SIZE(threehandle,threesize,ierr)
+  
+  wavemypes = [mype1,mype2,mype3]
+  wavexs = [wave1x,wave2x,wave3x]
+  waveys = [wave1y,wave2y,wave3y]
+  wavezs = [wave1z,wave2z,wave3z]
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+
+  DO i = 1,3
+     if (mype.eq.wavemypes(i)) then
+        offset = threesize+8+32*(i-1)
+        ix = wavexs(i)
+        iy = waveys(i)
+        iz = wavezs(i)
+           
+        if (ix.eq.1) xzerofactor = 1
+        if (ix.ne.1) xzerofactor = 2
+        
+        lwm = xzerofactor*(4.0*pi**3)*abs(sum(conjg(pcurleig(ix,iy,iz,:))*(alpha_leftwhist(ix,iy,iz)*b_1(ix,iy,iz,:)+v_1(ix,iy,iz,:))/sqrt(alpha_leftwhist(ix,iy,iz)**2+1.0)))**2.0
+        lcm = xzerofactor*(4.0*pi**3)*abs(sum(conjg(pcurleig(ix,iy,iz,:))*(alpha_leftcyclo(ix,iy,iz)*b_1(ix,iy,iz,:)+v_1(ix,iy,iz,:))/sqrt(alpha_leftcyclo(ix,iy,iz)**2+1.0)))**2.0
+        rwm = xzerofactor*(4.0*pi**3)*abs(sum(pcurleig(ix,iy,iz,:)*(-alpha_leftwhist(ix,iy,iz)*b_1(ix,iy,iz,:)+v_1(ix,iy,iz,:))/sqrt(alpha_leftwhist(ix,iy,iz)**2+1.0)))**2.0
+        rcm = xzerofactor*(4.0*pi**3)*abs(sum(pcurleig(ix,iy,iz,:)*(-alpha_leftcyclo(ix,iy,iz)*b_1(ix,iy,iz,:)+v_1(ix,iy,iz,:))/sqrt(alpha_leftcyclo(ix,iy,iz)**2+1.0)))**2.0
+        
+        CALL MPI_FILE_WRITE_AT(threehandle,offset,lwm,1,MPI_REAL8,MPI_STATUS_IGNORE,ierr)
+        CALL MPI_FILE_WRITE_AT(threehandle,offset+8_8,lcm,1,MPI_REAL8,MPI_STATUS_IGNORE,ierr)
+        CALL MPI_FILE_WRITE_AT(threehandle,offset+16_8,rwm,1,MPI_REAL8,MPI_STATUS_IGNORE,ierr)
+        CALL MPI_FILE_WRITE_AT(threehandle,offset+24_8,rcm,1,MPI_REAL8,MPI_STATUS_IGNORE,ierr)
+        
+        if (verbose) print *, "Wrote wave ",i
+     endif
+        
+  ENDDO
+
+  offset = threesize
+  if (mype.eq.0) then
+     CALL MPI_FILE_WRITE_AT(threehandle,offset,time,1,MPI_REAL8,MPI_STATUS_IGNORE,ierr)
+     if (verbose) print *, "Wrote Time"
+  endif
+  
+  CALL MPI_FILE_CLOSE(threehandle,ierr)
+
+end subroutine threewaveenergy
 
 END MODULE diagnostics
 

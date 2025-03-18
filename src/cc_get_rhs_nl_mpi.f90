@@ -75,8 +75,8 @@ SUBROUTINE initialize_fourier_ae_mu0
 
   integer(4) :: dims(2)
   
-  dims(1) = 4
-  dims(2) = n_mpi_procs/4
+  dims(1) = 2
+  dims(2) = n_mpi_procs/2
   
   if (mype.eq.0) print *, "Processor Grid",dims
 
@@ -88,6 +88,8 @@ SUBROUTINE initialize_fourier_ae_mu0
 
   ! Get Dimensions for Real
   CALL p3dfft_get_dims(rstart,rend,rsize,1)
+
+  if (verbose) print *, mype,cstart(1),cend(1),cstart(2),cend(2),cstart(3),cend(3)
 
   fft_norm=1.0/(REAL(nx0_big*ny0_big*nz0_big))
 

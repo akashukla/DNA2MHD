@@ -166,7 +166,7 @@ PROGRAM dna
   !CALL finalize_flr
   !CALL finalize_hk
   CALL finalize_arrays
-  IF (nonlinear) CALL finalize_fourier
+  CALL finalize_fourier
 
   !! Shuts down the MPI enviroment 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

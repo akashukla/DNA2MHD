@@ -48,7 +48,8 @@ SUBROUTINE initial_condition
   REAL(C_DOUBLE) :: dt_criticalm,dtc
 
   REAL :: turnoverm,nltmin,nltmax ! MPI ALL REDUCE variables
-  INTEGER(int64) :: t 
+  INTEGER(int64) :: t
+  REAL(8) :: waveamps(4) = 0.0
 
   zerocmplx=0.0
    
@@ -337,6 +338,122 @@ SUBROUTINE initial_condition
        v_1(:,:,:,ind) = v_1(:,:,:,ind) * mask1
     ENDDO
  ENDIF
+
+ IF (init_cond.ge.31) THEN ! Three wave systems - excite two waves
+
+    b_1 = cmplx(0.0,0.0)
+    v_1 = cmplx(0.0,0.0)
+
+    ! conditions 31-35 derived for perp scale 0.05 and par scale 0.01
+ 
+    IF (init_cond.eq.31) THEN ! Low k +Whistler +Whistler Parallel
+
+       ! (0,35,9) (0,26,-2)
+
+       wave1x = 1
+       wave1y = 36
+       wave1z = 10
+
+       wave2x = 1
+       wave2y = 27
+       wave2z = nz0_big-1
+
+       wave3x = 1
+       wave3y = 62
+       wave3z = 8
+
+       waveamps(1) = 1.0
+
+    ENDIF
+
+    IF (init_cond.eq.32) THEN ! Low k Whistler + Whistler Antipar
+
+       ! (0,35,9) (0,-37,3)
+
+       wave1x = 1
+       wave1y = 36
+       wave1z = 10
+
+       wave2x = 1
+       wave2y = ny0_big-36
+       wave2z = 4
+
+       wave3x = 1
+       wave3y = ny0_big-1
+       wave3z = 13
+
+       waveamps(1) = 1.0
+       
+    ENDIF
+
+    IF (init_cond.eq.33) THEN ! Low k +Whistler +Cyclotron Near Perp
+
+       ! (0,35,9) (32,0,-1)
+
+       wave1x = 1
+       wave1y = 36
+       wave1z = 10
+
+       wave2x = 33
+       wave2y = 0
+       wave2z = nz0_big
+
+       wave3x = 33
+       wave3y = 36
+       wave3z = 9
+
+       waveamps(1) = 1.0
+
+       
+       
+    ENDIF
+
+    IF (init_cond.eq.34) THEN ! Low k Whistler + Cyclotron Near Par 
+
+       ! (0,35,9) (0,3,31) - these aren't really that parallel
+
+       wave1x = 1
+       wave2x = 1
+
+       wave1y = 36
+       wave2y = 4
+
+       wave1z = 10
+       wave2z = 32
+
+       wave3x = 1
+       wave3y = 39
+       wave3z = 39
+
+       waveamps(1) = 1.0
+
+    ENDIF
+
+    IF (init_cond.eq.35) THEN ! Low k Whistler Cyclotron Near Perp
+
+       ! (0,35,9) (16,0,22)
+
+       wave1x =  1
+       wave1y = 36
+       wave1z = 10
+
+       wave2x = 17
+       wave2y = 1
+       wave2z = 30
+
+       wave3x = 17
+       wave3y = 37
+       wave3z = 30
+
+       waveamps(1) = 1.0
+       
+    ENDIF
+
+    CALL isolatedhmhdwave(wave1x,wave1y,wave1z,waveamps,mype1)
+    CALL isolatedhmhdwave(wave2x,wave2y,wave2z,waveamps,mype2)    
+    CALL isolatedhmhdwave(wave3x,wave3y,wave3z,waveamps*0.0,mype3)
+
+ ENDIF 
  
  
  if (verbose.and.(mype.eq.0)) print *, "Through initial b_1 and v_1",mype
@@ -480,3 +597,46 @@ SUBROUTINE initial_condition
  dt = dt_max
  
 END SUBROUTINE initial_condition
+
+SUBROUTINE isolatedhmhdwave(ix,iy,iz,waveamps,mypewave)
+
+  use par_mod
+  use mpi
+  
+  IMPLICIT NONE
+
+  integer(4) :: ix,iy,iz ! Zero based indices for array
+  real(8) :: waveamps(4)
+  integer :: mypewave
+  integer(4) :: wavex,wavey,wavez
+  real(8) :: normamps(4)
+  integer :: mypewavem
+  integer(4) :: ierr
+
+  mypewavem = 0
+
+  if (ix.ge.cstart(1).and.ix.le.cend(1)) then
+     if (iy.ge.cstart(2).and.iy.le.cend(2)) then
+
+        mypewavem = mype        
+        
+        if (verbose) print *, "Isolated Wave Mype",mype,ix,iy,iz
+
+        normamps(1) = waveamps(1)/sqrt(1 + alpha_leftwhist(ix,iy,iz)**2)
+        normamps(2) = waveamps(2)/sqrt(1 + alpha_leftcyclo(ix,iy,iz)**2)
+        normamps(3) = waveamps(3)/sqrt(1 + alpha_leftwhist(ix,iy,iz)**2)
+        normamps(4) = waveamps(4)/sqrt(1 + alpha_leftcyclo(ix,iy,iz)**2)
+
+        if (ix.eq.1) normamps = normamps * sqrt(2.0)
+        
+        b_1(ix,iy,iz,:) = (normamps(1) * alpha_leftwhist(ix,iy,iz) + normamps(2) * alpha_leftcyclo(ix,iy,iz)) * pcurleig(ix,iy,iz,:)&
+             - (normamps(3)* alpha_leftwhist(ix,iy,iz) + normamps(4) * alpha_leftcyclo(ix,iy,iz))*conjg(pcurleig(ix,iy,iz,:))
+        v_1(ix,iy,iz,:) = (normamps(1) + normamps(2)) * pcurleig(ix,iy,iz,:) + (normamps(3) + normamps(4))*conjg(pcurleig(ix,iy,iz,:))
+        
+     endif
+  endif
+
+  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+  CALL MPI_ALLREDUCE(mypewavem,mypewave,1,MPI_INTEGER4,MPI_MAX,MPI_COMM_WORLD,ierr)
+
+END SUBROUTINE isolatedhmhdwave
