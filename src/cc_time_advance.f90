@@ -333,7 +333,7 @@ SUBROUTINE remove_div(b_in,v_in)
 
   INTEGER :: i,j,k,l,h
   COMPLEX(C_DOUBLE_COMPLEX) :: div_v, div_b
-  REAL(C_DOUBLE) :: k2
+  REAL(C_DOUBLE) :: k2,betam,beta
   COMPLEX(C_DOUBLE_COMPLEX) :: exb(0:2),exv(0:2)
 
  div_v = 0.0 +i_complex*0.0
@@ -356,11 +356,15 @@ SUBROUTINE remove_div(b_in,v_in)
         v_in(i,j,k,0) = v_in(i,j,k,0) - div_v*kxgrid(i)/k2
         v_in(i,j,k,1) = v_in(i,j,k,1) - div_v*kygrid(j)/k2
         v_in(i,j,k,2) = v_in(i,j,k,2) - div_v*kzgrid(k)/k2
+
+        pre(i,j,k) = div_v/k2
         
         ! The b equation is a curl, so we don't need to remove div b (except at start)
         b_in(i,j,k,0) = b_in(i,j,k,0) - div_b*kxgrid(i)/k2
         b_in(i,j,k,1) = b_in(i,j,k,1) - div_b*kygrid(j)/k2
         b_in(i,j,k,2) = b_in(i,j,k,2) - div_b*kzgrid(k)/k2
+
+        
      
      ENDDO
    ENDDO
@@ -369,8 +373,14 @@ ENDDO
 if (mype.eq.0) then
    b_in(0,0,0,:) = exb
    v_in(0,0,0,:) = exv
+   pre(0,0,0) = 0.0
 endif
 
+betam = maxval(abs(pre))
+CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+CALL MPI_ALLREDUCE(betam,beta,1,MPI_REAL8,MPI_MAX,MPI_COMM_WORLD,ierr)
+
+if ((mype.eq.0).and.(mod(itime,100).eq.0)) print *, "Maxval beta",beta
 
 if (verbose.and.(mype.eq.0)) print *,'Divergence Removed'
 

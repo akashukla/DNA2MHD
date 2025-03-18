@@ -214,7 +214,7 @@ SUBROUTINE arrays
   IF(.not.allocated(kperps)) ALLOCATE(kperps(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2))
   IF(.not.allocated(kzs)) ALLOCATE(kzs(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2))
  ! IF(.not.allocated(gpsi)) ALLOCATE(gpsi(0:nkx0-1,0:nky0-1,lkz1:lkz2,0:2))
- ! IF(.not.allocated(pre)) ALLOCATE(pre(0:nkx0-1,0:nky0-1,lkz1:lkz2))
+  IF(.not.allocated(pre)) ALLOCATE(pre(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2))
   IF(.not.allocated(pcurleig)) ALLOCATE(pcurleig(0:nx0_big/2,0:ny0_big-1,lkz1:lkz2,0:2))
   
   !IF(.not.allocated(herm_grid)) ALLOCATE(herm_grid(0:nv0-1))
@@ -382,7 +382,7 @@ SUBROUTINE finalize_arrays
   IF(allocated(v_1)) DEALLOCATE(v_1)
   IF(allocated(paddingmask)) DEALLOCATE(paddingmask)
 !  IF(allocated(gpsi)) DEALLOCATE(gpsi)
-!  IF(allocated(pre)) DEALLOCATE(pre)
+  IF(allocated(pre)) DEALLOCATE(pre)
   IF(allocated(pcurleig)) DEALLOCATE(pcurleig)
   
   if (verbose.and.(mype.eq.0)) print *, 'Deallocated b,v'

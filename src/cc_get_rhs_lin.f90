@@ -257,10 +257,10 @@ SUBROUTINE get_rhs_force(rhs_out_b, rhs_out_v)
              th3 = RWp(i,j,k)
              th4 = RCp(i,j,k)
              
-             LW1 = exp(20.0*pi*i_complex*th1)
-             LC1 = exp(20.0*pi*i_complex*th2)
-             RW1 = exp(20.0*pi*i_complex*th3)
-             RC1 = exp(20.0*pi*i_complex*th4)
+             LW1 = exp(20.0*pi*i_complex*th1)*1.2533 ! Adjust to amplitude of normal random #s
+             LC1 = exp(20.0*pi*i_complex*th2)*1.2533
+             RW1 = exp(20.0*pi*i_complex*th3)*1.2533
+             RC1 = exp(20.0*pi*i_complex*th4)*1.2533
              
              LW1 = LW1 * force_amp * sqrt(force_lw)/sqrt(force_lw + force_lc &
                      + force_rw + force_rc) * 1.0/sqrt(1 + alpha_leftwhist(i,j,k)**2)

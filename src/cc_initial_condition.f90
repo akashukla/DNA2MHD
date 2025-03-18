@@ -93,21 +93,6 @@ SUBROUTINE initial_condition
  
  if (enone) s1 = 0.0
  
- if (rey.eq.0) then
-    ! Set viscosity to set relative rate of dissipation at high scales 
-    rey = kxmin/vnu * sqrt(force_amp * 8*pi **3 ) * (nkx0)**(2.0*hyp)
-    vnu = vnu / (kmax**(2.0*hyp))
- else
-    ! Set viscosity from Reynolds number
-    vnu = kxmin/(rey * kxmin**(2*hyp)) * sqrt(force_amp * 8*pi **3 )
- endif
- 
- if ((mype.eq.0)) print *, "Perp Reynolds Number",rey
- 
- ! Set resistivity from Magnetic Prandtl number
- eta = eta * vnu
- if(mype.eq.0) print *, 'Viscosity',vnu
- 
  print *, "Force Amp",force_amp      
  
  DO i=xst,nx0_big/2
@@ -480,6 +465,24 @@ SUBROUTINE initial_condition
  s1 = knzeroen + kxzeroen
  
  if (mype.eq.0) print *, "All Mype Initial Energy",s1*8*pi**3
+
+ if (rey.eq.0) then
+    ! Get Reynolds number from small scale dissipation ratio
+    rey = kxmin/vnu * sqrt( s1 * 8*pi **3 ) * (kxmax/kxmin)**(2.0*hyp)
+    vnu = vnu / (kmax**(2.0*hyp))
+ else
+    ! Viscosity from Reynolds number
+    vnu = kxmin/(rey * kxmin**(2*hyp)) * sqrt(force_amp * 8*pi **3 )
+ endif
+
+ if ((mype.eq.0)) print *, "Perp Reynolds Number",rey
+
+ ! Set resistivity from Magnetic Prandtl number                                                                                               
+ eta = eta * vnu
+ if(mype.eq.0) print *, 'Viscosity',vnu
+
+ ! Taylor Microscale
+ 
  
  dt = dt_max
  
