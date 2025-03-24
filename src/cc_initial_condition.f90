@@ -49,7 +49,7 @@ SUBROUTINE initial_condition
 
   REAL :: turnoverm,nltmin,nltmax ! MPI ALL REDUCE variables
   INTEGER(int64) :: t
-  REAL(8) :: waveamps(4) = 0.0
+  REAL(8) :: waveamps1(4) = 0.0,waveamps2(4)
 
   zerocmplx=0.0
    
@@ -339,121 +339,62 @@ SUBROUTINE initial_condition
     ENDDO
  ENDIF
 
- IF (init_cond.ge.31) THEN ! Three wave systems - excite two waves
+ IF (init_cond.ge.31) THEN ! Three wave systems - excite for resonance condition
 
     b_1 = cmplx(0.0,0.0)
     v_1 = cmplx(0.0,0.0)
 
     ! conditions 31-35 derived for perp scale 0.05 and par scale 0.01
- 
-    IF (init_cond.eq.31) THEN ! Low k +Whistler +Whistler Parallel
 
-       ! (0,35,9) (0,26,-2)
+    ! +Whistler +Whistler Interactions
 
-       wave1x = 1
-       wave1y = 36
-       wave1z = 10
+    ! Parallel 
+    IF (init_cond.eq.31) THEN
 
-       wave2x = 1
-       wave2y = 27
-       wave2z = nz0_big-1
+       ! (0,35,9) (0,3,-1)
+       ! (0,10,15) (0,18,-27)
+       ! (0,15,9) (0,8,-5)
 
-       wave3x = 1
-       wave3y = 62
-       wave3z = 8
+       CALL setwaveindices(0,15,9,0,8,-5)
 
-       waveamps(1) = 1.0
+       waveamps1(1) = 1.0
+       waveamps2(1) = 1.0
 
     ENDIF
 
+    ! Antiparallel
     IF (init_cond.eq.32) THEN ! Low k Whistler + Whistler Antipar
 
-       ! (0,35,9) (0,-37,3)
+       ! (0,35,9) (0,-20,-35)
+       ! (0,10,15) (0,-28,12)
+       ! (0,15,9) (0,-8,-33)
 
-       wave1x = 1
-       wave1y = 36
-       wave1z = 10
+       CALL setwaveindices(0,15,9,0,-8,-33)
 
-       wave2x = 1
-       wave2y = ny0_big-36
-       wave2z = 4
+       waveamps1(1) = 1.0
+       waveamps2(1) = 1.0
 
-       wave3x = 1
-       wave3y = ny0_big-1
-       wave3z = 13
-
-       waveamps(1) = 1.0
-       
     ENDIF
 
+    ! Perpendicular
     IF (init_cond.eq.33) THEN ! Low k +Whistler +Cyclotron Near Perp
 
-       ! (0,35,9) (32,0,-1)
+       ! (0,35,9) (27,0,-5)
+       ! (0,10,15) (8,0,-8)
+       ! (0,15,9) (18,0,-14)
 
-       wave1x = 1
-       wave1y = 36
-       wave1z = 10
+       CALL setwaveindices(0,15,9,18,0,-14)
 
-       wave2x = 33
-       wave2y = 0
-       wave2z = nz0_big
-
-       wave3x = 33
-       wave3y = 36
-       wave3z = 9
-
-       waveamps(1) = 1.0
-
-       
+       waveamps1(1) = 1.0
+       waveamps2(1) = 1.0
        
     ENDIF
 
-    IF (init_cond.eq.34) THEN ! Low k Whistler + Cyclotron Near Par 
+    CALL isolatedhmhdwave(wave1x,wave1y,wave1z,waveamps1*2.0,mype1)
+    CALL isolatedhmhdwave(wave2x,wave2y,wave2z,waveamps1*1.0,mype2)
+    CALL isolatedhmhdwave(wave3x,wave3y,wave3z,waveamps2*0.5,mype3)
 
-       ! (0,35,9) (0,3,31) - these aren't really that parallel
-
-       wave1x = 1
-       wave2x = 1
-
-       wave1y = 36
-       wave2y = 4
-
-       wave1z = 10
-       wave2z = 32
-
-       wave3x = 1
-       wave3y = 39
-       wave3z = 39
-
-       waveamps(1) = 1.0
-
-    ENDIF
-
-    IF (init_cond.eq.35) THEN ! Low k Whistler Cyclotron Near Perp
-
-       ! (0,35,9) (16,0,22)
-
-       wave1x =  1
-       wave1y = 36
-       wave1z = 10
-
-       wave2x = 17
-       wave2y = 1
-       wave2z = 30
-
-       wave3x = 17
-       wave3y = 37
-       wave3z = 30
-
-       waveamps(1) = 1.0
-       
-    ENDIF
-
-    CALL isolatedhmhdwave(wave1x,wave1y,wave1z,waveamps,mype1)
-    CALL isolatedhmhdwave(wave2x,wave2y,wave2z,waveamps,mype2)    
-    CALL isolatedhmhdwave(wave3x,wave3y,wave3z,waveamps*0.0,mype3)
-
- ENDIF 
+ ENDIF
  
  
  if (verbose.and.(mype.eq.0)) print *, "Through initial b_1 and v_1",mype
@@ -583,7 +524,7 @@ SUBROUTINE initial_condition
  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
  
  if (rey.eq.0) then
-    rey = kxmin/vnu * sqrt(s1) * (nkx0)**(2.0*hyp)
+    rey = kxmin/vnu * sqrt(2.0*init_energy) * (nkx0)**(2.0*hyp)
     vnu = vnu / (kmax**(2.0*hyp))
  else
     vnu = kxmin/(rey * kxmin**(2*hyp)) * sqrt(force_amp * 8*pi **3 )
@@ -638,5 +579,58 @@ SUBROUTINE isolatedhmhdwave(ix,iy,iz,waveamps,mypewave)
 
   CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
   CALL MPI_ALLREDUCE(mypewavem,mypewave,1,MPI_INTEGER4,MPI_MAX,MPI_COMM_WORLD,ierr)
-
+  
 END SUBROUTINE isolatedhmhdwave
+
+SUBROUTINE setwaveindices(input1x,input1y,input1z,input2x,input2y,input2z)
+
+  ! Set wave indices from inputs
+  ! Make sure x is always positive
+
+  use par_mod
+
+  implicit none
+  integer(4), intent(in) :: input1x,input1y,input1z,input2x,input2y,input2z
+  
+  wave1x =	input1x
+  wave1y =	input1y
+  wave1z =	input1z
+  
+  wave2x =	input2x
+  wave2y =	input2y
+  wave2z =	input2z
+  
+  wave3x = 1 + (wave1x + wave2x)
+  wave1x = wave1x + 1
+  wave2x = wave2x + 1
+  
+  CALL adjustwaveindices(wave1y,wave2y,wave3y,1)
+  CALL adjustwaveindices(wave1z,wave2z,wave3z,2)  
+  
+END SUBROUTINE setwaveindices
+
+SUBROUTINE adjustwaveindices(index1,index2,index3,ind)
+
+  ! Helper routine to adjust the wave index from a zero-centered grid to the one-base
+
+  use par_mod
+
+  implicit none
+  integer(4), intent(inout) :: index1,index2,index3
+  integer(4), intent(in) :: ind
+  integer(4) :: dimsize
+
+  if (ind.eq.1) dimsize = ny0_big
+  if (ind.eq.2) dimsize = nz0_big
+  
+  index3 = index1 + index2
+  if (index3.ge.0) index3 = index3 + 1
+  if (index3.lt.0) index3 = dimsize + (index3+1)
+
+  if (index2.ge.0) index2 = index2 + 1
+  if (index2.lt.0) index2 = dimsize + (index2+1)
+
+  if (index1.ge.0) index1 = index1 + 1
+  if (index1.lt.0) index1 = dimsize + (index1+1)
+
+END SUBROUTINE adjustwaveindices

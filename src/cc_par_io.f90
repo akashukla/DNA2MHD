@@ -47,8 +47,8 @@ SUBROUTINE read_parameters
       nu,omt,omn,Ti0Te,eta,vnu,rey
 
   NAMELIST /flags/ &
-       nonlinear, actual_nonlinear, force_turbulence,forceb,set_forcing,&
-       forcetype,test_nl, calc_dt, comp_type,adapt_dt_nl,&
+      nonlinear, actual_nonlinear, force_turbulence,forceb,set_forcing,&
+      forcetype,test_nl, calc_dt, comp_type,adapt_dt_nl,&
       linear_nlbox,verbose,timer,checkpoint_read,checkpoint_write,&
       em_conserve,flr_on,force_kz0eq0,force_ky0eq0,force_kx0eq0,flr_version,&
       flr_extra,flr_nonlinear,etg_factor, &!, which_nonlinear,etg_factor

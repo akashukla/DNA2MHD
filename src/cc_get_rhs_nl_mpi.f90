@@ -81,7 +81,7 @@ SUBROUTINE initialize_fourier_ae_mu0
   if (mype.eq.0) print *, "Processor Grid",dims
 
   t1 = MPI_WTIME()
-  CALL p3dfft_setup(dims,nx0_big,ny0_big,nz0_big,MPI_COMM_WORLD)
+  CALL p3dfft_setup(dims,nx0_big,ny0_big,nz0_big,MPI_COMM_WORLD,overwrite=.true.)
 
   ! Get Dimensions for Complex
   CALL p3dfft_get_dims(cstart,cend,csize,2) 

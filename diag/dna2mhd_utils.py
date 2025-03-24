@@ -943,10 +943,14 @@ def modes_from_check(lpath):
         Zvec[:,:,:,2] = 1
         
         pceig = np.zeros([par['nx0_big'],par['ny0_big'],par['nz0_big'],3],dtype='complex64')
-        for i in range(par['nx0_big']):
-            for j in range(par['ny0_big']):
-                for k in range(par['nz0_big']):
-                    pceig[i,j,k,:] = np.cross(Kvec[i,j,k,:],Zvec[i,j,k,:])+1/kmags[i,j,k] * 1.0j * np.cross(Kvec[i,j,k,:],np.cross(Kvec[i,j,k,:],Zvec[i,j,k,:]))
+        pceig = np.cross(Kvec,Zvec,axis=-1)
+        pceig += 1/kmags[:,:,:,None] * 1.0j * np.cross(Kvec,pceig,axis=-1)
+                
+        #for i in range(par['nx0_big']):
+        #    for j in range(par['ny0_big']):
+        #        for k in range(par['nz0_big']):
+        #            pceig[i,j,k,:] = np.cross(Kvec[i,j,k,:],Zvec[i,j,k,:])+1/kmags[i,j,k] * 1.0j * np.cross(Kvec[i,j,k,:],np.cross(Kvec[i,j,k,:],Zvec[i,j,k,:]))
+
         pceig = pceig / (np.sqrt(2) * np.sqrt(Kx[:,:,:,None]**2 + Ky[:,:,:,None]**2))
         pceig[0,0,:,:] = 0
 
@@ -955,13 +959,18 @@ def modes_from_check(lpath):
         rwk = np.zeros([par['nx0_big'],par['ny0_big'],par['nz0_big']],dtype='complex64')
         rck = np.zeros([par['nx0_big'],par['ny0_big'],par['nz0_big']],dtype='complex64')
 
-        for i in range(par['nx0_big']):
-            for j in range(par['ny0_big']):
-                for k in range(par['nz0_big']):
-                    lwk[i,j,k] = np.dot(np.conj(pceig[i,j,k,:]),alpha_lw[i,j,k]*b1[i,j,k,:]+v1[i,j,k,:])/np.sqrt(alpha_lw[i,j,k]**2+1)
-                    lck[i,j,k] = np.dot(np.conj(pceig[i,j,k,:]),alpha_lc[i,j,k]*b1[i,j,k,:]+v1[i,j,k,:])/np.sqrt(alpha_lc[i,j,k]**2+1)
-                    rwk[i,j,k] = np.dot((pceig[i,j,k,:]),-alpha_lw[i,j,k]*b1[i,j,k,:]+v1[i,j,k,:])/np.sqrt(alpha_lw[i,j,k]**2+1)
-                    rck[i,j,k] = np.dot((pceig[i,j,k,:]),-alpha_lc[i,j,k]*b1[i,j,k,:]+v1[i,j,k,:])/np.sqrt(alpha_lc[i,j,k]**2+1)
+        lwk = np.sum(np.conj(pceig[:,:,:,:])*(alpha_lw[:,:,:,None]*b1[:,:,:,:]+v1[:,:,:,:]),axis=-1)/np.sqrt(alpha_lw**2.0 + 1)
+        lck = np.sum(np.conj(pceig[:,:,:,:])*(alpha_lc[:,:,:,None]*b1[:,:,:,:]+v1[:,:,:,:]),axis=-1)/np.sqrt(alpha_lc**2.0 + 1)
+        rwk = np.sum(pceig[:,:,:,:]*(-alpha_lw[:,:,:,None]*b1[:,:,:,:]+v1[:,:,:,:]),axis=-1)/np.sqrt(alpha_lw**2.0 + 1)
+        rck = np.sum(pceig[:,:,:,:]*(-alpha_lc[:,:,:,None]*b1[:,:,:,:]+v1[:,:,:,:]),axis=-1)/np.sqrt(alpha_lc**2.0 + 1)
+        
+        #for i in range(par['nx0_big']):
+        #    for j in range(par['ny0_big']):
+        #        for k in range(par['nz0_big']):
+        #            lwk[i,j,k] = np.dot(np.conj(pceig[i,j,k,:]),alpha_lw[i,j,k]*b1[i,j,k,:]+v1[i,j,k,:])/np.sqrt(alpha_lw[i,j,k]**2+1)
+        #            lck[i,j,k] = np.dot(np.conj(pceig[i,j,k,:]),alpha_lc[i,j,k]*b1[i,j,k,:]+v1[i,j,k,:])/np.sqrt(alpha_lc[i,j,k]**2+1)
+        #            rwk[i,j,k] = np.dot((pceig[i,j,k,:]),-alpha_lw[i,j,k]*b1[i,j,k,:]+v1[i,j,k,:])/np.sqrt(alpha_lw[i,j,k]**2+1)
+        #            rck[i,j,k] = np.dot((pceig[i,j,k,:]),-alpha_lc[i,j,k]*b1[i,j,k,:]+v1[i,j,k,:])/np.sqrt(alpha_lc[i,j,k]**2+1)
         
         np.savez(lpath+"/modes"+str(itime[0])+".npz",time=time,itime=itime,lwk=lwk,lck=lck,rwk=rwk,rck=rck)
 
@@ -1010,22 +1019,46 @@ def mode_break(lpath,show=False,tmax=200000):
     cmin = 0
     cmax = 0
 
-    kperps,spec1df1 = integrated_spectrum_1d(0.5 * np.abs(mode_ks[0,:,:,:])**2.0,lpath)
-    kperps,spec1df2 = integrated_spectrum_1d(0.5 * np.abs(mode_ks[1,:,:,:])**2.0,lpath)
-    kperps,spec1df3 = integrated_spectrum_1d(0.5 * np.abs(mode_ks[2,:,:,:])**2.0,lpath)
-    kperps,spec1df4 = integrated_spectrum_1d(0.5 * np.abs(mode_ks[3,:,:,:])**2.0,lpath)
+    kperps,spec1df1 = integrated_spectrum_1d(0.5 * np.abs(mode_ks[0,:,:,:])**2.0,lpath,v=3)
+    kperps,spec1df2 = integrated_spectrum_1d(0.5 * np.abs(mode_ks[1,:,:,:])**2.0,lpath,v=3)
+    kperps,spec1df3 = integrated_spectrum_1d(0.5 * np.abs(mode_ks[2,:,:,:])**2.0,lpath,v=3)
+    kperps,spec1df4 = integrated_spectrum_1d(0.5 * np.abs(mode_ks[3,:,:,:])**2.0,lpath,v=3)
 
-    ax.plot(kperps,spec1df1,fmts[0],label=labels[0],markersize=1)
-    ax.plot(kperps,spec1df2,fmts[1],label=labels[1],markersize=1)
-    ax.plot(kperps,spec1df3,fmts[2],label=labels[2],markersize=1)
-    ax.plot(kperps,spec1df4,fmts[3],label=labels[3],markersize=1)
+    ax.plot(kperps,spec1df1,fmts[0],label=labels[0])
+    ax.plot(kperps,spec1df2,fmts[1],label=labels[1])
+    ax.plot(kperps,spec1df3,fmts[2],label=labels[2])
+    ax.plot(kperps,spec1df4,fmts[3],label=labels[3])
+
+    if par["init_cond"] >= 31:
+        for i in range(3):
+            kxi = par["wave"+str(i+1)+"x"] 
+            kyi = par["wave"+str(i+1)+"y"]
+            kzi = par["wave"+str(i+1)+"z"]
+            ki = np.sqrt(kx[kxi-1]**2 + ky[kyi-1]**2)
+            kpind = np.argwhere(kperps < ki)[-1]
+            if i == 1:
+                ax.plot(kperps[kpind],spec1df1[kpind],marker="x",color=fmts[0][0],label="Three Wave")
+            else:
+                ax.plot(kperps[kpind],spec1df1[kpind],marker="x",color=fmts[0][0])
+            ax.plot(kperps[kpind],spec1df2[kpind],marker="x",color=fmts[1][0])
+            ax.plot(kperps[kpind],spec1df3[kpind],marker="x",color=fmts[2][0])
+            ax.plot(kperps[kpind],spec1df4[kpind],marker="x",color=fmts[3][0])
     
+    m = min(np.amin(spec1df1[np.nonzero(spec1df1)]),np.amin(spec1df2[np.nonzero(spec1df2)]),
+            np.amin(spec1df3[np.nonzero(spec1df3)]),np.amin(spec1df4[np.nonzero(spec1df4)]))
+    M = max(np.amax(spec1df1[np.nonzero(spec1df1)]),np.amax(spec1df2[np.nonzero(spec1df2)]),
+            np.amax(spec1df3[np.nonzero(spec1df3)]),np.amax(spec1df4[np.nonzero(spec1df4)]))
+
     ax.set_ylabel("Final Mode Energy Spectrum",size="large")
     ax.set_xlabel("$k_\perp$ ($d_i^{-1}$)",size="large")
     ax.set_yscale("log")
     ax.set_xscale("log")
+    ax.set_ylim(max(m/10,10**(-16)),M*10)
 
-    ax.legend(loc="upper right")
+    if par["init_cond"] >= 31:
+        ax.legend(loc="lower right")
+    else:
+        ax.legend(loc="upper right")
     fig.suptitle("Mode Energy Spectra at t = %.2f $(\omega_c^{-1})$ " % (time))
     fig.savefig(lpath+"/eplots/modespec.png",bbox_inches="tight")
     if show == True:
@@ -1070,6 +1103,7 @@ def structurefunction(lpath,tmax=2*10**10):
     time,itime,lwk,lck,rwk,rck = modes_from_check(lpath)
     
     labels = ['+ Helicity Whistler','+ Helicity Cyclotron','- Helicity Whistler','- Helicity Cyclotron']
+    pmsymbols = ["++","+-","-+","--"]
     stname = ["phw","phc","nhw","nhc"]
 
     xs = np.pi / par['nkx0'] * np.arange(2*par['nkx0']) / par['kxmin']
@@ -1092,12 +1126,14 @@ def structurefunction(lpath,tmax=2*10**10):
     fig4,ax4 = plt.subplots(2,2)
     ax4 = ax4.flatten()
 
+    m = 10**4
+    M = 0
     
     for I,ms in enumerate(modespecs):
         mm = convert_spec_to_real(lpath,ms/1j) # Divide by 1j because mode amplitudes are anti-Hermitian
             # assume axisymmetric for transverse struct fn - test this later
-        # very small - lets rescale to check Parseval's theorem print(np.amax(mm**2)); 8 pi^3 sum(ms**2) = sum(mm**2)/N
-        mm *= np.sqrt(8*np.pi**3 * np.sum(np.abs(ms)**2)*np.size(mm)/(np.sum(mm**2)))
+        # very small - lets rescale to check Parseval's theorem print(np.amax(mm**2)); sum(ms**2) = sum(mm**2)/N
+        mm *= np.sqrt(np.sum(np.abs(ms[0,:,:])**2+2*np.abs(ms[1:,:,:])**2)*np.size(mm)/(np.sum(mm**2)))*np.sqrt(8*np.pi**3)
         
         if par["splitx"]:
             nx = 2*par["nkx0"]
@@ -1137,21 +1173,31 @@ def structurefunction(lpath,tmax=2*10**10):
             ax2[I].set_xlabel("r (Grid Position)",size="large")
             ax3[I].set_xlabel("Structure Function",size="large")
             ax4[I].set_xlabel("x ($d_i$)",size="large")
-            
+
+        if (I == 0 or I == 2):
+            ax[I].set_ylabel("$S_{"+pmsymbols[I]+"}^2(r)$")
+            ax2[I].set_ylabel("$S_{"+pmsymbols[I]+"}^2(r)$")
+            ax4[I].set_ylabel("$\chi=k_z/(k_\perp \sqrt{SF^2})$")
+        
         strmin = max(np.amin(str_perp[pt]),np.amin(str_par[pz]))
         strmax = min(np.amax(str_perp[pt]),np.amax(str_par[pz]))
 
+        # Set ax limits to be same
+        mI = min(np.amin(str_perp[pt]),np.amin(str_par[pz]))
+        MI = max(np.amax(str_perp[pt]),np.amax(str_par[pz]))
+
+        if mI < m:
+            m = mI
+        if MI > M:
+            M = MI
+
         # Find where GS parameter is well defined
 
-        # Interpolate before struct fn saturates
         x1 = str_perp[pt]
         y1 = xs[pt]
         x2 = str_par[pz]
         y2 = zs[pz]
 
-        sat_mask1 = np.nonzero(x1 < 0.9 * np.amax(x1))
-        sat_mask2 = np.nonzero(x1 < 0.9 * np.amax(x2))
-        
         a = np.argwhere((str_perp > strmin) * (str_par> strmin) * (str_perp<strmax) * (str_par<strmax))
         pgs = np.nonzero((str_perp > strmin) * (str_par> strmin) * (str_perp<strmax) * (str_par<strmax))
         if np.size(a) > 2:
@@ -1169,7 +1215,7 @@ def structurefunction(lpath,tmax=2*10**10):
         ax4[I].set_title(labels[I])
         ax4[I].set_xscale("log")
         ax4[I].set_xlim(np.amin(xs),np.amax(xs))
-        ax4[I].set_ylim(10**(-3),10**3)
+        ax4[I].set_ylim(2*10**(-2),50)
         ax4[I].set_yscale("log")
         if (I < 2):
             ax[I].tick_params(axis='x',which='both',bottom=False,top=False,labelbottom=False,labeltop=False)
@@ -1178,6 +1224,11 @@ def structurefunction(lpath,tmax=2*10**10):
             ax4[I].tick_params(axis='x',which='both',bottom=False,top=False,labelbottom=False,labeltop=False)
         ax[I].legend(loc="lower right")
         ax2[I].legend(loc="lower right")
+
+    for axi in ax:
+        axi.set_ylim(m/2,M*2)
+    for axi in ax2:
+        axi.set_ylim(m/2,M*2)
         
     fig.suptitle("Structure Functions "+"t = %.2f $(\omega_c^{-1})$" % (time)) 
     fig2.suptitle("Structure Functions "+"t = %.2f $(\omega_c^{-1})$ "% (time))
@@ -1270,9 +1321,9 @@ def patch_mhc(mhc):
 
 def threewaveenergy(lpath):
 
+    read_parameters(lpath)
     if par["init_cond"] >= 31:
 
-        read_parameters(lpath)
         kxgrid,kygrid,kzgrid = get_grids()
         if lpath[-1] == "/":
             lpath = lpath[:-1]
@@ -1286,11 +1337,11 @@ def threewaveenergy(lpath):
         ks = []
 
         for i in range(3):
-            kx = kxgrid[par["wave"+str(i)+"x"]-1]
+            kx = kxgrid[par["wave"+str(i+1)+"x"]-1]
             kxs.append(kx)
-            ky = kygrid[par["wave"+str(i)+"y"]-1]
+            ky = kygrid[par["wave"+str(i+1)+"y"]-1]
             kys.append(ky)
-            kz = kzgrid[par["wave"+str(i)+"z"]-1]
+            kz = kzgrid[par["wave"+str(i+1)+"z"]-1]
             kzs.append(kz)
             ks.append(np.sqrt(kx**2 + ky**2 + kz**2))
         
@@ -1306,30 +1357,39 @@ def threewaveenergy(lpath):
         waves = [wave1,wave2,wave3]
 
         ii = np.argsort(ks)
+        print(ii)
 
-        waves_ii = waves[ii]
-        colors = ["mediumturquoise","tomato","olivegreen"]
+        waves_ii = [waves[ii[0]],waves[ii[1]],waves[ii[2]]]
+        colors = ["mediumturquoise","tomato","olivedrab"]
 
         plt.figure()
         for i in range(3):
-            plt.plot(timeenergies[::13],timeenergies[waves_ii[i]::13],color=colors[i],label=(kxs[ii],kys[ii],kzs[ii]))
-        plt.legend(loc="upper right")
-        plt.savefig(lpath+"/threewaves")
+            plt.plot(timeenergies[::13],timeenergies[waves_ii[i]::13]/(4*np.pi**3.0),color=colors[i],label=(ff(kxs[ii[i]],2),ff(kys[ii[i]],2),ff(kzs[ii[i]],2)))
+        plt.xlabel("Time ($\omega_c^{-1}$)")
+        plt.ylabel("Wave Energy / Guide Field Energy")
+        plt.ylim(10**(-7),10**1)
+        if lpath == "/pscratch/sd/e/echansen/DNA2MHDruns/austinsherwoodperp2":
+            plt.xlim(0,2000)
+        plt.title("Resonance Condition Wave Interaction")
+        plt.yscale("log")
+        plt.legend(loc="lower right")
+        plt.savefig(lpath+"/eplots/threewaves")
 
         for i in range(3):
             plt.figure()
-            plt.plot(timeenergies[::13],timeenergies[4*i+1::13],color="b",linestyle="--",label="Positive Whistler")
-            plt.plot(timeenergies[::13],timeenergies[4*i+2::13],color="b",linestyle=":",label="Positive Cyclotron")
-            plt.plot(timeenergies[::13],timeenergies[4*i+3::13],color="r",linestyle="--",label="Negative Whistler")
-            plt.plot(timeenergies[::13],timeenergies[4*i+4::13],color="r",linestyle=":",label="Negative Cyclotron")
+            plt.plot(timeenergies[::13],timeenergies[4*i+1::13]/(4*np.pi**3.0),color="b",linestyle="--",label="Positive Whistler")
+            plt.plot(timeenergies[::13],timeenergies[4*i+2::13]/(4*np.pi**3.0),color="b",linestyle=":",label="Positive Cyclotron")
+            plt.plot(timeenergies[::13],timeenergies[4*i+3::13]/(4*np.pi**3.0),color="r",linestyle="--",label="Negative Whistler")
+            plt.plot(timeenergies[::13],timeenergies[4*i+4::13]/(4*np.pi**3.0),color="r",linestyle=":",label="Negative Cyclotron")
             plt.legend()
             plt.xlabel("Time ($\omega_c^{-1}$)")
-            plt.ylabel("Wave Energy")
+            plt.ylabel("Wave Energy / Guide Field Energy")
             plt.yscale("log")
+            plt.ylim(10**(-7),10**1)
             plt.title("Wave Energies k "+ff(kxs[i],2)+" "+
                       ff(kys[i],2)+" "+ff(kzs[i],2))
-            plt.legend(loc="upper right")
-            plt.savefig("wavebreakdown"+str(i+1))
+            plt.legend(loc="lower right")
+            plt.savefig(lpath+"/eplots/wavebreakdown"+str(i+1))
             plt.close()
 
         return(timeenergies)
