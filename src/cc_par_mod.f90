@@ -136,6 +136,7 @@ MODULE par_mod
   INTEGER :: rhs_nl_version !Akash changed nl_version to 1
   INTEGER :: intorder = 4
   LOGICAL :: precondition = .true.
+  INTEGER(4) :: timeprecision = 10
   INTEGER :: dealias_type = 3
   LOGICAL :: shifted = .true.
   LOGICAL :: splitx = .true.
@@ -321,7 +322,7 @@ MODULE par_mod
   REAL(C_DOUBLE) :: dt
   REAL :: max_time=1.0e15
   INTEGER(4) :: max_itime=1000,itime=0
-  INTEGER(4) :: itime_start
+  INTEGER(4) :: itime_start = 0
   REAL :: max_walltime=83000.0
   REAL :: time_start = 0.0
   REAL :: time_tot = 10000.0

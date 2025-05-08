@@ -278,6 +278,7 @@ SUBROUTINE arrays
  DO i = cstart(1),cend(1)
     DO j = cstart(2),cend(2)
        DO k = cstart(3),cend(3)
+          
           IF ((kmags(i,j,k).ne.0).and.(kperps(i,j,k).ne.0)) THEN
              b1r = -1.0 / (kperps(i,j,k)*sqrt(2.0)) * kygrid(j)
              b2r = 1.0 / (kperps(i,j,k)*sqrt(2.0)) * kxgrid(i)
@@ -288,9 +289,14 @@ SUBROUTINE arrays
              pcurleig(i,j,k,0) = cmplx(b1r,b1i)
              pcurleig(i,j,k,1) = cmplx(b2r,b2i)
              pcurleig(i,j,k,2) = cmplx(b3r,b3i)
+          ELSE IF ((i.eq.1).and.(j.eq.1).and.(kzgrid(k).gt.0)) THEN
+             pcurleig(i,j,k,:) = [cmplx(0.0,-sqrt(2.0)/2.0),cmplx(sqrt(2.0)/2.0,0.0),cmplx(0.0,0.0)]
+          ELSE IF ((i.eq.1).and.(j.eq.1).and.(kzgrid(k).lt.0)) THEN
+             pcurleig(i,j,k,:) = [cmplx(0.0,sqrt(2.0)/2.0),cmplx(sqrt(2.0)/2.0,0.0),cmplx(0.0,0.0)]
           ELSE
              pcurleig(i,j,k,:) = cmplx(0.0,0.0)
           ENDIF
+          
           ! if (verbose) print *, i,j,k,sum(abs(pcurleig(i,j,k,:))**2)
        ENDDO
     ENDDO

@@ -3,9 +3,9 @@ from output2 import maxinds
 import numpy as np
 
 
-lpaths = ["/pscratch/sd/e/echansen/DNA2MHDruns/austinsherwood2562"#,
-#          "/pscratch/sd/e/echansen/DNA2MHDruns/austinsherwoodpar2",
-#          "/pscratch/sd/e/echansen/DNA2MHDruns/austinsherwoodperp2"
+lpaths = [#"/pscratch/sd/e/echansen/DNA2MHDruns/austinsherwood2562",
+          "/pscratch/sd/e/echansen/DNA2MHDruns/austinsherwoodperp2real",
+          "/pscratch/sd/e/echansen/DNA2MHDruns/austinsherwoodpar2real"
           ]
 
 for lpath in lpaths:
