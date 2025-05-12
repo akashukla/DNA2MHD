@@ -330,37 +330,36 @@ SUBROUTINE get_rhs(b_in,v_in, rhs_out_b,rhs_out_v,nmhc,ndt)
   
   INTEGER :: i,j,k
 
+  rhs_out_b = zerocmplx
+  rhs_out_v = zerocmplx
+
   IF (test_ho) THEN
      CALL get_rhs_test(b_in,v_in,rhs_out_b,rhs_out_v)
      ndt = dt_max
   ELSE
 
      if (verbose.and.(mype.eq.0)) print *, "Pre Linear","Mype",mype,"MaxVal v_1",maxval(abs(v_in))
-     CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
      if (timer.and.(mype.eq.0)) sttime = MPI_WTIME()
-     CALL get_rhs_lin(b_in,v_in,rhs_out_b, rhs_out_v,0)
-     if (timer.and.(mype.eq.0)) lintime = MPI_WTIME()
-     if (timer.and.(mype.eq.0)) print *, "Linear Time",lintime-sttime
-     
-     !IF(nonlinear.and..not.linear_nlbox) CALL get_rhs_nl(b_in, v_in,rhs_out_b,rhs_out_v)
-     if (timer.and.(mype.eq.0)) sttime = MPI_WTIME()
-     if (verbose.and.(mype.eq.0)) print *, "Pre NL","Mype",mype,"MaxVal k1",maxval(abs(rhs_out_v))
-     CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-     
-     IF(actual_nonlinear) CALL get_rhs_nl(b_in, v_in,rhs_out_b,rhs_out_v,ndt)
-     if (timer.and.(mype.eq.0)) nltime = MPI_WTIME()
-     if (timer.and.(mype.eq.0)) print *, "Nonlinear Time",nltime-sttime
-     
-      IF (.not.(actual_nonlinear)) ndt = dt_max
-     if (verbose.and.(mype.eq.0)) print *, ndt
-
+     if (.not.actual_nonlinear) then
+        CALL get_rhs_lin(b_in,v_in,rhs_out_b, rhs_out_v,0)
+        if (timer.and.(mype.eq.0)) lintime = MPI_WTIME()
+        if (timer.and.(mype.eq.0)) print *, "Linear Time",lintime-sttime
+        IF (.not.(actual_nonlinear)) ndt = dt_max
+        if (verbose.and.(mype.eq.0)) print *, ndt
+     else
+        if (timer.and.(mype.eq.0)) sttime = MPI_WTIME()
+        if (verbose.and.(mype.eq.0)) print *, "Pre NL","Mype",mype,"MaxVal k1",maxval(abs(rhs_out_v))
+        if (timer.and.(mype.eq.0)) sttime = MPI_WTIME()
+        CALL get_rhs_nl(b_in, v_in,rhs_out_b,rhs_out_v,ndt)
+        if (timer.and.(mype.eq.0)) nltime = MPI_WTIME()
+        if (timer.and.(mype.eq.0)) print *, "Nonlinear Time",nltime-sttime
+     endif
+        
      nmhc = 0.0
      if (verbose.and.(mype.eq.0)) print *, "Pre MHC","Mype",mype,"MaxVal k1",maxval(abs(rhs_out_v))
-     CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
      IF (mhc) CALL getmhcrk(b_in,v_in,nmhc)
 
      ! Add forcing
-     CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
      IF (mod(intorder,20).ne.0) THEN
         if (timer.and.(mype.eq.0)) sttime = MPI_WTIME()
         if (verbose.and.(mype.eq.0)) print *, "Pre Diss","Mype",mype,"MaxVal k1",maxval(abs(rhs_out_v))
@@ -375,7 +374,6 @@ SUBROUTINE get_rhs(b_in,v_in, rhs_out_b,rhs_out_v,nmhc,ndt)
      ENDIF
      
      if (verbose.and.(mype.eq.0)) print *, "Pre Div","Mype",mype,"MaxVal k1",maxval(abs(rhs_out_v))
-     CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
      CALL remove_div(rhs_out_b,rhs_out_v)
      
      if (verbose.and.(mype.eq.0)) print *,'RHS found'

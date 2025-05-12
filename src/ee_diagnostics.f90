@@ -200,7 +200,7 @@ SUBROUTINE diag
      if (mype.eq.0) WRITE(en_handle) mhelcorr
      if (verbose.and.(mype.eq.0)) write(*,*) "Found Helicities",mype
      
-     ! if (init_cond.ge.31) call threewaveenergy 
+     if (init_cond.ge.31) call threewaveenergy 
   END IF
 
   CALL steadystatespectrum

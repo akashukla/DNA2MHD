@@ -170,21 +170,18 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   if (.not.nv) then ! Skip b if Navier Stokes
   !bx
      temp_big = b_inx0
-     CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
      CALL p3dfft_btran_c2r(temp_big,store,"fff")
      bx = store
      if (verbose.and.(mype.eq.0)) print *, "Through bx"
      
      !by
      temp_big = b_iny0
-     CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
      CALL p3dfft_btran_c2r(temp_big,store,"fff")
      by = store
      if (verbose.and.(mype.eq.0)) print *, "Through by"
      
      !bz
      temp_big = b_inz0
-     CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
      CALL p3dfft_btran_c2r(temp_big,store,"fff")
      bz = store     
      if (verbose.and.(mype.eq.0)) print *, "Through bz"
@@ -198,7 +195,6 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
         ENDDO
      ENDDO
      if (verbose.and.(mype.eq.0)) print *, "Through assignment"
-     CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
      CALL p3dfft_btran_c2r(temp_big,store,"fff")
      curlbx = store
      
@@ -212,7 +208,7 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
                 - i_complex * kxgrid(i) * b_inz0(i,:,k)
         ENDDO
      ENDDO
-     CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+
      CALL p3dfft_btran_c2r(temp_big,store,"fff")
      curlby = store
      
@@ -226,7 +222,6 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
            ENDDO
         ENDDO
      ENDDO
-     CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
      CALL p3dfft_btran_c2r(temp_big,store,"fff")
      curlbz = store
 
@@ -238,21 +233,18 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   !vx
   temp_big = v_inx0
   !Add padding for dealiasing
-  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
   CALL p3dfft_btran_c2r(temp_big,store,"fff")
   vx = store
   
   !vy
   temp_big= v_iny0
   !Add padding for dealiasing
-  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
   CALL p3dfft_btran_c2r(temp_big,store,"fff")
   vy = store
   
   !vz
   temp_big = v_inz0
   !Add padding for dealiasing    
-  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
   CALL p3dfft_btran_c2r(temp_big,store,"fff")
   vz = store
 
@@ -265,7 +257,6 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
              - i_complex  * kzgrid(k) * v_iny0(:,j,k)
      ENDDO
   ENDDO
-  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
   CALL p3dfft_btran_c2r(temp_big,store,"fff")
   curlvx = store
   
@@ -276,7 +267,6 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
              - i_complex * kxgrid(i) * v_inz0(i,:,k)
      ENDDO
   ENDDO
-  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
   CALL p3dfft_btran_c2r(temp_big,store,"fff")
   curlvy = store
   
@@ -289,7 +279,6 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
         ENDDO
      ENDDO
   ENDDO
-  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
   CALL p3dfft_btran_c2r(temp_big,store,"fff")
   curlvz = store
  
@@ -554,14 +543,12 @@ SUBROUTINE UNPACK
 
   !if (verbose) print *, "Entering Unpack"
   
-  CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
   CALL p3dfft_ftran_r2c(store,temp_big,"fff")
   
   ! print *, "Post RFFT",maxval(abs(temp_big))
   if (verbose.and.(mype.eq.0)) print *, "Through RFFT"
   
-  temp_small = temp_big
-  temp_small = temp_small * paddingmask * fft_norm
+  temp_small = temp_big * paddingmask * fft_norm
   
   if (verbose.and.(mype.eq.0)) print *, "All Done"
   

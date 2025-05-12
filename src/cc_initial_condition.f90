@@ -527,6 +527,8 @@ SUBROUTINE initial_condition
  
  
  ! Check on Initial Energy
+
+ if (mype.eq.0) b_1(cstart(1),cstart(2),cstart(3),2) = 1.0
  
  knzeroenm = sum(abs(b_1(xst:cend(1),:,:,:))**2+abs(v_1(xst:cend(1),:,:,:))**2)
  if (cstart(1).eq.1) kxzeroenm = sum(0.5*(abs(b_1(1,:,:,:))**2+abs(v_1(1,:,:,:))**2))
@@ -558,6 +560,7 @@ SUBROUTINE initial_condition
  if (mype.eq.0) print *, "Force Amp",force_amp
  
  dt = dt_max
+
  
 END SUBROUTINE initial_condition
 

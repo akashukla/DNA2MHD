@@ -70,10 +70,10 @@ SUBROUTINE get_rhs_lin1_ae(b_in, v_in, rhs_out_b,rhs_out_v, which_term)
 
  !IF(verbose.and.mype==0) WRITE(*,*) "get_rhs_lin1", 68
 
- 
+
+ DO i = cstart(1),cend(1)
   DO j = cstart(2),cend(2)
      DO k = cstart(3),cend(3)
-        DO i=cstart(1),cend(1)
              ! Mahajan equation 14
              rhs_out_b(i,j,k,0) = i_complex*kzgrid(k)*(v_in(i,j,k,0) &
                   - hall*(i_complex*kygrid(j)*b_in(i,j,k,2) - i_complex*kzgrid(k)*b_in(i,j,k,1)))
@@ -170,8 +170,8 @@ SUBROUTINE get_rhs_force(rhs_out_b, rhs_out_v)
     IF ((forcetype.eq.11).or.(forcetype.eq.12)) THEN
 
        DO i = cstart(1),cend(1)
-       DO k = cstart(3),cend(3)
           DO j = cstart(2),cend(2)
+             DO k = cstart(3),cend(3)
                  if (verbose) c = MPI_WTIME()
                 IF (forceb) THEN
                    rhs_out_b(i,j,k,0) = rhs_out_b(i,j,k,0) + (force_amp*random_normal() &
@@ -196,11 +196,11 @@ SUBROUTINE get_rhs_force(rhs_out_b, rhs_out_v)
        
     ENDIF
 
-    IF ((forcetype.ge.20)) THEN
+    IF ((forcetype.eq.20)) THEN
 
-       DO k = cstart(3),cend(3)
           DO i = cstart(1),cend(1)
              DO j = cstart(2),cend(2)
+                DO k = cstart(3),cend(3)
                 if (verbose) c = MPI_WTIME()
                 CALL random_number(th1)
                 CALL random_number(th2)
@@ -233,7 +233,7 @@ SUBROUTINE get_rhs_force(rhs_out_b, rhs_out_v)
 
     ENDIF
 
-    IF (forcetype.ge.30) THEN
+    IF (forcetype.eq.30) THEN
 
        
        CALL random_number(LWp)
