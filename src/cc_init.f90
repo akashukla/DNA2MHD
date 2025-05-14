@@ -198,17 +198,6 @@ SUBROUTINE arrays
      paddingmask(lbkx:ubkx,lbky:ubky,lkz_big:nz0_big) = 1
   endif
 
-  IF(.not.allocated(reader)) ALLOCATE(reader(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3)))
-  IF(.not.allocated(reader2)) ALLOCATE(reader2(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3)))
-  IF (.not.allocated(fullsmallarray)) ALLOCATE(fullsmallarray(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3)))
-  IF (.not.allocated(fullbigarray)) ALLOCATE(fullbigarray(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3)))
-
-  IF (.not.allocated(scatter_big)) ALLOCATE(scatter_big(product(csize)))
-  IF (.not.allocated(scatter_small)) ALLOCATE(scatter_small(product(csize)))
-
-  IF (.not.allocated(gather_big)) ALLOCATE(gather_big(product(csize)))
-  IF (.not.allocated(gather_small)) ALLOCATE(gather_small(product(csize)))
-  
   IF(.not.allocated(b_1))&
       ALLOCATE(b_1(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2)) 
   IF(.not.allocated(v_1))&
@@ -324,16 +313,6 @@ SUBROUTINE finalize_arrays
   integer(4) :: ierr
 
   !  IF(allocated(g_1)) DEALLOCATE(g_1)
-  IF (allocated(reader)) DEALLOCATE(reader)
-  IF (allocated(reader2)) DEALLOCATE(reader2)
-  IF (allocated(fullbigarray)) DEALLOCATE(fullbigarray)
-  IF (allocated(fullsmallarray)) DEALLOCATE(fullsmallarray)
-
-  IF (allocated(gather_big)) DEALLOCATE(gather_big)
-  IF (allocated(gather_small)) DEALLOCATE(gather_small)
-
-  IF (allocated(scatter_big)) DEALLOCATE(scatter_big)
-  IF (allocated(scatter_small)) DEALLOCATE(scatter_small)
   
   IF(allocated(b_1)) DEALLOCATE(b_1)
   IF(allocated(v_1)) DEALLOCATE(v_1)

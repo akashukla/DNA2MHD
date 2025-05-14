@@ -42,6 +42,8 @@ MODULE nonlinearity
   REAL(p3dfft_type), ALLOCATABLE, DIMENSION(:,:,:) :: bx,by,bz,curlbx,curlby,curlbz
   REAL(p3dfft_type), ALLOCATABLE, DIMENSION(:,:,:) :: vx,vy,vz,curlvx,curlvy,curlvz
 
+  REAL(p3dfft_type), ALLOCATABLE, DIMENSION(:,:,:,:) :: realarrays
+
   !For fft's
 
   COMPLEX(p3dfft_type), allocatable :: temp_big(:,:,:)
@@ -151,16 +153,13 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   REAL(C_DOUBLE) :: ndt
 
   INTEGER :: l,h, ierr
+  REAL(8) :: looprvec(0:11),loopkx,loopky,loopkz
+  COMPLEX(8) :: loopcvec(0:2)
+  
 
   ! I dont want to change g_in, so I copy temporaly to g_in0
   !g_in0 = g_in
   
-  b_inx0 = b_in(:,:,:,0)
-  b_iny0 = b_in(:,:,:,1)
-  b_inz0 = b_in(:,:,:,2)
-  v_inx0 = v_in(:,:,:,0)
-  v_iny0 = v_in(:,:,:,1)
-  v_inz0 = v_in(:,:,:,2)
   !IF(mype==0) WRITE(*,*) "Actually in nl1"
 
 ! TERMS BX BY BZ
@@ -168,35 +167,35 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
 
   if (timer.and.(mype.eq.0)) t1 = MPI_WTIME()
   if (.not.nv) then ! Skip b if Navier Stokes
-  !bx
-     temp_big = b_inx0
+     !bx
+     temp_big = b_in(:,:,:,0)
      CALL p3dfft_btran_c2r(temp_big,store,"fff")
-     bx = store
+     realarrays(:,:,:,0) = store
      if (verbose.and.(mype.eq.0)) print *, "Through bx"
      
      !by
-     temp_big = b_iny0
+     temp_big = b_in(:,:,:,1)
      CALL p3dfft_btran_c2r(temp_big,store,"fff")
-     by = store
+     realarrays(:,:,:,4) = store
      if (verbose.and.(mype.eq.0)) print *, "Through by"
      
      !bz
-     temp_big = b_inz0
+     temp_big = b_in(:,:,:,2)
      CALL p3dfft_btran_c2r(temp_big,store,"fff")
-     bz = store     
+     realarrays(:,:,:,8) = store     
      if (verbose.and.(mype.eq.0)) print *, "Through bz"
      
      ! curlbx
-     temp_big  = cmplx(0.0,0.0)
+     temp_big = cmplx(0.0,0.0)
      DO j = cstart(2),cend(2)
         DO k = cstart(3),cend(3)
-           temp_big(:,j,k) = i_complex * kygrid(j) * b_inz0(:,j,k) &
-                - i_complex  * kzgrid(k) * b_iny0(:,j,k)
+           temp_big(:,j,k) = i_complex * kygrid(j) * b_in(:,j,k,2) &
+                - i_complex  * kzgrid(k) * b_in(:,j,k,1)
         ENDDO
      ENDDO
      if (verbose.and.(mype.eq.0)) print *, "Through assignment"
      CALL p3dfft_btran_c2r(temp_big,store,"fff")
-     curlbx = store
+     realarrays(:,:,:,2) = store
      
      if (verbose.and.(mype.eq.0)) print *, "Through curl bx" 
      
@@ -204,26 +203,22 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
      temp_big = cmplx(0.0,0.0)
      DO k = cstart(3),cend(3)
         DO i = cstart(1),cend(1)
-           temp_big(i,:,k) = i_complex * kzgrid(k) * b_inx0(i,:,k) &
-                - i_complex * kxgrid(i) * b_inz0(i,:,k)
+           temp_big(i,:,k) = i_complex * kzgrid(k) * b_in(i,:,k,0) &
+                - i_complex * kxgrid(i) * b_in(i,:,k,2)
         ENDDO
      ENDDO
-
      CALL p3dfft_btran_c2r(temp_big,store,"fff")
-     curlby = store
+     realarrays(:,:,:,6) = store
      
      ! curlbz
      temp_big = cmplx(0.0,0.0)
      DO i = cstart(1),cend(1)
         DO j = cstart(2),cend(2)
-           DO k = cstart(3),cend(3)
-              temp_big(i,j,k) = i_complex * kxgrid(i) * b_iny0(i,j,k) &
-                   - i_complex * kygrid(j) * b_inx0(i,j,k)
-           ENDDO
+           temp_big(i,j,:) = i_complex * kxgrid(i) * b_in(i,j,:,1) - i_complex * kygrid(j) * b_in(i,j,:,0)
         ENDDO
      ENDDO
      CALL p3dfft_btran_c2r(temp_big,store,"fff")
-     curlbz = store
+     realarrays(:,:,:,10) = store
 
      if (verbose.and.(mype.eq.0)) print *, "Through b derivatives"
      
@@ -231,56 +226,53 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   
 !!! TERMS  vx,vy,vz 
   !vx
-  temp_big = v_inx0
+  temp_big = v_in(:,:,:,0)
   !Add padding for dealiasing
   CALL p3dfft_btran_c2r(temp_big,store,"fff")
-  vx = store
+  realarrays(:,:,:,1) = store
   
   !vy
-  temp_big= v_iny0
+  temp_big = v_in(:,:,:,1)
   !Add padding for dealiasing
   CALL p3dfft_btran_c2r(temp_big,store,"fff")
-  vy = store
+  realarrays(:,:,:,5) = store
   
   !vz
-  temp_big = v_inz0
-  !Add padding for dealiasing    
+  temp_big = v_in(:,:,:,2)
+  !Add padding for dealiasing
   CALL p3dfft_btran_c2r(temp_big,store,"fff")
-  vz = store
+  realarrays(:,:,:,9) = store
 
   if (verbose.and.(mype.eq.0)) print *, "Through v FFTs"
   
   temp_big  = cmplx(0.0,0.0)
   DO j = cstart(2),cend(2)
      DO k = cstart(3),cend(3)
-        temp_big(:,j,k) = i_complex * kygrid(j) * v_inz0(:,j,k) &
-             - i_complex  * kzgrid(k) * v_iny0(:,j,k)
+        temp_big(:,j,k) = i_complex * kygrid(j) * v_in(:,j,k,2) &
+             - i_complex  * kzgrid(k) * v_in(:,j,k,1)
      ENDDO
   ENDDO
   CALL p3dfft_btran_c2r(temp_big,store,"fff")
-  curlvx = store
+  realarrays(:,:,:,3) = store
   
   temp_big = cmplx(0.0,0.0)
   DO k = cstart(3),cend(3)
      DO i = cstart(1),cend(1)
-        temp_big(i,:,k) = i_complex * kzgrid(k) * v_inx0(i,:,k) &
-             - i_complex * kxgrid(i) * v_inz0(i,:,k)
+        temp_big(i,:,k) = i_complex * kzgrid(k) * v_in(i,:,k,0) &
+             - i_complex * kxgrid(i) * v_in(i,:,k,2)
      ENDDO
   ENDDO
   CALL p3dfft_btran_c2r(temp_big,store,"fff")
-  curlvy = store
+  realarrays(:,:,:,7) = store
   
   temp_big = cmplx(0.0,0.0)
   DO i = cstart(1),cend(1)
      DO j = cstart(2),cend(2)
-        DO k = cstart(3),cend(3)
-           temp_big(i,j,k) = i_complex * kxgrid(i) * v_iny0(i,j,k) &
-                - i_complex * kygrid(j) * v_inx0(i,j,k)
-        ENDDO
+        temp_big(i,j,:) = i_complex * kxgrid(i) * v_in(i,j,:,1) - i_complex * kygrid(j) * v_in(i,j,:,0)
      ENDDO
   ENDDO
   CALL p3dfft_btran_c2r(temp_big,store,"fff")
-  curlvz = store
+  realarrays(:,:,:,11) = store
  
   if (verbose.and.(mype.eq.0)) print *, "Through derivatives"
   
@@ -322,8 +314,9 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   if (.not.nv) then ! Skip b ffts if Navier Stokes
      
      ! x: vy bz - vz by - (curlby bz - curlbz by)
-     store = vy * bz - vz * by - hall * (curlby * bz - curlbz * by)
-     
+
+     store = (realarrays(:,:,:,5) - hall * realarrays(:,:,:,6)) * realarrays(:,:,:,8) - (realarrays(:,:,:,9) - hall * realarrays(:,:,:,10)) * realarrays(:,:,:,4)
+
      CALL UNPACK
      
      DO k = cstart(3),cend(3)
@@ -334,7 +327,7 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
      ENDDO
      
      ! y: vz bx - vx bz - hall * (curlbz bx - curlbx bz)
-     store = vz * bx - vx * bz - hall * (curlbz * bx - curlbx * bz)
+     store = (realarrays(:,:,:,9) - hall * realarrays(:,:,:,10)) * realarrays(:,:,:,0) - (realarrays(:,:,:,1) - hall * realarrays(:,:,:,2)) * realarrays(:,:,:,8) 
      
      CALL UNPACK
      
@@ -346,7 +339,7 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
      ENDDO
      
      ! z: vx by - vy bx - hall (curlbx by - curlby bx)
-     store = vx * by - vy * bx - hall*(curlbx * by - curlby * bx)
+     store = (realarrays(:,:,:,1) - hall * realarrays(:,:,:,2)) * realarrays(:,:,:,4) - (realarrays(:,:,:,5) - hall * realarrays(:,:,:,6)) * realarrays(:,:,:,0)
      
      CALL UNPACK
      
@@ -385,14 +378,14 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   
   ! x: vy curlvz - vz curlvy + curlby bz - curlbz by
   
-  store = vy * curlvz - vz * curlvy + curlby * bz - curlbz * by
+  store = realarrays(:,:,:,5) * realarrays(:,:,:,11) - realarrays(:,:,:,9) * realarrays(:,:,:,7) + realarrays(:,:,:,6) * realarrays(:,:,:,8) - realarrays(:,:,:,10) * realarrays(:,:,:,4)  
   
   CALL UNPACK
   
   rhs_out_v(:,:,:,0) = rhs_out_v(:,:,:,0) + temp_small
   
   ! y: vz * curlvx - vx * curlvz + curlbz * bx - curlbx * bz
-  store = vz * curlvx - vx * curlvz + curlbz * bx - curlbx * bz
+  store = realarrays(:,:,:,9) * realarrays(:,:,:,3) - realarrays(:,:,:,1) * realarrays(:,:,:,11) + realarrays(:,:,:,10) * realarrays(:,:,:,0) - realarrays(:,:,:,2) * realarrays(:,:,:,8)
   
   CALL UNPACK
   if (verbose.and.(mype.eq.0)) print *, "vy fft complete"
@@ -400,7 +393,7 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   if (verbose.and.(mype.eq.0)) print *, "vy done"
   
   ! z: vx * curlvy - vy * curlvx + curlbx * by - curlby * bx
-  store = vx * curlvy - vy * curlvx + curlbx * by - curlby * bx
+  store = realarrays(:,:,:,1) * realarrays(:,:,:,7) - realarrays(:,:,:,5) * realarrays(:,:,:,3) + realarrays(:,:,:,2) * realarrays(:,:,:,4) - realarrays(:,:,:,6) * realarrays(:,:,:,0)
   
   CALL UNPACK
   if (verbose.and.(mype.eq.0)) print *, "vz fft complete"
@@ -428,15 +421,15 @@ SUBROUTINE next_dt(dtn)
   real :: ndt1xr,ndt1yr,ndt1zr,ndt2xr,ndt2yr,ndt2zr,ndt3xr,ndt3yr,ndt3zr
   real :: ndtr
   
-  ndt1xr = maxval(abs(kxgrid))*maxval(abs(bx))
-  ndt1yr = maxval(abs(kygrid))*maxval(abs(by))
-  ndt1zr = maxval(abs(kzgrid))*maxval(1+abs(bz))
-  ndt2xr = maxval(abs(kxgrid))*maxval(abs(vx))
-  ndt2yr = maxval(abs(kygrid))*maxval(abs(vy))
-  ndt2zr = maxval(abs(kzgrid))*maxval(abs(vz))
-  ndt3xr = maxval(abs(kxgrid))*maxval(abs(curlbx))*hall
-  ndt3yr = maxval(abs(kygrid))*maxval(abs(curlby))*hall
-  ndt3zr = maxval(abs(kzgrid))*maxval(abs(curlbz))*hall
+  ndt1xr = maxval(abs(kxgrid))*maxval(abs(realarrays(:,:,:,0)))
+  ndt1yr = maxval(abs(kygrid))*maxval(abs(realarrays(:,:,:,4)))
+  ndt1zr = maxval(abs(kzgrid))*maxval(abs(realarrays(:,:,:,8)))
+  ndt2xr = maxval(abs(kxgrid))*maxval(abs(realarrays(:,:,:,1)))
+  ndt2yr = maxval(abs(kygrid))*maxval(abs(realarrays(:,:,:,5)))
+  ndt2zr = maxval(abs(kzgrid))*maxval(abs(realarrays(:,:,:,9)))
+  ndt3xr = maxval(abs(kxgrid))*maxval(abs(realarrays(:,:,:,2)))*hall
+  ndt3yr = maxval(abs(kygrid))*maxval(abs(realarrays(:,:,:,6)))*hall
+  ndt3zr = maxval(abs(kzgrid))*maxval(abs(realarrays(:,:,:,10)))*hall
   ndtr = ndt1xr + ndt1yr + ndt1zr &
        + ndt2xr + ndt2yr + ndt2zr &
        + ndt3xr + ndt3yr + ndt3zr
@@ -460,34 +453,9 @@ SUBROUTINE ALLOCATIONS
   ALLOCATE(store(rstart(1):rend(1),rstart(2):rend(2),rstart(3):rend(3)))
   
   ALLOCATE(temp_small(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3)))
-  
-  ! All b arrays
-  ALLOCATE(bx(rstart(1):rend(1),rstart(2):rend(2),rstart(3):rend(3)))
-  ALLOCATE(by(rstart(1):rend(1),rstart(2):rend(2),rstart(3):rend(3)))
-  ALLOCATE(bz(rstart(1):rend(1),rstart(2):rend(2),rstart(3):rend(3)))
-  
-  ! All v arrays
-  ALLOCATE(vx(rstart(1):rend(1),rstart(2):rend(2),rstart(3):rend(3)))
-  ALLOCATE(vy(rstart(1):rend(1),rstart(2):rend(2),rstart(3):rend(3)))
-  ALLOCATE(vz(rstart(1):rend(1),rstart(2):rend(2),rstart(3):rend(3)))
-  
-  ! all first order v arrays
-  ALLOCATE(curlvx(rstart(1):rend(1),rstart(2):rend(2),rstart(3):rend(3)))
-  ALLOCATE(curlvy(rstart(1):rend(1),rstart(2):rend(2),rstart(3):rend(3)))
-  ALLOCATE(curlvz(rstart(1):rend(1),rstart(2):rend(2),rstart(3):rend(3)))
-  
-  ! all first order b arrays
-  ALLOCATE(curlbx(rstart(1):rend(1),rstart(2):rend(2),rstart(3):rend(3)))
-  ALLOCATE(curlby(rstart(1):rend(1),rstart(2):rend(2),rstart(3):rend(3)))
-  ALLOCATE(curlbz(rstart(1):rend(1),rstart(2):rend(2),rstart(3):rend(3)))
-  
-  
-  ALLOCATE(b_inx0(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3)))
-  ALLOCATE(b_iny0(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3)))
-  ALLOCATE(b_inz0(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3)))
-  ALLOCATE(v_inx0(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3)))
-  ALLOCATE(v_iny0(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3)))
-  ALLOCATE(v_inz0(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3)))
+
+  ! bx, vx, curlbx, curlvx, by, vy, curlby, curlvy, bz, vz, curlbz, curlvz 
+  ALLOCATE(realarrays(rstart(1):rend(1),rstart(2):rend(2),rstart(3):rend(3),0:11))
   
 END SUBROUTINE ALLOCATIONS
 
@@ -502,34 +470,9 @@ SUBROUTINE DEALLOCATIONS
   
   ! All b arrays
   
-  if (allocated(bx)) DEALLOCATE(bx)
-  if (verbose.and.(mype.eq.0)) print *, 'bx deallocated'
-  if (allocated(by)) DEALLOCATE(by)
-  if (verbose.and.(mype.eq.0)) print *, 'by deallocated'
-  if (allocated(bz)) DEALLOCATE(bz)
-  if (verbose.and.(mype.eq.0)) print *, 'first third deallocated'
-  
-  if (allocated(curlbx)) DEALLOCATE(curlbx)
-  if (allocated(curlby)) DEALLOCATE(curlby)
-  if (allocated(curlbz)) DEALLOCATE(curlbz)
-  
-  ! All v arrays 
-  if (allocated(vx))  DEALLOCATE(vx)
-  if (allocated(vy))  DEALLOCATE(vy)
-  if (allocated(vz))  DEALLOCATE(vz)
-  
-  if (allocated(curlvx))  DEALLOCATE(curlvx)
-  if (allocated(curlvy))  DEALLOCATE(curlvy)
-  if (allocated(curlvz))  DEALLOCATE(curlvz)
-  
   if (verbose.and.(mype.eq.0)) print *, "all derivatives deallocated"
-  
-  if (allocated(b_inx0))  DEALLOCATE(b_inx0)
-  if (allocated(b_iny0))  DEALLOCATE(b_iny0)
-  if (allocated(b_inz0))  DEALLOCATE(b_inz0)
-  if (allocated(v_inx0))  DEALLOCATE(v_inx0)
-  if (allocated(v_iny0))  DEALLOCATE(v_iny0)
-  if (allocated(v_inz0))  DEALLOCATE(v_inz0)
+
+  if (allocated(realarrays)) DEALLOCATE(realarrays)
   
 END SUBROUTINE DEALLOCATIONS
 
