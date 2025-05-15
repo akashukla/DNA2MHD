@@ -412,6 +412,11 @@ SUBROUTINE initial_condition
 
     ENDIF
 
+    ! Optimized 256^3 modes from contour plot, 0.025 kperpmin 0.005 kzmin
+    IF (init_cond.eq.200) CALL setwaveindices(wave1x,wave1y,wave1z,wave2x,wave2y,wave2z)
+    
+    waveamps1(1) = 1.0
+    waveamps2(1) = 1.0
     CALL isolatedhmhdwave(wave1x,wave1y,wave1z,waveamps1*2.0,mype1)
     CALL isolatedhmhdwave(wave2x,wave2y,wave2z,waveamps1*1.0,mype2)
     CALL isolatedhmhdwave(wave3x,wave3y,wave3z,waveamps2*0.5,mype3)

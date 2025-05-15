@@ -35,12 +35,8 @@ MODULE time_advance
   
 !  COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:,:,:) :: g_2,k1,k2
   COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:,:) :: b_2, bk1, bk2, v_2, vk1, vk2
-  COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:,:) :: bk1s,vk1s,bk2s,vk2s
-  
-  COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:,:) :: bk3,bk4,bk5,bk6,bk7,bk8,bk9,bk10,bk11,bk12,bk13,vk3,vk4,vk5,vk6,vk7,vk8,vk9,vk10,vk11,vk12,vk13,b_3,v_3
-  REAL, ALLOCATABLE, DIMENSION(:,:,:,:) :: bsph0,vsph0,bsph1,vsph1,bsph3,vsph3,bsphk1,bsphk2,bsphk3,bsphk4,bsphk5,bsphk6,bsphk7,&
-       vsphk1,vsphk2,vsphk3,vsphk4,vsphk5,vsphk6,vsphk7 ! z axis spherical chart
-  LOGICAL, ALLOCATABLE, DIMENSION(:,:,:,:) :: breakz ! if a chart fails; considered unlikely but possible
+  COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:,:) :: bk1s,vk1s,bk2s,vk2s,b_3,v_3  
+  COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:,:) :: bk3,bk4,bk5,bk6,vk3,vk4,vk5,vk6
   INTEGER :: ierr
 
   !COMPLEX :: b_in(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2)
@@ -610,18 +606,18 @@ SUBROUTINE ralston3(b_in,v_in,dt_new)
   if (verbose.and.(mype.eq.0))   print *, "First Stage"
   if (mhc) mhelcorr = mhelcorr + (2.0/9.0)*nmhc1*dt
 
-  bk1s = b_in+(1.0/2.0)*bk1*dt
-  vk1s = v_in+(1.0/2.0)*vk1*dt
+  bk1 = b_in+(1.0/2.0)*bk1*dt
+  vk1 = v_in+(1.0/2.0)*vk1*dt
 
-  CALL get_rhs(bk1s,vk1s,bk2,vk2,nmhc2,dt_new2)
+  CALL get_rhs(bk1,vk1,bk2,vk2,nmhc2,dt_new2)
   b_2 = b_2 + (1.0/3.0) * bk2 * dt
   v_2 = v_2 + (1.0/3.0) * vk2 * dt
   if (mhc) mhelcorr = mhelcorr + (1.0/3.0) * nmhc2 * dt
 
-  bk1s = b_in+(3.0/4.0)*bk2*dt
-  vk1s = v_in+(3.0/4.0)*vk2*dt
+  bk2 = b_in+(3.0/4.0)*bk2*dt
+  vk2 = v_in+(3.0/4.0)*vk2*dt
 
-  CALL get_rhs(bk1s,vk1s,bk1,vk1,nmhc3,dt_new3)
+  CALL get_rhs(bk2,vk2,bk1,vk1,nmhc3,dt_new3)
   b_in = b_2 + (4.0/9.0) * bk1 * dt
   v_in = v_2 + (4.0/9.0) * vk1 * dt
   if (mhc) mhelcorr = mhelcorr + (4.0/9.0) * nmhc3 * dt

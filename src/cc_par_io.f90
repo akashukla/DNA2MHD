@@ -60,6 +60,7 @@ SUBROUTINE read_parameters
       hall,guide,enone,nv,test_ho,uni,beltrami,helical,shear,walenp,walenn,mhc,&
       init_wave,init_null,force_trunc,bc_norm,track_divs,taylorgreen,init_cond,&
       en_leftwhist,en_leftcyclo,en_rightwhist,en_rightcyclo,debug_energy,&
+      wave1x,wave1y,wave1z,wave2x,wave2y,wave2z,&
       force_lw,force_lc,force_rw,force_rc,random_state
  
   NAMELIST /initial_value/ &
@@ -415,6 +416,7 @@ SUBROUTINE output_parameters
     WRITE(out_handle,"(A,L1)") "track_divs = ",track_divs
     WRITE(out_handle,"(A,L1)") "taylorgreen = ",taylorgreen
     WRITE(out_handle,"(A,I2)") "init_cond = ",init_cond
+
     WRITE(out_handle,"(A,G12.4)") "en_leftwhist = ",en_leftwhist
     WRITE(out_handle,"(A,G12.4)") "en_leftcyclo = ",en_leftcyclo
     WRITE(out_handle,"(A,G12.4)") "en_rightwhist = ",en_rightwhist

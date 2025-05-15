@@ -4,14 +4,14 @@ omt = 5.000
 omn =    1.000    
 Ti0Te =    1.000 
 eta = 1.0
-vnu = 0.01
+vnu = 0.0
 rey = 0.0
 /
 
 &numerical_parameters
-kxmin =   0.05
-kymin =   0.05
-kzmin =   0.01
+kxmin =   0.025
+kymin =   0.025
+kzmin =   0.005
 nkx0 = 64
 nky0 = 128
 nkz0 = 128
@@ -51,8 +51,8 @@ hyp = 1
 /
 
 &diagnostics
-diagdir = "/pscratch/sd/e/echansen/DNA2MHDruns/test5825"
-loaddir = "/pscratch/sd/e/echansen/DNA2MHDruns/test5825"
+diagdir = "/pscratch/sd/e/echansen/DNA2MHDruns/examples1"
+loaddir = "/pscratch/sd/e/echansen/DNA2MHDruns/examples1"
 istep_ffm =   20
 istep_energy3d =  500
 istep_energy =  10
@@ -108,12 +108,18 @@ force_lc = 0.0
 force_rw = 0.0
 force_rc = 0.0
 random_state = 3
+wave1x = -999
+wave1y = -999
+wave1z = -999
+wave2x = -999
+wave2y = -999
+wave2z = -999
 /
 
 &initial_value
 max_itime = 100
 max_walltime =   86200.0
-dt_max = 0.05
+dt_max = 0.1
 fix_dt = F
 max_time =   10000000.
 /

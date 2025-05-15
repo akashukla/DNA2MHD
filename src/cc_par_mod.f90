@@ -265,23 +265,18 @@ MODULE par_mod
   !COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:,:,:) :: g_1
   COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:,:) :: b_1
   COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:,:) :: v_1
-  COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:) :: reader
-  COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:) :: reader2
-  COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:)  :: fullsmallarray,fullbigarray
-  COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE :: scatter_big(:),scatter_small(:),gather_big(:),gather_small(:)
   
   COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:) :: LW,LC,RW,RC
   INTEGER(4), ALLOCATABLE, DIMENSION(:,:,:) :: paddingmask
   ! Forcing masks
+
   LOGICAL, ALLOCATABLE :: mask(:,:,:)
   INTEGER(4), ALLOCATABLE :: mask1(:,:,:)
-  
   REAL(C_DOUBLE), ALLOCATABLE, DIMENSION(:,:,:) :: LWp,LCp,RWp,RCp
   REAL(C_DOUBLE), ALLOCATABLE, DIMENSION(:,:,:) :: LWp2,LCp2,RWp2,RCp2
   REAL :: last_reset = -1.0! time of last forcing phase change
 
   INTEGER :: rkstage
-  COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE, DIMENSION(:,:,:,:) :: bdv,vdb,cbdb,bdcb,vdv,bdb,db2
   REAL, ALLOCATABLE, DIMENSION(:,:) :: kperp2
   REAL, ALLOCATABLE, DIMENSION(:) :: kxgrid,kygrid,kzgrid,herm_grid,hgrid_loc,&
                             hkgrid,vgrid,delta_hk, delta_v
@@ -397,7 +392,7 @@ MODULE par_mod
   INTEGER :: hyp
 
   INTEGER(4) :: mype1,mype2,mype3
-  INTEGER(4) :: wave1x=0,wave1y=0,wave1z=0,wave2x=0,wave2y=0,wave2z=0,wave3x=0,wave3y=0,wave3z=0
+  INTEGER(4) :: wave1x=-999,wave1y=-999,wave1z=-999,wave2x=-999,wave2y=-999,wave2z=-999,wave3x=-999,wave3y=-999,wave3z=-999
   
 
   CONTAINS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
