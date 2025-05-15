@@ -9,12 +9,12 @@ rey = 0.0
 /
 
 &numerical_parameters
-kxmin =   10.0
-kymin =   10.0
-kzmin =   1.0
-nkx0 = 16
-nky0 = 32
-nkz0 = 32
+kxmin =   0.05
+kymin =   0.05
+kzmin =   0.01
+nkx0 = 64
+nky0 = 128
+nkz0 = 128
 nv0 =   2
 nh0 =    1
 nspec =    1
@@ -51,8 +51,8 @@ hyp = 4
 /
 
 &diagnostics
-diagdir = "/pscratch/sd/e/echansen/DNA2MHDruns/mhddecaystart"
-loaddir = "/pscratch/sd/e/echansen/DNA2MHDruns/mhddecaystart"
+diagdir = "/pscratch/sd/e/echansen/DNA2MHDruns/testfftw"
+loaddir = "/pscratch/sd/e/echansen/DNA2MHDruns/testfftw"
 istep_ffm =   20
 istep_energy3d =  500
 istep_energy =  1
@@ -85,7 +85,7 @@ intorder = 3
 rhs_lin_version = 12
 dealias_type = 3
 shifted = F
-force_turbulence = F
+force_turbulence = T
 forceb = T
 forcetype = 12
 set_forcing = F
@@ -105,7 +105,7 @@ bc_norm = F
 track_divs = F
 debug_energy = F
 mhc = T
-init_wave = F
+init_wave = T
 init_null = F
 force_trunc = F
 checkpoint_read = F
@@ -123,9 +123,9 @@ random_state = 3
 /
 
 &initial_value
-max_itime = 40
+max_itime = 100
 max_walltime =   129300.0
-dt_max = 0.0001
+dt_max = 0.01
 fix_dt = F
 max_time =   10000000.
 /
