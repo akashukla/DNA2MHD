@@ -660,7 +660,7 @@ SUBROUTINE GAUSS4(b_in,v_in,dt_new)
   maxdev = 1.0
   solvloop = 0
 
-  DO WHILE ((solvloop.lt.1000).and.(maxdev.gt.10.0**(-16.0)))
+  DO WHILE ((solvloop.lt.1000).and.(maxdev.gt.10.0**(-14.0)))
 
      if (solvloop.eq.0) then
 
@@ -758,7 +758,7 @@ SUBROUTINE GAUSS2(b_in,v_in,dt_new)
 
   if (precondition) then
 
-     DO WHILE((solvloop.lt.1000).and.(maxdev.ge.10.0**(-16.0))) ! Newton's method with linear problem Jacobian
+     DO WHILE((solvloop.lt.1000).and.(maxdev.ge.10.0**(-14.0))) ! Newton's method with linear problem Jacobian
 
         if (verbose.and.mype.eq.0) print *, mype,"Iteration ",solvloop,"Discrepancy ",maxdev
         
@@ -781,7 +781,7 @@ SUBROUTINE GAUSS2(b_in,v_in,dt_new)
 
   else ! Fixed point iteration
 
-     DO WHILE ((solvloop.lt.1000).and.(maxdev.gt.10.0**(-16.0)))
+     DO WHILE ((solvloop.lt.1000).and.(maxdev.gt.10.0**(-14.0)))
         ! Check for now to see if the fixed point iteration converges                                                                                                                                                                               
         
         if (verbose.and.mype.eq.0) print *, mype,"Iteration ",solvloop,"Discrepancy ",maxdev

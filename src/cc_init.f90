@@ -110,7 +110,7 @@ SUBROUTINE arrays
   lky_big = ny0_big - hky_ind
   lkz_big = nz0_big - hkz_ind
 
-  ! Adjust for P3DFFT
+  ! Adjust for 1-based indexing
 
   hkx_ind = hkx_ind+1
   hky_ind = hky_ind+1
@@ -128,14 +128,15 @@ SUBROUTINE arrays
      WRITE(*,*) "lkz_ind",lkz_ind
   END IF
   
-  ! Initialize Fourier needed for P3DFFT pencil decomposition
+  ! Initialize Fourier
   CALL initialize_fourier
+  
   IF (verbose.and.(mype.eq.0)) WRITE(*,*) "Called initial fourier.",mype 
   
   ! Define MPI subarray type for output
   sizes = [1+nx0_big/2,ny0_big,nz0_big,3_4]
-  subsizes = [(1+cend(i)-cstart(i), integer :: i = 1,3),3_4]
-  starts = [(cstart(i)-1, integer :: i=1,3),0_4]
+  subsizes = [1+cend(1)-cstart(1),1+cend(2)-cstart(2),1+cend(3)-cstart(3),3]
+  starts = [cstart(1)-1,cstart(2)-1,cstart(3)-1,0]
   lcount = product(subsizes)
   arrbyte = product(sizes)*16
   
