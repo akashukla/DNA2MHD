@@ -40,9 +40,12 @@ MODULE nonlinearity
 
   !For fft's
 
+
+  COMPLEX(C_DOUBLE_COMPLEX), allocatable :: temp_big(:,:,:)
+  REAL(C_DOUBLE), allocatable :: store(:,:,:)
   
-  COMPLEX(C_DOUBLE_COMPLEX), pointer :: temp_big(:,:,:),temp_big1(:,:,:)
-  REAL(C_DOUBLE), pointer ::  store(:,:,:),store1(:,:,:)
+  !COMPLEX(C_DOUBLE_COMPLEX), pointer :: temp_big(:,:,:),temp_big1(:,:,:)
+  !REAL(C_DOUBLE), pointer ::  store(:,:,:),store1(:,:,:)
 
   type(C_PTR) :: plan_r2c,plan_c2r,rdata,cdata
   
@@ -81,16 +84,19 @@ SUBROUTINE initialize_fourier_ae_mu0
   rend = [nx0_big,ny0_big,nz0_big]
   if (verbose) print *, mype,cstart(1),cend(1),cstart(2),cend(2),cstart(3),cend(3)
 
-  cdata = fftw_alloc_complex(int((nx0_big/2 + 1)*ny0_big*nz0_big,C_SIZE_T))
-  call c_f_pointer(cdata,store,[2*(nx0_big/2+1),ny0_big,nz0_big])
-  call c_f_pointer(cdata,temp_big,[nx0_big/2+1,ny0_big,nz0_big])
+  ALLOCATE(temp_big(1:1+nx0_big/2,1:ny0_big,1:nz0_big))
+  ALLOCATE(store(1:nx0_big,1:ny0_big,1:nz0_big))
+  
+!  cdata = fftw_alloc_complex(int((nx0_big/2 + 1)*ny0_big*nz0_big,C_SIZE_T))
+!  call c_f_pointer(cdata,store,[2*(nx0_big/2+1),ny0_big,nz0_big])
+!  call c_f_pointer(cdata,temp_big,[nx0_big/2+1,ny0_big,nz0_big])
 
-  rdata = fftw_alloc_complex(int((nx0_big/2 + 1)*ny0_big*nz0_big,C_SIZE_T))
-  call c_f_pointer(rdata,store1,[2*(nx0_big/2+1),ny0_big,nz0_big])
-  call c_f_pointer(rdata,temp_big1,[nx0_big/2+1,ny0_big,nz0_big])
+!  rdata = fftw_alloc_complex(int((nx0_big/2 + 1)*ny0_big*nz0_big,C_SIZE_T))
+!  call c_f_pointer(rdata,store1,[2*(nx0_big/2+1),ny0_big,nz0_big])
+!  call c_f_pointer(rdata,temp_big1,[nx0_big/2+1,ny0_big,nz0_big])
 
   plan_c2r = fftw_plan_dft_c2r_3d(nz0_big,ny0_big,nx0_big,temp_big,store,FFTW_ESTIMATE)
-  plan_r2c = fftw_plan_dft_r2c_3d(nz0_big,ny0_big,nx0_big,store1,temp_big1,FFTW_ESTIMATE)
+  plan_r2c = fftw_plan_dft_r2c_3d(nz0_big,ny0_big,nx0_big,store,temp_big,FFTW_ESTIMATE)
   
   fft_norm=1.0/(REAL(nx0_big*ny0_big*nz0_big))
 
@@ -291,64 +297,63 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
      
      ! x: vy bz - vz by - (curlby bz - curlbz by)
 
-     store1 = (realarrays(:,:,:,5) - hall * realarrays(:,:,:,6)) * realarrays(:,:,:,8) &
+     store = (realarrays(:,:,:,5) - hall * realarrays(:,:,:,6)) * realarrays(:,:,:,8) &
           - (realarrays(:,:,:,9) - hall * realarrays(:,:,:,10)) * realarrays(:,:,:,4)
 
      CALL UNPACK
      DO k = cstart(3),cend(3)
-        rhs_out_b(:,:,k,1) = rhs_out_b(:,:,k,1) + i_complex * kzgrid(k) * temp_big1(:,:,k)
+        rhs_out_b(:,:,k,1) = rhs_out_b(:,:,k,1) + i_complex * kzgrid(k) * temp_big(:,:,k)
      ENDDO
      DO j = cstart(2),cend(2)
-        rhs_out_b(:,j,:,2) = rhs_out_b(:,j,:,2) - i_complex * kygrid(j) * temp_big1(:,j,:)
+        rhs_out_b(:,j,:,2) = rhs_out_b(:,j,:,2) - i_complex * kygrid(j) * temp_big(:,j,:)
      ENDDO
      
      ! y: vz bx - vx bz - hall * (curlbz bx - curlbx bz) 
-     store1 = (realarrays(:,:,:,9) - hall * realarrays(:,:,:,10)) * realarrays(:,:,:,0) &
+     store = (realarrays(:,:,:,9) - hall * realarrays(:,:,:,10)) * realarrays(:,:,:,0) &
           - (realarrays(:,:,:,1) - hall * realarrays(:,:,:,2)) * realarrays(:,:,:,8)
 
      CALL UNPACK
 
      DO i = cstart(1),cend(1)
-        rhs_out_b(i,:,:,2) = rhs_out_b(i,:,:,2) + i_complex * kxgrid(i) * temp_big1(i,:,:)
+        rhs_out_b(i,:,:,2) = rhs_out_b(i,:,:,2) + i_complex * kxgrid(i) * temp_big(i,:,:)
      ENDDO
      DO k = cstart(3),cend(3)
-        rhs_out_b(:,:,k,0) = rhs_out_b(:,:,k,0) - i_complex * kzgrid(k) * temp_big1(:,:,k)
+        rhs_out_b(:,:,k,0) = rhs_out_b(:,:,k,0) - i_complex * kzgrid(k) * temp_big(:,:,k)
      ENDDO
 
      ! z: vx by - vy bx - hall (curlbx by - curlby bx) 
-     store1 = (realarrays(:,:,:,1) - hall * realarrays(:,:,:,2)) * realarrays(:,:,:,4) &
+     store = (realarrays(:,:,:,1) - hall * realarrays(:,:,:,2)) * realarrays(:,:,:,4) &
           - (realarrays(:,:,:,5) - hall * realarrays(:,:,:,6)) * realarrays(:,:,:,0)
-
 
      CALL UNPACK
      
      DO j = cstart(2),cend(2)
-        rhs_out_b(:,j,:,0) = rhs_out_b(:,j,:,0) + i_complex * kygrid(j) * temp_big1(:,j,:)
+        rhs_out_b(:,j,:,0) = rhs_out_b(:,j,:,0) + i_complex * kygrid(j) * temp_big(:,j,:)
      ENDDO
      DO i = cstart(1),cend(1)
-        rhs_out_b(i,:,:,1) = rhs_out_b(i,:,:,1) - i_complex * kxgrid(i) * temp_big1(i,:,:)
+        rhs_out_b(i,:,:,1) = rhs_out_b(i,:,:,1) - i_complex * kxgrid(i) * temp_big(i,:,:)
      ENDDO
      
 
   endif
 
   ! x: vy curlvz - vz curlvy + curlby bz - curlbz by
-  store1 = realarrays(:,:,:,5) * realarrays(:,:,:,11) - realarrays(:,:,:,9) * realarrays(:,:,:,7) &
+  store = realarrays(:,:,:,5) * realarrays(:,:,:,11) - realarrays(:,:,:,9) * realarrays(:,:,:,7) &
        + realarrays(:,:,:,6) * realarrays(:,:,:,8) - realarrays(:,:,:,10) * realarrays(:,:,:,4)
   CALL UNPACK
-  rhs_out_v(:,:,:,0) = rhs_out_v(:,:,:,0) + temp_big1
+  rhs_out_v(:,:,:,0) = rhs_out_v(:,:,:,0) + temp_big
 
   ! y: vz * curlvx - vx * curlvz + curlbz * bx - curlbx * bz 
-  store1 = realarrays(:,:,:,9) * realarrays(:,:,:,3) - realarrays(:,:,:,1) * realarrays(:,:,:,11) &
+  store = realarrays(:,:,:,9) * realarrays(:,:,:,3) - realarrays(:,:,:,1) * realarrays(:,:,:,11) &
        + realarrays(:,:,:,10) * realarrays(:,:,:,0) - realarrays(:,:,:,2) * realarrays(:,:,:,8)
   CALL UNPACK
-  rhs_out_v(:,:,:,1) = rhs_out_v(:,:,:,1) + temp_big1
+  rhs_out_v(:,:,:,1) = rhs_out_v(:,:,:,1) + temp_big
 
   !z : vx * curlvy - vy * curlvx + curlbx * by - curlby * bx
-  store1 = realarrays(:,:,:,1) * realarrays(:,:,:,7) - realarrays(:,:,:,5) * realarrays(:,:,:,3) &
+  store = realarrays(:,:,:,1) * realarrays(:,:,:,7) - realarrays(:,:,:,5) * realarrays(:,:,:,3) &
        + realarrays(:,:,:,2) * realarrays(:,:,:,4) - realarrays(:,:,:,6) * realarrays(:,:,:,0)
   CALL UNPACK
-  rhs_out_v(:,:,:,2) = rhs_out_v(:,:,:,2) + temp_big1
+  rhs_out_v(:,:,:,2) = rhs_out_v(:,:,:,2) + temp_big
   
   if (timer.and.(mype.eq.0)) t2 = MPI_WTIME()
   if (timer.and.(mype.eq.0)) print *, "equations and RFFTs",t2-t1
@@ -395,8 +400,8 @@ SUBROUTINE finalize_fourier
   
   CALL fftw_destroy_plan(plan_c2r)
   call fftw_destroy_plan(plan_r2c)
-  CALL fftw_free(rdata)
-  CALL fftw_free(cdata)
+  !CALL fftw_free(rdata)
+  !CALL fftw_free(cdata)
   
 END SUBROUTINE finalize_fourier
 
@@ -405,7 +410,7 @@ SUBROUTINE ALLOCATIONS
   ! ALLOCATE(temp_small(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3)))
   
   ! we might be able to get out of needing the real arrays with in place transforms
-  ALLOCATE(realarrays(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:11))
+  ALLOCATE(realarrays(rstart(1):rend(1),rstart(2):rend(2),rstart(3):rend(3),0:11))
   
 END SUBROUTINE ALLOCATIONS
 
@@ -416,6 +421,9 @@ SUBROUTINE DEALLOCATIONS
   if (verbose.and.(mype.eq.0)) print *, 'ts deallocated'
   
   ! All b arrays
+
+  DEALLOCATE(temp_big)
+  DEALLOCATE(store)
   
   if (verbose.and.(mype.eq.0)) print *, "all derivatives deallocated"
 
@@ -440,12 +448,12 @@ SUBROUTINE UNPACK
 
   !if (verbose) print *, "Entering Unpack"
   
-  CALL fftw_execute_dft_r2c(plan_r2c,store1,temp_big1)
+  CALL fftw_execute_dft_r2c(plan_r2c,store,temp_big)
   
   ! print *, "Post RFFT",maxval(abs(temp_big))
   if (verbose.and.(mype.eq.0)) print *, "Through RFFT"
 
-  temp_big1 = temp_big1 * fft_norm * paddingmask
+  temp_big = temp_big * fft_norm * paddingmask
     
   if (verbose.and.(mype.eq.0)) print *, "All Done"
   
