@@ -40,8 +40,11 @@ MODULE nonlinearity
 
   !For fft's
 
-  COMPLEX(C_DOUBLE_COMPLEX), pointer :: temp_biginv(:,:,:,:),temp_bigfor(:,:,:,:)
-  REAL(C_DOUBLE), pointer ::  storeinv(:,:,:,:),storefor(:,:,:,:)
+  COMPLEX(C_DOUBLE_COMPLEX), ALLOCATABLE :: temp_biginv(:,:,:,:),temp_bigfor(:,:,:,:)
+  REAL(C_DOUBLE), ALLOCATABLE :: storeinv(:,:,:,:),storefor(:,:,:,:)
+  
+  ! COMPLEX(C_DOUBLE_COMPLEX), pointer :: temp_biginv(:,:,:,:),temp_bigfor(:,:,:,:)
+  ! REAL(C_DOUBLE), pointer ::  storeinv(:,:,:,:),storefor(:,:,:,:)
 
   type(C_PTR) :: plan_r2c,plan_c2r,rdata,cdata
   
@@ -82,16 +85,25 @@ SUBROUTINE initialize_fourier_ae_mu0
   rend = [nx0_big,ny0_big,nz0_big]
   if (verbose) print *, mype,cstart(1),cend(1),cstart(2),cend(2),cstart(3),cend(3)
 
-  rdata = fftw_alloc_real(int(2*(nx0_big/2 + 1)*ny0_big*nz0_big*12,C_SIZE_T))
-  call c_f_pointer(rdata,storeinv,[12,2*(nx0_big/2+1),ny0_big,nz0_big])
-  call c_f_pointer(rdata,temp_biginv,[12,nx0_big/2+1,ny0_big,nz0_big])
+  !rdata = fftw_alloc_real(int(2*(nx0_big/2 + 1)*ny0_big*nz0_big*12,C_SIZE_T))
+  !call c_f_pointer(rdata,storeinv,[12,2*(nx0_big/2+1),ny0_big,nz0_big])
+  !call c_f_pointer(rdata,temp_biginv,[12,nx0_big/2+1,ny0_big,nz0_big])
 
-  cdata = fftw_alloc_real(int(2*(nx0_big/2+1)*ny0_big*nz0_big*6,C_SIZE_T))
-  call c_f_pointer(cdata,storefor,[6,2*(nx0_big/2+1),ny0_big,nz0_big])
-  call c_f_pointer(cdata,temp_bigfor,[6,nx0_big/2+1,ny0_big,nz0_big])
+  !cdata = fftw_alloc_real(int(2*(nx0_big/2+1)*ny0_big*nz0_big*6,C_SIZE_T))
+  !call c_f_pointer(cdata,storefor,[6,2*(nx0_big/2+1),ny0_big,nz0_big])
+  !call c_f_pointer(cdata,temp_bigfor,[6,nx0_big/2+1,ny0_big,nz0_big])
 
-  complex_embed = [nz0_big,ny0_big,nx0_big/2+1]
-  real_embed = [nz0_big,ny0_big,2*(nx0_big/2+1)]
+  !complex_embed = [nz0_big,ny0_big,nx0_big/2+1]
+  !real_embed = [nz0_big,ny0_big,2*(nx0_big/2+1)]
+  !complex_stride = product(complex_embed)
+  
+  allocate(temp_biginv(1:12,1:nx0_big/2+1,1:ny0_big,1:nz0_big))
+  allocate(temp_bigfor(1:6,1:nx0_big/2+1,1:ny0_big,1:nz0_big))
+  allocate(storeinv(1:12,1:nx0_big+2,1:ny0_big,1:nz0_big))
+  allocate(storefor(1:6,1:nx0_big+2,1:ny0_big,1:nz0_big))
+
+  complex_embed = [nz0_big,ny0_big,1+nx0_big/2]
+  real_embed = [nz0_big,ny0_big,2*(1+nx0_big/2)]
   complex_stride = product(complex_embed)
 
   plan_c2r = fftw_plan_many_dft_c2r(3,[nz0_big,ny0_big,nx0_big],12,&
@@ -115,13 +127,6 @@ SUBROUTINE initialize_fourier_ae_mu0
   IF(mype==0) WRITE(*,*) "hkz_ind,lkz_ind",hkz_ind,lkz_ind
   IF(mype==0) WRITE(*,*) "lkz_big",lkz_big
 
-  ! This was convenient from P3DFFT, we'll keep the cstart/cend/rstart/rend arrays for indexing
-  cstart = [1,1,1]
-  cend = [1+nx0_big/2,ny0_big,nz0_big]
-  rstart = [1,1,1]
-  rend = [nx0_big,ny0_big,nz0_big]
-  if (verbose) print *, mype,cstart(1),cend(1),cstart(2),cend(2),cstart(3),cend(3)
-    
   CALL ALLOCATIONS
 
   t2 = MPI_WTIME()
@@ -129,6 +134,7 @@ SUBROUTINE initialize_fourier_ae_mu0
   if (mype.eq.0) print *, "Time for FFT Plan",t2-t1
 
 END SUBROUTINE initialize_fourier_ae_mu0
+
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!                                   get_rhs_nl                              !!
@@ -264,13 +270,14 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
      ENDDO
   ENDDO
 
-  CALL ZEROPAD
-
-  if (verbose.and.(mype.eq.0)) print *, "Through derivatives"
-  
   if (timer.and.(mype.eq.0)) t2 = MPI_WTIME()
-  if (timer.and.(mype.eq.0)) print *, "Time for Derivs and IRFFTs",t2-t1 
-  
+  if (timer.and.(mype.eq.0)) print *, "Time for Derivs",t2-t1
+
+  if (timer.and.(mype.eq.0)) t1 = MPI_WTIME()
+  CALL ZEROPAD
+  if (timer.and.(mype.eq.0)) t2 = MPI_WTIME()
+  if (timer.and.(mype.eq.0)) print *, "Time for IFFTs",t2-t1
+
   storefor = 0.0
   if (timer.and.(mype.eq.0)) t1 = MPI_WTIME()
   if (.not.nv) then ! Skip b ffts if Navier Stokes
@@ -365,8 +372,14 @@ SUBROUTINE finalize_fourier
   
   CALL fftw_destroy_plan(plan_c2r)
   call fftw_destroy_plan(plan_r2c)
-  CALL fftw_free(rdata)
-  CALL fftw_free(cdata)
+
+  if (allocated(temp_bigfor)) deallocate(temp_bigfor)
+  if (allocated(temp_biginv)) deallocate(temp_biginv)
+  if (allocated(storefor)) deallocate(storefor)
+  if (allocated(storeinv)) deallocate(storeinv)
+  
+  !CALL fftw_free(rdata)
+  !CALL fftw_free(cdata)
   
 END SUBROUTINE finalize_fourier
 
