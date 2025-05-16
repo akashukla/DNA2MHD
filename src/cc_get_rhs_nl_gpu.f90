@@ -41,11 +41,11 @@ MODULE nonlinearity
   !For fft's
 
 
-  COMPLEX(C_DOUBLE_COMPLEX), allocatable :: temp_big(:,:,:)
-  REAL(C_DOUBLE), allocatable :: store(:,:,:)
+  !COMPLEX(C_DOUBLE_COMPLEX), allocatable :: temp_big(:,:,:)
+  !REAL(C_DOUBLE), allocatable :: store(:,:,:)
   
-  !COMPLEX(C_DOUBLE_COMPLEX), pointer :: temp_big(:,:,:),temp_big1(:,:,:)
-  !REAL(C_DOUBLE), pointer ::  store(:,:,:),store1(:,:,:)
+  COMPLEX(C_DOUBLE_COMPLEX), pointer :: temp_big(:,:,:)!,temp_big1(:,:,:)
+  REAL(C_DOUBLE), pointer ::  store(:,:,:)!,store1(:,:,:)
 
   type(C_PTR) :: plan_r2c,plan_c2r,rdata,cdata
   
@@ -84,12 +84,12 @@ SUBROUTINE initialize_fourier_ae_mu0
   rend = [nx0_big,ny0_big,nz0_big]
   if (verbose) print *, mype,cstart(1),cend(1),cstart(2),cend(2),cstart(3),cend(3)
 
-  ALLOCATE(temp_big(1:1+nx0_big/2,1:ny0_big,1:nz0_big))
-  ALLOCATE(store(1:nx0_big,1:ny0_big,1:nz0_big))
+  !ALLOCATE(temp_big(1:1+nx0_big/2,1:ny0_big,1:nz0_big))
+  !ALLOCATE(store(1:nx0_big,1:ny0_big,1:nz0_big))
   
-!  cdata = fftw_alloc_complex(int((nx0_big/2 + 1)*ny0_big*nz0_big,C_SIZE_T))
-!  call c_f_pointer(cdata,store,[2*(nx0_big/2+1),ny0_big,nz0_big])
-!  call c_f_pointer(cdata,temp_big,[nx0_big/2+1,ny0_big,nz0_big])
+  cdata = fftw_alloc_complex(int((nx0_big/2 + 1)*ny0_big*nz0_big,C_SIZE_T))
+  call c_f_pointer(cdata,store,[2*(nx0_big/2+1),ny0_big,nz0_big])
+  call c_f_pointer(cdata,temp_big,[nx0_big/2+1,ny0_big,nz0_big])
 
 !  rdata = fftw_alloc_complex(int((nx0_big/2 + 1)*ny0_big*nz0_big,C_SIZE_T))
 !  call c_f_pointer(rdata,store1,[2*(nx0_big/2+1),ny0_big,nz0_big])
@@ -400,8 +400,8 @@ SUBROUTINE finalize_fourier
   
   CALL fftw_destroy_plan(plan_c2r)
   call fftw_destroy_plan(plan_r2c)
-  !CALL fftw_free(rdata)
-  !CALL fftw_free(cdata)
+  CALL fftw_free(rdata)
+  CALL fftw_free(cdata)
   
 END SUBROUTINE finalize_fourier
 
@@ -422,8 +422,8 @@ SUBROUTINE DEALLOCATIONS
   
   ! All b arrays
 
-  DEALLOCATE(temp_big)
-  DEALLOCATE(store)
+  !DEALLOCATE(temp_big)
+  !DEALLOCATE(store)
   
   if (verbose.and.(mype.eq.0)) print *, "all derivatives deallocated"
 

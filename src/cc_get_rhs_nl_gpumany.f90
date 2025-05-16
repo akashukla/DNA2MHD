@@ -83,12 +83,12 @@ SUBROUTINE initialize_fourier_ae_mu0
   if (verbose) print *, mype,cstart(1),cend(1),cstart(2),cend(2),cstart(3),cend(3)
 
   rdata = fftw_alloc_real(int(2*(nx0_big/2 + 1)*ny0_big*nz0_big*12,C_SIZE_T))
-  call c_f_pointer(rdata,storeinv,[2*(nx0_big/2+1),ny0_big,nz0_big,12])
-  call c_f_pointer(rdata,temp_biginv,[nx0_big/2+1,ny0_big,nz0_big,12])
+  call c_f_pointer(rdata,storeinv,[12,2*(nx0_big/2+1),ny0_big,nz0_big])
+  call c_f_pointer(rdata,temp_biginv,[12,nx0_big/2+1,ny0_big,nz0_big])
 
   cdata = fftw_alloc_real(int(2*(nx0_big/2+1)*ny0_big*nz0_big*6,C_SIZE_T))
-  call c_f_pointer(cdata,storefor,[2*(nx0_big/2+1),ny0_big,nz0_big,6])
-  call c_f_pointer(cdata,temp_bigfor,[nx0_big/2+1,ny0_big,nz0_big,6])
+  call c_f_pointer(cdata,storefor,[6,2*(nx0_big/2+1),ny0_big,nz0_big])
+  call c_f_pointer(cdata,temp_bigfor,[6,nx0_big/2+1,ny0_big,nz0_big])
 
   complex_embed = [nz0_big,ny0_big,nx0_big/2+1]
   real_embed = [nz0_big,ny0_big,2*(nx0_big/2+1)]
@@ -189,21 +189,21 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   temp_biginv = cmplx(0.0,0.0)
   if (.not.nv) then ! Skip b if Navier Stokes
      !bx
-     temp_biginv(:,:,:,1) = b_in(:,:,:,0)
+     temp_biginv(1,:,:,:) = b_in(:,:,:,0)
      if (verbose.and.(mype.eq.0)) print *, "Through bx"
      
      !by
-     temp_biginv(:,:,:,5) = b_in(:,:,:,1)
+     temp_biginv(5,:,:,:) = b_in(:,:,:,1)
      if (verbose.and.(mype.eq.0)) print *, "Through by"
      
      !bz
-     temp_biginv(:,:,:,9) = b_in(:,:,:,2)
+     temp_biginv(9,:,:,:) = b_in(:,:,:,2)
      if (verbose.and.(mype.eq.0)) print *, "Through bz"
      
      ! curlbx
      DO j = cstart(2),cend(2)
         DO k = cstart(3),cend(3)
-           temp_biginv(:,j,k,3) = i_complex * kygrid(j) * b_in(:,j,k,2) &
+           temp_biginv(3,:,j,k) = i_complex * kygrid(j) * b_in(:,j,k,2) &
                 - i_complex  * kzgrid(k) * b_in(:,j,k,1)
         ENDDO
      ENDDO
@@ -213,7 +213,7 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
      ! curlby
      DO k = cstart(3),cend(3)
         DO i = cstart(1),cend(1)
-           temp_biginv(i,:,k,7) = i_complex * kzgrid(k) * b_in(i,:,k,0) &
+           temp_biginv(7,i,:,k) = i_complex * kzgrid(k) * b_in(i,:,k,0) &
                 - i_complex * kxgrid(i) * b_in(i,:,k,2)
         ENDDO
      ENDDO
@@ -221,7 +221,7 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
      ! curlbz
      DO i = cstart(1),cend(1)
         DO j = cstart(2),cend(2)
-           temp_biginv(i,j,:,11) = i_complex * kxgrid(i) * b_in(i,j,:,1) - i_complex * kygrid(j) * b_in(i,j,:,0)
+           temp_biginv(11,i,j,:) = i_complex * kxgrid(i) * b_in(i,j,:,1) - i_complex * kygrid(j) * b_in(i,j,:,0)
         ENDDO
      ENDDO
 
@@ -231,36 +231,36 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
   
 !!! TERMS  vx,vy,vz 
   !vx
-  temp_biginv(:,:,:,2) = v_in(:,:,:,0)
+  temp_biginv(2,:,:,:) = v_in(:,:,:,0)
   !Add padding for dealiasing
   
   !vy
-  temp_biginv(:,:,:,6) = v_in(:,:,:,1)
+  temp_biginv(6,:,:,:) = v_in(:,:,:,1)
   !Add padding for dealiasing
   
   !vz
-  temp_biginv(:,:,:,10) = v_in(:,:,:,2)
+  temp_biginv(10,:,:,:) = v_in(:,:,:,2)
   !Add padding for dealiasing
 
   if (verbose.and.(mype.eq.0)) print *, "Through v FFTs"
   
   DO j = cstart(2),cend(2)
      DO k = cstart(3),cend(3)
-        temp_biginv(:,j,k,4) = i_complex * kygrid(j) * v_in(:,j,k,2) &
+        temp_biginv(4,:,j,k) = i_complex * kygrid(j) * v_in(:,j,k,2) &
              - i_complex  * kzgrid(k) * v_in(:,j,k,1)
      ENDDO
   ENDDO
   
   DO k = cstart(3),cend(3)
      DO i = cstart(1),cend(1)
-        temp_biginv(i,:,k,8) = i_complex * kzgrid(k) * v_in(i,:,k,0) &
+        temp_biginv(8,i,:,k) = i_complex * kzgrid(k) * v_in(i,:,k,0) &
              - i_complex * kxgrid(i) * v_in(i,:,k,2)
      ENDDO
   ENDDO
   
   DO i = cstart(1),cend(1)
      DO j = cstart(2),cend(2)
-        temp_biginv(i,j,:,12) = i_complex * kxgrid(i) * v_in(i,j,:,1) - i_complex * kygrid(j) * v_in(i,j,:,0)
+        temp_biginv(12,i,j,:) = i_complex * kxgrid(i) * v_in(i,j,:,1) - i_complex * kygrid(j) * v_in(i,j,:,0)
      ENDDO
   ENDDO
 
@@ -277,30 +277,30 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
      
      ! x: vy bz - vz by - (curlby bz - curlbz by)
 
-     storefor(:,:,:,1) = (storeinv(:,:,:,6) - hall * storeinv(:,:,:,7)) * storeinv(:,:,:,9) &
-          - (storeinv(:,:,:,10) - hall * storeinv(:,:,:,11)) * storeinv(:,:,:,5)
+     storefor(1,:,:,:) = (storeinv(6,:,:,:) - hall * storeinv(7,:,:,:)) * storeinv(9,:,:,:) &
+          - (storeinv(10,:,:,:) - hall * storeinv(11,:,:,:)) * storeinv(5,:,:,:)
 
      ! y: vz bx - vx bz - hall * (curlbz bx - curlbx bz) 
-     storefor(:,:,:,2) = (storeinv(:,:,:,10) - hall * storeinv(:,:,:,11)) * storeinv(:,:,:,1) &
-          - (storeinv(:,:,:,2) - hall * storeinv(:,:,:,3)) * storeinv(:,:,:,9)
+     storefor(2,:,:,:) = (storeinv(10,:,:,:) - hall * storeinv(11,:,:,:)) * storeinv(1,:,:,:) &
+          - (storeinv(2,:,:,:) - hall * storeinv(3,:,:,:)) * storeinv(9,:,:,:)
 
      ! z: vx by - vy bx - hall (curlbx by - curlby bx) 
-     storefor(:,:,:,3) = (storeinv(:,:,:,2) - hall * storeinv(:,:,:,3)) * storeinv(:,:,:,5) &
-          - (storeinv(:,:,:,6) - hall * storeinv(:,:,:,7)) * storeinv(:,:,:,1)
+     storefor(3,:,:,:) = (storeinv(2,:,:,:) - hall * storeinv(3,:,:,:)) * storeinv(5,:,:,:) &
+          - (storeinv(6,:,:,:) - hall * storeinv(7,:,:,:)) * storeinv(1,:,:,:)
 
   endif
 
   ! x: vy curlvz - vz curlvy + curlby bz - curlbz by
-  storefor(:,:,:,4) = storeinv(:,:,:,6) * storeinv(:,:,:,12) - storeinv(:,:,:,10) * storeinv(:,:,:,8) &
-       + storeinv(:,:,:,7) * storeinv(:,:,:,9) - storeinv(:,:,:,11) * storeinv(:,:,:,5)
+  storefor(4,:,:,:) = storeinv(6,:,:,:) * storeinv(12,:,:,:) - storeinv(10,:,:,:) * storeinv(8,:,:,:) &
+       + storeinv(7,:,:,:) * storeinv(9,:,:,:) - storeinv(11,:,:,:) * storeinv(5,:,:,:)
 
   ! y: vz * curlvx - vx * curlvz + curlbz * bx - curlbx * bz 
-  storefor(:,:,:,5) = storeinv(:,:,:,10) * storeinv(:,:,:,4) - storeinv(:,:,:,2) * storeinv(:,:,:,12) &
-       + storeinv(:,:,:,11) * storeinv(:,:,:,1) - storeinv(:,:,:,3) * storeinv(:,:,:,9)
+  storefor(5,:,:,:) = storeinv(10,:,:,:) * storeinv(4,:,:,:) - storeinv(2,:,:,:) * storeinv(12,:,:,:) &
+       + storeinv(11,:,:,:) * storeinv(1,:,:,:) - storeinv(3,:,:,:) * storeinv(9,:,:,:)
 
   ! z: vx * curlvy - vy * curlvx + curlbx * by - curlby * bx   
-  storefor(:,:,:,6) = storeinv(:,:,:,2) * storeinv(:,:,:,8) - storeinv(:,:,:,6) * storeinv(:,:,:,4) &
-       + storeinv(:,:,:,3) * storeinv(:,:,:,5) - storeinv(:,:,:,7) * storeinv(:,:,:,1)
+  storefor(6,:,:,:) = storeinv(2,:,:,:) * storeinv(8,:,:,:) - storeinv(6,:,:,:) * storeinv(4,:,:,:) &
+       + storeinv(3,:,:,:) * storeinv(5,:,:,:) - storeinv(7,:,:,:) * storeinv(1,:,:,:)
 
   CALL UNPACK
 
@@ -308,17 +308,17 @@ SUBROUTINE get_rhs_nl1(b_in,v_in,rhs_out_b,rhs_out_v,ndt)
      DO j = cstart(2),cend(2)
         DO k = cstart(3),cend(3)
 
-           rhs_out_b(i,j,k,0) = i_complex * (kygrid(j) * temp_bigfor(i,j,k,3) - kzgrid(k) * temp_bigfor(i,j,k,2))
-           rhs_out_b(i,j,k,1) = i_complex * (kzgrid(k) * temp_bigfor(i,j,k,1) - kxgrid(i) * temp_bigfor(i,j,k,3))
-           rhs_out_b(i,j,k,2) = i_complex * (kxgrid(i) * temp_bigfor(i,j,k,2) - kygrid(j) * temp_bigfor(i,j,k,1))
+           rhs_out_b(i,j,k,0) = i_complex * (kygrid(j) * temp_bigfor(3,i,j,k) - kzgrid(k) * temp_bigfor(2,i,j,k))
+           rhs_out_b(i,j,k,1) = i_complex * (kzgrid(k) * temp_bigfor(1,i,j,k) - kxgrid(i) * temp_bigfor(3,i,j,k))
+           rhs_out_b(i,j,k,2) = i_complex * (kxgrid(i) * temp_bigfor(2,i,j,k) - kygrid(j) * temp_bigfor(1,i,j,k))
 
         ENDDO
      ENDDO
   ENDDO
   
-  rhs_out_v(:,:,:,0) = rhs_out_v(:,:,:,0) + temp_bigfor(:,:,:,4)
-  rhs_out_v(:,:,:,1) = rhs_out_v(:,:,:,1) + temp_bigfor(:,:,:,5)  
-  rhs_out_v(:,:,:,2) = rhs_out_v(:,:,:,2) + temp_bigfor(:,:,:,6)
+  rhs_out_v(:,:,:,0) = rhs_out_v(:,:,:,0) + temp_bigfor(4,:,:,:)
+  rhs_out_v(:,:,:,1) = rhs_out_v(:,:,:,1) + temp_bigfor(5,:,:,:)  
+  rhs_out_v(:,:,:,2) = rhs_out_v(:,:,:,2) + temp_bigfor(6,:,:,:)
     
   if (timer.and.(mype.eq.0)) t2 = MPI_WTIME()
   if (timer.and.(mype.eq.0)) print *, "equations and RFFTs",t2-t1
@@ -341,15 +341,15 @@ SUBROUTINE next_dt(dtn)
   real :: ndt1xr,ndt1yr,ndt1zr,ndt2xr,ndt2yr,ndt2zr,ndt3xr,ndt3yr,ndt3zr
   real :: ndtr
   
-  ndt1xr = maxval(abs(kxgrid))*maxval(abs(storeinv(:,:,:,0)))
-  ndt1yr = maxval(abs(kygrid))*maxval(abs(storeinv(:,:,:,4)))
-  ndt1zr = maxval(abs(kzgrid))*maxval(abs(storeinv(:,:,:,8)))
-  ndt2xr = maxval(abs(kxgrid))*maxval(abs(storeinv(:,:,:,1)))
-  ndt2yr = maxval(abs(kygrid))*maxval(abs(storeinv(:,:,:,5)))
-  ndt2zr = maxval(abs(kzgrid))*maxval(abs(storeinv(:,:,:,9)))
-  ndt3xr = maxval(abs(kxgrid))*maxval(abs(storeinv(:,:,:,2)))*hall
-  ndt3yr = maxval(abs(kygrid))*maxval(abs(storeinv(:,:,:,6)))*hall
-  ndt3zr = maxval(abs(kzgrid))*maxval(abs(storeinv(:,:,:,10)))*hall
+  ndt1xr = maxval(abs(kxgrid))*maxval(abs(storeinv(1,:,:,:)))
+  ndt1yr = maxval(abs(kygrid))*maxval(abs(storeinv(5,:,:,:)))
+  ndt1zr = maxval(abs(kzgrid))*maxval(abs(storeinv(9,:,:,:)))
+  ndt2xr = maxval(abs(kxgrid))*maxval(abs(storeinv(2,:,:,:)))
+  ndt2yr = maxval(abs(kygrid))*maxval(abs(storeinv(6,:,:,:)))
+  ndt2zr = maxval(abs(kzgrid))*maxval(abs(storeinv(10,:,:,:)))
+  ndt3xr = maxval(abs(kxgrid))*maxval(abs(storeinv(3,:,:,:)))*hall
+  ndt3yr = maxval(abs(kygrid))*maxval(abs(storeinv(7,:,:,:)))*hall
+  ndt3zr = maxval(abs(kzgrid))*maxval(abs(storeinv(11,:,:,:)))*hall
   ndtr = ndt1xr + ndt1yr + ndt1zr &
        + ndt2xr + ndt2yr + ndt2zr &
        + ndt3xr + ndt3yr + ndt3zr
@@ -375,7 +375,7 @@ SUBROUTINE ALLOCATIONS
   ! ALLOCATE(temp_small(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3)))
   
   ! we might be able to get out of needing the real arrays with in place transforms
-  ! ALLOCATE(realarrays(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3)))
+  ! ALLOCATE(realarrays(rstart(1):rend(1),rstart(2):rend(2),rstart(3):rend(3),0:11))
   
 END SUBROUTINE ALLOCATIONS
 
@@ -415,12 +415,12 @@ SUBROUTINE UNPACK
   ! print *, "Post RFFT",maxval(abs(temp_big))
   if (verbose.and.(mype.eq.0)) print *, "Through RFFT"
 
-  temp_bigfor(:,:,:,1) = temp_bigfor(:,:,:,1) * fft_norm * paddingmask
-  temp_bigfor(:,:,:,2) = temp_bigfor(:,:,:,2) * fft_norm * paddingmask
-  temp_bigfor(:,:,:,3) = temp_bigfor(:,:,:,3) * fft_norm * paddingmask
-  temp_bigfor(:,:,:,4) = temp_bigfor(:,:,:,4) * fft_norm * paddingmask
-  temp_bigfor(:,:,:,5) = temp_bigfor(:,:,:,5) * fft_norm * paddingmask
-  temp_bigfor(:,:,:,6) = temp_bigfor(:,:,:,6) * fft_norm * paddingmask
+  temp_bigfor(1,:,:,:) = temp_bigfor(1,:,:,:) * fft_norm * paddingmask
+  temp_bigfor(2,:,:,:) = temp_bigfor(2,:,:,:) * fft_norm * paddingmask
+  temp_bigfor(3,:,:,:) = temp_bigfor(3,:,:,:) * fft_norm * paddingmask
+  temp_bigfor(4,:,:,:) = temp_bigfor(4,:,:,:) * fft_norm * paddingmask
+  temp_bigfor(5,:,:,:) = temp_bigfor(5,:,:,:) * fft_norm * paddingmask
+  temp_bigfor(6,:,:,:) = temp_bigfor(6,:,:,:) * fft_norm * paddingmask
     
   if (verbose.and.(mype.eq.0)) print *, "All Done"
   
