@@ -291,7 +291,7 @@ if ((opt.eq.0).or.(opt.eq.2)) then
 
    hamsm(1) = hamsm(1) + sum(abs(b_1(xst:cend(1),:,:,:))**2)
    if (cstart(1).eq.1) hamsm(2) = hamsm(2) + 0.5 * sum(abs(b_1(1,:,:,:))**2)
-   if (mype.eq.0) hamsm(2) = hamsm(2) + real(b_1(1,1,1,2))
+   
 endif
 
 CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
@@ -394,7 +394,6 @@ subroutine cross_helicity
   
   chsm(1) = 2.0 * sum(real((AVP(xst:cend(1),:,:,:)+hall*v_1(xst:cend(1),:,:,:))*conjg(b_1(xst:cend(1),:,:,:)+hall*WVORT(xst:cend(1),:,:,:))))
   if (cstart(1).eq.1) chsm(2) = real(sum((AVP(1,:,:,:)+hall*v_1(1,:,:,:))*conjg(b_1(1,:,:,:)+hall*WVORT(1,:,:,:))))
-  if (mype.eq.0) chsm(2) = chsm(2) + hall*v_1(1,1,1,2)
   
   CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
   CALL MPI_ALLREDUCE(chsm,chs,2,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)

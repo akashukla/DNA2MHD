@@ -385,7 +385,7 @@ SUBROUTINE output_parameters
     !IF(istep_nlt.ne.0) WRITE(out_handle,"(A,I4)") "nlt_version = ",nlt_version
     WRITE(out_handle,"(A,I4)") "rhs_lin_version = ",rhs_lin_version
     WRITE(out_handle,"(A,I4)") "rhs_nl_version = ",rhs_nl_version
-    WRITE(out_handle,"(A,I1)") "intorder = ",intorder
+    WRITE(out_handle,"(A,I3)") "intorder = ",intorder
     WRITE(out_handle,"(A,I2)") "timeprecision = ",timeprecision
     WRITE(out_handle,"(A,I4)") "dealias_type = ",dealias_type
     WRITE(out_handle,"(A,L1)") "shifted = ",shifted
@@ -415,7 +415,7 @@ SUBROUTINE output_parameters
     WRITE(out_handle,"(A,L1)") "bc_norm = ",bc_norm
     WRITE(out_handle,"(A,L1)") "track_divs = ",track_divs
     WRITE(out_handle,"(A,L1)") "taylorgreen = ",taylorgreen
-    WRITE(out_handle,"(A,I2)") "init_cond = ",init_cond
+    WRITE(out_handle,"(A,I4)") "init_cond = ",init_cond
 
     WRITE(out_handle,"(A,G12.4)") "en_leftwhist = ",en_leftwhist
     WRITE(out_handle,"(A,G12.4)") "en_leftcyclo = ",en_leftcyclo

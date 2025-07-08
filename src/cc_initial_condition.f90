@@ -412,7 +412,7 @@ SUBROUTINE initial_condition
 
     ENDIF
 
-    ! Optimized 256^3 modes from contour plot, 0.025 kperpmin 0.005 kzmin
+    ! Optimized 0.025 kperpmin 0.005 kzmin modes from contour plot
     IF (init_cond.eq.200) CALL setwaveindices(wave1x,wave1y,wave1z,wave2x,wave2y,wave2z)
     
     waveamps1(1) = 1.0

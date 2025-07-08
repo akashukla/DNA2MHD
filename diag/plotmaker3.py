@@ -4,8 +4,14 @@ import numpy as np
 
 
 lpaths = [#"/pscratch/sd/e/echansen/DNA2MHDruns/austinsherwood2562",
-          "/pscratch/sd/e/echansen/DNA2MHDruns/austinsherwoodperp2real",
-          "/pscratch/sd/e/echansen/DNA2MHDruns/austinsherwoodpar2real"
+          "/pscratch/sd/e/echansen/DNA2MHDruns/128case1",
+          "/pscratch/sd/e/echansen/DNA2MHDruns/case1diss",
+    "/pscratch/sd/e/echansen/DNA2MHDruns/case1282diss",
+    "/pscratch/sd/e/echansen/DNA2MHDruns/case1283diss",
+    "/pscratch/sd/e/echansen/DNA2MHDruns/case12815d",
+    "/pscratch/sd/e/echansen/DNA2MHDruns/case12815i",
+    "/pscratch/sd/e/echansen/DNA2MHDruns/case12819d",
+    "/pscratch/sd/e/echansen/DNA2MHDruns/case12819i"
           ]
 
 for lpath in lpaths:

@@ -1049,9 +1049,9 @@ def mode_break(lpath,show=False,tmax=200000):
     ax.plot(kperps,spec1df3,fmts[2],label=labels[2])
     ax.plot(kperps,spec1df4,fmts[3],label=labels[3])
 
-    if par["init_cond"] >= 31:
+    if int(par["init_cond"]) >= 31:
         for i in range(3):
-            kxi = par["wave"+str(i+1)+"x"] 
+            kxi = par["wave"+str(i+1)+"x"]
             kyi = par["wave"+str(i+1)+"y"]
             kzi = par["wave"+str(i+1)+"z"]
             ki = np.sqrt(kx[kxi-1]**2 + ky[kyi-1]**2)
@@ -1075,7 +1075,7 @@ def mode_break(lpath,show=False,tmax=200000):
     ax.set_xscale("log")
     ax.set_ylim(max(m/10,10**(-16)),M*10)
 
-    if par["init_cond"] >= 31:
+    if int(par["init_cond"]) >= 31:
         ax.legend(loc="lower right")
     else:
         ax.legend(loc="upper right")
@@ -1344,7 +1344,10 @@ def patch_mhc(mhc):
 def threewaveenergy(lpath):
 
     read_parameters(lpath)
-    if par["init_cond"] >= 31:
+
+    timeen,enval = getenergy(lpath,tmax=20000000)
+    
+    if int(par["init_cond"]) >= 31:
 
         kxgrid,kygrid,kzgrid = get_grids()
         if lpath[-1] == "/":
@@ -1366,16 +1369,11 @@ def threewaveenergy(lpath):
             kz = kzgrid[par["wave"+str(i+1)+"z"]-1]
             kzs.append(kz)
             ks.append(np.sqrt(kx**2 + ky**2 + kz**2))
-        
-        if par["init_cond"] <= 33:
-            wave1 = 1
-            wave2 = 5
-            wave3 = 9
-        elif par["init_cond"] <= 35:
-            wave1 = 1
-            wave2 = 5
-            wave3 = 10
 
+        wave1 = 1
+        wave2 = 5
+        wave3 = 9
+        
         waves = [wave1,wave2,wave3]
 
         ii = np.argsort(ks)
@@ -1386,7 +1384,7 @@ def threewaveenergy(lpath):
 
         plt.figure()
         for i in range(3):
-            plt.plot(timeenergies[::13],timeenergies[waves_ii[i]::13]/(4*np.pi**3.0),color=colors[i],label=(ff(kxs[ii[i]],2),ff(kys[ii[i]],2),ff(kzs[ii[i]],2)))
+            plt.plot(timeenergies[::13],timeenergies[waves_ii[i]::13]/(4*np.pi**3.0),color=colors[i],label=(ff(kxs[ii[i]],3),ff(kys[ii[i]],3),ff(kzs[ii[i]],3)))
         plt.xlabel("Time ($\omega_c^{-1}$)")
         plt.ylabel("Wave Energy / Guide Field Energy")
         plt.ylim(10**(-7),10**1)
@@ -1408,12 +1406,24 @@ def threewaveenergy(lpath):
             plt.ylabel("Wave Energy / Guide Field Energy")
             plt.yscale("log")
             plt.ylim(10**(-7),10**1)
-            plt.title("Wave Energies k "+ff(kxs[i],2)+" "+
-                      ff(kys[i],2)+" "+ff(kzs[i],2))
+            plt.title("Wave Energies k "+ff(kxs[i],3)+" "+
+                      ff(kys[i],3)+" "+ff(kzs[i],3))
             plt.legend(loc="lower right")
             plt.savefig(lpath+"/eplots/wavebreakdown"+str(i+1))
             plt.close()
 
+        # Signal to Noise Ratio Plot
+
+        plt.figure()
+        energyratio = (timeenergies[wave1::13]+timeenergies[wave2::13]+timeenergies[wave3::13])/enval[:,1]
+        plt.plot(timeenergies[::13],energyratio,"b8")
+        plt.xlabel("Time ($\omega_c^{-1}$)")
+        plt.ylabel("Triplet Energy / Wave Ensemble Energy")
+        plt.yscale("log")
+        plt.title("Triplet Signal to Noise Ratio")
+        plt.savefig(lpath+"/eplots/tripletsignoise")
+        plt.close()
+            
         return(timeenergies)
     else:
         print("Not a three wave simulation")

@@ -12,9 +12,9 @@ rey = 0.0
 kxmin =   0.025
 kymin =   0.025
 kzmin =   0.005
-nkx0 = 64
-nky0 = 128
-nkz0 = 128
+nkx0 = 128
+nky0 = 256
+nkz0 = 256
 nv0 =   2
 nh0 =    1
 nspec =    1
@@ -51,8 +51,8 @@ hyp = 1
 /
 
 &diagnostics
-diagdir = "/pscratch/sd/e/echansen/DNA2MHDruns/examples1"
-loaddir = "/pscratch/sd/e/echansen/DNA2MHDruns/examples1"
+diagdir = "/pscratch/sd/e/echansen/DNA2MHDruns/profile256"
+loaddir = "/pscratch/sd/e/echansen/DNA2MHDruns/profile256"
 istep_ffm =   20
 istep_energy3d =  500
 istep_energy =  10
@@ -117,9 +117,9 @@ wave2z = -999
 /
 
 &initial_value
-max_itime = 100
+max_itime = 10
 max_walltime =   86200.0
-dt_max = 0.1
+dt_max = 0.05
 fix_dt = F
 max_time =   10000000.
 /
