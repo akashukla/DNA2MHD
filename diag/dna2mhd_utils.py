@@ -945,8 +945,6 @@ def modes_from_check(lpath):
         pceig = np.zeros([par['nx0_big'],par['ny0_big'],par['nz0_big'],3],dtype='complex64')
         pceig = np.cross(Kvec,Zvec,axis=-1)
         pceig += 1/kmags[:,:,:,None] * 1.0j * np.cross(Kvec,pceig,axis=-1)
-        pceig[0,0,0:par["nz0_big"]//2,:] = np.array([-1j/np.sqrt(2),1/np.sqrt(2),0.0],dtype='complex64')
-        pceig[0,0,par["nz0_big"]//2:par["nz0_big"],:] = np.array([1j/np.sqrt(2),1/np.sqrt(2),0.0],dtype='complex64')
                 
         #for i in range(par['nx0_big']):
         #    for j in range(par['ny0_big']):
@@ -984,24 +982,6 @@ def mode_break(lpath,show=False,tmax=200000):
     kx,ky,kz = get_grids()
 
     time,itime,lwk,lck,rwk,rck = modes_from_check(lpath)
-
-    lwk1 = lwk.flatten()
-    lck1 = lck.flatten()
-    rwk1 = rwk.flatten()
-    rck1 = rck.flatten()
-
-    lwk_inds = np.argsort(np.abs(lwk1)**2.0)
-    lck_inds = np.argsort(np.abs(lck1)**2.0)
-    rwk_inds = np.argsort(np.abs(rwk1)**2.0)
-    rck_inds = np.argsort(np.abs(rck1)**2.0)
-
-    Kx,Ky,Kz = np.meshgrid(kx,ky,kz,indexing="ij")
-    
-    for i in range(10):
-        print("LWK ",i,np.abs(lwk1[lwk_inds[-i]])**2.0,Kx.flatten()[lwk_inds[-i]],Ky.flatten()[lwk_inds[-i]],Kz.flatten()[lwk_inds[-i]])
-        print("LCK ",i,np.abs(lck1[lck_inds[-i]])**2.0,Kx.flatten()[lck_inds[-i]],Ky.flatten()[lck_inds[-i]],Kz.flatten()[lck_inds[-i]])
-        print("RWK ",i,np.abs(rwk1[rwk_inds[-i]])**2.0,Kx.flatten()[rwk_inds[-i]],Ky.flatten()[rwk_inds[-i]],Kz.flatten()[rwk_inds[-i]])
-        print("RCK ",i,np.abs(rck1[rck_inds[-i]])**2.0,Kx.flatten()[rck_inds[-i]],Ky.flatten()[rck_inds[-i]],Kz.flatten()[rck_inds[-i]])
 
     mode_ks = np.stack((lwk,lck,rwk,rck))
     fmts = ['b--','b:','r--','r:']
@@ -1057,12 +1037,12 @@ def mode_break(lpath,show=False,tmax=200000):
             ki = np.sqrt(kx[kxi-1]**2 + ky[kyi-1]**2)
             kpind = np.argwhere(kperps < ki)[-1]
             if i == 1:
-                ax.plot(kperps[kpind],spec1df1[kpind],marker="x",color=fmts[0][0],label="Excited Wave",markersize=10)
+                ax.plot(kperps[kpind],spec1df1[kpind],marker="x",color=fmts[0][0],label="Three Wave")
             else:
-                ax.plot(kperps[kpind],spec1df1[kpind],marker="x",color=fmts[0][0],markersize=10)
-            ax.plot(kperps[kpind],spec1df2[kpind],marker="x",color=fmts[1][0],markersize=10)
-            ax.plot(kperps[kpind],spec1df3[kpind],marker="x",color=fmts[2][0],markersize=10)
-            ax.plot(kperps[kpind],spec1df4[kpind],marker="x",color=fmts[3][0],markersize=10)
+                ax.plot(kperps[kpind],spec1df1[kpind],marker="x",color=fmts[0][0])
+            ax.plot(kperps[kpind],spec1df2[kpind],marker="x",color=fmts[1][0])
+            ax.plot(kperps[kpind],spec1df3[kpind],marker="x",color=fmts[2][0])
+            ax.plot(kperps[kpind],spec1df4[kpind],marker="x",color=fmts[3][0])
     
     m = min(np.amin(spec1df1[np.nonzero(spec1df1)]),np.amin(spec1df2[np.nonzero(spec1df2)]),
             np.amin(spec1df3[np.nonzero(spec1df3)]),np.amin(spec1df4[np.nonzero(spec1df4)]))
@@ -1084,8 +1064,6 @@ def mode_break(lpath,show=False,tmax=200000):
     if show == True:
         plt.show()
     plt.close()
-
-    
     
     return (time,lwk,lck,rwk,rck)
 
@@ -1155,7 +1133,7 @@ def structurefunction(lpath,tmax=2*10**10):
         mm = convert_spec_to_real(lpath,ms/1j) # Divide by 1j because mode amplitudes are anti-Hermitian
             # assume axisymmetric for transverse struct fn - test this later
         # very small - lets rescale to check Parseval's theorem print(np.amax(mm**2)); sum(ms**2) = sum(mm**2)/N
-        mm *= np.sqrt(np.sum(np.abs(ms[0,:,:])**2+2*np.abs(ms[1:,:,:])**2)*np.size(mm)/(np.sum(mm**2)))*np.sqrt(8*np.pi**3)/np.sqrt(par["kxmin"]*par["kymin"]*par["kzmin"])
+        mm *= np.sqrt(np.sum(np.abs(ms[0,:,:])**2+2*np.abs(ms[1:,:,:])**2)*np.size(mm)/(np.sum(mm**2)))*np.sqrt(8*np.pi**3)
         
         if par["splitx"]:
             nx = 2*par["nkx0"]
@@ -1237,7 +1215,7 @@ def structurefunction(lpath,tmax=2*10**10):
         ax4[I].set_title(labels[I])
         ax4[I].set_xscale("log")
         ax4[I].set_xlim(np.amin(xs),np.amax(xs))
-        ax4[I].set_ylim(10**(-3),10)
+        ax4[I].set_ylim(2*10**(-2),50)
         ax4[I].set_yscale("log")
         if (I < 2):
             ax[I].tick_params(axis='x',which='both',bottom=False,top=False,labelbottom=False,labeltop=False)
@@ -1394,7 +1372,7 @@ def threewaveenergy(lpath):
             plt.xlim(0,2000)
         plt.title("Resonance Condition Wave Interaction")
         plt.yscale("log")
-        plt.legend(loc="upper right")
+        plt.legend(loc="lower right")
         plt.savefig(lpath+"/eplots/threewaves")
 
         for i in range(3):

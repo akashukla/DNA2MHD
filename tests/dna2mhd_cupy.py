@@ -558,7 +558,7 @@ class DNA2MHD(RHS,DIAGS):
 
         return(None)
 
-    def etd2rksimulation(self,Nquad=32):
+
 
         
 

@@ -390,33 +390,6 @@ SUBROUTINE initial_condition
        
     ENDIF
 
-    IF (init_cond.eq.34) THEN
-
-       ! (0,15,9) (28,27,-26)
-
-       CALL setwaveindices(0,15,9,28,27,-26)
-
-       waveamps1(1) = 1.0
-       waveamps2(1) = 1.0
-
-    ENDIF
-
-    IF (init_cond.eq.35) THEN
-
-       ! (0,10,15) (12,2,-61)
-
-       CALL setwaveindices(0,10,15,12,2,-61)
-
-       waveamps1(1) = 1.0
-       waveamps2(1) = 1.0
-
-    ENDIF
-
-    ! Optimized 256^3 modes from contour plot, 0.025 kperpmin 0.005 kzmin
-    IF (init_cond.eq.200) CALL setwaveindices(wave1x,wave1y,wave1z,wave2x,wave2y,wave2z)
-    
-    waveamps1(1) = 1.0
-    waveamps2(1) = 1.0
     CALL isolatedhmhdwave(wave1x,wave1y,wave1z,waveamps1*2.0,mype1)
     CALL isolatedhmhdwave(wave2x,wave2y,wave2z,waveamps1*1.0,mype2)
     CALL isolatedhmhdwave(wave3x,wave3y,wave3z,waveamps2*0.5,mype3)
@@ -582,16 +555,14 @@ SUBROUTINE isolatedhmhdwave(ix,iy,iz,waveamps,mypewave)
   integer(4) :: wavex,wavey,wavez
   real(8) :: normamps(4)
   integer :: mypewavem
-  integer(4) :: minusiy,minusiz
   integer(4) :: ierr
 
   mypewavem = 0
 
   if (ix.ge.cstart(1).and.ix.le.cend(1)) then
-
      if (iy.ge.cstart(2).and.iy.le.cend(2)) then
 
-        mypewavem = mype
+        mypewavem = mype        
         
         if (verbose) print *, "Isolated Wave Mype",mype,ix,iy,iz
 
@@ -600,34 +571,15 @@ SUBROUTINE isolatedhmhdwave(ix,iy,iz,waveamps,mypewave)
         normamps(3) = waveamps(3)/sqrt(1 + alpha_leftwhist(ix,iy,iz)**2)
         normamps(4) = waveamps(4)/sqrt(1 + alpha_leftcyclo(ix,iy,iz)**2)
 
+        if (ix.eq.1) normamps = normamps * sqrt(2.0)
+        
         b_1(ix,iy,iz,:) = (normamps(1) * alpha_leftwhist(ix,iy,iz) + normamps(2) * alpha_leftcyclo(ix,iy,iz)) * pcurleig(ix,iy,iz,:)&
              - (normamps(3)* alpha_leftwhist(ix,iy,iz) + normamps(4) * alpha_leftcyclo(ix,iy,iz))*conjg(pcurleig(ix,iy,iz,:))
         v_1(ix,iy,iz,:) = (normamps(1) + normamps(2)) * pcurleig(ix,iy,iz,:) + (normamps(3) + normamps(4))*conjg(pcurleig(ix,iy,iz,:))
-
+        
      endif
-     
-     if (ix.eq.1) then ! preserve reality
-
-        minusiy = ny0_big+2-iy
-        minusiz = nz0_big+2-iz
-
-        if (minusiy.ge.cstart(2).and.minusiy.le.cend(2)) then
-
-           normamps(1) = waveamps(1)/sqrt(1 + alpha_leftwhist(ix,minusiy,minusiz)**2)
-           normamps(2) = waveamps(2)/sqrt(1 + alpha_leftcyclo(ix,minusiy,minusiz)**2)
-           normamps(3) = waveamps(3)/sqrt(1 + alpha_leftwhist(ix,minusiy,minusiz)**2)
-           normamps(4) = waveamps(4)/sqrt(1 + alpha_leftcyclo(ix,minusiy,minusiz)**2)
-
-           b_1(ix,minusiy,minusiz,:) = -(normamps(1) * alpha_leftwhist(ix,minusiy,minusiz) + normamps(2) * alpha_leftcyclo(ix,minusiy,minusiz)) * pcurleig(ix,minusiy,minusiz,:)&
-                +(normamps(3)* alpha_leftwhist(ix,minusiy,minusiz) + normamps(4) * alpha_leftcyclo(ix,minusiy,minusiz))*conjg(pcurleig(ix,minusiy,minusiz,:))
-           v_1(ix,minusiy,minusiz,:) = -(normamps(1) + normamps(2)) * pcurleig(ix,minusiy,minusiz,:) - (normamps(3) + normamps(4))*conjg(pcurleig(ix,minusiy,minusiz,:))
-           
-        endif
-     
-     endif
-
   endif
-  
+
   CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
   CALL MPI_ALLREDUCE(mypewavem,mypewave,1,MPI_INTEGER4,MPI_MAX,MPI_COMM_WORLD,ierr)
   

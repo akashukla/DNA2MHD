@@ -73,7 +73,8 @@ MODULE diagnostics
   !nlt_triple diagnostics
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:) :: AVP
   COMPLEX, ALLOCATABLE, DIMENSION(:,:,:,:) :: WVORT
-  REAL, ALLOCATABLE, DIMENSION(:,:,:,:) :: onse
+  REAL, ALLOCATABLE, DIMENSION(:,:,:) :: OSPEC
+  REAL, ALLOCATABLE, DIMENSION(:,:,:) :: WRITESPEC
   REAL :: ham0,ham1
   INTEGER :: nlt3_handle 
   !NLT Testing
@@ -108,7 +109,6 @@ SUBROUTINE initialize_diagnostics
   if(np_kz.gt.1) STOP "Must implement diagnostics for kz parallelization."
 
 
-  
   IF(istep_energy.gt.0) THEN
      !OPEN(unit=en_handle,file=trim(diagdir)//'/energy_out.dat',status='unknown')
      IF (mype.eq.0) THEN
@@ -135,10 +135,38 @@ SUBROUTINE initialize_diagnostics
      ALLOCATE(AVP(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2))
      ALLOCATE(WVORT(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2))
   END IF
-
-  ALLOCATE(onse(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3),0:2))
+  IF(istep_energyspec.gt.0.and.mype==0) THEN
+     CALL get_io_number
+     enspec_handle=io_number
+     print *, "Enspec Handle",enspec_handle
+     CALL get_io_number
+     mode_handle = io_number
+     print *, "Mode Handle",io_number
+     !OPEN(unit=en_handle,file=trim(diagdir)//'/energy_out.dat',status='unknown') 
+     IF(checkpoint_read) THEN
+        INQUIRE(file=trim(diagdir)//'/energyspec_out.dat',exist=file_exists)
+        INQUIRE(file=trim(diagdir)//'/mode_out.dat',exist=file_exists)
+        IF(file_exists) THEN
+           OPEN(unit=enspec_handle,file=trim(diagdir)//'/energyspec_out.dat',form='unformatted', status='unknown',access='stream',position='append')
+           OPEN(unit=mode_handle,file=trim(diagdir)//'/mode_out.dat',form='unformatted', status='unknown',access='stream',position='append')
+        ELSE
+           OPEN(unit=enspec_handle,file=trim(diagdir)//'/energyspec_out.dat',form='unformatted', status='REPLACE',access='stream')
+           OPEN(unit=mode_handle,file=trim(diagdir)//'/mode_out.dat',form='unformatted', status='REPLACE',access='stream')
+        END IF
+     ELSE
+        OPEN(unit=enspec_handle,file=trim(diagdir)//'/energyspec_out.dat',form='unformatted', status='REPLACE',access='stream')
+        OPEN(unit=mode_handle,file=trim(diagdir)//'/mode_out.dat',form='unformatted', status='REPLACE',access='stream')
+     END IF
+     ALLOCATE(LW(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3)))
+     ALLOCATE(LC(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3)))
+     ALLOCATE(RW(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3)))
+     ALLOCATE(RC(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3)))
+     ALLOCATE(OSPEC(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3)))
+     ALLOCATE(WRITESPEC(cstart(1):cend(1),cstart(2):cend(2),cstart(3):cend(3)))
+  END IF
 
 END SUBROUTINE initialize_diagnostics
+
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!                            finalize_diagnostics                           !!
@@ -153,13 +181,20 @@ SUBROUTINE finalize_diagnostics
   IF(mype==0) CLOSE(ffm_handle)
 
   IF(istep_energy.gt.0) THEN
-     if (mype.eq.0) CLOSE(en_handle)
-     DEALLOCATE(AVP)
-     DEALLOCATE(WVORT)
+    if (mype.eq.0) CLOSE(en_handle)
+    DEALLOCATE(AVP)
+    DEALLOCATE(WVORT)
   END IF
-
-  if (allocated(onse)) DEALLOCATE(onse) 
-
+  IF(istep_energyspec.gt.0.and.mype==0) THEN
+    CLOSE(enspec_handle)
+    CLOSE(mode_handle)
+    DEALLOCATE(LW)
+    DEALLOCATE(LC)
+    DEALLOCATE(RW)
+    DEALLOCATE(RC)
+    DEALLOCATE(OSPEC)
+    DEALLOCATE(WRITESPEC)
+  END IF
   IF(verbose.and.(mype==0)) print *, 'Closed energy handles'
  
   IF((verbose.and.plot_nls).and.(mype.eq.0)) print *, 'Closed nl handles'
@@ -185,48 +220,55 @@ SUBROUTINE diag
 
   if (itime.eq.0) CALL bound_hels
 
-  IF((istep_energy.ne.0).and.(MOD(itime,istep_energy)==0))THEN
-     IF(verbose.and.(mype.eq.0)) WRITE(*,*) "Starting energy diag.",mype
-     IF (mype.eq.0) WRITE(en_handle) time
-     CALL hmhdhmtn(0)
-     if (verbose.and.(mype.eq.0)) write(*,*) "Found Hamiltonian",mype
-     CALL mag_helicity()
-     CALL cross_helicity()
-     CALL hmhdhmtn(1)
-     CALL hmhdhmtn(2)
-     CALL mode_energy
-     if(mype.eq.0) WRITE(en_handle) magbound
-     if (mype.eq.0) WRITE(en_handle) canbound
-     if (mype.eq.0) WRITE(en_handle) mhelcorr
-     if (verbose.and.(mype.eq.0)) write(*,*) "Found Helicities",mype
-     
-     if (init_cond.ge.31) call threewaveenergy 
-  END IF
+     IF((istep_energy.ne.0).and.(MOD(itime,istep_energy)==0))THEN
+         IF(verbose.and.(mype.eq.0)) WRITE(*,*) "Starting energy diag.",mype
+         IF (mype.eq.0) WRITE(en_handle) time
+         CALL hmhdhmtn(0)
+         if (verbose.and.(mype.eq.0)) write(*,*) "Found Hamiltonian",mype
+         CALL mag_helicity()
+         CALL cross_helicity()
+         CALL hmhdhmtn(1)
+         CALL hmhdhmtn(2)
+         CALL mode_energy
+         if(mype.eq.0) WRITE(en_handle) magbound
+         if (mype.eq.0) WRITE(en_handle) canbound
+         if (mype.eq.0) WRITE(en_handle) mhelcorr
+         if (verbose.and.(mype.eq.0)) write(*,*) "Found Helicities",mype
 
-  CALL steadystatespectrum
-  
+         if (init_cond.ge.31) call threewaveenergy 
+     END IF
+
+   IF (.false.) THEN
+     IF((istep_energyspec.ne.0).and.(mype.eq.0).and.(MOD(itime,istep_energyspec)==0)) THEN
+         ! IF(verbose) WRITE(*,*) "Starting energyspec diag.",mype
+         WRITE(enspec_handle) time
+         CALL en_spec()
+         ! IF(verbose) WRITE(*,*) "Done with energyspec diag.",mype
+      END IF
+   ENDIF
+   
   IF((istep_schpt.ne.0).and.(MOD(itime,istep_schpt)==0)) THEN
-     ! IF(verbose) WRITE(*,*) "Writing s_checkpoint.",mype
-     CALL checkpoint_out(1)
-     ! IF(verbose) WRITE(*,*) "Done writing s_checkpoint.",mype
-  END IF
-  
+      ! IF(verbose) WRITE(*,*) "Writing s_checkpoint.",mype
+      CALL checkpoint_out(1)
+      ! IF(verbose) WRITE(*,*) "Done writing s_checkpoint.",mype
+   END IF
+
   IF((istep_gout.ne.0).and.(MOD(itime,istep_gout)==0)) THEN
-     
-     ! IF(verbose) WRITE(*,*) "Starting vbout diag.",mype
-     
-     CALL checkpoint_out(4)
-     
-     ! IF(itime==0.and.gout_nl) THEN
-     !   CALL checkpoint_out(5)
-     ! ELSE IF (gout_nl) THEN
-     !   CALL checkpoint_out(6)
-     ! END IF
-     
-     ! IF(verbose) WRITE(*,*) "Done with vbout diag.",mype
-     
-  END IF
-  
+
+      ! IF(verbose) WRITE(*,*) "Starting vbout diag.",mype
+
+      CALL checkpoint_out(4)
+
+      ! IF(itime==0.and.gout_nl) THEN
+      !   CALL checkpoint_out(5)
+      ! ELSE IF (gout_nl) THEN
+      !   CALL checkpoint_out(6)
+      ! END IF
+
+      ! IF(verbose) WRITE(*,*) "Done with vbout diag.",mype
+
+   END IF
+
 END SUBROUTINE diag
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -302,6 +344,16 @@ if (verbose.and.(mype.eq.0)) print *, mype,"Hamiltonian",(hamsm(1)+hamsm(2)) * (
 if (verbose.and.(mype.eq.0)) print *, mype,"Total Ham",ham
 
 if (mype.eq.0) WRITE(en_handle) ham
+
+if (opt.eq.0) then
+   if (itime.eq.0) ham0 = ham
+
+   if (mype.eq.0.and.mod(itime,istep_energyspec).eq.0.and.itime.gt.0) then
+      ham1 = ham
+      write(*,"(A20,E10.3)") "Energy Fractional Change",(ham1-ham0)/(ham0)
+      ham0 = ham1
+   endif
+endif
 
 end subroutine hmhdhmtn
 
@@ -405,6 +457,47 @@ subroutine cross_helicity
   if (verbose.and.(mype.eq.0)) print *, mype,"Cross Helicity",(crosshel+mhelcorr)
 
 end subroutine cross_helicity
+
+subroutine en_spec() 
+
+  implicit none
+
+  integer :: test1, test2
+
+! This doesn't need to be adjusted for 2x only non ksplit = 0 modes
+
+! Use mode tools to get steady state estimates
+LW = (8*pi**3)* (abs(v_1(:,:,:,0))**2 + abs(v_1(:,:,:,1))**2+abs(v_1(:,:,:,2))**2)+ &
+     (8*pi**3)* (abs(b_1(:,:,:,0))**2+ abs(b_1(:,:,:,1))**2+abs(b_1(:,:,:,2))**2)
+
+! Rate of Energy Flow Constant in Inertial Range
+
+test1 = nint(3*kmax*force_frac/kxmin)+2
+test2 = nint(7*kmax*force_frac/kxmin)+2
+
+! CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+print *, mype,"Fractional IR Energy Change Diff",abs((LW(test1,test1,lkz1+1)-OSPEC(test1,test1,lkz1+1)) &
+     -(LW(test2,test2,lkz1+1)-OSPEC(test2,test2,lkz1+1))) &
+     /abs(LW(test2,test2,lkz1+1)-OSPEC(test2,test2,lkz1+1))
+
+! Fractional Change in Spectrum
+
+print *, mype,"Maximum spectrum fractional change",maxval((abs(LW)-OSPEC)/OSPEC,OSPEC.gt.10.0**(-10.0))
+
+! Writing
+
+if (mype.eq.0) WRITE(enspec_handle) time
+WRITESPEC = (8*pi**3)* (abs(v_1(:,:,:,0))**2 + abs(v_1(:,:,:,1))**2+abs(v_1(:,:,:,2))**2)
+
+!CALL GATHER_WRITE(enspec_handle,WRITESPEC)
+
+WRITESPEC = (8*pi**3)* (abs(b_1(:,:,:,0))**2 + abs(b_1(:,:,:,1))**2+abs(b_1(:,:,:,2))**2)
+
+!CALL GATHER_WRITE(enspec_handle,WRITESPEC)
+
+OSPEC = abs(LW)
+
+end subroutine en_spec
 
 subroutine bound_hels 
 
@@ -603,60 +696,6 @@ subroutine threewaveenergy
   CALL MPI_FILE_CLOSE(threehandle,ierr)
 
 end subroutine threewaveenergy
-
-subroutine steadystatespectrum
-
-  implicit none
-
-  integer(4) :: avgtime
-  real(8) :: max_scalederrm,max_scalederr
-  integer(4) :: maxinds(3)  
-  
-  avgtime = 2*istep_schpt
-
-  if (itime.eq.itime_start) then
-     ! Initialize spectrum and oldspectrum to IC
-     onse(:,:,:,0) = 4.0*pi**3*sum(abs(v_1)**2.0 + abs(b_1)**2.0,dim=4)
-     onse(:,:,:,1) = 4.0*pi**3*sum(abs(v_1)**2.0 + abs(b_1)**2.0,dim=4)
-     onse(:,:,:,2) = (4.0*pi**3*sum(abs(v_1)**2.0 + abs(b_1)**2.0,dim=4)) ** 2.0
-     
-  else if (mod(itime,avgtime).ne.0) then
-     ! Add spectrum and spectrum squared to compute sums and sums(squared)
-     onse(:,:,:,1) = onse(:,:,:,1) + 4.0*pi**3*sum(abs(v_1)**2.0 + abs(b_1)**2.0,dim=4)
-     onse(:,:,:,2) = onse(:,:,:,2) + (4.0*pi**3*sum(abs(v_1)**2.0 + abs(b_1)**2.0,dim=4)) ** 2.0
-     
-  else 
-     ! Compute average and standard dev
-     onse(:,:,:,1) = onse(:,:,:,1) / dble(avgtime)
-     onse(:,:,:,2) = sqrt(onse(:,:,:,2)/(dble(avgtime)) - onse(:,:,:,1)**2.0) * sqrt(dble(avgtime)/dble(avgtime-1))
-
-     max_scalederrm = maxval(abs(onse(:,:,:,0) - onse(:,:,:,1))/(onse(:,:,:,2)),mask = onse(:,:,:,0).ge.10**(-35.0))
-     CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-     CALL MPI_ALLREDUCE(max_scalederrm,max_scalederr,1,MPI_REAL8,MPI_MAX,MPI_COMM_WORLD,ierr)
-
-     maxinds = maxloc(abs(onse(:,:,:,0) - onse(:,:,:,1))/(onse(:,:,:,2)))
-     if (max_scalederrm.eq.max_scalederr) then
-        
-        write(*,"(A,E10.2)") "Scaled spectrum error ",max_scalederr
-        write(*,"(A,E10.2,E10.2)") "k range",minval(kmags),maxval(kmags)
-        write(*,"(A,E10.2,E10.2)") "Old Spec Range",minval(onse(:,:,:,0)),maxval(onse(:,:,:,0))
-        write(*,"(A,E10.2,E10.2)") "New Spec Range",minval(onse(:,:,:,1)),maxval(onse(:,:,:,1))
-        write(*,"(A,E10.2,E10.2)") "Stdev Range",minval(onse(:,:,:,2)),maxval(onse(:,:,:,2))
-        
-        !write(*,"(A,E10.2)") "k ",kmags(maxinds(1),maxinds(2),maxinds(3)),&
-        !     " Scaled Error ",(onse(maxinds(1),maxinds(2),maxinds(3),0)-onse(maxinds(1),maxinds(2),maxinds(3),1))/(onse(maxinds(1),maxinds(2),maxinds(3),2))
-        if (max_scalederr.lt.1.0) write(*,"(A,E10.2,I7)") "Spectrum within standard error ",max_scalederr,itime
-
-     endif
-
-     ! Reset for next calculation
-     onse(:,:,:,0) = onse(:,:,:,1)
-     onse(:,:,:,1) = 4.0*pi**3*sum(abs(v_1)**2.0 + abs(b_1)**2.0,dim=4)
-     onse(:,:,:,2) = (4.0*pi**3*sum(abs(v_1)**2.0 + abs(b_1)**2.0,dim=4)) ** 2.0
-     
-  endif
-  
-end subroutine steadystatespectrum
 
 END MODULE diagnostics
 

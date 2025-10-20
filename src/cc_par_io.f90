@@ -53,7 +53,7 @@ SUBROUTINE read_parameters
       em_conserve,flr_on,force_kz0eq0,force_ky0eq0,force_kx0eq0,flr_version,&
       flr_extra,flr_nonlinear,etg_factor, &!, which_nonlinear,etg_factor
       perf_test_lin,perf_test_nl,perf_test_rhs,rhs_lin_version,rhs_nl_version,&
-      intorder,timeprecision,precondition,dealias_type,shifted,splitx,&
+      intorder,precondition,dealias_type,shifted,splitx,&
       perf_test_par, version_flag, hankel, dt_slepc, nuno_closure,mu_integrated,&
       GyroLES, Gyroherm, Gyroz, Corr, &
       plot_nls,&
@@ -386,7 +386,6 @@ SUBROUTINE output_parameters
     WRITE(out_handle,"(A,I4)") "rhs_lin_version = ",rhs_lin_version
     WRITE(out_handle,"(A,I4)") "rhs_nl_version = ",rhs_nl_version
     WRITE(out_handle,"(A,I1)") "intorder = ",intorder
-    WRITE(out_handle,"(A,I2)") "timeprecision = ",timeprecision
     WRITE(out_handle,"(A,I4)") "dealias_type = ",dealias_type
     WRITE(out_handle,"(A,L1)") "shifted = ",shifted
     WRITE(out_handle,"(A,L1)") "splitx = ",splitx

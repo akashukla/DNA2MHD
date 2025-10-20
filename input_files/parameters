@@ -2,8 +2,8 @@
 nu = 0.00
 omt = 5.000
 omn =    1.000    
-Ti0Te =    1.000 
-eta = 1.0
+Ti0Te =    1.000
+eta = 0.0
 vnu = 0.0
 rey = 0.0
 /
@@ -32,7 +32,7 @@ np_kz =    1
 np_hank =    1
 np_spec =    1
 courant =   0.5
-init_energy = 0.01
+init_energy = 0.001
 init_amp_bx = 0.0
 init_amp_by = 0.0
 init_amp_bz = 0.0
@@ -51,8 +51,8 @@ hyp = 1
 /
 
 &diagnostics
-diagdir = "/pscratch/sd/e/echansen/DNA2MHDruns/examples1"
-loaddir = "/pscratch/sd/e/echansen/DNA2MHDruns/examples1"
+diagdir = "/pscratch/sd/e/echansen/DNA2MHDruns/austinsherwoodpar"
+loaddir = "/pscratch/sd/e/echansen/DNA2MHDruns/austinsherwoodpar"
 istep_ffm =   20
 istep_energy3d =  500
 istep_energy =  10
@@ -66,7 +66,7 @@ istep_eshells =   500
 istep_real =   200
 istep_fmom3d =  500
 istep_gamma =    0
-istep_schpt =  500
+istep_schpt =  1000
 output_nlt_n = F
 /
 
@@ -83,7 +83,6 @@ em_conserve = T
 nuno_closure = T
 rhs_nl_version = 12
 intorder = 20
-timeprecision = 2
 precondition = F
 dealias_type = 3
 shifted = F
@@ -97,11 +96,11 @@ nv = F
 mhc = T
 force_trunc = F
 checkpoint_read = F
-init_cond = 25
-en_leftwhist = 1.0
-en_leftcyclo = 0.0
-en_rightwhist = 0.0
-en_rightcyclo = 0.0
+init_cond = 32
+en_leftwhist = 0.1
+en_leftcyclo = 0.4
+en_rightwhist = 0.4
+en_rightcyclo = 0.1
 taylorgreen = F
 force_lw = 1.0
 force_lc = 0.0
@@ -117,7 +116,7 @@ wave2z = -999
 /
 
 &initial_value
-max_itime = 100
+max_itime = 25000
 max_walltime =   86200.0
 dt_max = 0.1
 fix_dt = F
