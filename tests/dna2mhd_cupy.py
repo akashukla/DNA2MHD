@@ -32,6 +32,11 @@ class RHS:
 
     def convolutions(self,binput,vinput):
 
+        # Save some memory by doing for h non0
+        #  dA/dt    = (v - h curl b) x b  dv/dt = v x curl v + curl b x b
+        # d(A+h v)/dt = (v x (h curl v + b))
+
+        
         backffts = cp.stack((binput[0,:,:,:],binput[1,:,:,:],binput[2,:,:,:],
                             vinput[0,:,:,:],vinput[1,:,:,:],vinput[2,:,:,:],
                             1j*self.kygrid[None,:,None]*binput[2,:,:,:]-1j*self.kzgrid[None,None,:]*binput[1,:,:,:],
@@ -41,6 +46,8 @@ class RHS:
                             1j*self.kzgrid[None,None,:]*vinput[0,:,:,:]-1j*self.kxgrid[:,None,None]*vinput[2,:,:,:],
                             1j*self.kxgrid[:,None,None]*vinput[1,:,:,:]-1j*self.kygrid[None,:,None]*vinput[0,:,:,:]),axis=-1)
 
+        realb = irfftn(binput[:,:,:,:],axes=(1,2,3))
+        
         real_backffts = irfftn(backffts,axes=(0,1,2))
 
         del backffts
@@ -59,6 +66,8 @@ class RHS:
                                 - (real_backffts[:,:,:,0]*real_backffts[:,:,:,7]-real_backffts[:,:,:,1]*real_backffts[:,:,:,6])),axis=-1)
 
         del real_backffts
+
+        realv = irfftn()
 
         complex_forwardffts = rfftn(forwardffts,axes=(0,1,2)) * self.nx0_big * self.ny0_big * self.nz0_big
 
@@ -119,7 +128,6 @@ class RHS:
         return(None)
         
     def removediv(self,binput,vinput):
-
         
         divergence_v = self.kxgrid[:,None,None]*vinput[0,:,:,:]+self.kygrid[None,:,None]*vinput[1,:,:,:]+ \
             self.kzgrid[None,None,:]*vinput[2,:,:,:]
@@ -366,7 +374,7 @@ class DNA2MHD(RHS,DIAGS):
         self.forcemask *= forceamp
         
         self.b1 = cp.zeros_like(self.pcurleig)
-        self.v1 = cp.zeros_like(self.pcurleig)        
+        self.v1 = cp.zeros_like(self.pcurleig)
 
         self.mhelcorr = cp.float64(0.0)
         
@@ -432,6 +440,7 @@ class DNA2MHD(RHS,DIAGS):
             self.mhelcorr = pastresults["mhelcorr"]
 
     def rk4(self):
+
         
         self.brhs1,self.vrhs1 = self.hallrhs(self.b1,self.v1)
         self.b2 = self.b1 + self.dt * 1/6 * self.brhs1
@@ -454,10 +463,15 @@ class DNA2MHD(RHS,DIAGS):
     def gauss2(self):
 
         a11 = 1/2
-        self.brhs1,self.vrhs1 = self.hallrhs(self.b1,self.v1)
+        self.b2 = self.b1
+        self.v2 = self.v1 
+        self.brhs2,self.vrhs2 = self.hallrhs(self.b2,self.v2)
+        
+        self.brhs1 = self.brhs2
+        self.vrhs1 = self.vrhs2 
 
         self.b2 = self.b1 + a11 * self.dt * self.brhs1
-        self.v2 = self.v1 + a11 * self.dt * self.vrhs1 
+        self.v2 = self.v1 + a11 * self.dt * self.vrhs1
 
         self.brhs2,self.vrhs2 = self.hallrhs(self.b2,self.v2)
 
@@ -543,3 +557,9 @@ class DNA2MHD(RHS,DIAGS):
         print(self.runtime)
 
         return(None)
+
+    def etd2rksimulation(self,Nquad=32):
+
+        
+
+        

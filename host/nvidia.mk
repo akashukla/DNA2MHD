@@ -54,8 +54,8 @@ endif
 
 # use PrgEnv-nvidia
 ifeq ($(PRECISION),double)
-  FFLAGS += -r8 -Mmpi=mpich
-  LDLAGS += -r8 -Mmpi=mpich
+  FFLAGS += -r8 -Mmpi=mpich -cudalib=cublas,cufftw
+  LDLAGS += -r8 -Mmpi=mpich -cudalib=cublas,cufftw
 endif
 
 
