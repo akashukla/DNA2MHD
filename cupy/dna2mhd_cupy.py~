@@ -18,6 +18,8 @@ class RHS:
 
         bout = cp.zeros_like(self.b1)
         vout = cp.zeros_like(self.v1)
+
+        
         
         bout[0,:,:,:] = (1j * vinput[0,:,:,:] + self.kygrid[None,:,None]*binput[2,:,:,:] - self.kzgrid[None,None,:]*binput[1,:,:,:])
         bout[1,:,:,:] = (1j * vinput[1,:,:,:] + self.kzgrid[None,None,:]*binput[0,:,:,:] - self.kxgrid[:,None,None]*binput[2,:,:,:])
@@ -36,61 +38,63 @@ class RHS:
         #  dA/dt    = (v - h curl b) x b  dv/dt = v x curl v + curl b x b
         # d(A+h v)/dt = (v x (h curl v + b))
 
-        
-        backffts = cp.stack((binput[0,:,:,:],binput[1,:,:,:],binput[2,:,:,:],
-                            vinput[0,:,:,:],vinput[1,:,:,:],vinput[2,:,:,:],
-                            1j*self.kygrid[None,:,None]*binput[2,:,:,:]-1j*self.kzgrid[None,None,:]*binput[1,:,:,:],
-                            1j*self.kzgrid[None,None,:]*binput[0,:,:,:]-1j*self.kxgrid[:,None,None]*binput[2,:,:,:],
-                            1j*self.kxgrid[:,None,None]*binput[1,:,:,:]-1j*self.kygrid[None,:,None]*binput[0,:,:,:],
-                            1j*self.kygrid[None,:,None]*vinput[2,:,:,:]-1j*self.kzgrid[None,None,:]*vinput[1,:,:,:],
-                            1j*self.kzgrid[None,None,:]*vinput[0,:,:,:]-1j*self.kxgrid[:,None,None]*vinput[2,:,:,:],
-                            1j*self.kxgrid[:,None,None]*vinput[1,:,:,:]-1j*self.kygrid[None,:,None]*vinput[0,:,:,:]),axis=-1)
-
-        realb = irfftn(binput[:,:,:,:],axes=(1,2,3))
-        
-        real_backffts = irfftn(backffts,axes=(0,1,2))
-
-        del backffts
-
-        forwardffts = cp.stack(((real_backffts[:,:,:,4]-self.hallparam*real_backffts[:,:,:,7])*real_backffts[:,:,:,2] \
-                                - (real_backffts[:,:,:,5]-self.hallparam*real_backffts[:,:,:,8])*real_backffts[:,:,:,1] ,
-                                (real_backffts[:,:,:,5]-self.hallparam*real_backffts[:,:,:,8])*real_backffts[:,:,:,0] \
-                                - (real_backffts[:,:,:,3]-self.hallparam*real_backffts[:,:,:,6])*real_backffts[:,:,:,2],
-                                (real_backffts[:,:,:,3]-self.hallparam*real_backffts[:,:,:,6])*real_backffts[:,:,:,1] \
-                                - (real_backffts[:,:,:,4]-self.hallparam*real_backffts[:,:,:,7])*real_backffts[:,:,:,0],
-                                real_backffts[:,:,:,4]*real_backffts[:,:,:,11]-real_backffts[:,:,:,5]*real_backffts[:,:,:,10] \
-                                - (real_backffts[:,:,:,1]*real_backffts[:,:,:,8] - real_backffts[:,:,:,2]*real_backffts[:,:,:,7]),
-                                real_backffts[:,:,:,5]*real_backffts[:,:,:,9]-real_backffts[:,:,:,3]*real_backffts[:,:,:,11] \
-                                - (real_backffts[:,:,:,2]*real_backffts[:,:,:,6] - real_backffts[:,:,:,0]*real_backffts[:,:,:,8]),
-                                real_backffts[:,:,:,3]*real_backffts[:,:,:,10]-real_backffts[:,:,:,4]*real_backffts[:,:,:,9] \
-                                - (real_backffts[:,:,:,0]*real_backffts[:,:,:,7]-real_backffts[:,:,:,1]*real_backffts[:,:,:,6])),axis=-1)
-
-        del real_backffts
-
-        realv = irfftn()
-
-        complex_forwardffts = rfftn(forwardffts,axes=(0,1,2)) * self.nx0_big * self.ny0_big * self.nz0_big
-
-        del forwardffts
-
         bout = cp.zeros_like(self.b1)
         vout = cp.zeros_like(self.v1)
 
-        bout[0,:,:,:] = 1j * self.kygrid[None,:,None] * complex_forwardffts[:,:,:,2] \
-            - 1j * self.kzgrid[None,None,:] * complex_forwardffts[:,:,:,1]
-        bout[1,:,:,:] = 1j * self.kzgrid[None,None,:] * complex_forwardffts[:,:,:,0] \
-            - 1j * self.kxgrid[:,None,None] * complex_forwardffts[:,:,:,2]
-        bout[2,:,:,:] = 1j * self.kxgrid[:,None,None] * complex_forwardffts[:,:,:,1] \
-            - 1j * self.kygrid[None,:,None] * complex_forwardffts[:,:,:,0]
+        bx = irfftn(binput[0,:,:,:])
+        by = irfftn(binput[1,:,:,:])
+        bz = irfftn(binput[2,:,:,:])
 
-        vout[0,:,:,:] = complex_forwardffts[:,:,:,3]
-        vout[1,:,:,:] = complex_forwardffts[:,:,:,4]
-        vout[2,:,:,:] = complex_forwardffts[:,:,:,5]
+        vx = irfftn(vinput[0,:,:,:])
+        vy = irfftn(vinput[1,:,:,:])
+        vz = irfftn(vinput[2,:,:,:])
 
-        del complex_forwardffts
+        dum = 1j*self.kygrid[None,:,None]*binput[2,:,:,:]-1j*self.kzgrid[None,None,:]*binput[1,:,:,:]
+        curlbx = irfftn(dum)
 
-        bout = bout * self.padding[None,:,:,:]
-        vout = vout * self.padding[None,:,:,:]
+        dum = 1j*self.kzgrid[None,None,:]*binput[0,:,:,:]-1j*self.kxgrid[:,None,None]*binput[2,:,:,:]
+        curlby = irfftn(dum)
+
+        dum = 1j*self.kxgrid[:,None,None]*binput[1,:,:,:]-1j*self.kygrid[None,:,None]*binput[0,:,:,:]
+        curlbz = irfftn(dum)
+
+        dum = 1j*self.kygrid[None,:,None]*vinput[2,:,:,:]-1j*self.kzgrid[None,None,:]*vinput[1,:,:,:]
+        curlvx = irfftn(dum)
+
+        dum = 1j*self.kzgrid[None,None,:]*vinput[0,:,:,:]-1j*self.kxgrid[:,None,None]*vinput[2,:,:,:]
+        curlvy = irfftn(dum)
+
+        dum = 1j*self.kxgrid[:,None,None]*vinput[1,:,:,:]-1j*self.kygrid[None,:,None]*vinput[0,:,:,:]
+        curlvz = irfftn(dum)
+
+        dum = vy * bz - vz * by + self.hallparam * ( curlby * bz - curlbz * by )
+        dum2 = rfftn(dum) * self.nx0_big * self.ny0_big * self.nz0_big
+        bout[1,:,:,:] += 1j * self.kzgrid[None,None,:] * dum2
+        bout[2,:,:,:] += -1j * self.kygrid[None,:,None] * dum2        
+
+        dum = vz * bx	- vx * bz + self.hallparam * ( curlbz * bx - curlbx * bz )
+        dum2 = rfftn(dum) * self.nx0_big * self.ny0_big * self.nz0_big
+        bout[0,:,:,:] += -1j * self.kzgrid[None,None,:] * dum2
+        bout[2,:,:,:] += 1j * self.kxgrid[:,None,None] * dum2
+
+        dum = vx * by	- vy * bx + self.hallparam * ( curlbx * by - curlby * bx )
+        dum2 = rfftn(dum) * self.nx0_big * self.ny0_big * self.nz0_big
+        bout[0,:,:,:] += 1j * self.kygrid[None,:,None] * dum2
+        bout[1,:,:,:] += -1j * self.kxgrid[:,None,None] * dum2
+        
+        dum = vy * curlvz - vz * curlvy + (curlby * bz - curlbz * by)
+        vout[0,:,:,:] = rfftn(dum) * self.nx0_big * self.ny0_big * self.nz0_big
+        
+        dum = vz * curlvx - vx * curlvz + (curlbz * bx - curlbx * bz)
+        vout[1,:,:,:] = rfftn(dum) * self.nx0_big * self.ny0_big * self.nz0_big
+        
+        dum = vx * curlvy - vy * curlvx + (curlbx * by - curlby * bx)
+        vout[2,:,:,:] = rfftn(dum) * self.nx0_big * self.ny0_big * self.nz0_big
+        
+        bout *= self.padding[None,:,:,:]
+        vout *= self.padding[None,:,:,:]
+
+        #print("Through NL")
 
         return(bout,vout)
 
@@ -353,6 +357,18 @@ class DNA2MHD(RHS,DIAGS):
 
         self.alphaleftwhist = - (hallparam*self.kmags/2 + cp.sqrt(1+ (hallparam*self.kmags/2)**2.0))
 
+        eig[:,:,:,0] = - ((nu+eta)*kmags**(2*hyp) + 1j * kmags * kzgrid[None,None,:])/2
+        eig[:,:,:,2] = - ((nu+eta)*kmags**(2*hyp) - 1j * kmags * kzgrid[None,None,:])/2
+        eig[:,:,:,1] = cp.sqrt(eig[:,:,:,0]**2 - nu * eta * kmags**(4*hyp) - kzgrid[None,None,:]**2 - 1j * kmags * kzgrid[None,None,:] * nu * kmags**(2*hyp))
+        eig[:,:,:,3] = cp.sqrt(eig[:,:,:,2]**2 - nu * eta * kmags**(4*hyp) - kzgrid[None,None,:]**2 + 1j * kmags * kzgrid[None,None,:] * nu * kmags**(2*hyp))
+        
+        eig[:,:,:,0] += eig[:,:,:,1]
+        eig[:,:,:,2] += eig[:,:,:,3]
+        eig[:,:,:,1] *= -2
+        eig[:,:,:,3] *= -2
+        eig[:,:,:,1] += eig[:,:,:,0]
+        eig[:,:,:,3] += eig[:,:,:,2]
+
         zvec = cp.array([0,0,1],dtype="complex128")
         ks = cp.stack((KX,KY,KZ)).astype("complex128")
 
@@ -415,9 +431,7 @@ class DNA2MHD(RHS,DIAGS):
         self.b1[:,1:,1:,1:] *= self.padding[None,1:,1:,1:] * self.kmags[None,1:,1:,1:]**(-self.init_kolm)
         self.v1[:,1:,1:,1:] *= self.padding[None,1:,1:,1:] * self.kmags[None,1:,1:,1:]**(-self.init_kolm)
         
-        self.b1[:,1:,1:,1:] *= self.padding[None,1:,1:,1:] * self.kmags[None,1:,1:,1:]**(-self.init_kolm)
-        self.v1[:,1:,1:,1:] *= self.padding[None,1:,1:,1:] * self.kmags[None,1:,1:,1:]**(-self.init_kolm)
-
+        
         if self.energystart != None:
             energy = cp.sum(cp.abs(self.b1[:,:,:,0])**2.0+cp.abs(self.v1[:,:,:,0])**2.0)
             energy += 2* cp.sum(cp.abs(self.b1[:,:,:,1:])**2.0+cp.abs(self.v1[:,:,:,1:])**2.0)
@@ -460,6 +474,57 @@ class DNA2MHD(RHS,DIAGS):
 
         return(None)
 
+    """
+    def etdrk2(self):
+    
+        self.startruntime = time.time()
+        self.runtime = 0
+
+        self.b2,self.v2,self.brhs2,self.vrhs2 = exponentialcoefficients 
+
+        while self.itime < self.iterations and self.runtime < self.maxwallclock:
+
+            # print("Bz ",self.b1[2,0,0,0])                                                                                                               
+
+            if self.itime % max(self.iterations//500,1) == 0:
+                self.energyfile()
+            if self.itime % 200 == 0: #max(self.iterations//50,10) == 0:                                                                                  
+                self.checkpointfile()
+            if self.itime % 200 == 0: #max(self.iterations//5,100) == 0:                                                                                  
+                self.fulloutputfile()
+
+            self.brhs1,self.vrhs1 = self.hallrhs(self.b1,self.v1)
+
+            # Multiply initial by    
+       
+
+            self.b1 *= coeff1
+            self.v1 *= coeff1
+            self.b1 += coeff2 * self.brhs1
+            self.v1 += coeff2 * self.vrhs1
+
+            self.brhs2,self.vrhs2 = self.hallrhs(self.b1,self.v1)
+
+            self.b1 += coeff3 * (self.brhs2-self.brhs1)
+            self.v1 += coeff3 * (self.vrhs2-self.vrhs1)
+
+            self.itime += 1
+            self.time += self.dt
+            self.runtime = time.time()-self.startruntime
+
+            if self.itime % max(self.iterations//50,10) == 0 and self.itime > 0:
+                self.steadystate()
+
+	self.energyfile()
+        self.checkpointfile()
+        self.fulloutputfile()
+
+        print(self.runtime)
+
+        return(None)
+
+    """
+        
     def gauss2(self):
 
         a11 = 1/2
@@ -558,7 +623,7 @@ class DNA2MHD(RHS,DIAGS):
 
         return(None)
 
-
+    
 
         
 
