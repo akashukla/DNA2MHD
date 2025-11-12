@@ -1,64 +1,117 @@
 import numpy as np
-import cupy as cp
-from cupy import float32
-from numba import njit,jit
-from mpi4py import MPI
-import nvmath.distributed
+#import cupy as cp
+#from cupy import float32
+#from numba import njit,jit
+#from mpi4py import MPI
+#import nvmath.distributed
 from numpy import pi
+import matplotlib.pyplot as plt
 
-"""
-dt = float32(0.1)
-Nquad = 32
+kxmin = 0.025
+kymin = 0.025
+kzmin = 0.005
 
-Nx = 128
-Ny = 128
-Nz = 128
-padNx = Nx*3//2
-padNy = Ny*3//2
-padNz = Nz*3//2
+nx0_big = 192
+ny0_big = 192
+nz0_big = 192
 
-Lx = 100
-Ly = 100
-Lz = 1000
-nu = float32(0.001)
+nu = 0.05
+eta = 1
+hyper = 2
 
-kxgrid = cp.arange(0,padNx,dtype="float32")*2*pi/Lx
-kxgrid = cp.hstack((kxgrid,-kxgrid[:0:-1]))
-kygrid = cp.arange(0,padNy,dtype="float32")*2*pi/Ly
-kygrid = cp.hstack((kygrid,-kygrid[:0:-1]))
-kzgrid = cp.arange(0,padNz,dtype="float32")*2*pi/Lz
+dt = 0.1
 
-nu = 0.0001
-eta = nu
-hyp = 2
-"""
+kxgrid = np.hstack((np.arange(0,nx0_big//2,dtype="float32"),np.arange(-nx0_big//2,0,dtype="float32")))*kxmin
+kygrid = np.hstack((np.arange(0,ny0_big//2,dtype="float32"),np.arange(-ny0_big//2,0,dtype="float32")))*kymin
+kzgrid = np.arange(0,nz0_big//2+1,dtype="float32")*kzmin
 
-def exponentialcoefficients(kxgrid,kygrid,kzgrid,eta,nu,hyp,dt,Nquad,kmags,eig,hall):
+kmags = np.sqrt(kxgrid[:,None,None]**2.0 + kygrid[None,:,None]**2.0+kzgrid[None,None,:]**2.0).astype("float32")
+kmax = np.amax(kmags)
 
-    padNx = cp.size(kxgrid)//2
-    padNy = cp.size(kygrid)//2
-    padNz = cp.size(kzgrid)
+vnu = nu/(kmax**(2*hyper))
+etab = eta*vnu
+hallparam = 1
+
+print("Dissipation Factors",vnu,etab)
+
+eig = np.zeros([nx0_big,ny0_big,nz0_big//2+1,4],dtype="complex64")
+eig[:,:,:,0] = - ((vnu+etab)*kmags**(2*hyper) + 1j * kmags * kzgrid[None,None,:]*hallparam)/2
+eig[:,:,:,2] = - ((vnu+etab)*kmags**(2*hyper) - 1j * kmags * kzgrid[None,None,:]*hallparam)/2
+eig[:,:,:,1] = np.sqrt(eig[:,:,:,0]**2 - vnu * etab * kmags**(4*hyper) - kzgrid[None,None,:]**2 - 1j * kmags * kzgrid[None,None,:] * vnu * kmags**(2*hyper))
+eig[:,:,:,3] = np.sqrt(eig[:,:,:,2]**2 - vnu * etab * kmags**(4*hyper) - kzgrid[None,None,:]**2 + 1j * kmags * kzgrid[None,None,:] * vnu * kmags**(2*hyper))
+
+eig[:,:,:,0] += eig[:,:,:,1]
+eig[:,:,:,2] += eig[:,:,:,3]
+eig[:,:,:,1] *= -2.0
+eig[:,:,:,3] *= -2.0
+eig[:,:,:,1] += eig[:,:,:,0]
+eig[:,:,:,3] += eig[:,:,:,2]
+
+
+r = np.abs(eig).flatten()
+ii = np.argsort(r)
+
+x = np.abs(np.real(eig)).flatten()
+y = np.abs(np.imag(eig)).flatten()
+
+plt.scatter(dt*x[ii[::20]],dt*y[ii[::20]],c=dt*r[ii[::20]],cmap="berlin",s=0.01)
+plt.xscale("log")
+plt.yscale("log")
+plt.show()
+
+def exponentialcoefficients(kxgrid,kygrid,kzgrid,eta,nu,hyp,dt,Nquad,kmags,eig,hall,taylor=False):
+
+    padNx = np.size(kxgrid)//2
+    padNy = np.size(kygrid)//2
+    padNz = np.size(kzgrid)
 
     shape4 = [2*padNx,2*padNy,padNz,4]
 
     # Time integration variables
 
     # Construct diagonal time integration variables from contour quadrature
-    expLdiag = cp.exp(eig*dt)
-    coef1diag = cp.zeros(shape4,dtype="complex64")
-    coef2diag = cp.zeros(shape4,dtype="complex64")
+    expLdiag = np.exp(eig*dt)
+    coef1diag = np.zeros(shape4,dtype="complex64")
+    coef2diag = np.zeros(shape4,dtype="complex64")
 
     # Contour integral for the needed exponential time integrator functions
-    for q in range(Nquad):
+    if not taylor:
+        for q in range(Nquad):
         
-        r = cp.exp((q+0.5)/Nquad * 1j * 2*pi)
+            r = np.exp((q+0.5)/Nquad * 1j * 2*pi)
         
-        # Initialize each nontrivial eigenvalue
-        coef1diag += (expLdiag*cp.exp(r*dt) - 1)/((eig+r))
-        coef2diag += (expLdiag*cp.exp(r*dt)-1-(eig+r)*dt)/(dt*(eig+r)**2)
+            # Initialize each nontrivial eigenvalue
+            coef1diag += (expLdiag*np.exp(r*dt) - 1)/((eig+r))
+            coef2diag += (expLdiag*np.exp(r*dt)-1-(eig+r)*dt)/(dt*(eig+r)**2)
 
-    coef1diag /= Nquad
-    coef2diag /= Nquad
+        coef1diag /= Nquad
+        coef2diag /= Nquad
+
+    if taylor:
+        # Ten term Taylor
+        coef1diag += dt
+        coef1diag += dt**2 * eig / 2
+        coef1diag += dt**3 * eig**2 / 6
+        coef1diag += dt**4 * eig**3 / 24
+        coef1diag += dt**5 * eig**4 / 120
+        coef1diag += dt**6 * eig**5 / 720
+        coef1diag += dt**7 * eig**6 / 5040
+        coef1diag += dt**8 * eig**7 / 40320
+        coef1diag += dt**9 * eig**8 / 362880
+        coef1diag += dt**10 * eig**9 / 3628800
+        coef1diag += dt**11 * eig**10 / 39916800
+
+        coef2diag += dt/2
+        coef2diag += dt**2 * eig / 6
+        coef2diag += dt**3 * eig**2 / 24
+        coef2diag += dt**4 * eig**3 / 120
+        coef2diag += dt**5 * eig**4 / 720
+        coef2diag += dt**6 * eig**5 / 5040
+        coef2diag += dt**7 * eig**6 / 40320
+        coef2diag += dt**8 * eig**7 / 362880
+        coef2diag += dt**9 * eig**8 / 3628800
+        coef2diag += dt**10 * eig**9 / 39916800
+        coef2diag += dt**11 * eig**10 / 479001600
 
     # Get needed values from normal mode decomposition
     # Only using incompressible Hall MHD so not including the other modes
@@ -67,22 +120,20 @@ def exponentialcoefficients(kxgrid,kygrid,kzgrid,eta,nu,hyp,dt,Nquad,kmags,eig,h
 
     shape4full = [2*padNx,2*padNy,padNz,8]
 
-    # Structure results: plus eigenstate bb, bv, vb, vv, minus bb, bv, vb, vv
-
     def changeofbasis(diagcalc):
 
         # Perform PDPinv calculation for adjusted Hall MHD proportionality factors between b and v from diagonal basis
         
-        result = cp.zeros(shape4full,dtype="complex64")
+        result = np.zeros(shape4full,dtype="complex64")
 
-        alpha = hall*kmags/2 + cp.sqrt(1 + (hall*kmags)**2  / 4)
+        alpha = hall*kmags/2 + np.sqrt(1 + (hall*kmags)**2  / 4)
         for it in [0,4]:
-
+        
             if nu != eta:
-                
+
                 result[:,:,:,it] += (nu * kmags**(2*hyp) + eig[:,:,:,it//2]) * 1j * kzgrid[None,None,:] * diagcalc[:,:,:,it//2]
                 result[:,:,:,it] -= (nu * kmags**(2*hyp) + eig[:,:,:,it//2 + 1]) * 1j * kzgrid[None,None,:] * diagcalc[:,:,:,it//2 + 1]
-        
+                
                 result[:,:,:,it+1] -= (nu * kmags**(2*hyp) + eig[:,:,:,it//2])*(nu * kmags**(2*hyp) + eig[:,:,:,it//2 + 1])*diagcalc[:,:,:,it//2]
                 result[:,:,:,it+1] += (nu * kmags**(2*hyp) + eig[:,:,:,it//2])*(nu * kmags**(2*hyp) + eig[:,:,:,it//2 + 1])*diagcalc[:,:,:,it//2 + 1]
 
@@ -91,21 +142,22 @@ def exponentialcoefficients(kxgrid,kygrid,kzgrid,eta,nu,hyp,dt,Nquad,kmags,eig,h
 
                 result[:,:,:,it+3] -= (nu * kmags**(2*hyp) + eig[:,:,:,it//2+1]) * 1j * kzgrid[None,None,:] * diagcalc[:,:,:,it//2]
                 result[:,:,:,it+3] += (nu * kmags**(2*hyp) + eig[:,:,:,it//2]) * 1j * kzgrid[None,None,:] * diagcalc[:,:,:,it//2 + 1]
-        
+
                 result[:,:,:,it:it+4] /= (eig[:,:,:,it//2] - eig[:,:,:,it//2+1])[:,:,:,None] * 1j * kzgrid[None,None,:,None]
 
             else:
-                
-                alpha **= 1-it/2 # for negative curl eigenstates send alpha to 1/alpha
-                
+
+                alpha **= 1-it/2 
                 result[:,:,:,it] += diagcalc[:,:,:,it//2] + alpha**2 * diagcalc[:,:,:,it//2+1]
                 result[:,:,:,it+1] += alpha * (diagcalc[:,:,:,it//2]-diagcalc[:,:,:,it//2+1])
                 result[:,:,:,it+2] += alpha * (diagcalc[:,:,:,it//2]-diagcalc[:,:,:,it//2+1])
                 result[:,:,:,it+3] += alpha**2 * diagcalc[:,:,:,it//2] + diagcalc[:,:,:,it//2 + 1]
-
-                result[:,:,:,it:it+4] /= alpha[:,:,:,None]**2 + 1
                 
+                result[:,:,:,it:it+4] /= alpha[:,:,:,None]**2 + 1
+
         return(result)
+
+    # Structure results: plus eigenstate bb, bv, vb, vv, minus bb, bv, vb, vv
 
     expL = changeofbasis(expLdiag)
     coef1 = changeofbasis(coef1diag)
@@ -139,3 +191,10 @@ def exponentialcoefficients(kxgrid,kygrid,kzgrid,eta,nu,hyp,dt,Nquad,kmags,eig,h
                 coef2[ikx,iky,ikz,4:] = coef2k.flatten().copy()
     return(expL,coef1,coef2)
 """
+
+
+a1,b1,c1 = exponentialcoefficients(kxgrid,kygrid,kzgrid,etab,vnu,hyper,dt,128,kmags,eig,hallparam,taylor=False)
+a2,b2,c2 = exponentialcoefficients(kxgrid,kygrid,kzgrid,etab,vnu,hyper,dt,128,kmags,eig,hallparam,taylor=True)
+
+print("Diff Coef1 ",np.amax(b2-b1))
+print("Diff Coef2 ",np.amax(c2-c1))

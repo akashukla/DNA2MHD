@@ -182,13 +182,16 @@ class DIAGS:
         AVP = cp.stack((1j*self.kygrid[None,:,None]*self.b1[2,:,:,:]-1j*self.kzgrid[None,None,:]*self.b1[1,:,:,:],
                         1j*self.kzgrid[None,None,:]*self.b1[0,:,:,:]-1j*self.kxgrid[:,None,None]*self.b1[2,:,:,:],
                         1j*self.kxgrid[:,None,None]*self.b1[1,:,:,:]-1j*self.kygrid[None,:,None]*self.b1[0,:,:,:]),\
-                       axis=0)/(self.kmags[None,:,:,:]**2.0)
+                       axis=0)
+        cb2 = 2*cp.sum(cp.abs(AVP[:,:,:,1:])**2.0)+cp.sum(cp.abs(AVP[:,:,:,0])**2.0)
+        AVP /= self.kmags[None,:,:,:]**2.0
         AVP[:,0,0,0] = 0.0
-
+        
         WVORT = cp.stack((1j*self.kygrid[None,:,None]*self.v1[2,:,:,:]-1j*self.kzgrid[None,None,:]*self.v1[1,:,:,:],
                           1j*self.kzgrid[None,None,:]*self.v1[0,:,:,:]-1j*self.kxgrid[:,None,None]*self.v1[2,:,:,:],
                           1j*self.kxgrid[:,None,None]*self.v1[1,:,:,:]-1j*self.kygrid[None,:,None]*self.v1[0,:,:,:]),\
                          axis=0)
+        vort = 2*cp.sum(cp.abs(WVORT[:,:,:,1:])**2.0)+cp.sum(cp.abs(WVORT[:,:,:,0])**2.0)
 
         mhel = cp.real(2*cp.sum((AVP[:,:,:,1:])*cp.conj(self.b1[:,:,:,1:])))
         mhel += cp.real(cp.sum(AVP[:,:,:,0]*cp.conj(self.b1[:,:,:,0])))
@@ -199,7 +202,7 @@ class DIAGS:
         mhel *= 8 * cp.pi**3
         canhel *= 8 * cp.pi**3
         
-        return(mhel,canhel)
+        return(mhel,canhel,vort,cb2)
 
     def tripletamps(self,lwk):
 
@@ -219,18 +222,18 @@ class DIAGS:
         
         lwk = (1j * self.kzgrid[None,None,:] * self.bplus - (self.eig[:,:,:,1] + self.vnu * self.kmags**(2*self.hyper)) * self.vplus)/det 
         lwk *= cp.sqrt(cp.abs(self.eig[:,:,:,0] + self.vnu * self.kmags**(2*self.hyper))**2.0 + self.kzgrid[None,None,:]**2.0)
-        lw = 2.0*cp.sum(cp.abs(lwk[:,:,1:])**2.0)
-        lw *= (4.0*cp.pi**3)
+        lc = 2.0*cp.sum(cp.abs(lwk[:,:,1:])**2.0)
+        lc *= (4.0*cp.pi**3)
         
         if self.initcond == "threewave":
-            lw1,lw2,lw3 = self.tripletamps(lwk)
+            lc1,lc2,lc3 = self.tripletamps(lwk)
             
         lwk = (-1j * self.kzgrid[None,None,:] * self.bplus + (self.eig[:,:,:,0] + self.vnu * self.kmags**(2*self.hyper)) * self.vplus)/det
         lwk *= cp.sqrt(cp.abs(self.eig[:,:,:,1] + self.vnu * self.kmags**(2*self.hyper))**2.0 + self.kzgrid[None,None,:]**2.0)
-        lc = 2.0 * cp.sum(cp.abs(lwk[:,:,1:])**2.0)
-        lc *= 4.0 * cp.pi**3
+        lw = 2.0 * cp.sum(cp.abs(lwk[:,:,1:])**2.0)
+        lw *= 4.0 * cp.pi**3
         if self.initcond == "threewave":
-            lc1,lc2,lc3 = self.tripletamps(lwk)
+            lw1,lw2,lw3 = self.tripletamps(lwk)
 
         det = (1j * self.kzgrid[None,None,:])*(self.eig[:,:,:,2]-self.eig[:,:,:,3])
         #det = ( (self.vnu * self.kmags**(2*self.hyper)+self.eig[:,:,:,2])* (self.vnu * self.kmags**(2*self.hyper) + self.eig[:,:,:,3])+ kzgrid[None,None,:]**2.0 )
@@ -252,7 +255,7 @@ class DIAGS:
         # Write three wave energy file if three wave simulation
         if self.initcond == "threewave":
             
-            self.tripletenergies = cp.array([lw1,lc1,rw1,rc1,lw2,lc2,rw2,rc2,lw3,lc3,rw3,rc3])
+            self.tripletenergies = cp.array([lc1,lw1,rw1,rc1,lc2,lw2,rw2,rc2,lc3,lw3,rw3,rc3])
 
         return(lw,lc,rw,rc)
 
@@ -290,22 +293,32 @@ class DIAGS:
             rmtree(self.lpath)
             os.mkdir(self.lpath)
 
+        kxgridcpu = cp.asnumpy(self.kxgrid)
+        kygridcpu = cp.asnumpy(self.kygrid)
+        kzgridcpu = cp.asnumpy(self.kzgrid)
+        hcpu = cp.asnumpy(self.hallparam)
+        
         if not os.path.exists(self.lpath+"/output.hdf5"):
 
             with h5py.File(self.lpath+"/output.hdf5","a") as f:
 
+                kx = f.create_dataset("kx",(np.size(kxgridcpu),),data=kxgridcpu)
+                ky = f.create_dataset("ky",(np.size(kygridcpu),),data=kygridcpu)
+                kz = f.create_dataset("kz",(np.size(kzgridcpu),),data=kzgridcpu)
                 written = f.create_dataset("written",(1,),dtype="int32",data=int32c(0))
                 times = f.create_dataset("time",(self.record+1,),dtype="float32")
-                totalenergy = f.create_dataset("hamiltonian",(self.record+1,),dtype="float32")
-                magnetichelicity = f.create_dataset("maghel",(self.record+1,),dtype="float32")
-                crosshel = f.create_dataset("crosshel",(self.record+1,),dtype="float32")
-                kinetic = f.create_dataset("kinenergy",(self.record+1,),dtype="float32")
-                magnetic = f.create_dataset("magenergy",(self.record+1,),dtype="float32")
-                leftwhistler = f.create_dataset("leftwhistler",(self.record+1,),dtype="float32")
-                leftcyclo = f.create_dataset("leftcyclo",(self.record+1,),dtype="float32")
-                rightwhistler = f.create_dataset("rightwhistler",(self.record+1,),dtype="float32")
-                rightcyclo = f.create_dataset("rightcyclo",(self.record+1,),dtype="float32")
-                helicitycorr = f.create_dataset("helicitycorr",(self.record+1,),dtype="float32")
+                enval = f.create_dataset("enval",(self.record+1,12),dtype="float32")
+                #totalenergy = f.create_dataset("hamiltonian",(self.record+1,),dtype="float32")
+                #magnetichelicity = f.create_dataset("maghel",(self.record+1,),dtype="float32")
+                #crosshel = f.create_dataset("crosshel",(self.record+1,),dtype="float32")
+                #kinetic = f.create_dataset("kinenergy",(self.record+1,),dtype="float32")
+                #magnetic = f.create_dataset("magenergy",(self.record+1,),dtype="float32")
+                #leftwhistler = f.create_dataset("leftwhistler",(self.record+1,),dtype="float32")
+                #leftcyclo = f.create_dataset("leftcyclo",(self.record+1,),dtype="float32")
+                #rightwhistler = f.create_dataset("rightwhistler",(self.record+1,),dtype="float32")
+                #rightcyclo = f.create_dataset("rightcyclo",(self.record+1,),dtype="float32")
+                #helicitycorr = f.create_dataset("helicitycorr",(self.record+1,),dtype="float32")
+                hall = f.create_dataset("hall",(1,),data=hcpu)
 
                 if self.initcond == "threewave":
 
@@ -323,7 +336,7 @@ class DIAGS:
         ham = self.hamiltonian(0)
         kinham = self.hamiltonian(1)
         magham = self.hamiltonian(2)
-        mh,ch = self.helicity()
+        mh,ch,vort,cb2 = self.helicity()
         lw,lc,rw,rc = self.hallmodeenergies()
 
         self.writtencpu = cp.asnumpy(self.written)
@@ -337,6 +350,9 @@ class DIAGS:
         lccpu = cp.asnumpy(lc)
         rwcpu = cp.asnumpy(rw)
         rccpu = cp.asnumpy(rc)
+        vortcpu = cp.asnumpy(vort)
+        cb2cpu = cp.asnumpy(cb2)
+        
         b1cpu = cp.asnumpy(self.b1)
         v1cpu = cp.asnumpy(self.v1)
         mhccpu = cp.asnumpy(self.mhelcorr)
@@ -350,16 +366,30 @@ class DIAGS:
 
             f["written"][0] = self.writtencpu
             f["time"][self.writtencpu] = self.timecpu
-            f["hamiltonian"][self.writtencpu] = hamcpu
-            f["maghel"][self.writtencpu] = mhcpu
-            f["crosshel"][self.writtencpu] = chcpu
-            f["kinenergy"][self.writtencpu] = kinhamcpu
-            f["magenergy"][self.writtencpu] = maghamcpu
-            f["leftwhistler"][self.writtencpu] = lwcpu
-            f["leftcyclo"][self.writtencpu] = lccpu 
-            f["rightwhistler"][self.writtencpu] = rwcpu
-            f["rightcyclo"][self.writtencpu] = rccpu
-            f["helicitycorr"][self.writtencpu] = mhccpu
+            f["enval"][self.writtencpu,0] = hamcpu
+            f["enval"][self.writtencpu,1] = mhcpu
+            f["enval"][self.writtencpu,2] = chcpu
+            f["enval"][self.writtencpu,3] = kinhamcpu
+            f["enval"][self.writtencpu,4] = maghamcpu
+            f["enval"][self.writtencpu,5] = lccpu
+            f["enval"][self.writtencpu,6] = lwcpu
+            f["enval"][self.writtencpu,7] = rwcpu
+            f["enval"][self.writtencpu,8] = rccpu
+            f["enval"][self.writtencpu,9] = vortcpu
+            f["enval"][self.writtencpu,10] = cb2cpu
+            f["enval"][self.writtencpu,11] = mhccpu
+            
+            #f["hamiltonian"][self.writtencpu] = hamcpu
+            #f["maghel"][self.writtencpu] = mhcpu
+            #f["crosshel"][self.writtencpu] = chcpu
+            #f["kinenergy"][self.writtencpu] = kinhamcpu
+            #f["magenergy"][self.writtencpu] = maghamcpu
+            #f["leftwhistler"][self.writtencpu] = lwcpu
+            #f["leftcyclo"][self.writtencpu] = lccpu 
+            #f["rightwhistler"][self.writtencpu] = rwcpu
+            #f["rightcyclo"][self.writtencpu] = rccpu
+            #f["helicitycorr"][self.writtencpu] = mhccpu
+
             f["magneticfields"][self.writtencpu,:,:,:,:] = b1cpu
             f["velocityfields"][self.writtencpu,:,:,:,:] = v1cpu
 
@@ -500,8 +530,8 @@ class DNA2MHD(RHS,DIAGS):
         self.triplet = triplet
 
         self.eig = cp.zeros([self.nx0_big,self.ny0_big,self.nz0_big//2+1,4],dtype="complex64")
-        self.eig[:,:,:,0] = - ((self.vnu+self.etab)*self.kmags**(2*hyper) + 1j * self.kmags * self.kzgrid[None,None,:])/2
-        self.eig[:,:,:,2] = - ((self.vnu+self.etab)*self.kmags**(2*hyper) - 1j * self.kmags * self.kzgrid[None,None,:])/2
+        self.eig[:,:,:,0] = - ((self.vnu+self.etab)*self.kmags**(2*hyper) + 1j * self.kmags * self.kzgrid[None,None,:]*hallparam)/2
+        self.eig[:,:,:,2] = - ((self.vnu+self.etab)*self.kmags**(2*hyper) - 1j * self.kmags * self.kzgrid[None,None,:]*hallparam)/2
         self.eig[:,:,:,1] = cp.sqrt(self.eig[:,:,:,0]**2 - self.vnu * self.etab * self.kmags**(4*hyper) - self.kzgrid[None,None,:]**2 - 1j * self.kmags * self.kzgrid[None,None,:] * self.vnu * self.kmags**(2*hyper))
         self.eig[:,:,:,3] = cp.sqrt(self.eig[:,:,:,2]**2 - self.vnu * self.etab * self.kmags**(4*hyper) - self.kzgrid[None,None,:]**2 + 1j * self.kmags * self.kzgrid[None,None,:] * self.vnu * self.kmags**(2*hyper))
         
@@ -586,10 +616,11 @@ class DNA2MHD(RHS,DIAGS):
                 raise ValueError("LW Triplet or triplet and normal mode types must be specified for three wave initial condition")
 
             # Specify triplet as either list of three wavevectors or list of three wave vectors and normal mode types
-
+            # Wave triplet - 1 + whistler, 0 + cyclotron, 2 - whistler, 3 - cyclotron
+            
             if len(self.triplet) == 9:
                 for i in range(3):
-                    self.triplet.append(0)
+                    self.triplet.append(1)
                 self.initializewave(self.triplet[0:3],2.0,0)
                 self.initializewave(self.triplet[3:6],1.0,0)
                 self.initializewave(self.triplet[6:9],0.5,0)
@@ -668,7 +699,7 @@ class DNA2MHD(RHS,DIAGS):
         coef1 = expL * self.dt
         coef2 = coef1/2
 
-        expL,coef1,coef2 = exponentialcoefficients(self.kxgrid,self.kygrid,self.kzgrid,self.etab,self.vnu,self.hyper,self.dt,128,self.kmags,self.eig)
+        expL,coef1,coef2 = exponentialcoefficients(self.kxgrid,self.kygrid,self.kzgrid,self.etab,self.vnu,self.hyper,self.dt,128,self.kmags,self.eig,self.hallparam)
         #blurb = Have to adjust the zero mode separately because the curl eigenstates are undefined - set coefficients there to zero
         expL[0,0,0,:] = cp.array([1.0,0.0,0.0,1.0,1.0,0.0,0.0,1.0])
         coef1[0,0,0,:] = expL[0,0,0,:]*self.dt

@@ -17,6 +17,7 @@ import scipy.optimize as spo
 import matplotlib.animation as anim
 from matplotlib.ticker import ScalarFormatter,MultipleLocator,MaxNLocator,StrMethodFormatter,LogLocator,LogFormatterExponent,LinearLocator
 from numpy import format_float_positional as ff
+import h5py
 
 par={}       #Global Variable to hold parameters once read_parameters is called
 namelists={}
@@ -84,22 +85,23 @@ def get_grids():
     kxgrid = 0, kxmin, . . . kxmax \n
     kygrid = 0, kymin, . . . kymax, kymax+kymin, -kymax, . . . -kymin """
 
-    kxgrid=np.arange((par['nx0_big']))
-    kxgrid=kxgrid*par['kxmin']
-    kygrid=np.empty(par['ny0_big'])
-    kzgrid=np.empty(par['nz0_big'])
-    herm_grid=np.arange(2)
-    herm_grid=1.0*herm_grid
 
-    for i in range(par['ny0_big']//2):
-        kygrid[par['ny0_big']-1-i]=-float(i+1)*par['kymin']
-        kygrid[i]=float(i)*par['kymin']
-    kygrid[par['ny0_big']//2]=par['ny0_big']/2*par['kymin']
-    
-    for i in range(par['nz0_big']//2):
-        kzgrid[par['nz0_big']-1-i]=-float(i+1)*par['kzmin']
-        kzgrid[i]=float(i)*par['kzmin']
-    kzgrid[par['nz0_big']//2]=par['nz0_big']//2*par['kzmin']
+    try: 
+        with h5py.File(self.lpath+"/output.hdf5","r") as f:
+
+            kxgrid = f["kx"][:]
+            kygrid = f["ky"][:]
+            kzgrid = f["kz"][:]
+
+    except:
+
+        kxgrid = np.arange(0,97)*.025
+        kygrid = np.arange(0,97)*.025
+        kzgrid = np.arange(0,97)*0.005
+
+        kxgrid = np.hstack((kxgrid[:-1],-kxgrid[:0:-1])).astype("float32")
+        kygrid = np.stack((kygrid[:-1],-kygrid[:0:-1])).astype("float32")
+
     return kxgrid,kygrid,kzgrid
 
 def read_time_step_bv(bv,which_itime,swap_endian=False,):
@@ -273,29 +275,29 @@ def load_energy(lpath):
 def read_checkpoint(lpath):
 
    """Reads a time step from bv_out.dat.  Time step determined by \'which_itime\'"""
-   file_name = par['diagdir'][1:-1]+'/s_checkpoint.dat'
-   f = open(file_name,'rb')
-   
-   ntot=par['nx0_big']*par['ny0_big']*par['nz0_big']*3
-   mem_tot=ntot*16
 
-   itime = np.fromfile(f,dtype='int32',count=1)   
-   dt = np.fromfile(f,dtype='float64',count=1)   
-   nkx0 = np.fromfile(f,dtype='int32',count=1)
-   nky0 = np.fromfile(f,dtype='int32',count=1)
-   nkz0 = np.fromfile(f,dtype='int32',count=1)
-   time = np.fromfile(f,dtype='float64',count=1)
+   with h5py.File(self.lpath+"/output.hdf5","r") as f:
 
-   gt0=np.empty((3,par['nz0_big'],par['ny0_big'],par['nx0_big']))
-   gt0=np.fromfile(f,dtype='complex128',count=ntot)
-   b1= np.reshape(gt0,(par['nx0_big'],par['ny0_big'],par['nz0_big'],3),order='F')
+       written = f["written"][0]
 
-   gt0=np.empty((3,par['nz0_big'],par['ny0_big'],par['nx0_big']))
-   gt0=np.fromfile(f,dtype='complex128',count=ntot)
-   v1= np.reshape(gt0,(par['nx0_big'],par['ny0_big'],par['nz0_big'],3),order='F')
+       b1 = f["magneticfields"][written,:,:,:,:]
+       v1 = f["velocityfields"][written,:,:,:,:]
 
-   mhc = np.fromfile(f,dtype='float64',count=1)
-      
+       mhc = f["helicitycorr"][written]
+
+       b1 = np.transpose(b1,(1,2,3,0))
+       v1 = np.transpose(v1,(1,2,3,0))
+
+       x = np.shape(b1)
+       nkx0 = 2*x[0]//3
+       nky0 = 2*x[1]//3
+       nkz0 = 2*(x[2]-1)//3
+
+       times = f["time"][written-1:written+1]
+       time = time[written]
+       dt = time[written]-time[written-1]
+       itime = time//dt
+
    return itime,dt,nkx0,nky0,nkz0,time,b1,v1,mhc
 
 def index_shift(ix,iy,iz):
@@ -374,15 +376,14 @@ def plot_energy(lpath,xb=1,tmax=2000000):
     LW Energy, LC Energy, RW Energy, RC Energy,
     Magnetic Helicity Bound, Canonical Helicity Bound, Magnetic Helicity Correction"""
     
-    read_parameters(lpath)
     if lpath[-1] == "/":
         lpath = lpath[:-1]
-        
-    if False : # os.path.isfile(lpath+'/timeenergy.npy'):
-        timeen,enval = load_energy(lpath)
-    else:
-        timeen,enval = getenergy(lpath,tmax=tmax)
 
+    with h5py.File(lpath+"/output.hdf5","r") as f:
+
+        timeen = f["time"][:]
+        enval = f["enval"][:]        
+        
     #shapes = {1:(1,1),2:(2,1),3:(2,2),4:(2,2),5:(2,3),6:(2,3),7:(3,3),8:(3,3),9:(3,3)}
     #s = shapes[ntp+1]
     
@@ -430,12 +431,8 @@ def plot_energy(lpath,xb=1,tmax=2000000):
     plt.close()    
 
     # Magnetic Helicity Plot
-    if not par["init_null"]:
-        ev = (enval[:,1]+enval[:,-1])/enval[0,-3]
-        ev0 = ev-enval[:,-1]/enval[0,-3]
-    else:
-        ev = enval[:,1]+enval[:,-1]
-        ev0 = enval[:,1]
+    ev = enval[:,1]+enval[:,-1]
+    ev0 = enval[:,1]
     fig,ax = plt.subplots(1)
     ax.plot(timeen,ev,"bs",markersize=1,label="Transformed")
     ax.plot(timeen,ev0,"rs",markersize=1,label="Original")
@@ -453,12 +450,8 @@ def plot_energy(lpath,xb=1,tmax=2000000):
     plt.savefig(lpath+"/eplots/maghcty",bbox_inches='tight')
     plt.close()
 
-    if not par["init_null"]:
-        ev = np.abs((enval[:,1]+enval[:,-1])/enval[0,-3])
-        ev0 = np.abs(ev-enval[:,-1]/enval[0,-3])
-    else:
-        ev = np.abs(enval[:,1]+enval[:,-1])
-        ev0 = np.abs(enval[:,1])
+    ev = np.abs(enval[:,1]+enval[:,-1])
+    ev0 = np.abs(enval[:,1])
     fig,ax = plt.subplots(1)
     ax.plot(timeen,ev,"bs",markersize=1,label="Transformed")
     ax.plot(timeen,ev0,"rs",markersize=1,label="Original")
@@ -474,12 +467,8 @@ def plot_energy(lpath,xb=1,tmax=2000000):
 
     # Canonical Helicity Plot
     fig,ax = plt.subplots(1)
-    if not par["init_null"]:
-        ev = (enval[:,2]+enval[:,-1])/enval[0,-2]
-        ev0 = enval[:,2]/enval[0,-2]
-    else:
-        ev = enval[:,2]+enval[:,-1]
-        ev0 = enval[:,2]
+    ev = enval[:,2]+enval[:,-1]
+    ev0 = enval[:,2]
     ax.plot(timeen,ev,"bs",markersize=1,label="Transformed")
     ax.plot(timeen,ev0,"rs",markersize=1,label="Original")
     r = np.max(ev) - np.min(ev)
@@ -496,12 +485,8 @@ def plot_energy(lpath,xb=1,tmax=2000000):
     plt.savefig(lpath+"/eplots/canhcty",bbox_inches='tight')
     plt.close()
     
-    if not par["init_null"]:
-        ev = np.abs((enval[:,2]+enval[:,-1])/enval[0,-2])
-        ev0 = np.abs(enval[:,2]/enval[0,-2])
-    else:
-        ev = np.abs(enval[:,2]+enval[:,-1])
-        ev0 = np.abs(enval[:,2])
+    ev = np.abs(enval[:,2]+enval[:,-1])
+    ev0 = np.abs(enval[:,2])
     fig,ax = plt.subplots(1)
     ax.plot(timeen,ev,"bs",markersize=1,label="Transformed")
     ax.plot(timeen,ev0,"rs",markersize=1,label="Original")
@@ -544,8 +529,8 @@ def plot_energy(lpath,xb=1,tmax=2000000):
 
     # Mode Energies Plot
     fig,ax = plt.subplots(1)
-    fmts = ['b--','b:','r--','r:']
-    labels = ['+ Helicity Whistler','+ Helicity Cyclotron','- Helicity Whistler','- Helicity Cyclotron']
+    fmts = ['b:','b--','r--','r:']
+    labels = ['+ Helicity Cyclotron','+ Helicity Whistler','- Helicity Whistler','- Helicity Cyclotron']
     for i in range(4):
         ax.plot(timeen,enval[:,5+i]/(4*np.pi**3),fmts[i],label=labels[i])
     ax.set_ylabel("Mode Energy / Guide Field Energy",size="large")
@@ -587,7 +572,6 @@ def numpy_enspec(lpath):
         
 def plot_enspec(lpath,zz=-1,version=3,show=False):
     # Plot energy spectrum at checkpoint time
-    read_parameters(lpath)
     kx,ky,kz = get_grids()
     Ky,Kx,Kz = np.meshgrid(ky,kx,kz)
 
@@ -733,9 +717,19 @@ def plot_enspec(lpath,zz=-1,version=3,show=False):
 def analytical_omega(lpath,ix,iy,iz):
     read_parameters(lpath)
     kx,ky,kz = get_grids()
+
+    try:
+
+        with h5py.File(self.lpath+"/output.hdf5","r") as f:
+
+            hall = f["hall"][0]
+    except:
+        hall = 1
+
+            
     k = np.sqrt(kx[ix]**2 + ky[iy]**2 + kz[iz]**2)
-    wp = kz[iz] * np.sqrt((1+0.5*(par["hall"]*k)**2) + np.sqrt((1+0.5*(par["hall"]*k)**2)**2 - 1))
-    wm = kz[iz] * np.sqrt((1+0.5*(par["hall"]*k)**2) - np.sqrt((1+0.5*(par["hall"]*k)**2)**2 - 1))
+    wp = kz[iz] * np.sqrt((1+0.5*(hall*k)**2) + np.sqrt((1+0.5*(hall*k)**2)**2 - 1))
+    wm = kz[iz] * np.sqrt((1+0.5*(hall*k)**2) - np.sqrt((1+0.5*(hall*k)**2)**2 - 1))
     #wp = kz[iz]*(-np.sqrt(kx[ix]**2+ky[iy]**2+kz[iz]**2)/2 + np.sqrt(1+ (kx[ix]**2+ky[iy]**2+kz[iz]**2)/4))
     #wm = kz[iz]*(-np.sqrt(kx[ix]**2+ky[iy]**2+kz[iz]**2)/2 - np.sqrt(1+ (kx[ix]**2+ky[iy]**2+kz[iz]**2)/4))
     return wp,wm
@@ -763,23 +757,12 @@ def enheldev(lpath,local=0):
 def convert_spec_to_real(lpath,spectra):
     """Performs IFFTs needed to get real space values on one time b or mode"""
 
-    read_parameters(lpath)
-    print(len(np.shape(spectra)))
-    if len(np.shape(spectra)) == 3:
-        if par['splitx']:
-            ts = np.transpose(spectra,axes=(2,1,0))
-            ftrs = irfftn(ts,axes=(0,1,2))
-            res = np.transpose(ftrs,(2,1,0))
-        else:
-            res = irfftn(spectra,axes=(0,1,2))
-    else:
-        if par['splitx']:
-            ts = np.transpose(spectra,axes=(2,1,0,3))
-            ftrs = irfftn(ts,axes=(0,1,2))
-            res = np.transpose(ftrs,(2,1,0,3))
-        else:
-            res = irfftn(spectra,axes=(0,1,2))
+
+    res = irfftn(spectra,axes=(0,1,2))
+
     return(res)
+
+
 
 def plot_bvspectrum(lpath,bv,ix,iy,iz,ind,show=False):
     """                                                                                                                                                                  
@@ -790,6 +773,7 @@ def plot_bvspectrum(lpath,bv,ix,iy,iz,ind,show=False):
     *** Right now it seems like freqs need to multiplied by 2*pi to get the right dispersion relation.                                                                   
         I think this makes sense because w = 2*pi*f                                                                                                                      
     """
+
     ind_strings= ['x','y','z']
     ind_string=ind_strings[ind]
     ix,iy,iz = index_shift(ix,iy,iz)
@@ -797,6 +781,7 @@ def plot_bvspectrum(lpath,bv,ix,iy,iz,ind,show=False):
     read_parameters(lpath)
     kx,ky,kz=get_grids()
     print(par['dt_max'])
+    
     if bv=='b':
         time,b=load_bv(lpath,"b")
         dt = time[1]-time[0]
@@ -841,7 +826,7 @@ def plot_bvspectrum(lpath,bv,ix,iy,iz,ind,show=False):
     return freq[peaks]*2*np.pi
 
 def integrated_spectrum_1d(spec,lpath,v=3):
-    read_parameters(lpath)
+
     kx,ky,kz = get_grids()
     kygrid,kxgrid = np.meshgrid(ky[1:],kx[1:])
     kpgrid = np.sqrt(kxgrid**2 + kygrid**2)
@@ -873,7 +858,6 @@ def integrated_spectrum_1d(spec,lpath,v=3):
 
 def nlparam(lpath):
 
-    read_parameters(lpath)
     kx,ky,kz = get_grids()
     t,itime,ekbf,ekvf = numpy_enspec(lpath)
 
@@ -929,20 +913,30 @@ def modes_from_check(lpath):
         rck = data["rck"]
     else:
         kx,ky,kz = get_grids()
+
+        Nx = np.size(kx)
+        Ny = np.size(ky)
+        Nz = np.size(kz)
         
         Ky,Kx,Kz = np.meshgrid(ky,kx,kz)
         kmags = np.sqrt(Kx**2 + Ky**2 + Kz**2)
-        alpha_lw = -(par["hall"]*kmags)/2 - np.sqrt(1+(par["hall"]*kmags)**2 /4)
-        alpha_lc = -(par["hall"]*kmags)/2 + np.sqrt(1+(par["hall"]*kmags)**2 /4)
+
+        try:
+            with h5py.File(self.lpath+"/output.hdf5","r") as f:
+                hall = f["hall"][0]
+        except:
+            hall = 1
+        
+        alpha_lw = -(hall*kmags)/2 - np.sqrt(1+(hall*kmags)**2 /4)
+        alpha_lc = -1/alpha_lw
     
-        Kvec = np.zeros([par['nx0_big'],par['ny0_big'],par['nz0_big'],3],dtype='complex64')
-        Zvec = np.zeros([par['nx0_big'],par['ny0_big'],par['nz0_big'],3],dtype='complex64')
+        Kvec = np.zeros([Nx,Ny,Nz,3],dtype='complex32')
+        Zvec = np.zeros([Nx,Ny,Nz,3],dtype="complex32")
         Kvec[:,:,:,0] = Kx
         Kvec[:,:,:,1] = Ky
         Kvec[:,:,:,2] = Kz
         Zvec[:,:,:,2] = 1
         
-        pceig = np.zeros([par['nx0_big'],par['ny0_big'],par['nz0_big'],3],dtype='complex64')
         pceig = np.cross(Kvec,Zvec,axis=-1)
         pceig += 1/kmags[:,:,:,None] * 1.0j * np.cross(Kvec,pceig,axis=-1)
                 
@@ -954,10 +948,10 @@ def modes_from_check(lpath):
         pceig = pceig / (np.sqrt(2) * np.sqrt(Kx[:,:,:,None]**2 + Ky[:,:,:,None]**2))
         pceig[0,0,:,:] = 0
 
-        lwk = np.zeros([par['nx0_big'],par['ny0_big'],par['nz0_big']],dtype='complex64')
-        lck = np.zeros([par['nx0_big'],par['ny0_big'],par['nz0_big']],dtype='complex64')
-        rwk = np.zeros([par['nx0_big'],par['ny0_big'],par['nz0_big']],dtype='complex64')
-        rck = np.zeros([par['nx0_big'],par['ny0_big'],par['nz0_big']],dtype='complex64')
+        lwk = np.zeros([Nx,Ny,Nz],dtype="complex32")
+        lck = np.zeros([Nx,Ny,Nz],dtype="complex32")
+        rwk = np.zeros([Nx,Ny,Nz],dtype="complex32")
+        rck = np.zeros([Nx,Ny,Nz],dtype="complex32")
 
         lwk = np.sum(np.conj(pceig[:,:,:,:])*(alpha_lw[:,:,:,None]*b1[:,:,:,:]+v1[:,:,:,:]),axis=-1)/np.sqrt(alpha_lw**2.0 + 1)
         lck = np.sum(np.conj(pceig[:,:,:,:])*(alpha_lc[:,:,:,None]*b1[:,:,:,:]+v1[:,:,:,:]),axis=-1)/np.sqrt(alpha_lc**2.0 + 1)
@@ -978,7 +972,6 @@ def modes_from_check(lpath):
 
 def mode_break(lpath,show=False,tmax=200000):
 
-    read_parameters(lpath)
     kx,ky,kz = get_grids()
 
     time,itime,lwk,lck,rwk,rck = modes_from_check(lpath)
@@ -1029,21 +1022,26 @@ def mode_break(lpath,show=False,tmax=200000):
     ax.plot(kperps,spec1df3,fmts[2],label=labels[2])
     ax.plot(kperps,spec1df4,fmts[3],label=labels[3])
 
-    if par["init_cond"] >= 31:
+    try:
+        with h5py.File(self.lpath+"/output.hdf5","r") as f:
+            triplet = f["threewaves"][:]
+
         for i in range(3):
-            kxi = par["wave"+str(i+1)+"x"] 
-            kyi = par["wave"+str(i+1)+"y"]
-            kzi = par["wave"+str(i+1)+"z"]
-            ki = np.sqrt(kx[kxi-1]**2 + ky[kyi-1]**2)
+            kxi = triplet[3*i]
+            kyi = triplet[3*i+1]
+            kzi = triplet[3*i+2]
+            ki = np.sqrt(kxi**2 + kyi**2)
             kpind = np.argwhere(kperps < ki)[-1]
             if i == 1:
                 ax.plot(kperps[kpind],spec1df1[kpind],marker="x",color=fmts[0][0],label="Three Wave")
             else:
-                ax.plot(kperps[kpind],spec1df1[kpind],marker="x",color=fmts[0][0])
+                ax.plot(kperps[kpind],spec1df1[kpind],marker="x",color=fmts[0][0])~
             ax.plot(kperps[kpind],spec1df2[kpind],marker="x",color=fmts[1][0])
             ax.plot(kperps[kpind],spec1df3[kpind],marker="x",color=fmts[2][0])
             ax.plot(kperps[kpind],spec1df4[kpind],marker="x",color=fmts[3][0])
-    
+    except:
+        continue
+
     m = min(np.amin(spec1df1[np.nonzero(spec1df1)]),np.amin(spec1df2[np.nonzero(spec1df2)]),
             np.amin(spec1df3[np.nonzero(spec1df3)]),np.amin(spec1df4[np.nonzero(spec1df4)]))
     M = max(np.amax(spec1df1[np.nonzero(spec1df1)]),np.amax(spec1df2[np.nonzero(spec1df2)]),
@@ -1054,11 +1052,7 @@ def mode_break(lpath,show=False,tmax=200000):
     ax.set_yscale("log")
     ax.set_xscale("log")
     ax.set_ylim(max(m/10,10**(-16)),M*10)
-
-    if par["init_cond"] >= 31:
-        ax.legend(loc="lower right")
-    else:
-        ax.legend(loc="upper right")
+    ax.legend()
     fig.suptitle("Mode Energy Spectra at t = %.2f $(\omega_c^{-1})$ " % (time))
     fig.savefig(lpath+"/eplots/modespec.png",bbox_inches="tight")
     if show == True:
@@ -1106,9 +1100,17 @@ def structurefunction(lpath,tmax=2*10**10):
     pmsymbols = ["++","+-","-+","--"]
     stname = ["phw","phc","nhw","nhc"]
 
-    xs = np.pi / par['nkx0'] * np.arange(2*par['nkx0']) / par['kxmin']
-    ys = 2*np.pi / par['nky0'] * np.arange(par['nky0']) / par['kymin']
-    zs = 2*np.pi / par['nkz0'] * np.arange(par['nkz0']) / par['kzmin']
+    nx = 2/3 * np.size(kx)
+    ny = 2/3 * np.size(ky)
+    nz = 2/3 * np.size(kz)
+
+    xs = 2 * np.pi/nx * np.arange(nx) / kx[1]
+    ys = 2 * np.pi/ny * np.arange(ny) / ky[1]
+    zs = np.pi / nz * np.arange(2*nz) / kz[1]
+    
+    #xs = np.pi / par['nkx0'] * np.arange(2*par['nkx0']) / par['kxmin']
+    #ys = 2*np.pi / par['nky0'] * np.arange(par['nky0']) / par['kymin']
+    #zs = 2*np.pi / par['nkz0'] * np.arange(par['nkz0']) / par['kzmin']
     
     modespecs = [lwk,lck,rwk,rck]
 
@@ -1134,11 +1136,6 @@ def structurefunction(lpath,tmax=2*10**10):
             # assume axisymmetric for transverse struct fn - test this later
         # very small - lets rescale to check Parseval's theorem print(np.amax(mm**2)); sum(ms**2) = sum(mm**2)/N
         mm *= np.sqrt(np.sum(np.abs(ms[0,:,:])**2+2*np.abs(ms[1:,:,:])**2)*np.size(mm)/(np.sum(mm**2)))*np.sqrt(8*np.pi**3)
-        
-        if par["splitx"]:
-            nx = 2*par["nkx0"]
-        else:
-            nx = par["nkx0"]
 
         # perpendicular structure function
         str_perp = np.zeros(nx)
@@ -1147,14 +1144,13 @@ def structurefunction(lpath,tmax=2*10**10):
                 str_perp[j] = np.average((np.roll(mm,j,0)-mm)**2)
             
         # parallel structure function
-        str_par = np.zeros(par["nkz0"])
-        for k in range(par["nkz0"]//2):
+        str_par = np.zeros(2*nz)
+        for k in range(nz):
             if k != 0:
                 str_par[k] = np.average((np.roll(mm,k,2)-mm)**2)
 
         pt = np.nonzero(str_perp)
         pz = np.nonzero(str_par)
-
 
         print("Maximum",np.amax(str_perp),np.amax(str_par))
         
@@ -1252,10 +1248,9 @@ def structurefunction(lpath,tmax=2*10**10):
         
 def mode_nlparam(lpath,tt,dim,show=False,tmax=200000):
 
-    read_parameters(lpath)
     kx,ky,kz = get_grids()
 
-    t,lwk,lck,rwk,rck = modes_from_bv(lpath)
+    t,lwk,lck,rwk,rck = modes_from_check(lpath)
 
     kyy,kxx,kzz = np.meshgrid(ky[1:],kx[1:],kz[1:])
     kmags = np.sqrt(kxx**2 +kyy**2 + kzz**2)
@@ -1321,78 +1316,198 @@ def patch_mhc(mhc):
 
 def threewaveenergy(lpath):
 
-    read_parameters(lpath)
-    if par["init_cond"] >= 31:
+    if lpath[-1] == "/":
+        lpath = lpath[:-1]
+    
+    with h5py.File(self.lpath+"/output.hdf5","r") as f:
 
-        kxgrid,kygrid,kzgrid = get_grids()
-        if lpath[-1] == "/":
-            lpath = lpath[:-1]
-            
-        f = open(lpath+"/threewave_out.dat","rb")
-        timeenergies = np.fromfile(f,dtype="float64",count=-1)
+        try:
+            triplet = f["threewaves"][:]
+        except:
+            ValueError("Not a three wave simulation")
 
-        kxs = []
-        kys = []
-        kzs = []
-        ks = []
-
-        for i in range(3):
-            kx = kxgrid[par["wave"+str(i+1)+"x"]-1]
-            kxs.append(kx)
-            ky = kygrid[par["wave"+str(i+1)+"y"]-1]
-            kys.append(ky)
-            kz = kzgrid[par["wave"+str(i+1)+"z"]-1]
-            kzs.append(kz)
-            ks.append(np.sqrt(kx**2 + ky**2 + kz**2))
+        time = f["time"][:]
+        threewaveenergies = f["threewaveenergies"][:,:]
         
-        if par["init_cond"] <= 33:
-            wave1 = 1
-            wave2 = 5
-            wave3 = 9
-        elif par["init_cond"] <= 35:
-            wave1 = 1
-            wave2 = 5
-            wave3 = 10
+    kxgrid,kygrid,kzgrid = get_grids()
+    
+    kxs = triplet[0:3:9]
+    kys = triplet[1:3:9]
+    kzs = triplet[2:3:9]
+    modetypes = np.int32(triplet[9:])
+    
+    ks = np.sqrt(kxs**2 + kys**2 + kzs**2)
+    ii = np.argsort(ks)
 
-        waves = [wave1,wave2,wave3]
+    colors = ["mediumturquoise","tomato","olivedrab"]
+    
+    plt.figure()
+    for i in range(3):
+        mt = modetypes[ii[i]]
+        plt.plot(time,threewaveenergies[:,4*ii[i]+mt],color=colors[i],label=(ff(kxs[ii[i]],2),ff(kys[ii[i]],2),ff(kzs[ii[i]],2)))
+    plt.xlabel("Time ($\omega_c^{-1}$)")
+    plt.ylabel("Wave Energy / Guide Field Energy")
+    plt.ylim(10**(-7),10**1)
+    if lpath == "/pscratch/sd/e/echansen/DNA2MHDruns/austinsherwoodperp2":
+        plt.xlim(0,2000)
+    plt.title("Resonance Condition Wave Interaction")
+    plt.yscale("log")
+    plt.legend(loc="lower right")
+    plt.savefig(lpath+"/eplots/threewaves")
 
-        ii = np.argsort(ks)
-        print(ii)
-
-        waves_ii = [waves[ii[0]],waves[ii[1]],waves[ii[2]]]
-        colors = ["mediumturquoise","tomato","olivedrab"]
-
+    for i in range(3):
         plt.figure()
-        for i in range(3):
-            plt.plot(timeenergies[::13],timeenergies[waves_ii[i]::13]/(4*np.pi**3.0),color=colors[i],label=(ff(kxs[ii[i]],2),ff(kys[ii[i]],2),ff(kzs[ii[i]],2)))
+        plt.plot(time,threewaveenergies[:,4*i+1]/(4*np.pi**3.0),color="b",linestyle="--",label="Positive Whistler")
+        plt.plot(time,threewaveenergies[:,4*i]/(4*np.pi**3.0),color="b",linestyle=":",label="Positive Cyclotron")
+        plt.plot(time,threewaveenergies[:,4*i+2]/(4*np.pi**3.0),color="r",linestyle="--",label="Negative Whistler")
+        plt.plot(time,threewaveenergies[:,4*i+3]/(4*np.pi**3.0),color="r",linestyle=":",label="Negative Cyclotron")
+        plt.legend()
         plt.xlabel("Time ($\omega_c^{-1}$)")
         plt.ylabel("Wave Energy / Guide Field Energy")
-        plt.ylim(10**(-7),10**1)
-        if lpath == "/pscratch/sd/e/echansen/DNA2MHDruns/austinsherwoodperp2":
-            plt.xlim(0,2000)
-        plt.title("Resonance Condition Wave Interaction")
         plt.yscale("log")
+        plt.ylim(10**(-7),10**1)
+        plt.title("Wave Energies k "+ff(kxs[i],2)+" "+
+                  ff(kys[i],2)+" "+ff(kzs[i],2))
         plt.legend(loc="lower right")
-        plt.savefig(lpath+"/eplots/threewaves")
+        plt.savefig(lpath+"/eplots/wavebreakdown"+str(i+1))
+        plt.close()
 
-        for i in range(3):
-            plt.figure()
-            plt.plot(timeenergies[::13],timeenergies[4*i+1::13]/(4*np.pi**3.0),color="b",linestyle="--",label="Positive Whistler")
-            plt.plot(timeenergies[::13],timeenergies[4*i+2::13]/(4*np.pi**3.0),color="b",linestyle=":",label="Positive Cyclotron")
-            plt.plot(timeenergies[::13],timeenergies[4*i+3::13]/(4*np.pi**3.0),color="r",linestyle="--",label="Negative Whistler")
-            plt.plot(timeenergies[::13],timeenergies[4*i+4::13]/(4*np.pi**3.0),color="r",linestyle=":",label="Negative Cyclotron")
-            plt.legend()
-            plt.xlabel("Time ($\omega_c^{-1}$)")
-            plt.ylabel("Wave Energy / Guide Field Energy")
-            plt.yscale("log")
-            plt.ylim(10**(-7),10**1)
-            plt.title("Wave Energies k "+ff(kxs[i],2)+" "+
-                      ff(kys[i],2)+" "+ff(kzs[i],2))
-            plt.legend(loc="lower right")
-            plt.savefig(lpath+"/eplots/wavebreakdown"+str(i+1))
-            plt.close()
+    return(time,threewaveenergies)
+    
+def nonlinearities(lpath):
 
-        return(timeenergies)
+    kx,ky,kz = get_grids()
+    itime,dt,nkx0,nky0,nkz0,time,b1,v1,mhc = read_checkpoint(lpath)
+    b1[0,0,0,:] = 0.0 
+    
+    if not os.path.exists(lpath+"/nonlinearity.npz"):
+
+        mask = np.ones_like(b1,dtype="int32")
+        mask[nkx0:2*nkx0,:,:,:] = 0
+        mask[:,nky0:2*nky0,:,:] = 0
+        mask[:,:,nkz0:,:] = 0
+
+        bx = irfftn(binput[:,:,:,0])
+        by = irfftn(binput[:,:,:,1])
+        bz = irfftn(binput[:,:,:,2])
+    
+        vx = irfftn(vinput[:,:,:,0])
+        vy = irfftn(vinput[:,:,:,1])
+        vz = irfftn(vinput[:,:,:,2])
+
+        dum = 1j*self.kygrid[None,:,None]*binput[2,:,:,:]-1j*self.kzgrid[None,None,:]*binput[1,:,:,:]
+        curlbx = irfftn(dum)
+
+        dum = 1j*self.kzgrid[None,None,:]*binput[0,:,:,:]-1j*self.kxgrid[:,None,None]*binput[2,:,:,:]
+        curlby = irfftn(dum)
+
+        dum = 1j*self.kxgrid[:,None,None]*binput[1,:,:,:]-1j*self.kygrid[None,:,None]*binput[0,:,:,:]
+        curlbz = irfftn(dum)
+
+        dum = 1j*self.kygrid[None,:,None]*vinput[2,:,:,:]-1j*self.kzgrid[None,None,:]*vinput[1,:,:,:]
+        curlvx = irfftn(dum)
+
+        dum = 1j*self.kzgrid[None,None,:]*vinput[0,:,:,:]-1j*self.kxgrid[:,None,None]*vinput[2,:,:,:]
+        curlvy = irfftn(dum)
+
+        dum = 1j*self.kxgrid[:,None,None]*vinput[1,:,:,:]-1j*self.kygrid[None,:,None]*vinput[0,:,:,:]
+        curlvz = irfftn(dum)
+
+        N = np.size(bx)
+        
+        bout = np.zeros_like(b1)
+        dum = vy * bz - vz * by
+        dum2 = rfftn(dum) * N
+        bout[:,:,:,1] += 1j * self.kzgrid[None,None,:] * dum2
+        bout[:,:,:,2] -= 1j * self.kygrid[None,:,None] * dum2
+
+        dum = vz * bx   - vx * bz
+        dum2 = rfftn(dum) *	N
+        bout[:,:,:,0] += -1j * self.kzgrid[None,None,:] * dum2
+        bout[:,:,:,2] += 1j * self.kxgrid[:,None,None] * dum2
+        
+        dum = vx * by   - vy * bx
+        dum2 = rfftn(dum) *	N
+        bout[:,:,:,0] += 1j * self.kygrid[None,:,None] * dum2
+        bout[:,:,:,1] += -1j * self.kxgrid[:,None,None] * dum2
+
+        vxb = np.sum(np.abs(bout)**2.0,axis=-1)
+
+        bout = np.zeros_like(b1)
+        dum = self.hallparam * ( curlby * bz - curlbz * by )
+        dum2 = rfftn(dum) *	N
+        bout[:,:,:,1] += 1j	* self.kzgrid[None,None,:] * dum2
+        bout[:,:,:,2] -= 1j	* self.kygrid[None,:,None] * dum2
+
+        dum = self.hallparam * ( curlbz * bx - curlbx * bz )
+        dum2 = rfftn(dum) * N
+        bout[:,:,:,0] += -1j * self.kzgrid[None,None,:] * dum2
+        bout[:,:,:,2] += 1j * self.kxgrid[:,None,None] * dum2
+
+        dum = self.hallparam * ( curlbx * by - curlby * bx )
+        dum2 = rfftn(dum) * N
+        bout[:,:,:,0] += 1j * self.kygrid[None,:,None] * dum2
+        bout[:,:,:,1] += -1j * self.kxgrid[:,None,None] * dum2
+
+        hallfx = np.sum(np.abs(bout)**2.0,axis=-1)
+
+        bout = np.zeros_like(b1)
+        dum = vy * curlvz - vz * curlvy
+        bout[:,:,:,0] = rfftn(dum) * N
+
+        dum = vz * curlvx - vx * curlvz
+        bout[:,:,:,1] = rfftn(dum) * N
+
+        dum = vx * curlvy - vy * curlvx
+        bout[:,:,:,2] = rfftn(dum) * N
+        
+        vdv = np.sum(np.abs(bout)**2.0,axis=-1)
+
+        bout = np.zeros_like(b1)
+        dum = curlby * bz - curlbz * by
+        bout[:,:,:,0] = rfftn(dum) * N
+        
+        dum = curlbz * bx - curlbx * bz
+        bout[:,:,:,1] = rfftn(dum) * N
+        
+        dum = curlbx * by - curlby * bx
+        bout[:,:,:,2] = rfftn(dum) * N
+        
+        jxb = np.sum(np.abs(bout)**2.0,axis=-1)
+
+        vxb *= mask
+        hallfx *= mask
+        vdv *= mask
+        jxb *= mask
+        
+        np.savez(lpath+"/nonlinearity.npz",vxb=vxb,hallfx=hallfx,vdv=vdv,jxb=jxb)
+
     else:
-        print("Not a three wave simulation")
-        return(None)
+
+        data = np.load(lpath+"/nonlinearity.npz")
+
+        vxb = data["vxb"]
+        hallfx = data["hallfx"]
+        vdv = data["vdv"]
+        jxb = data["jxb"]
+
+    fig,ax = plt.subplots(1)
+    kperps,vxb1 = integrated_spectrum_1d(vxb,lpath,v=3)
+    kperps,hallfx1 = integrated_spectrum_1d(hallfx,lpath,v=3)
+    kperps,vdv1 = integrated_spectrum_1d(vdv,lpath,v=3)
+    kperps,jxb1 = integrated_spectrum_1d(jxb,lpath,v=3)
+
+    ax.plot(kperps,vxb1,"b:",label="$\nabla\times(v\times b)$")
+    ax.plot(kperps,hallfx1,"b--",label="$\nabla\times((\nabla\times b)\times b)$")
+    ax.plot(kperps,vdv1,"r:",label="$v\times(\nabla\times v)$")
+    ax.plot(kperps,jxb1,"r--",label="(\nabla\times b)\times b")
+    ax.set_yscale("log")
+    ax.set_xlabel("$k_\perp$ (d_i^{-1})")
+    ax.set_ylabel("Nonlinearity Amplitude")
+    ax.legend()
+    
+    fig.suptitle("Relative Strength of Hall MHD Nonlinearities with k")
+    fig.savefig(lpath+"/nlstrength",bbox_inches="tight")
+    plt.close()
+
+    return(None)
