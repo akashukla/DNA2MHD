@@ -4,23 +4,32 @@ import time
 from dna2mhd_expintegrator import exponentialcoefficients
 import os
 from shutil import rmtree
+from cupy import float32,complex64,int32,float64,complex128
+import h5py
+import numpy as np
+from numpy import float32 as float32c
+from numpy import complex64 as complex64c
+from numpy import int32 as int32c
 
 class RHS:
 
     def hallrhs(self,binput,vinput):
+        
+        bout,vout = self.convolutions(binput,vinput)
 
-        if self.linear:
-            bout,vout = self.rhslinear(binput,vinput)
-        else:
-            bout,vout = self.convolutions(binput,vinput)
-        bout,vout = self.removediv(bout,vout)
+        bout -= self.etab * self.kmags**(2*self.hyper) * binput
+        vout -= self.vnu * self.kmags**(2*self.hyper) * vinput
 
-        return(bout,vout)
+        mhc = self.helicitycorrection(binput,vinput)
+
+        self.removediv(bout,vout)
+        
+        return(bout,vout,mhc)
 
     def rhslinear(self,binput,vinput):
 
         bout = cp.zeros_like(self.b1)
-        vout = cp.zeros_like(self.v1)        
+        vout = cp.zeros_like(self.v1)
         
         bout[0,:,:,:] = (1j * vinput[0,:,:,:] + self.kygrid[None,:,None]*binput[2,:,:,:] - self.kzgrid[None,None,:]*binput[1,:,:,:])
         bout[1,:,:,:] = (1j * vinput[1,:,:,:] + self.kzgrid[None,None,:]*binput[0,:,:,:] - self.kxgrid[:,None,None]*binput[2,:,:,:])
@@ -39,8 +48,8 @@ class RHS:
         #  dA/dt    = (v - h curl b) x b  dv/dt = v x curl v + curl b x b
         # d(A+h v)/dt = (v x (h curl v + b))
 
-        bout = cp.zeros_like(self.b1)
-        vout = cp.zeros_like(self.v1)
+        bout = cp.zeros_like(binput)
+        vout = cp.zeros_like(vinput)
 
         bx = irfftn(binput[0,:,:,:])
         by = irfftn(binput[1,:,:,:])
@@ -101,7 +110,7 @@ class RHS:
 
     def reset_phase(self):
 
-        return(cp.exp(1j*cp.pi*2*cp.random.rand(self.nx0_big,self.ny0_big,self.nz0_big//2 + 1)))
+        return(cp.exp(1j*cp.pi*2*cp.random.rand(self.nx0_big,self.ny0_big,self.nz0_big//2 + 1)).astype("complex64"))
     
     def force(self):
 
@@ -202,69 +211,54 @@ class DIAGS:
 
     def hallmodeenergies(self):
 
+        # Energies in each type of inviscid normal mode for kz != 0
+        
         # Dot product
-
-        det = ( (self.vnu * self.kmags**(2*self.hyper)+self.eig[:,:,:,0])* (self.vnu * self.kmags**(2*self.hyper) + self.eig[:,:,:,1])+ kzgrid[None,None,:]**2.0 )
+        det = (1j * self.kzgrid[None,None,:])*(self.eig[:,:,:,0]-self.eig[:,:,:,1])
+        # det = ( (self.vnu * self.kmags**(2*self.hyper)+self.eig[:,:,:,0])* (self.vnu * self.kmags**(2*self.hyper) + self.eig[:,:,:,1])+ kzgrid[None,None,:]**2.0 )
         
         lwk = (1j * self.kzgrid[None,None,:] * self.bplus - (self.eig[:,:,:,1] + self.vnu * self.kmags**(2*self.hyper)) * self.vplus)/det 
         lwk *= cp.sqrt(cp.abs(self.eig[:,:,:,0] + self.vnu * self.kmags**(2*self.hyper))**2.0 + self.kzgrid[None,None,:]**2.0)
-        lw = 2.0*cp.sum(cp.abs(lwk[:,:,1:])**2.0) + cp.sum(cp.abs(lwk[:,:,0])**2.0)        
+        lw = 2.0*cp.sum(cp.abs(lwk[:,:,1:])**2.0)
         lw *= (4.0*cp.pi**3)
-
+        
         if self.initcond == "threewave":
             lw1,lw2,lw3 = self.tripletamps(lwk)
             
         lwk = (-1j * self.kzgrid[None,None,:] * self.bplus + (self.eig[:,:,:,0] + self.vnu * self.kmags**(2*self.hyper)) * self.vplus)/det
         lwk *= cp.sqrt(cp.abs(self.eig[:,:,:,1] + self.vnu * self.kmags**(2*self.hyper))**2.0 + self.kzgrid[None,None,:]**2.0)
-        lc = 2.0 * cp.sum(cp.abs(lwk[:,:,1:])**2.0) + cp.sum(cp.abs(lwk[:,:,0])**2.0)
+        lc = 2.0 * cp.sum(cp.abs(lwk[:,:,1:])**2.0)
         lc *= 4.0 * cp.pi**3
         if self.initcond == "threewave":
             lc1,lc2,lc3 = self.tripletamps(lwk)
 
-        det = ( (self.vnu * self.kmags**(2*self.hyper)+self.eig[:,:,:,2])* (self.vnu * self.kmags**(2*self.hyper) + self.eig[:,:,:,3])+ kzgrid[None,None,:]**2.0 )
+        det = (1j * self.kzgrid[None,None,:])*(self.eig[:,:,:,2]-self.eig[:,:,:,3])
+        #det = ( (self.vnu * self.kmags**(2*self.hyper)+self.eig[:,:,:,2])* (self.vnu * self.kmags**(2*self.hyper) + self.eig[:,:,:,3])+ kzgrid[None,None,:]**2.0 )
         
         lwk = (1j * self.kzgrid[None,None,:] * self.bminus - (self.eig[:,:,:,3] + self.vnu * self.kmags**(2*self.hyper)) * self.vminus)/det
         lwk *= cp.sqrt(cp.abs(self.eig[:,:,:,2] + self.vnu * self.kmags**(2*self.hyper))**2.0 + self.kzgrid[None,None,:]**2.0)
-        rw = 2.0 * cp.sum(cp.abs(lwk[:,:,1:])**2.0) + cp.sum(cp.abs(lwk[:,:,0])**2.0)
+        rw = 2.0 * cp.sum(cp.abs(lwk[:,:,1:])**2.0)
         rw *= 4.0 * cp.pi**3
         if self.initcond == "threewave":
             rw1,rw2,rw3 = self.tripletamps(lwk)
 
         lwk = (-1j * self.kzgrid[None,None,:] * self.bminus + (self.eig[:,:,:,2] + self.vnu * self.kmags**(2*self.hyper)) * self.vminus)/det
         lwk *= cp.sqrt(cp.abs(self.eig[:,:,:,3] + self.vnu * self.kmags**(2*self.hyper))**2.0 + self.kzgrid[None,None,:]**2.0)
-        rc = 2.0 * cp.sum(cp.abs(lwk[:,:,1:])**2.0) + cp.sum(cp.abs(lwk[:,:,0])**2.0)
+        rc = 2.0 * cp.sum(cp.abs(lwk[:,:,1:])**2.0)
         rc *= 4.0 * cp.pi**3
         if self.initcond == "threewave":
             rc1,rc2,rc3 = self.tripletamps(lwk)
 
         # Write three wave energy file if three wave simulation
         if self.initcond == "threewave":
-
-            if self.itime == 0:
-                f = open(self.lpath+"/threewave.dat","wb")
-            else:
-                f = open(self.lpath+"/threewave.dat","ab")
-
-            f.write(self.itime)
-            f.write(lw1)
-            f.write(lc1)
-            f.write(rw1)
-            f.write(rc1)
-            f.write(lw2)
-            f.write(lc2)
-            f.write(rw2)
-            f.write(rc2)
-            f.write(lw3)
-            f.write(lc3)
-            f.write(rw3)
-            f.write(rc3)
-            f.close()
+            
+            self.tripletenergies = cp.array([lw1,lc1,rw1,rc1,lw2,lc2,rw2,rc2,lw3,lc3,rw3,rc3])
 
         return(lw,lc,rw,rc)
 
-    def helicitycorrection(self):
+    def helicitycorrection(self,binput,vinput):
 
-        correction = cp.real(self.b2[0,:,:,:]*cp.conj(self.v2[1,:,:,:])-self.b2[1,:,:,:]*cp.conj(self.v2[0,:,:,:]))
+        correction = cp.real(binput[0,:,:,:]*cp.conj(vinput[1,:,:,:])-binput[1,:,:,:]*cp.conj(vinput[0,:,:,:]))
 
         mhc = 2.0*cp.sum(correction[:,:,1:])+cp.sum(correction[:,:,0])
         mhc *= -16*cp.pi**3
@@ -287,6 +281,94 @@ class DIAGS:
 
         f.close()
         
+        return(None)
+
+    def createhdf5file(self):
+
+        if os.path.exists(self.lpath+"/output.hdf5") and (self.itime == 0):
+
+            rmtree(self.lpath)
+            os.mkdir(self.lpath)
+
+        if not os.path.exists(self.lpath+"/output.hdf5"):
+
+            with h5py.File(self.lpath+"/output.hdf5","a") as f:
+
+                written = f.create_dataset("written",(1,),dtype="int32",data=int32c(0))
+                times = f.create_dataset("time",(self.record+1,),dtype="float32")
+                totalenergy = f.create_dataset("hamiltonian",(self.record+1,),dtype="float32")
+                magnetichelicity = f.create_dataset("maghel",(self.record+1,),dtype="float32")
+                crosshel = f.create_dataset("crosshel",(self.record+1,),dtype="float32")
+                kinetic = f.create_dataset("kinenergy",(self.record+1,),dtype="float32")
+                magnetic = f.create_dataset("magenergy",(self.record+1,),dtype="float32")
+                leftwhistler = f.create_dataset("leftwhistler",(self.record+1,),dtype="float32")
+                leftcyclo = f.create_dataset("leftcyclo",(self.record+1,),dtype="float32")
+                rightwhistler = f.create_dataset("rightwhistler",(self.record+1,),dtype="float32")
+                rightcyclo = f.create_dataset("rightcyclo",(self.record+1,),dtype="float32")
+                helicitycorr = f.create_dataset("helicitycorr",(self.record+1,),dtype="float32")
+
+                if self.initcond == "threewave":
+
+                    tripletcpu = cp.asnumpy(self.triplet)
+                    threewaves = f.create_dataset("threewaves",(12,),dtype="float32",data=tripletcpu)
+                    threewaveenergies = f.create_dataset("threewaveenergies",(self.record+1,12),dtype="float32")
+
+                magneticfields = f.create_dataset("magneticfields",(self.record+1,3,self.nx0_big,self.ny0_big,self.nz0_big//2+1),dtype="complex64")
+                velocityfields = f.create_dataset("velocityfields",(self.record+1,3,self.nx0_big,self.ny0_big,self.nz0_big//2+1),dtype="complex64")
+
+        return(None)
+    
+    def writefile(self):
+
+        ham = self.hamiltonian(0)
+        kinham = self.hamiltonian(1)
+        magham = self.hamiltonian(2)
+        mh,ch = self.helicity()
+        lw,lc,rw,rc = self.hallmodeenergies()
+
+        self.writtencpu = cp.asnumpy(self.written)
+        self.timecpu = cp.asnumpy(self.time)
+        hamcpu = cp.asnumpy(ham)
+        kinhamcpu = cp.asnumpy(kinham)
+        maghamcpu = cp.asnumpy(magham)
+        mhcpu = cp.asnumpy(mh)
+        chcpu = cp.asnumpy(ch)
+        lwcpu = cp.asnumpy(lw)
+        lccpu = cp.asnumpy(lc)
+        rwcpu = cp.asnumpy(rw)
+        rccpu = cp.asnumpy(rc)
+        b1cpu = cp.asnumpy(self.b1)
+        v1cpu = cp.asnumpy(self.v1)
+        mhccpu = cp.asnumpy(self.mhelcorr)
+        if self.initcond == "threewave":
+            waveenergiescpu = cp.asnumpy(self.tripletenergies)        
+        
+        with h5py.File(self.lpath+"/output.hdf5","a") as f:
+
+            dset = f["written"]
+            print("Written shape ",self.timecpu)
+
+            f["written"][0] = self.writtencpu
+            f["time"][self.writtencpu] = self.timecpu
+            f["hamiltonian"][self.writtencpu] = hamcpu
+            f["maghel"][self.writtencpu] = mhcpu
+            f["crosshel"][self.writtencpu] = chcpu
+            f["kinenergy"][self.writtencpu] = kinhamcpu
+            f["magenergy"][self.writtencpu] = maghamcpu
+            f["leftwhistler"][self.writtencpu] = lwcpu
+            f["leftcyclo"][self.writtencpu] = lccpu 
+            f["rightwhistler"][self.writtencpu] = rwcpu
+            f["rightcyclo"][self.writtencpu] = rccpu
+            f["helicitycorr"][self.writtencpu] = mhccpu
+            f["magneticfields"][self.writtencpu,:,:,:,:] = b1cpu
+            f["velocityfields"][self.writtencpu,:,:,:,:] = v1cpu
+
+            if self.initcond == "threewave":
+                f["threewaveenergies"][self.writtencpu,:] = waveenergiescpu
+                
+            #times[self.written] = self.timecpu
+            ##totalenergy[self.written] = hamcpu
+            
         return(None)
 
     def energyfile(self):        
@@ -351,40 +433,36 @@ class DIAGS:
     
         
 class DNA2MHD(RHS,DIAGS):
-    def __init__(self,nkx0,nky0,nkz0,kxmin,kymin,kzmin,
-                 nu,eta,
-                 dt,iterations,
-                 lpath,linear=False,explicitrk4=False,
-                 initialcondition="hallwave",energystart=0.01,init_kolm=0,hmhdwave=[1,0,0,0],
-                 forcetype="hallwave",forceamp=0.0,nforce=4,forcewave=[1,0,0,0],
-                 hyper=1,hallparam=1.0,
-                 solveprec=16,maxwallclock=86200,
-                 triplet=None):
+    def __init__(self,nkx0,nky0,nkz0,kxmin,kymin,kzmin,nu,eta,
+                 dt,iterations,lpath,linear=False,explicitrk4=False,
+                 initcond="hallwave",energystart=0.01,init_kolm=0,hmhdwave=[1,0,0,0],
+                 forcetype="hallwave",forceamp=0.0,nforce=4,forcewave=[1,0,0,0],hyper=1,hallparam=1.0,
+                 solveprec=16,maxwallclock=86200,triplet=None,records=20):
 
         self.maxwallclock = maxwallclock
         self.linear = linear
         
-        self.nkx0 = nkx0
-        self.nky0 = nky0
-        self.nkz0 = nkz0
+        self.nkx0 = int32(nkx0)
+        self.nky0 = int32(nky0)
+        self.nkz0 = int32(nkz0)
 
         self.nx0_big = 3 * nkx0//2
         self.ny0_big = 3 * nky0//2
         self.nz0_big = 3 * nkz0
         
-        self.kxmin = kxmin
-        self.kymin = kymin
-        self.kzmin = kzmin
+        self.kxmin = float32(kxmin)
+        self.kymin = float32(kymin)
+        self.kzmin = float32(kzmin)
 
         self.explicitrk4 = explicitrk4
 
-        self.initialcondition = initialcondition
+        self.initcond = initcond
         self.energystart = energystart
-        self.init_kolm = init_kolm
+        self.init_kolm = float32(init_kolm)
         self.hmhdwave = hmhdwave
         
         self.forcetype = forcetype
-        self.forceamp = forceamp
+        self.forceamp = float32(forceamp)
         self.nforce = nforce
         self.forcewave = forcewave
         
@@ -394,24 +472,24 @@ class DNA2MHD(RHS,DIAGS):
             lpath = lpath[:-1]
         self.lpath = lpath
         
-        self.nu = nu # Dissipation at largest scale
-        self.eta = eta # Magnetic Prandtl number
+        self.nu = float32(nu) # Dissipation at largest scale
+        self.eta = float32(eta) # Magnetic Prandtl number
         self.hyper = hyper
 
-        self.dt = dt
+        self.dt = float32(dt)
         self.iterations = iterations
-        self.itime = 0
-        self.itime_start = 0
-        self.time = 0
+        self.itime = int32(0)
+        self.itime_start = int32(0)
+        self.time = float32(0)
         self.solveprec = solveprec
 
-        self.kxgrid = cp.hstack((cp.arange(0,self.nx0_big//2,dtype="float64"),cp.arange(-self.nx0_big//2,0,dtype="float64")))*kxmin
-        self.kygrid = cp.hstack((cp.arange(0,self.ny0_big//2,dtype="float64"),cp.arange(-self.ny0_big//2,0,dtype="float64")))*kymin
-        self.kzgrid = cp.arange(0,self.nz0_big//2+1,dtype="float64")*kzmin        
+        self.kxgrid = cp.hstack((cp.arange(0,self.nx0_big//2,dtype="float32"),cp.arange(-self.nx0_big//2,0,dtype="float32")))*kxmin
+        self.kygrid = cp.hstack((cp.arange(0,self.ny0_big//2,dtype="float32"),cp.arange(-self.ny0_big//2,0,dtype="float32")))*kymin
+        self.kzgrid = cp.arange(0,self.nz0_big//2+1,dtype="float32")*kzmin        
 
         KX,KY,KZ = cp.meshgrid(self.kxgrid,self.kygrid,self.kzgrid,indexing="ij")
         
-        self.kmags = cp.sqrt(self.kxgrid[:,None,None]**2.0 + self.kygrid[None,:,None]**2.0+self.kzgrid[None,None,:]**2.0)
+        self.kmags = cp.sqrt(self.kxgrid[:,None,None]**2.0 + self.kygrid[None,:,None]**2.0+self.kzgrid[None,None,:]**2.0).astype("float32")
         self.kmax = cp.amax(self.kmags)
 
         self.vnu = nu/(self.kmax**(2*hyper))
@@ -421,6 +499,7 @@ class DNA2MHD(RHS,DIAGS):
         self.alphaleftwhist = - (hallparam*self.kmags/2 + cp.sqrt(1+ (hallparam*self.kmags/2)**2.0))
         self.triplet = triplet
 
+        self.eig = cp.zeros([self.nx0_big,self.ny0_big,self.nz0_big//2+1,4],dtype="complex64")
         self.eig[:,:,:,0] = - ((self.vnu+self.etab)*self.kmags**(2*hyper) + 1j * self.kmags * self.kzgrid[None,None,:])/2
         self.eig[:,:,:,2] = - ((self.vnu+self.etab)*self.kmags**(2*hyper) - 1j * self.kmags * self.kzgrid[None,None,:])/2
         self.eig[:,:,:,1] = cp.sqrt(self.eig[:,:,:,0]**2 - self.vnu * self.etab * self.kmags**(4*hyper) - self.kzgrid[None,None,:]**2 - 1j * self.kmags * self.kzgrid[None,None,:] * self.vnu * self.kmags**(2*hyper))
@@ -433,21 +512,21 @@ class DNA2MHD(RHS,DIAGS):
         self.eig[:,:,:,1] += self.eig[:,:,:,0]
         self.eig[:,:,:,3] += self.eig[:,:,:,2]
 
-
-        zvec = cp.array([0,0,1],dtype="complex128")
-        ks = cp.stack((KX,KY,KZ)).astype("complex128")
+        zvec = cp.array([0,0,1],dtype="complex64")
+        ks = cp.stack((KX,KY,KZ)).astype("complex64")
 
         self.pcurleig = cp.cross(ks,zvec[:,None,None,None],axis=0)
         self.pcurleig += 1j* cp.cross(ks,self.pcurleig,axis=0)/self.kmags[None,:,:,:]
         self.pcurleig *= cp.sqrt(2)/(2*self.kmags[:,:,0][None,:,:,None])
-        self.pcurleig[:,0,0,:] = cp.array([1,1j,0],dtype="complex128")[:,None]
+        self.pcurleig[:,0,0,:] = cp.array([1,1j,0],dtype="complex64")[:,None]/cp.sqrt(2.0)
+        self.pcurleig[:,0,0,0] = 0.0
 
         self.padding = cp.ones_like(self.kmags,dtype="int32")
         self.padding[self.nkx0//2:1-self.nkx0//2,:,:] = 0
         self.padding[:,self.nky0//2:1-self.nky0//2,:] = 0
         self.padding[:,:,self.nkz0:] = 0
 
-        self.forcemask = cp.zeros_like(self.padding,dtype="float64")
+        self.forcemask = cp.zeros_like(self.padding,dtype="float32")
         self.forcemask[1:nforce+1,1:nforce+1,1:nforce+1] = 1
         self.forcemask[-nforce:,-nforce:,1:nforce+1] = 1
         self.forcemask[1:nforce+1,-nforce:,1:nforce+1] = 1
@@ -457,18 +536,23 @@ class DNA2MHD(RHS,DIAGS):
         self.b1 = cp.zeros_like(self.pcurleig)
         self.v1 = cp.zeros_like(self.pcurleig)
 
-        self.mhelcorr = cp.float64(0.0)
+        self.mhelcorr = cp.float32(0.0)
         
         self.fieldsetup()
 
         self.oldspec = cp.sum(cp.abs(self.b1)**2.0+cp.abs(self.v1)**2.0,axis=0)/2
         self.newspec = 2*cp.ones_like(self.kmags)
 
+        self.record = records
+        self.irecord = self.iterations // records
+        self.written = 0
+        self.createhdf5file()
+        
         return(None)
 
     def fieldsetup(self):
 
-        if self.initialcondition == "hallwave":
+        if self.initcond == "hallwave":
             
             phase = self.reset_phase()[1:,1:,1:]
             self.b1[:,1:,1:,1:] = self.pcurleig[:,1:,1:,1:] * self.alphaleftwhist[None,1:,1:,1:] \
@@ -493,18 +577,19 @@ class DNA2MHD(RHS,DIAGS):
         self.b1[:,1:,1:,1:] *= self.padding[None,1:,1:,1:] * self.kmags[None,1:,1:,1:]**(-self.init_kolm)
         self.v1[:,1:,1:,1:] *= self.padding[None,1:,1:,1:] * self.kmags[None,1:,1:,1:]**(-self.init_kolm)
 
-        if self.initialcondition == "threewave":
+        if self.initcond == "threewave":
 
             self.itriplet = []
 
             if self.triplet == None or  (len(self.triplet) != 9 and len(self.triplet) != 12):
                 
-                raise ValueError("Triplet must be specified for three wave initial condition")
+                raise ValueError("LW Triplet or triplet and normal mode types must be specified for three wave initial condition")
 
             # Specify triplet as either list of three wavevectors or list of three wave vectors and normal mode types
 
             if len(self.triplet) == 9:
-
+                for i in range(3):
+                    self.triplet.append(0)
                 self.initializewave(self.triplet[0:3],2.0,0)
                 self.initializewave(self.triplet[3:6],1.0,0)
                 self.initializewave(self.triplet[6:9],0.5,0)
@@ -514,6 +599,8 @@ class DNA2MHD(RHS,DIAGS):
                 self.initializewave(self.triplet[3:6],1.0,self.triplet[10])
                 self.initializewave(self.triplet[6:9],0.5,self.triplet[11])
 
+            self.triplet = cp.array(self.triplet)
+
         if self.energystart != None:
             energy = cp.sum(cp.abs(self.b1[:,:,:,0])**2.0+cp.abs(self.v1[:,:,:,0])**2.0)
             energy += 2* cp.sum(cp.abs(self.b1[:,:,:,1:])**2.0+cp.abs(self.v1[:,:,:,1:])**2.0)
@@ -521,7 +608,7 @@ class DNA2MHD(RHS,DIAGS):
             self.b1 *= cp.sqrt(self.energystart/energy)
             self.v1 *= cp.sqrt(self.energystart/energy)
                 
-        if self.initialcondition == "checkpoint":
+        if self.initcond == "checkpoint":
 
             pastresults = cp.load(self.lpath+"/s_checkpoint.npz")
             if self.nkx0 != pastresults["nkx0"] or self.nky0 != pastresults["nky0"] or self.nkz0 != pastresults["nkz0"]:
@@ -564,13 +651,8 @@ class DNA2MHD(RHS,DIAGS):
 
         # Normalize amplitude of wave to amp
         length = cp.sum(cp.abs(self.b1[:,ix,iy,iz])**2.0 + cp.abs(self.v1[:,ix,iy,iz])**2.0)
-        self.b1 *= amp/length
-        self.v1 *= amp/length
-
-        # Include complex conjugate
-
-        self.b1[:,-ix,-iy,iz] = cp.conj(self.b1[:,ix,iy,iz])
-        self.v1[:,-ix,-iy,iz] = cp.conj(self.v1[:,ix,iy,iz])
+        self.b1[:,ix,iy,iz] *= amp/cp.sqrt(length)
+        self.v1[:,ix,iy,iz] *= amp/cp.sqrt(length)
 
         return(None)
 
@@ -579,86 +661,230 @@ class DNA2MHD(RHS,DIAGS):
         self.startruntime = time.time()
         self.runtime = 0
 
-        irecord = self.iteration // records
+        debugnote = """"Zero eigenvalue coefficients for reference"""
+        expL = cp.ones([self.nx0_big,self.ny0_big,self.nz0_big//2+1,8])
+        expL[:,:,:,1:3] = 0.0
+        expL[:,:,:,5:7] = 0.0
+        coef1 = expL * self.dt
+        coef2 = coef1/2
 
-        expL,coef1,coef2 = exponentialcoefficients(self.kxgrid,self.kygrid,self.kzgrid,self.eta,self.nu,self.hyp,self.dt,32)
+        expL,coef1,coef2 = exponentialcoefficients(self.kxgrid,self.kygrid,self.kzgrid,self.etab,self.vnu,self.hyper,self.dt,128,self.kmags,self.eig)
+        #blurb = Have to adjust the zero mode separately because the curl eigenstates are undefined - set coefficients there to zero
+        expL[0,0,0,:] = cp.array([1.0,0.0,0.0,1.0,1.0,0.0,0.0,1.0])
+        coef1[0,0,0,:] = expL[0,0,0,:]*self.dt
+        coef2[0,0,0,:] = coef1[0,0,0,:]/2.0
 
-        # Have to adjust the zero mode separately because the curl eigenstates are undefined
-        # So set the exponential method impacts to zero mode to be zero
-        expL[0,0,0,:] = 0.0
-        coef1[0,0,0,:] = 0.0
-        coef2[0,0,0,:] = 0.0
-
+        print("Coef1 ",cp.amax(cp.abs(coef1/self.dt)))
+        print("Coef2 ",cp.amax(cp.abs(coef2/self.dt)))
+        
         while self.itime < self.iterations and self.runtime < self.maxwallclock:
 
+            dot1 = time.time()
+            
             self.bplus = cp.sum(cp.conj(self.pcurleig)*self.b1,axis=0)
             self.vplus = cp.sum(cp.conj(self.pcurleig)*self.v1,axis=0)
             self.bminus = cp.sum(self.pcurleig*self.b1,axis=0)
             self.vminus = cp.sum(self.pcurleig*self.v1,axis=0)
 
-            if self.itime % irecord == 0:
-                self.energyfile()
-                self.checkpointfile()
-                self.fulloutputfile()
+            dot1 -= time.time()
+            print("dot time ", np.abs(dot1))
 
-            avgb = self.b1[:,0,0,0]
-            avgv = self.v1[:,0,0,0]
+            if self.irecord > 0 and self.itime % self.irecord == 0:
+
+                self.writefile()
+                #self.energyfile()
+                #self.checkpointfile()
+                #self.fulloutputfile()
+
+                self.written += 1
+                
+            avgb = self.b1[:,0,0,0].copy()
+            avgv = self.v1[:,0,0,0].copy()
+
+            rhs1time = time.time()
+            self.brhs1,self.vrhs1 = self.convolutions(self.b1,self.v1)
+            rhs1time -= time.time()
+            print("rhs1 time ", np.abs(rhs1time))
+            mhc = self.helicitycorrection(self.b1,self.v1)
             
-            self.brhs1,self.vrhs1 = self.hallrhs(self.b1,self.v1)
-            mhc = self.helicitycorrection()
-            
+            expmult = time.time()
             self.b1 = self.pcurleig * (expL[:,:,:,0] * self.bplus + expL[:,:,:,1] * self.vplus)
             self.v1 = self.pcurleig * (expL[:,:,:,2] * self.bplus + expL[:,:,:,3] * self.vplus)
-            self.b1 += cp.conjg(self.pcurleig) * (expL[:,:,:,4] * self.bminus + expL[:,:,:,5] * self.vminus)
-            self.v1 += cp.conjg(self.pcurleig) * (expL[:,:,:,6] * self.bminus + expL[:,:,:,7] * self.vminus)
+            self.b1 += cp.conj(self.pcurleig) * (expL[:,:,:,4] * self.bminus + expL[:,:,:,5] * self.vminus)
+            self.v1 += cp.conj(self.pcurleig) * (expL[:,:,:,6] * self.bminus + expL[:,:,:,7] * self.vminus)
             self.b1[:,0,0,0] = avgb
             self.v1[:,0,0,0] = avgv
+            expmult -= time.time()
+            print("expmult time", np.abs(expmult))
 
+            coef1time = time.time()
             self.bplus = cp.sum(cp.conj(self.pcurleig)*self.brhs1,axis=0)
             self.vplus = cp.sum(cp.conj(self.pcurleig)*self.vrhs1,axis=0)
-            self.bminus = cp.sum(self.pcurleig*self.brhs1,axis=0) 
+            self.bminus = cp.sum(self.pcurleig*self.brhs1,axis=0)
             self.vminus = cp.sum(self.pcurleig*self.vrhs1,axis=0)
 
-            self.b1 += self.pcurleig[:,:,:,:] * (coef1[:,:,:,0] * self.bplus + coef1[:,:,:,1] * self.vplus)
-            self.v1 += self.pcurleig[:,:,:,:] * (coef1[:,:,:,2] * self.bplus + coef1[:,:,:,3] * self.vplus)
-            self.b1 += cp.conjg(self.pcurleig) * (coef1[:,:,:,4] * self.bminus + coef1[:,:,:,5] * self.vminus)
-            self.v1 += cp.conjg(self.pcurleig) * (coef1[:,:,:,6] * self.bminus + coef1[:,:,:,7] * self.vminus)
+            self.b1 += self.pcurleig * (coef1[:,:,:,0] * self.bplus + coef1[:,:,:,1] * self.vplus)
+            self.v1 += self.pcurleig * (coef1[:,:,:,2] * self.bplus + coef1[:,:,:,3] * self.vplus)
+            self.b1 += cp.conj(self.pcurleig) * (coef1[:,:,:,4] * self.bminus + coef1[:,:,:,5] * self.vminus)
+            self.v1 += cp.conj(self.pcurleig) * (coef1[:,:,:,6] * self.bminus + coef1[:,:,:,7] * self.vminus)
 
-            # What do we do about zero? Eigenvalue zero so just integrate as normal
+            coef1time -= time.time()
+            print("coef1 time", np.abs(coef1time))
 
-            self.b1[:,0,0,0] += self.dt/2*self.brhs1[:,0,0,0]
-            self.v1[:,0,0,0] += self.dt/2*self.vrhs1[:,0,0,0]
-            self.mhelcorr += self.dt/2 * mhc
-       
-            self.brhs1,self.vrhs1 = self.hallrhs(self.b1,self.v1)
-            mhc = self.helicitycorrection()
+            self.b1 += self.dt * self.brhs1
+            self.v1 += self.dt * self.vrhs1
 
-            self.bplus -= cp.sum(cp.conj(self.pcurleig)*(self.brhs1,axis=0) 
-            self.vplus -= cp.sum(cp.conj(self.pcurleig)*(self.vrhs1,axis=0)
-            self.bminus -= cp.sum(self.pcurleig*self.brhs1,axis=0) 
+            b1zeroderiv = self.brhs1[:,0,0,0].copy()
+            v1zeroderiv = self.vrhs1[:,0,0,0].copy()
+            self.mhelcorr += self.dt * mhc
+            mhc1 = mhc
+
+            self.b1[:,0,0,0] += self.dt*self.brhs1[:,0,0,0]
+            self.v1[:,0,0,0] += self.dt*self.vrhs1[:,0,0,0]
+
+            firststage = """
+            
+            self.brhs1,self.vrhs1 = self.convolutions(self.b1,self.v1)
+            mhc = self.helicitycorrection(self.b1,self.v1)
+
+            self.bplus -= cp.sum(cp.conj(self.pcurleig)*(self.brhs1),axis=0) 
+            self.vplus -= cp.sum(cp.conj(self.pcurleig)*(self.vrhs1),axis=0)
+            self.bminus -= cp.sum(self.pcurleig*self.brhs1,axis=0)
             self.vminus -= cp.sum(self.pcurleig*self.vrhs1,axis=0)
                             
             # Now self.bplus etc equal to rhs1- rhs2 in basis, reverse sign of sum below
 
-            self.b1 = b2 - self.pcurleig[:,:,:,:] * (coef2[:,:,:,0] * self.bplus + coef2[:,:,:,1] * self.vplus)
-            self.v1 = v2 - self.pcurleig[:,:,:,:] * (coef2[:,:,:,2] * self.bplus + coef2[:,:,:,3] * self.vplus)
-            self.b1 -= cp.conjg(self.pcurleig) * (coef2[:,:,:,4] * self.bminus + coef2[:,:,:,5] * self.vminus)
-            self.v1 -= cp.conjg(self.pcurleig) * (coef2[:,:,:,6] * self.bminus + coef2[:,:,:,7] * self.vminus)
-            self.b1[:,0,0,0] += self.dt/2 * (self.brhs1[:,0,0,0])
-            self.v1[:,0,0,0] += self.dt/2 * (self.vrhs1[:,0,0,0])
-            self.mhelcorr += self.dt/2 * mhc                            
-                            
+            coef2time = time.time()
+            self.b1 -= self.pcurleig * (coef2[:,:,:,0] * self.bplus + coef2[:,:,:,1] * self.vplus)
+            self.v1 -= self.pcurleig * (coef2[:,:,:,2] * self.bplus + coef2[:,:,:,3] * self.vplus)
+            self.b1 -= cp.conj(self.pcurleig) * (coef2[:,:,:,4] * self.bminus + coef2[:,:,:,5] * self.vminus)
+            self.v1 -= cp.conj(self.pcurleig) * (coef2[:,:,:,6] * self.bminus + coef2[:,:,:,7] * self.vminus)
+            self.b1[:,0,0,0] += self.dt/2 * (self.brhs1[:,0,0,0]-b1zeroderiv)
+            self.v1[:,0,0,0] += self.dt/2 * (self.vrhs1[:,0,0,0]-v1zeroderiv)
+            self.mhelcorr += self.dt/2 * (mhc-mhc1)
+            coef2time -= time.time()
+            print("coef2 time",np.abs(coef2time))
+            """
+            
             self.itime += 1
             self.time += self.dt
             self.runtime = time.time()-self.startruntime
 
-            if self.itime % max(self.iterations//50,10) == 0 and self.itime > 0:
-                self.steadystate()
+            #if self.itime % max(self.iterations//50,10) == 0 and self.itime > 0:
+            #    self.steadystate()
 
-	self.energyfile()
-        self.checkpointfile()
-        self.fulloutputfile()
-
+        self.writefile()
+        #self.energyfile()
+        #self.checkpointfile()
+        #self.fulloutputfile()
         print(self.runtime)
 
         return(None)
+
+    def ralstonrk2(self,records=200):
+
+        self.startruntime = time.time()
+        self.runtime = 0
+
+        # Add guide field to do linear and nonlinear calculation at once
+        self.b1[2,0,0,0] = 1.0
+
+        while self.itime < self.iterations and self.runtime < self.maxwallclock:
+
+            if self.irecord > 0 and self.itime % self.irecord == 0:
+
+                self.bplus = cp.sum(cp.conj(self.pcurleig)*self.b1,axis=0)
+                self.vplus = cp.sum(cp.conj(self.pcurleig)*self.v1,axis=0)
+                self.bminus = cp.sum(self.pcurleig*self.b1,axis=0)
+                self.vminus = cp.sum(self.pcurleig*self.v1,axis=0)
+
+                self.writefile()
+                self.written += 1
+
+            self.brhs1,self.vrhs1,mhc = self.hallrhs(self.b1,self.v1)
+            #mhc = self.helicitycorrection(self.b1,self.v1)
+
+            self.b2 = self.b1 + 2/3 * self.dt * self.brhs1
+            self.v2 = self.v1 + 2/3 * self.dt * self.vrhs1
+
+            self.b1 += 1/4 * self.dt * self.brhs1
+            self.v1 += 1/4 * self.dt * self.vrhs1
+            self.mhelcorr += 1/4 * self.dt * mhc
+            
+            self.brhs1,self.vrhs1,mhc = self.hallrhs(self.b2,self.v2)
+            #mhc = self.helicitycorrection(self.b1,self.v2)
+            
+            self.b1 += 3/4 * self.dt * self.brhs1
+            self.v1 += 3/4 * self.dt * self.vrhs1
+            self.mhelcorr += 3/4 * self.dt * mhc
+
+            self.itime += 1
+            self.time += self.dt
+            self.runtime = time.time()-self.startruntime
+
+        self.writefile()
+        print(self.runtime)
+
+    def dp547s(self):
+
+        """5th order stability region Dormand Prince scheme"""
+        """https://doi.org/10.1016/0771-050X(80)90013-3"""
+
+        self.startruntime = time.time()
+        self.runtime = 0
+
+        # Add guide field to do linear and nonlinear calculation at once
+        self.b1[2,0,0,0] = 1.0
+
+        while self.itime < self.iterations and self.runtime < self.maxwallclock:
+
+            if self.irecord > 0 and self.itime % self.irecord == 0:
+                self.bplus = cp.sum(cp.conj(self.pcurleig)*self.b1,axis=0)
+                self.vplus = cp.sum(cp.conj(self.pcurleig)*self.v1,axis=0)
+                self.bminus = cp.sum(self.pcurleig*self.b1,axis=0)
+                self.vminus = cp.sum(self.pcurleig*self.v1,axis=0)
+
+                self.writefile()
+                self.written += 1
+
+            self.brhs1,self.vrhs1,mhc1 = self.hallrhs(self.b1,self.v1)
+            mhc1 = self.helicitycorrection(self.b1,self.v1)
+
+            dumb = self.b1 + self.dt * 2/9 * self.brhs1
+            dumv = self.v1 + self.dt * 2/9 * self.vrhs1
+            
+            self.brhs2,self.vrhs2,mhc2 = self.hallrhs(dumb,dumv)
+
+            dumb = self.b1 + self.dt * (1/12 * self.brhs1 + 1/4 * self.brhs2)
+            dumv = self.v1 + self.dt * (1/12 * self.vrhs1 + 1/4 * self.vrhs2)
+
+            self.brhs3,self.vrhs3,mhc3 = self.hallrhs(dumb,dumv)
+
+            dumb = self.b1 + self.dt * (55/324 * self.brhs1 - 25/108 * self.brhs2 + 50/81 * self.brhs3)
+            dumv = self.v1 + self.dt * (55/324 * self.vrhs1 - 25/108 * self.vrhs2 + 50/81 * self.vrhs3)
+
+            self.brhs4,self.vrhs4,mhc4 = self.hallrhs(dumb,dumv)
+
+            dumb = self.b1 + self.dt * (83/330 * self.brhs1 - 13/22 * self.brhs2 + 61/66 * self.brhs3 + 9/110 * self.brhs4)
+            dumv = self.v1 + self.dt * (83/330 * self.vrhs1 - 13/22 * self.vrhs2 + 61/66 * self.vrhs3 + 9/110 * self.vrhs4)
+
+            self.brhs5,self.vrhs5,mhc5 = self.hallrhs(dumb,dumv)
+
+            dumb = self.b1 + self.dt * (-19/28 * self.brhs1 + 9/4 * self.brhs2 + 1/7 * self.brhs3 + -27/7 * self.brhs4 + 22/7 * self.brhs5)
+            dumv = self.v1 + self.dt * (-19/28 * self.vrhs1 + 9/4 * self.vrhs2 + 1/7 * self.vrhs3 + -27/7 * self.vrhs4 + 22/7 * self.vrhs5)
+
+            self.brhs6,self.vrhs6,mhc6 = self.hallrhs(dumb,dumv)
+
+            self.b1 += (19/200 * self.brhs1 + 3/5 * self.brhs3 - 243/400 * self.brhs4 + 33/40 * self.brhs5 + 7/80  * self.brhs6) * self.dt
+            self.v1 += (19/200 * self.vrhs1 + 3/5 * self.vrhs3 - 243/400 * self.vrhs4 + 33/40 * self.vrhs5 + 7/80  * self.vrhs6) * self.dt 
+            self.mhelcorr += (19/200 * mhc1 + 3/5 * mhc3 -243/400 * mhc4 + 33/40 * mhc5 + 7/80 * mhc6) * self.dt
+
+            self.itime += 1
+            self.time += self.dt
+            self.runtime = time.time()-self.startruntime
+
+        self.writefile()
+        print(self.runtime)
+
+        return(None)
+            

@@ -165,6 +165,8 @@ class DIAGS:
 
         ham *= 4*cp.pi**3
 
+        print(ham)
+
         return(ham)
         
     def helicity(self):
@@ -475,75 +477,6 @@ class DNA2MHD(RHS,DIAGS):
         self.v1 = self.v2 + self.dt * 1/6 * self.vrhs2
 
         return(None)
-
-    def etdrk2(self):
-    
-        self.startruntime = time.time()
-        self.runtime = 0
-
-        expL,coef1,coef2 = exponentialcoefficients 
-
-        while self.itime < self.iterations and self.runtime < self.maxwallclock:
-
-            # print("Bz ",self.b1[2,0,0,0])                                                                                                               
-
-            if self.itime % max(self.iterations//500,1) == 0:
-                self.energyfile()
-            if self.itime % 200 == 0: #max(self.iterations//50,10) == 0:                                                                                  
-                self.checkpointfile()
-            if self.itime % 200 == 0: #max(self.iterations//5,100) == 0:                                                                                  
-                self.fulloutputfile()
-
-            self.brhs1,self.vrhs1 = self.hallrhs(self.b1,self.v1)
-            
-            bplus = cp.sum(cp.conj(self.pcurleig)*self.b1,axis=0)
-            vplus = cp.sum(cp.conj(self.pcurleig)*self.v1,axis=0)
-            bminus = cp.sum(self.pcurleig*self.b1,axis=0) 
-            vminus = cp.sum(self.pcurleig*self.v1,axis=0)
-
-            b2 = self.pcurleig[:,:,:,:] * (expL[:,:,:,0] * bplus + expL[:,:,:,1] * vplus)
-            v2 = self.pcurleig[:,:,:,:] * (expL[:,:,:,2] * bplus + expL[:,:,:,3] * vplus)
-            b2 += cp.conjg(self.pcurleig) * (expL[:,:,:,4] * bminus + expL[:,:,:,5] * vminus)
-            v2 += cp.conjg(self.pcurleig) * (expL[:,:,:,6] * bminus + expL[:,:,:,7] * vminus)
-
-            bplus = cp.sum(cp.conj(self.pcurleig)*self.brhs1,axis=0)
-            vplus = cp.sum(cp.conj(self.pcurleig)*self.vrhs1,axis=0)
-            bminus = cp.sum(self.pcurleig*self.brhs1,axis=0) 
-            vminus = cp.sum(self.pcurleig*self.vrhs1,axis=0)
-
-            b2 += self.pcurleig[:,:,:,:] * (coef1[:,:,:,0] * bplus + coef1[:,:,:,1] * vplus)
-            v2 += self.pcurleig[:,:,:,:] * (coef1[:,:,:,2] * bplus + coef1[:,:,:,3] * vplus)
-            b2 += cp.conjg(self.pcurleig) * (coef1[:,:,:,4] * bminus + coef1[:,:,:,5] * vminus)
-            v2 += cp.conjg(self.pcurleig) * (coef1[:,:,:,6] * bminus + coef1[:,:,:,7] * vminus) 
-       
-            self.brhs2,self.vrhs2 = self.hallrhs(b2,v2)
-
-            bplus -= cp.sum(cp.conj(self.pcurleig)*(self.brhs2,axis=0) 
-            vplus -= cp.sum(cp.conj(self.pcurleig)*(self.vrhs2,axis=0)
-            bminus -= cp.sum(self.pcurleig*self.brhs2,axis=0) 
-            vminus -= cp.sum(self.pcurleig*self.vrhs2,axis=0)
-            # Now bplus etc equal to rhs1- rhs2 in basis, reverse sign of sum below
-
-            self.b1 = b2 - self.pcurleig[:,:,:,:] * (coef2[:,:,:,0] * bplus + coef2[:,:,:,1] * vplus)
-            self.v1 = v2 - self.pcurleig[:,:,:,:] * (coef2[:,:,:,2] * bplus + coef2[:,:,:,3] * vplus)
-            self.b1 -= cp.conjg(self.pcurleig) * (coef2[:,:,:,4] * bminus + coef2[:,:,:,5] * vminus)
-            self.v1 -= cp.conjg(self.pcurleig) * (coef2[:,:,:,6] * bminus + coef2[:,:,:,7] * vminus)
-
-            self.itime += 1
-            self.time += self.dt
-            self.runtime = time.time()-self.startruntime
-
-            if self.itime % max(self.iterations//50,10) == 0 and self.itime > 0:
-                self.steadystate()
-
-	self.energyfile()
-        self.checkpointfile()
-        self.fulloutputfile()
-
-        print(self.runtime)
-
-        return(None)
-
         
     def gauss2(self):
 
