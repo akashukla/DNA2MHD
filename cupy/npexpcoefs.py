@@ -59,7 +59,7 @@ plt.xscale("log")
 plt.yscale("log")
 plt.show()
 
-def exponentialcoefficients(kxgrid,kygrid,kzgrid,eta,nu,hyp,dt,Nquad,kmags,eig,hall,taylor=False):
+def exponentialcoefficients(kxgrid,kygrid,kzgrid,eta,nu,hyp,dt,Nquad,kmags,eig,hall,taylor=False,pade=False):
 
     padNx = np.size(kxgrid)//2
     padNy = np.size(kygrid)//2
@@ -75,7 +75,7 @@ def exponentialcoefficients(kxgrid,kygrid,kzgrid,eta,nu,hyp,dt,Nquad,kmags,eig,h
     coef2diag = np.zeros(shape4,dtype="complex64")
 
     # Contour integral for the needed exponential time integrator functions
-    if not taylor:
+    if not taylor and not pade:
         for q in range(Nquad):
         
             r = np.exp((q+0.5)/Nquad * 1j * 2*pi)
@@ -115,6 +115,16 @@ def exponentialcoefficients(kxgrid,kygrid,kzgrid,eta,nu,hyp,dt,Nquad,kmags,eig,h
 
     # Get needed values from normal mode decomposition
     # Only using incompressible Hall MHD so not including the other modes
+
+    if pade:
+        coef1diag += (1 + (dt*eig)/14 + (dt*eig)**2 / 42 + (dt*eig)**3 / 840)
+        coef1diag /= (1 - 3/7 * (dt*eig) + (dt*eig)**2 / 14 - (dt*eig)**3 / 210)
+        coef1diag *= dt
+
+        coef2diag += (1/2 - (dt*eig)/48 + (dt*eig)**2 / 168 + (dt*eig)**3 / 6720)
+        coef2diag /= (1 - 3/8 * (dt * eig) + 3/56 * (dt*eig)**2 - 1/336 * (dt*eig)**3)
+        coef2diag *= dt
+        
 
     # Matrix is block 2x2 diagonal in k and curl eigenstates
 
@@ -191,10 +201,14 @@ def exponentialcoefficients(kxgrid,kygrid,kzgrid,eta,nu,hyp,dt,Nquad,kmags,eig,h
                 coef2[ikx,iky,ikz,4:] = coef2k.flatten().copy()
     return(expL,coef1,coef2)
 """
-
-
-a1,b1,c1 = exponentialcoefficients(kxgrid,kygrid,kzgrid,etab,vnu,hyper,dt,128,kmags,eig,hallparam,taylor=False)
+a1,b1,c1 = exponentialcoefficients(kxgrid,kygrid,kzgrid,etab,vnu,hyper,dt,128,kmags,eig,hallparam)
 a2,b2,c2 = exponentialcoefficients(kxgrid,kygrid,kzgrid,etab,vnu,hyper,dt,128,kmags,eig,hallparam,taylor=True)
+a3,b3,c3 = exponentialcoefficients(kxgrid,kygrid,kzgrid,etab,vnu,hyper,dt,128,kmags,eig,hallparam,pade=True)
 
 print("Diff Coef1 ",np.amax(b2-b1))
 print("Diff Coef2 ",np.amax(c2-c1))
+
+iii = np.argmax(c2-c1)
+
+print(c2.flatten()[iii],c1.flatten()[iii],c3.flatten()[iii])
+print(x[iii],y[iii])

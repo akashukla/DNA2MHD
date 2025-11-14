@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-modes = np.load("paraparsample.npy")
+modes = np.load("norm35sample.npy")
 #modes = np.loadtxt("modes128k2.csv",delimiter=",")
 print(modes.shape)
 
