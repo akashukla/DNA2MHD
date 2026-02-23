@@ -4,23 +4,14 @@ import matplotlib.pyplot as plt
 import os
 
 
-
+lpath = "/pscratch/sd/e/echansen/interactionangle51"
 with h5py.File(lpath+"/output.hdf5","r") as f:
 
     print(f.keys())
     
     written = f["written"][0]
     time = f["time"][:]
-    ham = f["hamiltonian"][:]
-    mhel = f["maghel"][:]
-    chel = f["crosshel"][:]
-    ke = f["kinenergy"][:]
-    me = f["magenergy"][:]
-    lw = f["leftwhistler"][:]
-    lc = f["leftcyclo"][:]
-    rw = f["rightwhistler"][:]
-    rc = f["rightcyclo"][:]
-    mhc = f["helicitycorr"][:]
+    enval = f["enval"][:,:]
 
     b1 = f["magneticfields"][written,:,:,:,:]
     v1 = f["velocityfields"][written,:,:,:,:]
@@ -43,6 +34,6 @@ plt.savefig(lpath+"eplots/energy.png",bbox_inches="tight")
 """
 
 print(time)
-print(ham)
-print(mhel+mhc)
-print(chel+mhc)
+print(enval[:,0])
+print(enval[:,1]+enval[:,-1])
+print(enval[:,2]+enval[:,-1])

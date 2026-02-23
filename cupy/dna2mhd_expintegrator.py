@@ -33,7 +33,7 @@ eta = nu
 hyp = 2
 """
 
-def exponentialcoefficients(kxgrid,kygrid,kzgrid,eta,nu,hyp,dt,Nquad,kmags,eig,hall):
+def exponentialcoefficients(kxgrid,kygrid,kzgrid,eta,nu,hyp,dt,Nquad,kmags,eig,hall,pade=True,ctype="complex64"):
 
     padNx = cp.size(kxgrid)//2
     padNy = cp.size(kygrid)//2
@@ -44,22 +44,34 @@ def exponentialcoefficients(kxgrid,kygrid,kzgrid,eta,nu,hyp,dt,Nquad,kmags,eig,h
     # Time integration variables
 
     # Construct diagonal time integration variables from contour quadrature
-    expLdiag = cp.exp(eig*dt)
-    coef1diag = cp.zeros(shape4,dtype="complex64")
-    coef2diag = cp.zeros(shape4,dtype="complex64")
+    expLdiag = cp.exp(eig*dt,dtype=ctype)
+    coef1diag = cp.zeros(shape4,dtype=ctype)
+    coef2diag = cp.zeros(shape4,dtype=ctype)
 
     # Contour integral for the needed exponential time integrator functions
-    for q in range(Nquad):
-        
-        r = cp.exp((q+0.5)/Nquad * 1j * 2*pi)
-        
-        # Initialize each nontrivial eigenvalue
-        coef1diag += (expLdiag*cp.exp(r*dt) - 1)/((eig+r))
-        coef2diag += (expLdiag*cp.exp(r*dt)-1-(eig+r)*dt)/(dt*(eig+r)**2)
 
-    coef1diag /= Nquad
-    coef2diag /= Nquad
+    if not pade:
+        for q in range(Nquad):
+        
+            r = cp.exp((q+0.5)/Nquad * 1j * 2*pi)
+            
+            # Initialize each nontrivial eigenvalue
+            coef1diag += (expLdiag*cp.exp(r*dt) - 1)/((eig+r))
+            coef2diag += (expLdiag*cp.exp(r*dt)-1-(eig+r)*dt)/(dt*(eig+r)**2)
 
+        coef1diag /= Nquad
+        coef2diag /= Nquad
+
+    else:
+
+        coef1diag += (1 + (dt*eig)/22 + (dt*eig)**2 / 33 + (dt*eig)**3 / 792 + (dt*eig)**4 / 7920 + (dt*eig)**5 / 332640)
+        coef1diag /= (1 - 5 * (dt*eig)/11 + (dt*eig)**2 / 11 - (dt*eig)**3 / 99 + (dt*eig)**4 / 1584 - (dt*eig)**5 / 55440)
+        coef1diag *= dt
+
+        coef2diag += (1/2 - (dt*eig)/24 + (dt*eig)**2 / 99 - (dt*eig)**3 / 5280 + (dt*eig)**4 / 47520 + (dt*eig)**5 / 3991680)
+        coef2diag /= (1 - 5 * (dt*eig)/12 + 5 * (dt*eig)**2 / 66 - (dt*eig)**3 / 132 + (dt*eig)**4 / 2376 - (dt*eig)**5 / 95040)
+        coef2diag *= dt
+    
     # Get needed values from normal mode decomposition
     # Only using incompressible Hall MHD so not including the other modes
 
@@ -73,7 +85,7 @@ def exponentialcoefficients(kxgrid,kygrid,kzgrid,eta,nu,hyp,dt,Nquad,kmags,eig,h
 
         # Perform PDPinv calculation for adjusted Hall MHD proportionality factors between b and v from diagonal basis
         
-        result = cp.zeros(shape4full,dtype="complex64")
+        result = cp.zeros(shape4full,dtype=ctype)
 
         alpha = hall*kmags/2 + cp.sqrt(1 + (hall*kmags)**2  / 4)
         for it in [0,4]:

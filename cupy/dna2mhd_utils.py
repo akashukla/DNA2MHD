@@ -12,7 +12,7 @@ import sys
 import scipy.fft
 import scipy.signal
 from scipy.signal import find_peaks
-from scipy.fft import fft,fftfreq,fftshift,irfftn
+from scipy.fft import fft,fftfreq,fftshift,irfftn,rfftn
 import scipy.optimize as spo
 import matplotlib.animation as anim
 from matplotlib.ticker import ScalarFormatter,MultipleLocator,MaxNLocator,StrMethodFormatter,LogLocator,LogFormatterExponent,LinearLocator
@@ -22,271 +22,38 @@ import h5py
 par={}       #Global Variable to hold parameters once read_parameters is called
 namelists={}
 
-def read_parameters(lpath):
-    """Reads parameters from parameters.dat \n
-    The parameters are in a dictionary call par \n
-    and can be accessed via par['parameter_name']"""
-    if lpath==None:
-        parfile=open('./parameters.dat','r')
-    else:
-        parfile=open(lpath+'/parameters.dat', 'r')
-    parameters_in=parfile.read()
-    lines=parameters_in.split('\n')
-    #    parameters={}
-    #note: par comes from config.py
-    num_lines=len(lines)
-    print( "Number of lines", num_lines)
-    print(lines[0])
-    for i in range(num_lines):
-         temp=lines[i].split()
-         if temp:
-              str_check_namelist=re.match("&",temp[0])
-         if str_check_namelist:
-              current_namelist=temp[0]
-              print(current_namelist)
-              namelists[current_namelist]=" "
-         if len(temp)>2:
-              #if (re.match(\d):
-              str_check_sn=re.match("\d*\.?\d*[eE]-?\+?\d*",temp[2])
-              str_check_int=re.match("\d*",temp[2])
-              str_check_float=re.match("\d*\.\d*",temp[2])
-              if (str_check_sn and str_check_sn.end()==len(temp[2])):
-                   par[temp[0]]=float(temp[2])
-                   namelists[current_namelist]=namelists[current_namelist]+" "+temp[0]
-              elif (str_check_float and str_check_float.end()==len(temp[2])):
-                   par[temp[0]]=float(temp[2])
-                   namelists[current_namelist]=namelists[current_namelist]+" "+temp[0]
-              elif (str_check_int and str_check_int.end()==len(temp[2])):
-                   float_temp=float(temp[2])
-                   par[temp[0]]=int(float_temp)
-                   namelists[current_namelist]=namelists[current_namelist]+" "+temp[0]
-              else:
-                   par[temp[0]]=temp[2]
-                   namelists[current_namelist]=namelists[current_namelist]+" "+temp[0]
 
-    #par['kxmax']=(par['nkx0']-1)*par['kxmin']
-    #par['kymax']=(par['nky0']/2-1)*par['kymin']
-    #par['kzmax']=(par['nkz0']/2-1)*par['kzmin']
-    par['ky_nyq']=(par['nky0']//2)*par['kymin']
-    par['kz_nyq']=(par['nkz0']//2)*par['kzmin']
-    par['nx0_big'] = 1 + 3 * par['nkx0'] // 2
-    par['ny0_big'] = 3 * par['nky0'] // 2
-    par['nz0_big'] = 3 * par['nkz0'] // 2
-    if par['etg_factor'] != 0.0:
-        print( "!!!!!!!!!!!!!!!!!!!!!!!!!!")
-        print( "!!!!!!!!!!!!!!!!!!!!!!!!!!")
-        print( "Warning! field solver in dna diags not implement for ky=0 and etg_factor != 0.")
-        print( "!!!!!!!!!!!!!!!!!!!!!!!!!!")
-        print( "!!!!!!!!!!!!!!!!!!!!!!!!!!")
-
-
-def get_grids():
+def get_grids(lpath):
     """Returns kx,ky,kz grids in the same form as used in the code \n
     kxgrid = 0, kxmin, . . . kxmax \n
     kygrid = 0, kymin, . . . kymax, kymax+kymin, -kymax, . . . -kymin """
 
 
-    try: 
-        with h5py.File(self.lpath+"/output.hdf5","r") as f:
+    with h5py.File(lpath+"/output.hdf5","r") as f:
 
             kxgrid = f["kx"][:]
             kygrid = f["ky"][:]
             kzgrid = f["kz"][:]
-
-    except:
-
-        kxgrid = np.arange(0,97)*.025
-        kygrid = np.arange(0,97)*.025
-        kzgrid = np.arange(0,97)*0.005
-
-        kxgrid = np.hstack((kxgrid[:-1],-kxgrid[:0:-1])).astype("float32")
-        kygrid = np.stack((kygrid[:-1],-kygrid[:0:-1])).astype("float32")
-
+            
     return kxgrid,kygrid,kzgrid
-
-def read_time_step_bv(bv,which_itime,swap_endian=False,):
-   """Reads a time step from bv_out.dat.  Time step determined by \'which_itime\'"""
-   file_name = par['diagdir'][1:-1]+'/'+bv+'_out.dat'
-   f = open(file_name,'rb')
-   ntot=par['nx0_big']*par['ny0_big']*par['nz0_big']*3#par['nv0']
-   mem_tot=ntot*16
-   gt0=np.empty((3,par['nz0_big'],par['ny0_big'],par['nx0_big']))
-   f.seek(8+which_itime*(8+mem_tot))
-   gt0=np.fromfile(f,dtype='complex128',count=ntot)
-   if swap_endian:
-       gt0=gt0.newbyteorder()
-   #print sum(gt0)
-   f.close()
-   return gt0
-
-def read_time_step_energy(which_itime,swap_endian=False):
-   """Reads a time step from energy_out.dat.  Time step determined by \'which_itime\'"""
-   file_name = par['diagdir'][1:-1]+'/energy_out.dat'
-   f = open(file_name,'rb')
-   gt0=np.empty((1))
-   ntot = 12
-   mem_tot = (ntot)*8
-   gt0 = np.empty(ntot)
-   f.seek(8+which_itime*(8+mem_tot))
-   gt0=np.fromfile(f,dtype='float64',count=ntot)
-   if swap_endian:
-       gt0=gt0.newbyteorder()
-   #print sum(gt0)                                                                                      \
-   f.close()
-   return gt0
-
-def get_time_from_bvout(bv,swap_endian=False,tmax=2000000):
-   """Returns time array taken from b_out.dat"""
-   file_name = par['diagdir'][1:-1]+ '/'+bv+'_out.dat'
-   f = open(file_name,'rb')
-   ntot=par['nx0_big']*par['ny0_big']*par['nz0_big']*3#par['nv0']
-   mem_tot=ntot*16
-   time=np.empty(0)
-   continue_read=1
-   i=0
-   while (continue_read):
-     f.seek(i*(mem_tot+8))
-     i=i+1
-     inp=np.fromfile(f,dtype='float64',count=1)
-     if swap_endian:
-         inp=inp.newbyteorder()
-     #print inp
-     
-     if inp==0 or inp:
-         time = np.append(time,inp)
-     else:
-         continue_read=0
-     if inp >= tmax:
-         continue_read=0
-     
-   f.close()
-   return time
-
-def get_time_from_energyout(swap_endian=False,tmax=2000000):
-   """Returns time array taken from v_out.dat"""
-   file_name = par['diagdir'][1:-1]+ '/energy_out.dat'
-   f = open(file_name,'rb')
-   ntot = 12
-   mem_tot=ntot*8
-   time=np.empty(0)
-   continue_read=1
-   i=0
-   while (continue_read):
-     f.seek(i*(mem_tot+8))
-     i=i+1
-     inp=np.fromfile(f,dtype='float64',count=1)
-     if swap_endian:
-         inp=inp.newbyteorder()
-     #print inp                                                                                  
-     if inp==0 or inp:
-         time = np.append(time,inp)
-     else:
-         continue_read=0
-     if inp >= tmax:
-         continue_read=0
-
-   print(time)
-   # work = input('Proceed? Y/N ')
-   # if work == 'N':
-   #    quit('Wrong times')
-   f.close()
-   return time
-
-def getbv(lpath,bv,tmax=2000000):
-    """Saves b_out.dat (located in the directory specified by lpath) into a python-readable format b_xyz.dat
-    which will also be located in the lpath directory.
-    """
-    read_parameters(lpath)
-    time = get_time_from_bvout(bv,tmax=tmax)
-    #time=time[:1000]
-    kx,ky,kz=get_grids()
-    i_n=[0,1,2]
-    savepath = lpath + '/'+bv+'_xyz.dat'
-    #g=np.zeros((len(time)-1,len(kx),len(ky,),len(kz),len(i_n)), dtype='complex64')
-    #print('allocating array')
-    g=np.memmap(savepath,dtype='complex64',mode='w+', shape=(len(time),len(kx),len(ky,),len(kz),len(i_n)) )
-     #g=np.zeros((len(time),len(kx),len(ky,),len(kz),len(i_n)), dtype='complex64')
-    #print('starting loop')
-    print(par)
-    print('time length = ', len(time))
-    for t in range(len(time)):
-        if(t%1000==0):
-            print(str(t))
-        gt = read_time_step_bv(bv,t)
-        gt = np.reshape(gt,(par['nx0_big'],par['ny0_big'],par['nz0_big'],3),order='F')
-        g[t] = gt
-    #np.save(lpath+'/g_allk_g04',g)
-    #print('finished loop')
-    np.save(lpath+'/time'+bv+'.npy',time)
-    np.save(lpath+'/'+bv+'shape.npy',g.shape)
-    return time, g
-
-def getenergy(lpath,tmax=2000000):
-    time = get_time_from_energyout(tmax=tmax)
-    #time=time[:1000] 
-
-    kx,ky,kz=get_grids()
-    i_n=[0,1,2]
-    ntot = 12
-    savepath = lpath+'/energy_xyz.dat'
-    #g=np.zeros((len(time)-1,len(kx),len(ky,),len(kz),len(i_n)), dtype='complex64') 
-   #print('allocating array') 
-    g=np.memmap(savepath,dtype='float64',mode='w+', shape=(len(time),ntot))
-    np.save(lpath+'/energyshape.npy',g.shape)
-    np.save(lpath+'/timeenergy.npy',time)
-    #g=np.zeros((len(time),len(kx),len(ky,),len(kz),len(i_n)), dtype='complex64')
-    #print('starting loop') 
-
-    print(par)
-    print('time length = ', len(time))
-    for t in range(len(time)):
-        if(t%20==0):
-            print(str(t))
-        gt = read_time_step_energy(t)
-        gt = np.reshape(gt,ntot,order='F')
-        g[t] = gt
-    #np.save(lpath+'/g_allk_g04',g)
-
-    #print('finished loop')
-
-    np.save(lpath+'/energyshape.npy',g.shape)
-    np.save(lpath+'/timeenergy.npy',time)
-    
-    return time,g
-
-def load_bv(lpath,bv):
-    """
-    This method can only be run after getb has been called at least once to save the b_xyz.dat file_name
-    This quickly loads the b array which will have indices [time,kx,ky,kz, x/y/z]
-    """
-    read_parameters(lpath)
-    time = np.load(lpath+'/time'+bv+'.npy')
-    bload=np.memmap(lpath+'/'+bv+'_xyz.dat',dtype='complex64',mode='r',shape=tuple(np.load(lpath+'/bshape.npy')))
-    return time, bload
-
-def load_energy(lpath):
-    """  This method can only be run after getv has been called at least once to save the v_xyz.dat file_name    
-    This quickly loads the v array which will have indices [time,kx,ky,kz, x/y/z]"""
-    read_parameters(lpath)
-    time = np.load(lpath+'/timeenergy.npy')
-    enload=np.memmap(lpath+'/energy_xyz.dat',dtype='float64',mode='r',shape=tuple(np.load(lpath+'/energyshape.npy')))
-    return time, enload
 
 def read_checkpoint(lpath):
 
    """Reads a time step from bv_out.dat.  Time step determined by \'which_itime\'"""
 
-   with h5py.File(self.lpath+"/output.hdf5","r") as f:
+   with h5py.File(lpath+"/output.hdf5","r") as f:
 
        written = f["written"][0]
 
        b1 = f["magneticfields"][written,:,:,:,:]
        v1 = f["velocityfields"][written,:,:,:,:]
 
-       mhc = f["helicitycorr"][written]
+       mhc = f["enval"][written,-1]
 
        b1 = np.transpose(b1,(1,2,3,0))
        v1 = np.transpose(v1,(1,2,3,0))
+       print(b1.dtype)
+       print(np.shape(b1))
 
        x = np.shape(b1)
        nkx0 = 2*x[0]//3
@@ -294,8 +61,12 @@ def read_checkpoint(lpath):
        nkz0 = 2*(x[2]-1)//3
 
        times = f["time"][written-1:written+1]
-       time = time[written]
-       dt = time[written]-time[written-1]
+       if np.size(times) > 1:
+           time = times[-1]
+           dt = times[-1]-times[0]
+       else:
+           time = 0
+           dt = 0.1
        itime = time//dt
 
    return itime,dt,nkx0,nky0,nkz0,time,b1,v1,mhc
@@ -318,7 +89,6 @@ def plot_bv(lpath,ix,iy,iz,ind,show=True):
 
     if lpath[-1] == '/':
         lpath = lpath[:-1]
-    read_parameters(lpath)
     
     if os.path.isfile(lpath+"/timeb.npy") and os.path.isfile(lpath+"/timev.npy"):
         timeb,b=load_bv(lpath,"b")
@@ -338,7 +108,7 @@ def plot_bv(lpath,ix,iy,iz,ind,show=True):
     ax[1].set_ylim(-3*np.median(np.abs(v[:,ix,iy,iz,ind])),3*np.median(np.abs(3*v[:,ix,iy,iz,ind])))
     ax[0].legend()
     ax[1].legend()
-    kx,ky,kz=get_grids()
+    kx,ky,kz=get_grids(lpath)
     fig.suptitle('kx,ky,kz = %1.2f,%1.2f,%1.2f'%(kx[ix],ky[iy],kz[iz]),size="large")
     fig.supxlabel('Time ($\omega_c^{-1}$)',size="large")
     if lpath[-1] != '/':
@@ -368,21 +138,26 @@ def center_width(data_width,data_min):
     
     return(plot_width,plot_center)
 
-def plot_energy(lpath,xb=1,tmax=2000000):
+def plot_energy(lpath,xb=1,tmax=2000000,checkenergyonly=False):
     """ Plots Scalars Written in energy_out.dat 
     Written in Order : 
     Energy, Magnetic Helicity, Canonical Helicity,
     Kinetic Energy, Magnetic Energy, 
     LW Energy, LC Energy, RW Energy, RC Energy,
-    Magnetic Helicity Bound, Canonical Helicity Bound, Magnetic Helicity Correction"""
+    Enstrophy, Curl B **2 , Magnetic Helicity Correction"""
     
     if lpath[-1] == "/":
         lpath = lpath[:-1]
 
     with h5py.File(lpath+"/output.hdf5","r") as f:
 
-        timeen = f["time"][:]
-        enval = f["enval"][:]        
+        written = f["written"][0]
+        timeen = f["time"][:written+1]
+        enval = f["enval"][:written+1,:]
+
+    if checkenergyonly:
+
+        print(enval[:,0]/(4*np.pi**3))
         
     #shapes = {1:(1,1),2:(2,1),3:(2,2),4:(2,2),5:(2,3),6:(2,3),7:(3,3),8:(3,3),9:(3,3)}
     #s = shapes[ntp+1]
@@ -529,8 +304,8 @@ def plot_energy(lpath,xb=1,tmax=2000000):
 
     # Mode Energies Plot
     fig,ax = plt.subplots(1)
-    fmts = ['b:','b--','r--','r:']
-    labels = ['+ Helicity Cyclotron','+ Helicity Whistler','- Helicity Whistler','- Helicity Cyclotron']
+    fmts = ['b--','b:','r--','r:']
+    labels = ['+ Helicity Whistler','+ Helicity Cyclotron','- Helicity Whistler','- Helicity Cyclotron']
     for i in range(4):
         ax.plot(timeen,enval[:,5+i]/(4*np.pi**3),fmts[i],label=labels[i])
     ax.set_ylabel("Mode Energy / Guide Field Energy",size="large")
@@ -540,6 +315,18 @@ def plot_energy(lpath,xb=1,tmax=2000000):
     ax.legend()
     fig.suptitle("Hall MHD Normal Mode Energy Distribution")
     plt.savefig(lpath+"/eplots/modeen",bbox_inches='tight')
+    plt.close()
+
+    fig,ax = plt.subplots(1)
+    ev = enval[:,9:11]/(4* np.pi**3)
+    ax.plot(timeen,ev[:,0],"rs",markersize=1,label="$(curl v)^2)$")
+    ax.plot(timeen,ev[:,1],"bs",markersize=1,label="$(curl B)^2$")
+    ax.set_ylabel("Integrated Enstrophy / Guide Field Energy",size="large")
+    ax.set_xlabel("Time ($\omega_c^{-1}$)",size="large")
+    ax.legend()
+    fig.suptitle("Enstrophy Growth")
+    plt.savefig(lpath+"/eplots/enstrophy",bbox_inches='tight')
+    #plt.show()
     plt.close()
 
     return timeen,enval
@@ -554,9 +341,10 @@ def numpy_enspec(lpath):
         os.mkdir(lpath + '/eplots/')
 
     itime,dt,nkx0,nky0,nkz0,time,b1,v1,mhc = read_checkpoint(lpath)
-    if not os.path.isfile(lpath+"/eplots/enspecs.npz"):
+    if True: #not os.path.isfile(lpath+"/eplots/enspecs.npz"):
         
         ekb = np.sum(np.abs(b1)**2.0,3)
+        print(np.shape(ekb),"Shape b")
         ekv = np.sum(np.abs(v1)**2.0,3)
 
         np.savez(lpath+"/eplots/enspecs",time=time,itime=itime,ekb=ekb,ekv=ekv)
@@ -567,12 +355,12 @@ def numpy_enspec(lpath):
         itime = data["itime"]
         ekb = data["ekb"]
         ekv = data["ekv"]
-            
+        print(np.shape(ekb),"Shape b")
     return(time,itime,ekb,ekv)
         
 def plot_enspec(lpath,zz=-1,version=3,show=False):
     # Plot energy spectrum at checkpoint time
-    kx,ky,kz = get_grids()
+    kx,ky,kz = get_grids(lpath)
     Ky,Kx,Kz = np.meshgrid(ky,kx,kz)
 
     print("Maximum k Values\n")
@@ -592,6 +380,7 @@ def plot_enspec(lpath,zz=-1,version=3,show=False):
     ekb = ekb[1:,1:,1:]
     ekv = ekv[1:,1:,1:]
     kmag = kmag[1:,1:,1:]
+    print(np.shape(kmag))
     xmax = 2 * np.amax(kmag)
         
     def enspec_format(fig,ax,prefix1,prefix2,xmin = 0.1,xmax = 10,ymin=10**(-6),ymax=10):
@@ -638,19 +427,19 @@ def plot_enspec(lpath,zz=-1,version=3,show=False):
     fig,ax = plt.subplots(1)
     ax.plot(x[a[::101]],yb[a[::101]],"ks",markersize=1)
     fig,ax = enspec_format(fig,ax,"Magnetic 3D","Magnetic",xmin=xmin,xmax=xmax,ymin=ymin,ymax=ymax)
-    fig.savefig(lpath+'/eplots/'+str(itime[0])+'benspec'+str(zz+1)+'.png',bbox_inches='tight')
+    fig.savefig(lpath+'/eplots/benspec'+str(zz+1)+'.png',bbox_inches='tight')
     plt.close()
     
     fig,ax = plt.subplots(1)
     ax.plot(x[a[::101]],yv[a[::101]],"ks",markersize=1)
     fig,ax = enspec_format(fig,ax,"Kinetic 3D","Kinetic",xmin=xmin,xmax=xmax,ymin=ymin,ymax=ymax)
-    fig.savefig(lpath+'/eplots/'+str(itime[0])+'venspec'+str(zz+1)+'.png',bbox_inches='tight')
+    fig.savefig(lpath+'/eplots/venspec'+str(zz+1)+'.png',bbox_inches='tight')
     plt.close()    
     
     fig,ax = plt.subplots(1)
     ax.plot(x[a[::101]],yt[a[::101]],"ks",markersize=1)
     fig,ax = enspec_format(fig,ax,"3D","",xmin=xmin,xmax=xmax,ymin=ymin,ymax=ymax)
-    fig.savefig(lpath+'/eplots/'+str(itime[0])+'enspec'+str(zz+1)+'.png',bbox_inches='tight')
+    fig.savefig(lpath+'/eplots/enspec'+str(zz+1)+'.png',bbox_inches='tight')
     plt.close()
     
     fig,ax = plt.subplots(1)
@@ -715,12 +504,12 @@ def plot_enspec(lpath,zz=-1,version=3,show=False):
 #
 
 def analytical_omega(lpath,ix,iy,iz):
-    read_parameters(lpath)
-    kx,ky,kz = get_grids()
+
+    kx,ky,kz = get_grids(lpath)
 
     try:
 
-        with h5py.File(self.lpath+"/output.hdf5","r") as f:
+        with h5py.File(lpath+"/output.hdf5","r") as f:
 
             hall = f["hall"][0]
     except:
@@ -762,72 +551,9 @@ def convert_spec_to_real(lpath,spectra):
 
     return(res)
 
-
-
-def plot_bvspectrum(lpath,bv,ix,iy,iz,ind,show=False):
-    """                                                                                                                                                                  
-    ix,iy,iz specifies the wavevector                                                                                                                                    
-    ind specifies x/y/z (0/1/2) component                                                                                                                                
-    This is an example method that performs the fft on the real part of b and plots the result.                                                                          
-    It will return an array of the frequencies found.                                                                                                                    
-    *** Right now it seems like freqs need to multiplied by 2*pi to get the right dispersion relation.                                                                   
-        I think this makes sense because w = 2*pi*f                                                                                                                      
-    """
-
-    ind_strings= ['x','y','z']
-    ind_string=ind_strings[ind]
-    ix,iy,iz = index_shift(ix,iy,iz)
-    
-    read_parameters(lpath)
-    kx,ky,kz=get_grids()
-    print(par['dt_max'])
-    
-    if bv=='b':
-        time,b=load_bv(lpath,"b")
-        dt = time[1]-time[0]
-        b_k = b[:,ix,iy,iz,ind]
-        sp=fftshift(fft(b_k-np.mean(b_k)))    
-        freq = fftshift(fftfreq(time.shape[-1],d=dt))
-    elif bv=='v':
-        time,b=load_bv(lpath,"v")
-        dt = time[1]-time[0]
-        b_k = b[:,ix,iy,iz,ind]
-        sp=fftshift(fft(b_k-np.mean(b_k)))
-        freq = fftshift(fftfreq(time.shape[-1],d=dt))
-    omega = 2*np.pi*freq
-    peaks,_ = find_peaks(np.abs(sp),threshold=1)
-    print(freq[peaks])
-    print(freq[peaks]*2*np.pi)
-    omega_plot = omega[(omega>-2*np.pi)&(omega<2*np.pi)]
-    sp_plot= sp[(omega>-2*np.pi)&(omega<2*np.pi)]
-    fig,ax= plt.subplots(1)
-    ax.plot(omega_plot, np.abs(sp_plot))
-    w1,w2 = np.abs(analytical_omega(lpath,ix,iy,iz))
-    print(w1,w2)
-    MM = 1.2*np.max(np.abs(sp_plot))
-    ax.plot([w1,w1],[-MM,MM])
-    ax.plot([w2,w2],[-MM,MM])
-    ax.plot([-w1,-w1],[-MM,MM])
-    ax.plot([-w2,-w2],[-MM,MM])
-    ax.set_ylim(0.0,MM)
-    ax.set_xlim(max(-6.3,-10*w1),min(6.3,10*w1))
-    
-    ax.set_ylabel('|FFT('+bv+'_%s)|'%ind_string ,size="large")
-    ax.set_xlabel('frequency',size="large")
-    fig.suptitle('kx,ky,kz = %1.2f,%1.2f,%1.2f'%(kx[ix],ky[iy],kz[iz]))
-    if lpath[-1] != '/':
-        lpath =lpath +'/'
-    if not os.path.exists(lpath + bv+'spectra/'):
-        os.mkdir(lpath + bv+'spectra/')
-    plt.savefig(lpath+bv+'spectra/'+bv+'spectrum_%s_%d_%d_%d'%(ind_string,ix,iy,iz))
-    if show == True:
-        plt.show()
-    plt.close()
-    return freq[peaks]*2*np.pi
-
 def integrated_spectrum_1d(spec,lpath,v=3):
 
-    kx,ky,kz = get_grids()
+    kx,ky,kz = get_grids(lpath)
     kygrid,kxgrid = np.meshgrid(ky[1:],kx[1:])
     kpgrid = np.sqrt(kxgrid**2 + kygrid**2)
     kps = kpgrid.flatten()
@@ -858,7 +584,7 @@ def integrated_spectrum_1d(spec,lpath,v=3):
 
 def nlparam(lpath):
 
-    kx,ky,kz = get_grids()
+    kx,ky,kz = get_grids(lpath)
     t,itime,ekbf,ekvf = numpy_enspec(lpath)
 
     ekbf = ekbf[1:,1:,1:]
@@ -889,22 +615,21 @@ def nlparam(lpath):
     plt.yscale("log")
     plt.xscale("log")
     plt.legend()
-    plt.show()
+    #plt.show()
 
     return(kperps,xi_cyclo,xi_mhd,xi_whist)
 
 def modes_from_check(lpath):
     """Post Process b and v into Normal Modes"""
 
-    read_parameters(lpath)
 
     if lpath[-1] == "/":
         lpath = lpath[:-1]
 
     itime,dt,nkx0,nky0,nkz0,time,b1,v1,mhc = read_checkpoint(lpath)
-
-    if os.path.isfile(lpath+"/modes"+str(itime[0])+".npz"):
-        data = np.load(lpath+"/modes"+str(itime[0])+".npz")
+    ctype = b1.dtype
+    if False:      #if os.path.isfile(lpath+"/modes"+str(itime)+".npz"):
+        data = np.load(lpath+"/modes"+str(itime)+".npz")
         time = data["time"]
         itime = data["itime"]
         lwk = data["lwk"]
@@ -912,7 +637,7 @@ def modes_from_check(lpath):
         rwk = data["rwk"]
         rck = data["rck"]
     else:
-        kx,ky,kz = get_grids()
+        kx,ky,kz = get_grids(lpath)
 
         Nx = np.size(kx)
         Ny = np.size(ky)
@@ -922,7 +647,7 @@ def modes_from_check(lpath):
         kmags = np.sqrt(Kx**2 + Ky**2 + Kz**2)
 
         try:
-            with h5py.File(self.lpath+"/output.hdf5","r") as f:
+            with h5py.File(lpath+"/output.hdf5","r") as f:
                 hall = f["hall"][0]
         except:
             hall = 1
@@ -930,8 +655,8 @@ def modes_from_check(lpath):
         alpha_lw = -(hall*kmags)/2 - np.sqrt(1+(hall*kmags)**2 /4)
         alpha_lc = -1/alpha_lw
     
-        Kvec = np.zeros([Nx,Ny,Nz,3],dtype='complex32')
-        Zvec = np.zeros([Nx,Ny,Nz,3],dtype="complex32")
+        Kvec = np.zeros([Nx,Ny,Nz,3],dtype=ctype)
+        Zvec = np.zeros([Nx,Ny,Nz,3],dtype=ctype)
         Kvec[:,:,:,0] = Kx
         Kvec[:,:,:,1] = Ky
         Kvec[:,:,:,2] = Kz
@@ -948,10 +673,10 @@ def modes_from_check(lpath):
         pceig = pceig / (np.sqrt(2) * np.sqrt(Kx[:,:,:,None]**2 + Ky[:,:,:,None]**2))
         pceig[0,0,:,:] = 0
 
-        lwk = np.zeros([Nx,Ny,Nz],dtype="complex32")
-        lck = np.zeros([Nx,Ny,Nz],dtype="complex32")
-        rwk = np.zeros([Nx,Ny,Nz],dtype="complex32")
-        rck = np.zeros([Nx,Ny,Nz],dtype="complex32")
+        lwk = np.zeros([Nx,Ny,Nz],dtype=ctype)
+        lck = np.zeros([Nx,Ny,Nz],dtype=ctype)
+        rwk = np.zeros([Nx,Ny,Nz],dtype=ctype)
+        rck = np.zeros([Nx,Ny,Nz],dtype=ctype)
 
         lwk = np.sum(np.conj(pceig[:,:,:,:])*(alpha_lw[:,:,:,None]*b1[:,:,:,:]+v1[:,:,:,:]),axis=-1)/np.sqrt(alpha_lw**2.0 + 1)
         lck = np.sum(np.conj(pceig[:,:,:,:])*(alpha_lc[:,:,:,None]*b1[:,:,:,:]+v1[:,:,:,:]),axis=-1)/np.sqrt(alpha_lc**2.0 + 1)
@@ -966,18 +691,21 @@ def modes_from_check(lpath):
         #            rwk[i,j,k] = np.dot((pceig[i,j,k,:]),-alpha_lw[i,j,k]*b1[i,j,k,:]+v1[i,j,k,:])/np.sqrt(alpha_lw[i,j,k]**2+1)
         #            rck[i,j,k] = np.dot((pceig[i,j,k,:]),-alpha_lc[i,j,k]*b1[i,j,k,:]+v1[i,j,k,:])/np.sqrt(alpha_lc[i,j,k]**2+1)
         
-        np.savez(lpath+"/modes"+str(itime[0])+".npz",time=time,itime=itime,lwk=lwk,lck=lck,rwk=rwk,rck=rck)
+        np.savez(lpath+"/modes"+str(itime)+".npz",time=time,itime=itime,lwk=lwk,lck=lck,rwk=rwk,rck=rck)
 
     return(time,itime,lwk,lck,rwk,rck)
 
 def mode_break(lpath,show=False,tmax=200000):
 
-    kx,ky,kz = get_grids()
+    kx,ky,kz = get_grids(lpath)
 
     time,itime,lwk,lck,rwk,rck = modes_from_check(lpath)
 
+    print("Initial Whistler",np.sum(np.abs(lwk)**2))
+
     mode_ks = np.stack((lwk,lck,rwk,rck))
     fmts = ['b--','b:','r--','r:']
+    #fmts = ["bs","bo","rs","ro"]
     labels = ['+ Helicity Whistler','+ Helicity Cyclotron','- Helicity Whistler','- Helicity Cyclotron']
     
     # Other plots: 1D spectra
@@ -1023,7 +751,7 @@ def mode_break(lpath,show=False,tmax=200000):
     ax.plot(kperps,spec1df4,fmts[3],label=labels[3])
 
     try:
-        with h5py.File(self.lpath+"/output.hdf5","r") as f:
+        with h5py.File(lpath+"/output.hdf5","r") as f:
             triplet = f["threewaves"][:]
 
         for i in range(3):
@@ -1035,12 +763,13 @@ def mode_break(lpath,show=False,tmax=200000):
             if i == 1:
                 ax.plot(kperps[kpind],spec1df1[kpind],marker="x",color=fmts[0][0],label="Three Wave")
             else:
-                ax.plot(kperps[kpind],spec1df1[kpind],marker="x",color=fmts[0][0])~
+                ax.plot(kperps[kpind],spec1df1[kpind],marker="x",color=fmts[0][0])
             ax.plot(kperps[kpind],spec1df2[kpind],marker="x",color=fmts[1][0])
             ax.plot(kperps[kpind],spec1df3[kpind],marker="x",color=fmts[2][0])
             ax.plot(kperps[kpind],spec1df4[kpind],marker="x",color=fmts[3][0])
     except:
-        continue
+        print(None)
+
 
     m = min(np.amin(spec1df1[np.nonzero(spec1df1)]),np.amin(spec1df2[np.nonzero(spec1df2)]),
             np.amin(spec1df3[np.nonzero(spec1df3)]),np.amin(spec1df4[np.nonzero(spec1df4)]))
@@ -1083,8 +812,7 @@ def enheldev(lpath,local=0):
 
 def structurefunction(lpath,tmax=2*10**10):
 
-    read_parameters(lpath)
-    kx,ky,kz = get_grids()
+    kx,ky,kz = get_grids(lpath)
 
     x=""" if os.path.isfile(lpath+'/dumlasts.txt'):
         bk = np.load(lpath+'/b_fin.npy')
@@ -1248,7 +976,7 @@ def structurefunction(lpath,tmax=2*10**10):
         
 def mode_nlparam(lpath,tt,dim,show=False,tmax=200000):
 
-    kx,ky,kz = get_grids()
+    kx,ky,kz = get_grids(lpath)
 
     t,lwk,lck,rwk,rck = modes_from_check(lpath)
 
@@ -1295,6 +1023,7 @@ def mode_nlparam(lpath,tt,dim,show=False,tmax=200000):
     plt.xscale("log")
     plt.legend()
     plt.savefig(lpath+'/eplots/nlpar'+str(dim)+'d'+str(int(t[tt])))
+    plt.close()
     
     return(0)
 
@@ -1319,21 +1048,22 @@ def threewaveenergy(lpath):
     if lpath[-1] == "/":
         lpath = lpath[:-1]
     
-    with h5py.File(self.lpath+"/output.hdf5","r") as f:
+    with h5py.File(lpath+"/output.hdf5","r") as f:
 
         try:
             triplet = f["threewaves"][:]
         except:
             ValueError("Not a three wave simulation")
 
-        time = f["time"][:]
-        threewaveenergies = f["threewaveenergies"][:,:]
-        
-    kxgrid,kygrid,kzgrid = get_grids()
+        written = f["written"][0]
+        time = f["time"][:written+1]
+        threewaveenergies = f["threewaveenergies"][:written+1,:]
+
+    kxgrid,kygrid,kzgrid = get_grids(lpath)
     
-    kxs = triplet[0:3:9]
-    kys = triplet[1:3:9]
-    kzs = triplet[2:3:9]
+    kxs = triplet[0:9:3]
+    kys = triplet[1:9:3]
+    kzs = triplet[2:9:3]
     modetypes = np.int32(triplet[9:])
     
     ks = np.sqrt(kxs**2 + kys**2 + kzs**2)
@@ -1344,7 +1074,7 @@ def threewaveenergy(lpath):
     plt.figure()
     for i in range(3):
         mt = modetypes[ii[i]]
-        plt.plot(time,threewaveenergies[:,4*ii[i]+mt],color=colors[i],label=(ff(kxs[ii[i]],2),ff(kys[ii[i]],2),ff(kzs[ii[i]],2)))
+        plt.plot(time,threewaveenergies[:,4*ii[i]+mt]/(4*np.pi**3.0),color=colors[i],label=(ff(kxs[ii[i]],4),ff(kys[ii[i]],4),ff(kzs[ii[i]],4)))
     plt.xlabel("Time ($\omega_c^{-1}$)")
     plt.ylabel("Wave Energy / Guide Field Energy")
     plt.ylim(10**(-7),10**1)
@@ -1354,11 +1084,12 @@ def threewaveenergy(lpath):
     plt.yscale("log")
     plt.legend(loc="lower right")
     plt.savefig(lpath+"/eplots/threewaves")
+    plt.close()
 
     for i in range(3):
         plt.figure()
-        plt.plot(time,threewaveenergies[:,4*i+1]/(4*np.pi**3.0),color="b",linestyle="--",label="Positive Whistler")
-        plt.plot(time,threewaveenergies[:,4*i]/(4*np.pi**3.0),color="b",linestyle=":",label="Positive Cyclotron")
+        plt.plot(time,threewaveenergies[:,4*i]/(4*np.pi**3.0),color="b",linestyle="--",label="Positive Whistler")
+        plt.plot(time,threewaveenergies[:,4*i+1]/(4*np.pi**3.0),color="b",linestyle=":",label="Positive Cyclotron")
         plt.plot(time,threewaveenergies[:,4*i+2]/(4*np.pi**3.0),color="r",linestyle="--",label="Negative Whistler")
         plt.plot(time,threewaveenergies[:,4*i+3]/(4*np.pi**3.0),color="r",linestyle=":",label="Negative Cyclotron")
         plt.legend()
@@ -1366,8 +1097,8 @@ def threewaveenergy(lpath):
         plt.ylabel("Wave Energy / Guide Field Energy")
         plt.yscale("log")
         plt.ylim(10**(-7),10**1)
-        plt.title("Wave Energies k "+ff(kxs[i],2)+" "+
-                  ff(kys[i],2)+" "+ff(kzs[i],2))
+        plt.title("Wave Energies k "+ff(kxs[i],4)+" "+
+                  ff(kys[i],4)+" "+ff(kzs[i],4))
         plt.legend(loc="lower right")
         plt.savefig(lpath+"/eplots/wavebreakdown"+str(i+1))
         plt.close()
@@ -1376,41 +1107,49 @@ def threewaveenergy(lpath):
     
 def nonlinearities(lpath):
 
-    kx,ky,kz = get_grids()
+    kx,ky,kz = get_grids(lpath)
     itime,dt,nkx0,nky0,nkz0,time,b1,v1,mhc = read_checkpoint(lpath)
-    b1[0,0,0,:] = 0.0 
+    b1[0,0,0,:] = 0.0
+
+    print(np.shape(kx))
+    print(ky)
+    print(np.shape(ky))
+    print(np.shape(kz)," kz shape")
+
+    with h5py.File(lpath+"/output.hdf5","r") as f:
+        hall = f["hall"][0]
     
-    if not os.path.exists(lpath+"/nonlinearity.npz"):
+    if True:
 
-        mask = np.ones_like(b1,dtype="int32")
-        mask[nkx0:2*nkx0,:,:,:] = 0
-        mask[:,nky0:2*nky0,:,:] = 0
-        mask[:,:,nkz0:,:] = 0
+        mask = np.ones_like(b1[:,:,:,0],dtype="int32")
+        mask[nkx0:2*nkx0,:,:] = 0
+        mask[:,nky0:2*nky0,:] = 0
+        mask[:,:,nkz0:] = 0
 
-        bx = irfftn(binput[:,:,:,0])
-        by = irfftn(binput[:,:,:,1])
-        bz = irfftn(binput[:,:,:,2])
+        bx = irfftn(b1[:,:,:,0])
+        by = irfftn(b1[:,:,:,1])
+        bz = irfftn(b1[:,:,:,2])
     
-        vx = irfftn(vinput[:,:,:,0])
-        vy = irfftn(vinput[:,:,:,1])
-        vz = irfftn(vinput[:,:,:,2])
+        vx = irfftn(v1[:,:,:,0])
+        vy = irfftn(v1[:,:,:,1])
+        vz = irfftn(v1[:,:,:,2])
 
-        dum = 1j*self.kygrid[None,:,None]*binput[2,:,:,:]-1j*self.kzgrid[None,None,:]*binput[1,:,:,:]
+        dum = 1j*ky[None,:,None]*b1[:,:,:,2]-1j*kz[None,None,:]*b1[:,:,:,1]
         curlbx = irfftn(dum)
 
-        dum = 1j*self.kzgrid[None,None,:]*binput[0,:,:,:]-1j*self.kxgrid[:,None,None]*binput[2,:,:,:]
+        dum = 1j*kz[None,None,:]*b1[:,:,:,0]-1j*kx[:,None,None]*b1[:,:,:,2]
         curlby = irfftn(dum)
 
-        dum = 1j*self.kxgrid[:,None,None]*binput[1,:,:,:]-1j*self.kygrid[None,:,None]*binput[0,:,:,:]
+        dum = 1j*kx[:,None,None]*b1[:,:,:,1]-1j*ky[None,:,None]*b1[:,:,:,0]
         curlbz = irfftn(dum)
 
-        dum = 1j*self.kygrid[None,:,None]*vinput[2,:,:,:]-1j*self.kzgrid[None,None,:]*vinput[1,:,:,:]
+        dum = 1j*ky[None,:,None]*v1[:,:,:,2]-1j*kz[None,None,:]*v1[:,:,:,1]
         curlvx = irfftn(dum)
 
-        dum = 1j*self.kzgrid[None,None,:]*vinput[0,:,:,:]-1j*self.kxgrid[:,None,None]*vinput[2,:,:,:]
+        dum = 1j*kz[None,None,:]*v1[:,:,:,0]-1j*kx[:,None,None]*v1[:,:,:,2]
         curlvy = irfftn(dum)
 
-        dum = 1j*self.kxgrid[:,None,None]*vinput[1,:,:,:]-1j*self.kygrid[None,:,None]*vinput[0,:,:,:]
+        dum = 1j*kx[:,None,None]*v1[:,:,:,1]-1j*ky[None,:,None]*v1[:,:,:,0]
         curlvz = irfftn(dum)
 
         N = np.size(bx)
@@ -1418,38 +1157,38 @@ def nonlinearities(lpath):
         bout = np.zeros_like(b1)
         dum = vy * bz - vz * by
         dum2 = rfftn(dum) * N
-        bout[:,:,:,1] += 1j * self.kzgrid[None,None,:] * dum2
-        bout[:,:,:,2] -= 1j * self.kygrid[None,:,None] * dum2
+        bout[:,:,:,1] += 1j * kz[None,None,:] * dum2
+        bout[:,:,:,2] -= 1j * ky[None,:,None] * dum2
 
         dum = vz * bx   - vx * bz
         dum2 = rfftn(dum) *	N
-        bout[:,:,:,0] += -1j * self.kzgrid[None,None,:] * dum2
-        bout[:,:,:,2] += 1j * self.kxgrid[:,None,None] * dum2
+        bout[:,:,:,0] += -1j * kz[None,None,:] * dum2
+        bout[:,:,:,2] += 1j * kx[:,None,None] * dum2
         
         dum = vx * by   - vy * bx
         dum2 = rfftn(dum) *	N
-        bout[:,:,:,0] += 1j * self.kygrid[None,:,None] * dum2
-        bout[:,:,:,1] += -1j * self.kxgrid[:,None,None] * dum2
+        bout[:,:,:,0] += 1j * ky[None,:,None] * dum2
+        bout[:,:,:,1] += -1j * kx[:,None,None] * dum2
 
-        vxb = np.sum(np.abs(bout)**2.0,axis=-1)
+        vxb = np.sqrt(np.sum(np.abs(bout)**2.0,axis=-1))
 
         bout = np.zeros_like(b1)
-        dum = self.hallparam * ( curlby * bz - curlbz * by )
+        dum = hall * ( curlby * bz - curlbz * by )
         dum2 = rfftn(dum) *	N
-        bout[:,:,:,1] += 1j	* self.kzgrid[None,None,:] * dum2
-        bout[:,:,:,2] -= 1j	* self.kygrid[None,:,None] * dum2
+        bout[:,:,:,1] += 1j	* kz[None,None,:] * dum2
+        bout[:,:,:,2] -= 1j	* ky[None,:,None] * dum2
 
-        dum = self.hallparam * ( curlbz * bx - curlbx * bz )
+        dum = hall * ( curlbz * bx - curlbx * bz )
         dum2 = rfftn(dum) * N
-        bout[:,:,:,0] += -1j * self.kzgrid[None,None,:] * dum2
-        bout[:,:,:,2] += 1j * self.kxgrid[:,None,None] * dum2
+        bout[:,:,:,0] += -1j * kz[None,None,:] * dum2
+        bout[:,:,:,2] += 1j * kx[:,None,None] * dum2
 
-        dum = self.hallparam * ( curlbx * by - curlby * bx )
+        dum = hall * ( curlbx * by - curlby * bx )
         dum2 = rfftn(dum) * N
-        bout[:,:,:,0] += 1j * self.kygrid[None,:,None] * dum2
-        bout[:,:,:,1] += -1j * self.kxgrid[:,None,None] * dum2
+        bout[:,:,:,0] += 1j * ky[None,:,None] * dum2
+        bout[:,:,:,1] += -1j * kx[:,None,None] * dum2
 
-        hallfx = np.sum(np.abs(bout)**2.0,axis=-1)
+        hallfx = np.sqrt(np.sum(np.abs(bout)**2.0,axis=-1))
 
         bout = np.zeros_like(b1)
         dum = vy * curlvz - vz * curlvy
@@ -1461,7 +1200,7 @@ def nonlinearities(lpath):
         dum = vx * curlvy - vy * curlvx
         bout[:,:,:,2] = rfftn(dum) * N
         
-        vdv = np.sum(np.abs(bout)**2.0,axis=-1)
+        vdv = np.sqrt(np.sum(np.abs(bout)**2.0,axis=-1))
 
         bout = np.zeros_like(b1)
         dum = curlby * bz - curlbz * by
@@ -1473,7 +1212,7 @@ def nonlinearities(lpath):
         dum = curlbx * by - curlby * bx
         bout[:,:,:,2] = rfftn(dum) * N
         
-        jxb = np.sum(np.abs(bout)**2.0,axis=-1)
+        jxb = np.sqrt(np.sum(np.abs(bout)**2.0,axis=-1))
 
         vxb *= mask
         hallfx *= mask
@@ -1497,13 +1236,14 @@ def nonlinearities(lpath):
     kperps,vdv1 = integrated_spectrum_1d(vdv,lpath,v=3)
     kperps,jxb1 = integrated_spectrum_1d(jxb,lpath,v=3)
 
-    ax.plot(kperps,vxb1,"b:",label="$\nabla\times(v\times b)$")
-    ax.plot(kperps,hallfx1,"b--",label="$\nabla\times((\nabla\times b)\times b)$")
-    ax.plot(kperps,vdv1,"r:",label="$v\times(\nabla\times v)$")
-    ax.plot(kperps,jxb1,"r--",label="(\nabla\times b)\times b")
+    ax.plot(kperps,vxb1,"b:",label="Curl v x B")
+    ax.plot(kperps,hallfx1,"b--",label="Hall Term")
+    ax.plot(kperps,vdv1,"r:",label="v x Curl v")
+    ax.plot(kperps,jxb1,"r--",label="J x B")
     ax.set_yscale("log")
-    ax.set_xlabel("$k_\perp$ (d_i^{-1})")
-    ax.set_ylabel("Nonlinearity Amplitude")
+    ax.set_xscale("log")
+    ax.set_xlabel("$k_\perp (d_i^{-1})$",size="large")
+    ax.set_ylabel("Nonlinearity Amplitude",size="large")
     ax.legend()
     
     fig.suptitle("Relative Strength of Hall MHD Nonlinearities with k")
