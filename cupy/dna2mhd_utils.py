@@ -78,11 +78,13 @@ def index_shift(ix,iy,iz):
         iz = iz + par['nkz0']/2
     return (ix,iy,iz)
 
+""" Plot individual mode profile over time
+
 def plot_bv(lpath,ix,iy,iz,ind,show=True):
-    """
-    This is an example method that plots the timetraces of b and v at the specified wavevector (kx[ix],ky[iy],kz[iz]).
-    ind specifies whether you want the x(0),y(1), or z(2) component.
-    """
+   
+    x = ""This is an example method that plots the timetraces of b and v at the specified wavevector (kx[ix],ky[iy],kz[iz]).
+    ind specifies whether you want the x(0),y(1), or z(2) component.""
+
     ind_strings= ['x','y','z']
     ind_string=ind_strings[ind]
     ix,iy,iz = index_shift(ix,iy,iz)
@@ -120,6 +122,8 @@ def plot_bv(lpath,ix,iy,iz,ind,show=True):
         plt.show()
 
     return timeb,b,timev,v
+
+"""
 
 def center_width(data_width,data_min):
     # Get preferred center and half-width for LinearLocator data

@@ -1,3 +1,10 @@
+"""
+Script to order one or more three wave interaction simulations
+
+
+"""
+
+
 from dna2mhd_exp import DNA2MHD
 import dna2mhd_utils as dn
 import numpy as np
@@ -36,7 +43,8 @@ for i in range(start,start+1):
     triplet = a[i,:9].tolist()
     
     solver = DNA2MHD(nkx0,nky0,nkz0,kxmin,kymin,kzmin,nu,eta,
-                     dt,iterations,lpath,linear=False,explicitrk4=False,
+                     dt,iterations,lpath,
+                     linear=False,
                      initcond="threewave",energystart=0.01,init_kolm=0,hmhdwave=[1,0,0,0],
                      forcetype="hallwave",forceamp=0.0,nforce=4,forcewave=[1,0,0,0],hyper=hyper,hallparam=1.0,
                      solveprec=16,maxwallclock=86200,triplet=triplet,records=50,bittype=64)

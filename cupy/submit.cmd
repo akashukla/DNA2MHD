@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --qos=regular
+#SBATCH --qos=preempt
 #SBATCH --time=03:00:00
 #SBATCH --constraint=gpu
 #SBATCH --gpus=1
@@ -10,4 +10,4 @@
 
 module load nvidia
 module load forge
-srun -n 1 python3 exporder.py "$1"
+srun -n 1 python3 launch3waveint.py "$1"
