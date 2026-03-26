@@ -316,6 +316,7 @@ class DIAGS:
         kygridcpu = cp.asnumpy(self.kygrid)
         kzgridcpu = cp.asnumpy(self.kzgrid)
         hcpu = cp.asnumpy(self.hallparam)
+        dtcpu = cp.asnumpy(self.dt)
         
         if not os.path.exists(self.lpath+"/output.hdf5"):
 
@@ -326,20 +327,21 @@ class DIAGS:
                 ky = f.create_dataset("ky",(np.size(kygridcpu),),data=kygridcpu)
                 kz = f.create_dataset("kz",(np.size(kzgridcpu),),data=kzgridcpu)
                 written = f.create_dataset("written",(1,),dtype="int32",data=int32c(0))
-                hall = f.create_dataset("hall",(1,),data=hcpu)               
-                
-                times = f.create_dataset("time",(self.record+1,),dtype=self.rtype)
-                enval = f.create_dataset("enval",(self.record+1,12),dtype=self.rtype)
+                dt = f.create_dataset("dt",(1,),dtype="float64",data=dtcpu)
                 hall = f.create_dataset("hall",(1,),data=hcpu)
+
+                itime = f.create_dataset("itime",(1,),dtype="int32",data=0)
+                times = f.create_dataset("time",(self.record+1,),dtype=self.rtype,maxshape=(None))
+                enval = f.create_dataset("enval",(self.record+1,12),dtype=self.rtype,maxshape=(None,12))
 
                 if self.initcond == "threewave":
 
                     tripletcpu = cp.asnumpy(self.triplet)
                     threewaves = f.create_dataset("threewaves",(12,),dtype=self.rtype,data=tripletcpu)
-                    threewaveenergies = f.create_dataset("threewaveenergies",(self.record+1,12),dtype=self.rtype)
+                    threewaveenergies = f.create_dataset("threewaveenergies",(self.record+1,12),dtype=self.rtype,maxshape=(None,12))
 
-                magneticfields = f.create_dataset("magneticfields",(self.record+1,3,self.nx0_big,self.ny0_big,self.nz0_big//2+1),dtype=self.ctype)
-                velocityfields = f.create_dataset("velocityfields",(self.record+1,3,self.nx0_big,self.ny0_big,self.nz0_big//2+1),dtype=self.ctype)
+                magneticfields = f.create_dataset("magneticfields",(self.record+1,3,self.nx0_big,self.ny0_big,self.nz0_big//2+1),dtype=self.ctype,maxshape=(None,3,self.nx0_big,self.ny0_big,self.nz0_big//2+1))
+                velocityfields = f.create_dataset("velocityfields",(self.record+1,3,self.nx0_big,self.ny0_big,self.nz0_big//2+1),dtype=self.ctype,maxshape=(None,3,self.nx0_big,self.ny0_big,self.nz0_big//2+1))
 
         return(None)
     
@@ -371,6 +373,7 @@ class DIAGS:
         b1cpu = cp.asnumpy(self.b1)
         v1cpu = cp.asnumpy(self.v1)
         mhccpu = cp.asnumpy(self.mhelcorr)
+        itimecpu = cp.asnumpy(self.itime)
 
         if self.initcond == "threewave":
             waveenergiescpu = cp.asnumpy(self.tripletenergies)        
@@ -381,6 +384,7 @@ class DIAGS:
             dset = f["written"]
             print("Written shape ",self.timecpu)
 
+            f["itime"][0] = itimecpu
             f["written"][0] = self.writtencpu
             f["time"][self.writtencpu] = self.timecpu
             f["enval"][self.writtencpu,0] = hamcpu
@@ -419,6 +423,10 @@ class DNA2MHD(RHS,DIAGS):
             floattype = cp.float64
             complextype = cp.complex128
 
+        if lpath[-1] == "/":
+            lpath = lpath[:-1]
+        self.lpath = lpath
+
         self.ctype = "complex"+str(2*bittype)
         self.rtype = "float"+str(bittype)
 
@@ -453,14 +461,14 @@ class DNA2MHD(RHS,DIAGS):
 
         KX,KY,KZ = cp.meshgrid(self.kxgrid,self.kygrid,self.kzgrid,indexing="ij")
 
-	self.kmags = cp.sqrt(self.kxgrid[:,None,None]**2.0 + self.kygrid[None,:,None]**2.0+self.kzgrid[None,None,:]**2.0).astype(self.rtype)
+        self.kmags = cp.sqrt(self.kxgrid[:,None,None]**2.0 + self.kygrid[None,:,None]**2.0+self.kzgrid[None,None,:]**2.0).astype(self.rtype)
         self.kmax = cp.amax(self.kmags)
 
         # Positive curl eigenstates defined
         zvec = cp.array([0,0,1],dtype=self.ctype)
         ks = cp.stack((KX,KY,KZ)).astype(self.ctype)
 
-	self.pcurleig = cp.cross(ks,zvec[:,None,None,None],axis=0)
+        self.pcurleig = cp.cross(ks,zvec[:,None,None,None],axis=0)
         self.pcurleig += 1j* cp.cross(ks,self.pcurleig,axis=0)/self.kmags[None,:,:,:]
         self.pcurleig *= cp.sqrt(2)/(2*self.kmags[:,:,0][None,:,:,None])
         self.pcurleig[:,0,0,:] = cp.array([1,1j,0],dtype=self.ctype)[:,None]/cp.sqrt(2.0)
@@ -498,9 +506,6 @@ class DNA2MHD(RHS,DIAGS):
             # Specify viscosity, resistivity in di^2 wci, mu0 di^2 wci; e.g.
             self.vnu = nu
             self.etab = eta
-
-        
-            
         
         print("Dissipation Factors",self.vnu,self.etab)
 
@@ -547,13 +552,10 @@ class DNA2MHD(RHS,DIAGS):
         self.hallparam = hallparam        
 
         # Output parameters - filename, how many times to store fields, and set up HDF5 output file
-
-        if lpath[-1] == "/":
-            lpath = lpath[:-1]
-        self.lpath = lpath
-        
         self.record = records
         self.irecord = self.iterations // records
+        self.iterations += self.itime_start
+        print("Recording Time ",self.irecord,"dt ",self.dt)
         self.written = 0
         self.createhdf5file()
         
@@ -635,23 +637,21 @@ class DNA2MHD(RHS,DIAGS):
             # CPU read data
             with h5py.File(self.lpath+"/output.hdf5","r") as f:
 
-                dset = f["written"]
-                print("Written shape ",self.timecpu)
-
                 written = f["written"][0]
                 b1cpu = f["magneticfields"][written,:,:,:,:]
                 v1cpu = f["velocityfields"][written,:,:,:,:]
                 timecpu = f["time"][written]
-                dt = f["time"][written]-f["time"][written-1]
+                dtcpu = f["dt"][0]
+                itimecpu = f["itime"][0]
                 mhc = f["enval"][written,-1]
 
             # Send to GPU storage
             self.b1 = cp.asarray(b1cpu)
             self.v1 = cp.asarray(v1cpu)
             self.time = cp.asarray(timecpu)
-            self.itime = cp.asarray(timecpu/dt)
+            self.itime = cp.asarray(itimecpu)
             self.itime_start = cp.copy(self.itime)
-            self.dt = cp.asarray(dt)
+            self.dt = cp.asarray(dtcpu)
             self.mhelcorr = cp.asarray(mhc)
 
         return(None)
@@ -727,7 +727,7 @@ class DNA2MHD(RHS,DIAGS):
             #print("dot time ", np.abs(dot1))
 
             # File output
-            if self.irecord > 0 and self.itime % self.irecord == 0:
+            if self.irecord > 0 and (self.itime - self.itime_start) % self.irecord== 0:
 
                 self.writefile()
 
@@ -822,7 +822,7 @@ class DNA2MHD(RHS,DIAGS):
 
         while self.itime < self.iterations and self.runtime < self.maxwallclock:
 
-            if self.irecord > 0 and self.itime % self.irecord == 0:
+            if self.irecord > 0 and (self.itime - self.itime_start) % self.irecord== 0 :
 
                 self.bplus = cp.sum(cp.conj(self.pcurleig)*self.b1,axis=0)
                 self.vplus = cp.sum(cp.conj(self.pcurleig)*self.v1,axis=0)
@@ -869,7 +869,7 @@ class DNA2MHD(RHS,DIAGS):
 
         while self.itime < self.iterations and self.runtime < self.maxwallclock:
 
-            if self.irecord > 0 and self.itime % self.irecord == 0:
+            if self.irecord > 0 and (self.itime - self.itime_start) % self.irecord== 0 :
                 self.bplus = cp.sum(cp.conj(self.pcurleig)*self.b1,axis=0)
                 self.vplus = cp.sum(cp.conj(self.pcurleig)*self.v1,axis=0)
                 self.bminus = cp.sum(self.pcurleig*self.b1,axis=0)
@@ -931,7 +931,7 @@ class DNA2MHD(RHS,DIAGS):
 
         while self.itime < self.iterations and self.runtime < self.maxwallclock: 
 
-            if self.irecord > 0 and self.itime % self.irecord == 0:
+            if self.irecord > 0 and (self.itime - self.itime_start) % self.irecord == 0 and (self.itime > self.itime_start or self.itime_start == 0):
                 self.bplus = cp.sum(cp.conj(self.pcurleig)*self.b1,axis=0)
                 self.vplus = cp.sum(cp.conj(self.pcurleig)*self.v1,axis=0)
                 self.bminus = cp.sum(self.pcurleig*self.b1,axis=0)

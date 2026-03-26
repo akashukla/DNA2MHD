@@ -4,7 +4,6 @@ Script to order one or more three wave interaction simulations from submitruns.p
 
 
 from dna2mhd_exp import DNA2MHD
-import dna2mhd_utils as dn
 import numpy as np
 import os
 import sys
@@ -12,12 +11,10 @@ import sys
 start = np.int32(sys.argv[1])
 
 factor = 1
-N = 128
+N = 256
 nkx0 = N*factor
 nky0 = N*factor
 nkz0 = N*factor
-
-n = np.size(a)//12
 
 for i in range(start,start+1):
 
@@ -31,7 +28,7 @@ for i in range(start,start+1):
     # Resonant wave interaction wavenumbers in ascending wavenumber order
     # If using other waves than positive whistlers, add three mode types
     
-    with h5py.File("initconds032426.hdf5","w") as f:
+    with h5py.File("initconds032426.hdf5","r") as f:
 
         # Setting number - specific to file with 5 interactions, 5 settings
         # 0 - LAPD, 1 - HSX, 2 - DIII-D, 3 - Coronal Loop, 4 - Solar Wind
@@ -51,11 +48,11 @@ for i in range(start,start+1):
 
     hyper = 1
     lpath = "/pscratch/sd/e/echansen/threewaves032426/"+fname+str(intnum)+"/"
-    print(lpath,nu,eta)
+    print(lpath,nu,eta,kzmin,kxmin)
     if not os.path.exists(lpath):
         os.mkdir(lpath)
     test_iterations = iterations//1000
-    triplet = a[i,:9].tolist()
+    triplet = triplets.tolist()
     
     solver = DNA2MHD(nkx0,nky0,nkz0,kxmin,kymin,kzmin,nu,eta,
                      dt,iterations,lpath,

@@ -8,7 +8,7 @@ import os
 for seti in range(0,5):
     for intnum in range(0,5):
 
-        with h5py.File("initconds032426.hdf5","w") as f:
+        with h5py.File("initconds032426.hdf5","r") as f:
             fname = f["fnames"][seti]
 
             lpath = "/pscratch/sd/e/echansen/threewaves032426/"+fname+str(intnum)+"/"
