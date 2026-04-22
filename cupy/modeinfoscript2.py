@@ -69,8 +69,8 @@ Jn1K *= np.abs(np.sum(np.conj(pcurleig[:,0:3])*np.conj(pcurleig[:,3:6]),axis=1))
 # middle mode is hybrid
 
 us = np.zeros([Nmodes,3])
-us[:,0] = mus[:,0]/2 * J21
-us[:,2] = mus[:,2]/2 * J21
+us[:,0] = mus[:,0]/2 * (J21)
+us[:,2] = mus[:,2]/2 * (J21)
 us[:,1] = mus[:,1]/2 * (J2K-Jn1K)
 
 psi1_0 = 4/3.5 * 0.01 # initial energy of mode times 2 from sim

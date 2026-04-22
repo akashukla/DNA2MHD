@@ -32,6 +32,92 @@ eta = nu
 hyp = 2
 """
 
+def idealexpcoefs(kxgrid,kygrid,kzgrid,nu,hyp,dt,Nquad,kmags,eig,hall,pade=True,ctype="complex64"):
+    """ Compute exponential coefficents for the ideal Hall MHD system"""
+
+    padNx = cp.size(kxgrid)//2
+    padNy = cp.size(kygrid)//2
+    padNz = cp.size(kzgrid)
+
+    shape4 = [2*padNx,2*padNy,padNz,4]
+
+    # Time integration variables
+
+    # Construct diagonal time integration variables from contour quadrature
+    expLdiag = cp.exp(eig*dt,dtype=ctype)
+    coef1diag = cp.zeros(shape4,dtype=ctype)
+
+    # Contour integral for the needed exponential time integrator functions
+
+    if not pade:
+        for q in range(Nquad):
+        
+            r = cp.exp((q+0.5)/Nquad * 1j * 2*pi)
+            
+            # Initialize each nontrivial eigenvalue
+            coef1diag += (expLdiag*cp.exp(r*dt) - 1)/((eig+r))
+            coef2diag += (expLdiag*cp.exp(r*dt)-1-(eig+r)*dt)/(dt*(eig+r)**2)
+
+        coef1diag /= Nquad
+        coef2diag /= Nquad
+
+    else:
+
+        coef1diag += (1 + (dt*eig)/22 + (dt*eig)**2 / 33 + (dt*eig)**3 / 792 + (dt*eig)**4 / 7920 + (dt*eig)**5 / 332640)
+        coef1diag /= (1 - 5 * (dt*eig)/11 + (dt*eig)**2 / 11 - (dt*eig)**3 / 99 + (dt*eig)**4 / 1584 - (dt*eig)**5 / 55440)
+        coef1diag *= dt
+
+    # Get needed values from normal mode decomposition
+    # Only using incompressible Hall MHD so not including the other modes
+
+    # Matrix is block 2x2 diagonal in k and curl eigenstates
+
+    shape4full = [2*padNx,2*padNy,padNz,8]
+
+    # Structure results: plus eigenstate bb, bv, vb, vv, minus bb, bv, vb, vv
+
+    def changeofbasis(diagcalc):
+
+        # Perform PDPinv calculation for adjusted Hall MHD proportionality factors between b and v from diagonal basis
+        
+        result = cp.zeros(shape4full,dtype=ctype)
+
+        alpha = hall*kmags/2 + cp.sqrt(1 + (hall*kmags)**2  / 4)
+        for it in [0,4]:
+
+            if nu != eta:
+                
+                result[:,:,:,it] += (nu * kmags**(2*hyp) + eig[:,:,:,it//2]) * 1j * kzgrid[None,None,:] * diagcalc[:,:,:,it//2]
+                result[:,:,:,it] -= (nu * kmags**(2*hyp) + eig[:,:,:,it//2 + 1]) * 1j * kzgrid[None,None,:] * diagcalc[:,:,:,it//2 + 1]
+        
+                result[:,:,:,it+1] -= (nu * kmags**(2*hyp) + eig[:,:,:,it//2])*(nu * kmags**(2*hyp) + eig[:,:,:,it//2 + 1])*diagcalc[:,:,:,it//2]
+                result[:,:,:,it+1] += (nu * kmags**(2*hyp) + eig[:,:,:,it//2])*(nu * kmags**(2*hyp) + eig[:,:,:,it//2 + 1])*diagcalc[:,:,:,it//2 + 1]
+
+                result[:,:,:,it+2] -= kzgrid[None,None,:]**2.0 * diagcalc[:,:,:,it//2]
+                result[:,:,:,it+2] += kzgrid[None,None,:]**2.0 * diagcalc[:,:,:,it//2 + 1]
+
+                result[:,:,:,it+3] -= (nu * kmags**(2*hyp) + eig[:,:,:,it//2+1]) * 1j * kzgrid[None,None,:] * diagcalc[:,:,:,it//2]
+                result[:,:,:,it+3] += (nu * kmags**(2*hyp) + eig[:,:,:,it//2]) * 1j * kzgrid[None,None,:] * diagcalc[:,:,:,it//2 + 1]
+        
+                result[:,:,:,it:it+4] /= (eig[:,:,:,it//2] - eig[:,:,:,it//2+1])[:,:,:,None] * 1j * kzgrid[None,None,:,None]
+
+            else:
+                
+                alpha **= 1-it/2 # for negative curl eigenstates send alpha to 1/alpha
+                
+                result[:,:,:,it] += diagcalc[:,:,:,it//2] + alpha**2 * diagcalc[:,:,:,it//2+1]
+                result[:,:,:,it+1] += alpha * (diagcalc[:,:,:,it//2]-diagcalc[:,:,:,it//2+1])
+                result[:,:,:,it+2] += alpha * (diagcalc[:,:,:,it//2]-diagcalc[:,:,:,it//2+1])
+                result[:,:,:,it+3] += alpha**2 * diagcalc[:,:,:,it//2] + diagcalc[:,:,:,it//2 + 1]
+
+                result[:,:,:,it:it+4] /= alpha[:,:,:,None]**2 + 1
+                
+        return(result)
+
+    expL = changeofbasis(expLdiag)
+    coef1 = changeofbasis(coef1diag)
+
+
 def exponentialcoefficients(kxgrid,kygrid,kzgrid,eta,nu,hyp,dt,Nquad,kmags,eig,hall,pade=True,ctype="complex64"):
 
     padNx = cp.size(kxgrid)//2

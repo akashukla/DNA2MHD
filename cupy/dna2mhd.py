@@ -1,7 +1,7 @@
 import cupy as cp
 from cupy.fft import rfftn,irfftn
 import time
-from dna2mhd_coefs import exponentialcoefficients
+#from dna2mhd_coefs import exponentialcoefficients
 import os
 from shutil import rmtree
 #from cupy import float32,complex64,int32,float64,complex128
@@ -26,8 +26,8 @@ class RHS:
     def hallrhs(self,binput,vinput):
 
         # Evolution of incompressible Hall MHD system including dissipation
-        
-        bout,vout = self.convolutions(binput,vinput)
+        bout,vout = self.rhslinear(binput,vinput)
+        bout,vout = self.convolutions(binput,vinput,bout,vout)
 
         bout -= self.etab * self.kmags**(2*self.hyper) * binput
         vout -= self.vnu * self.kmags**(2*self.hyper) * vinput
@@ -56,12 +56,9 @@ class RHS:
 
         return(bout,vout)
 
-    def convolutions(self,binput,vinput):
+    def convolutions(self,binput,vinput,bout,vout):
 
         # Carry out convolution sums for nonlinear evolution using FFTs
-
-        bout = cp.zeros_like(binput)
-        vout = cp.zeros_like(vinput)
 
         bx = irfftn(binput[0,:,:,:])
         by = irfftn(binput[1,:,:,:])
@@ -76,41 +73,43 @@ class RHS:
         dum = 1j*self.kygrid[None,:,None]*binput[2,:,:,:]-1j*self.kzgrid[None,None,:]*binput[1,:,:,:]
         curlbx = irfftn(dum)
 
-        dum = 1j*self.kzgrid[None,None,:]*binput[0,:,:,:]-1j*self.kxgrid[:,None,None]*binput[2,:,:,:]
-        curlby = irfftn(dum)
-
-        dum = 1j*self.kxgrid[:,None,None]*binput[1,:,:,:]-1j*self.kygrid[None,:,None]*binput[0,:,:,:]
-        curlbz = irfftn(dum)
-
         dum = 1j*self.kygrid[None,:,None]*vinput[2,:,:,:]-1j*self.kzgrid[None,None,:]*vinput[1,:,:,:]
         curlvx = irfftn(dum)
+
+        dum = 1j*self.kzgrid[None,None,:]*binput[0,:,:,:]-1j*self.kxgrid[:,None,None]*binput[2,:,:,:]
+        curlby = irfftn(dum)
 
         dum = 1j*self.kzgrid[None,None,:]*vinput[0,:,:,:]-1j*self.kxgrid[:,None,None]*vinput[2,:,:,:]
         curlvy = irfftn(dum)
 
+        dum = 1j*self.kxgrid[:,None,None]*binput[1,:,:,:]-1j*self.kygrid[None,:,None]*binput[0,:,:,:]
+        curlbz = irfftn(dum)
+
         dum = 1j*self.kxgrid[:,None,None]*vinput[1,:,:,:]-1j*self.kygrid[None,:,None]*vinput[0,:,:,:]
         curlvz = irfftn(dum)
 
-        dum = vy * bz - vz * by + self.hallparam * ( curlby * bz - curlbz * by )
+        # Compute the nonlinear RHS and transform into real space
+
+        dum = vy * bz - vz * by - self.hallparam * ( curlby * bz - curlbz * by )
         dum2 = rfftn(dum) * self.nx0_big * self.ny0_big * self.nz0_big
         bout[1,:,:,:] += 1j * self.kzgrid[None,None,:] * dum2
-        bout[2,:,:,:] += -1j * self.kygrid[None,:,None] * dum2        
+        bout[2,:,:,:] += -1j * self.kygrid[None,:,None] * dum2
 
-        dum = vz * bx	- vx * bz + self.hallparam * ( curlbz * bx - curlbx * bz )
+        dum = vy * curlvz - vz * curlvy + (curlby * bz - curlbz * by)
+        vout[0,:,:,:] = rfftn(dum) * self.nx0_big * self.ny0_big * self.nz0_big
+
+        dum = vz * bx - vx * bz - self.hallparam * ( curlbz * bx - curlbx * bz )
         dum2 = rfftn(dum) * self.nx0_big * self.ny0_big * self.nz0_big
         bout[0,:,:,:] += -1j * self.kzgrid[None,None,:] * dum2
         bout[2,:,:,:] += 1j * self.kxgrid[:,None,None] * dum2
 
-        dum = vx * by	- vy * bx + self.hallparam * ( curlbx * by - curlby * bx )
+        dum = vz * curlvx - vx * curlvz + (curlbz * bx - curlbx * bz)
+        vout[1,:,:,:] = rfftn(dum) * self.nx0_big * self.ny0_big * self.nz0_big
+
+        dum = vx * by	- vy * bx - self.hallparam * ( curlbx * by - curlby * bx )
         dum2 = rfftn(dum) * self.nx0_big * self.ny0_big * self.nz0_big
         bout[0,:,:,:] += 1j * self.kygrid[None,:,None] * dum2
         bout[1,:,:,:] += -1j * self.kxgrid[:,None,None] * dum2
-        
-        dum = vy * curlvz - vz * curlvy + (curlby * bz - curlbz * by)
-        vout[0,:,:,:] = rfftn(dum) * self.nx0_big * self.ny0_big * self.nz0_big
-        
-        dum = vz * curlvx - vx * curlvz + (curlbz * bx - curlbx * bz)
-        vout[1,:,:,:] = rfftn(dum) * self.nx0_big * self.ny0_big * self.nz0_big
         
         dum = vx * curlvy - vy * curlvx + (curlbx * by - curlby * bx)
         vout[2,:,:,:] = rfftn(dum) * self.nx0_big * self.ny0_big * self.nz0_big
@@ -509,7 +508,6 @@ class DNA2MHD(RHS,DIAGS):
         
         print("Dissipation Factors",self.vnu,self.etab)
 
-
         # Ratio of frequency to kz for ideal positive helicity cyclotron modes; the other frequency ratios can be determined from this
         self.alphaleftwhist = - (hallparam*self.kmags/2 + cp.sqrt(1+ (hallparam*self.kmags/2)**2.0))
 
@@ -549,7 +547,7 @@ class DNA2MHD(RHS,DIAGS):
         # Testing linear simulation
         self.linear = linear
         # Ratio of ion skin depth to length scale; this should be 1 with normalization used, and length scale enters through k
-        self.hallparam = hallparam        
+        self.hallparam = hallparam
 
         # Output parameters - filename, how many times to store fields, and set up HDF5 output file
         self.record = records
@@ -591,7 +589,7 @@ class DNA2MHD(RHS,DIAGS):
 
         # Specify fields as a three wave interaction
         
-        if self.initcond == "threewave":
+        if self.initcond == "threewave" or self.initcond == "onewave":
 
             self.itriplet = []
 
@@ -599,24 +597,36 @@ class DNA2MHD(RHS,DIAGS):
                 
                 raise ValueError("LW Triplet or triplet and normal mode types must be specified for three wave initial condition")
 
+            # Relative amplitudes
+            if self.initcond == "threewave":
+                amp0 = 2.0
+                amp1 = 1.0
+                amp2 = 0.5
+            else:
+                amp0 = 1.0
+                amp1 = 0.0
+                amp2 = 0.0
+
             # Specify triplet as either list of three wavevectors or list of three wave vectors and normal mode types
             # Wave triplet - 1 + whistler, 0 + cyclotron, 2 - whistler, 3 - cyclotron
-            
+
             if len(self.triplet) == 9:
                 # Either initialize wave triplets as positive helicity whistlers from wavenumbers
                 
                 for i in range(3):
                     self.triplet.append(0)
-                self.initializewave(self.triplet[0:3],2.0,0)
-                self.initializewave(self.triplet[3:6],1.0,0)
-                self.initializewave(self.triplet[6:9],0.5,0)
+                self.initializewave(self.triplet[0:3],amp0,0)
+                if amp1 > 0:
+                    self.initializewave(self.triplet[3:6],amp1,0)
+                    self.initializewave(self.triplet[6:9],amp2,0)
 
             else:
 
                 # Or initialize triplets from wavenumbers and the last three digits of self.triplet specify the different waves
-                self.initializewave(self.triplet[0:3],2.0,self.triplet[9])
-                self.initializewave(self.triplet[3:6],1.0,self.triplet[10])
-                self.initializewave(self.triplet[6:9],0.5,self.triplet[11])
+                self.initializewave(self.triplet[0:3],amp0,self.triplet[9])
+                if amp1 > 0:
+                    self.initializewave(self.triplet[3:6],amp1,self.triplet[10])
+                    self.initializewave(self.triplet[6:9],amp2,self.triplet[11])
 
             self.triplet = cp.array(self.triplet)
 
@@ -660,6 +670,12 @@ class DNA2MHD(RHS,DIAGS):
 
         # Set up normal mode type modeno for indices given by rescaling the wavenumber wave
 
+        # Make kz index of wave positive for positive kz wavenumber storage
+        if wave[2] < 0:
+            wave[0] *= -1
+            wave[1] *= -1
+            wave[2] *= -1
+
         ix = np.round(wave[0],decimals=3)//self.kxmin
         iy = np.round(wave[1],decimals=3)//self.kymin
         iz = np.round(wave[2],decimals=3)//self.kzmin
@@ -688,238 +704,53 @@ class DNA2MHD(RHS,DIAGS):
 
         return(None)
 
-    def etdrk2(self,records=200):
-    
-        self.startruntime = time.time()
-        self.runtime = 0
+    def fixedpointidealgauss2(self):
 
-        debugnote = """"Zero eigenvalue coefficients for reference - reduces to normal RK2"""
-        expL = cp.ones([self.nx0_big,self.ny0_big,self.nz0_big//2+1,8])
-        expL[:,:,:,1:3] = 0.0
-        expL[:,:,:,5:7] = 0.0
-        coef1 = expL * self.dt
-        coef2 = coef1/2
+        a11 = 0.5
 
-        #Obtain exponential method coefficients in separate file
-        expL,coef1,coef2 = exponentialcoefficients(self.kxgrid,self.kygrid,self.kzgrid,self.etab,self.vnu,self.hyper,self.dt,128,self.kmags,self.eig,self.hallparam,
-                                                   pade=True,ctype=self.ctype)
-        
-        #blurb = Have to adjust the zero mode separately because the curl eigenstates are undefined - set coefficients there to zero
-        expL[0,0,0,:] = cp.array([1.0,0.0,0.0,1.0,1.0,0.0,0.0,1.0])
-        coef1[0,0,0,:] = expL[0,0,0,:]*self.dt
-        coef2[0,0,0,:] = coef1[0,0,0,:]/2.0
+        self.b2 = self.b1.copy()
+        self.v2 = self.v1.copy()
+        self.brhs2,self.vrhs2 = self.idealhallrhs(self.b2,self.v2)
+            
+        self.brhs1 = self.brhs2.copy()
+        self.vrhs1 = self.vrhs2.copy()
 
-        print("Coef1 ",cp.amax(cp.abs(coef1/self.dt)))
-        print("Coef2 ",cp.amax(cp.abs(coef2/self.dt)))
+        self.b2 += a11 * self.dt * self.brhs1
+        self.v2 += a11 * self.dt * self.vrhs1
 
-        # Time loop
-        while self.itime < self.iterations and self.runtime < self.maxwallclock:
+        self.brhs2,self.vrhs2 = self.idealhallrhs(self.b2,self.v2)
 
-            #dot1 = time.time()
+        linferror = max(cp.amax(cp.abs(self.brhs2-self.brhs1)),cp.amax(cp.abs(self.vrhs2-self.vrhs1)))
+            
+        solveiteration = 0
+        # Typical convergent mins are 1e-9, so set a bit above that
+        while solveiteration < 40 and linferror > 10.0**(-8.0):
 
-            # Obtain positive and negative curl eigenstate projections
-            self.bplus = cp.sum(cp.conj(self.pcurleig)*self.b1,axis=0)
-            self.vplus = cp.sum(cp.conj(self.pcurleig)*self.v1,axis=0)
-            self.bminus = cp.sum(self.pcurleig*self.b1,axis=0)
-            self.vminus = cp.sum(self.pcurleig*self.v1,axis=0)
+            self.brhs1 = cp.copy(self.brhs2)
+            self.vrhs1 = cp.copy(self.vrhs2)
 
-            #dot1 -= time.time()
-            #print("dot time ", np.abs(dot1))
+            self.b2 = self.b1 + a11 * self.dt * self.brhs1
+            self.v2 = self.v1 + a11 * self.dt * self.vrhs1
 
-            # File output
-            if self.irecord > 0 and (self.itime - self.itime_start) % self.irecord== 0:
-
-                self.writefile()
-
-                self.written += 1
+            self.brhs2,self.vrhs2 = self.idealhallrhs(self.b2,self.v2)
                 
-            avgb = self.b1[:,0,0,0].copy()
-            avgv = self.v1[:,0,0,0].copy()
+            linferror = max(cp.amax(cp.abs(self.brhs2-self.brhs1)),cp.amax(cp.abs(self.vrhs2-self.vrhs1)))
+            solveiteration += 1
 
-            # Get nonlinear terms and helicity correction
-            self.brhs1,self.vrhs1 = self.convolutions(self.b1,self.v1)
-            #rhs1time -= time.time()
-            #print("rhs1 time ", np.abs(rhs1time))
-            mhc = self.helicitycorrection(self.b1,self.v1)
-            
-            # Get first part of next step by exponential of the linear operator
-            self.b1 = self.pcurleig * (expL[:,:,:,0] * self.bplus + expL[:,:,:,1] * self.vplus)
-            self.v1 = self.pcurleig * (expL[:,:,:,2] * self.bplus + expL[:,:,:,3] * self.vplus)
-            self.b1 += cp.conj(self.pcurleig) * (expL[:,:,:,4] * self.bminus + expL[:,:,:,5] * self.vminus)
-            self.v1 += cp.conj(self.pcurleig) * (expL[:,:,:,6] * self.bminus + expL[:,:,:,7] * self.vminus)
-            self.b1[:,0,0,0] = avgb
-            self.v1[:,0,0,0] = avgv
+        if self.itime % 10 == 0:
+            print("Iterations itime ",self.itime," = ",solveiteration)
 
-            # Find first derivative contribution with coefficients for positive and negative curl eigenstates
-            self.bplus = cp.sum(cp.conj(self.pcurleig)*self.brhs1,axis=0)
-            self.vplus = cp.sum(cp.conj(self.pcurleig)*self.vrhs1,axis=0)
-            self.bminus = cp.sum(self.pcurleig*self.brhs1,axis=0)
-            self.vminus = cp.sum(self.pcurleig*self.vrhs1,axis=0)
+        if solveiteration == 40:
+            print("Fixed point solver fail error ",linferror," itime ",self.itime)
 
-            self.b1 += self.pcurleig * (coef1[:,:,:,0] * self.bplus + coef1[:,:,:,1] * self.vplus)
-            self.v1 += self.pcurleig * (coef1[:,:,:,2] * self.bplus + coef1[:,:,:,3] * self.vplus)
-            self.b1 += cp.conj(self.pcurleig) * (coef1[:,:,:,4] * self.bminus + coef1[:,:,:,5] * self.vminus)
-            self.v1 += cp.conj(self.pcurleig) * (coef1[:,:,:,6] * self.bminus + coef1[:,:,:,7] * self.vminus)
-
-            #coef1time -= time.time()
-            #print("coef1 time", np.abs(coef1time))
-
-            self.b1 += self.dt * self.brhs1
-            self.v1 += self.dt * self.vrhs1
-
-            b1zeroderiv = self.brhs1[:,0,0,0].copy()
-            v1zeroderiv = self.vrhs1[:,0,0,0].copy()
-            self.mhelcorr += self.dt * mhc
-            mhc1 = mhc
-
-            self.b1[:,0,0,0] += self.dt*self.brhs1[:,0,0,0]
-            self.v1[:,0,0,0] += self.dt*self.vrhs1[:,0,0,0]
-
-            # Corrector step from new fields
-            self.brhs1,self.vrhs1 = self.convolutions(self.b1,self.v1)
-            mhc = self.helicitycorrection(self.b1,self.v1)
-
-            self.bplus -= cp.sum(cp.conj(self.pcurleig)*(self.brhs1),axis=0) 
-            self.vplus -= cp.sum(cp.conj(self.pcurleig)*(self.vrhs1),axis=0)
-            self.bminus -= cp.sum(self.pcurleig*self.brhs1,axis=0)
-            self.vminus -= cp.sum(self.pcurleig*self.vrhs1,axis=0)
-                            
-            # Now self.bplus etc equal to rhs1- rhs2 in basis, reverse sign of sum below
-
-            #coef2time = time.time()
-            self.b1 -= self.pcurleig * (coef2[:,:,:,0] * self.bplus + coef2[:,:,:,1] * self.vplus)
-            self.v1 -= self.pcurleig * (coef2[:,:,:,2] * self.bplus + coef2[:,:,:,3] * self.vplus)
-            self.b1 -= cp.conj(self.pcurleig) * (coef2[:,:,:,4] * self.bminus + coef2[:,:,:,5] * self.vminus)
-            self.v1 -= cp.conj(self.pcurleig) * (coef2[:,:,:,6] * self.bminus + coef2[:,:,:,7] * self.vminus)
-            self.b1[:,0,0,0] += self.dt/2 * (self.brhs1[:,0,0,0]-b1zeroderiv)
-            self.v1[:,0,0,0] += self.dt/2 * (self.vrhs1[:,0,0,0]-v1zeroderiv)
-            self.mhelcorr += self.dt/2 * (mhc-mhc1)
-            #coef2time -= time.time()
-            #print("coef2 time",np.abs(coef2time))
-            
-            self.itime += 1
-            self.time += self.dt
-            self.runtime = time.time()-self.startruntime
-
-            #if self.itime % max(self.iterations//50,10) == 0 and self.itime > 0:
-            #    self.steadystate()
-
-        self.writefile()
-        #self.energyfile()
-        #self.checkpointfile()
-        #self.fulloutputfile()
-        print(self.runtime)
-
-        return(None)
-
-    def ralstonrk2(self,records=200):
-
-        self.startruntime = time.time()
-        self.runtime = 0
-
-        # Add guide field to do linear and nonlinear calculation at once
-        self.b1[2,0,0,0] = 1.0
-
-        while self.itime < self.iterations and self.runtime < self.maxwallclock:
-
-            if self.irecord > 0 and (self.itime - self.itime_start) % self.irecord== 0 :
-
-                self.bplus = cp.sum(cp.conj(self.pcurleig)*self.b1,axis=0)
-                self.vplus = cp.sum(cp.conj(self.pcurleig)*self.v1,axis=0)
-                self.bminus = cp.sum(self.pcurleig*self.b1,axis=0)
-                self.vminus = cp.sum(self.pcurleig*self.v1,axis=0)
-
-                self.writefile()
-                self.written += 1
-
-            self.brhs1,self.vrhs1,mhc = self.hallrhs(self.b1,self.v1)
-            #mhc = self.helicitycorrection(self.b1,self.v1)
-
-            self.b2 = self.b1 + 2/3 * self.dt * self.brhs1
-            self.v2 = self.v1 + 2/3 * self.dt * self.vrhs1
-
-            self.b1 += 1/4 * self.dt * self.brhs1
-            self.v1 += 1/4 * self.dt * self.vrhs1
-            self.mhelcorr += 1/4 * self.dt * mhc
-            
-            self.brhs1,self.vrhs1,mhc = self.hallrhs(self.b2,self.v2)
-            #mhc = self.helicitycorrection(self.b1,self.v2)
-            
-            self.b1 += 3/4 * self.dt * self.brhs1
-            self.v1 += 3/4 * self.dt * self.vrhs1
-            self.mhelcorr += 3/4 * self.dt * mhc
-
-            self.itime += 1
-            self.time += self.dt
-            self.runtime = time.time()-self.startruntime
-
-        self.writefile()
-        print(self.runtime)
-
-    def dp547s(self):
-
-        """5th order stability region Dormand Prince scheme"""
-        """https://doi.org/10.1016/0771-050X(80)90013-3"""
-
-        self.startruntime = time.time()
-        self.runtime = 0
-
-        # Add guide field to do linear and nonlinear calculation at once
-        self.b1[2,0,0,0] = 1.0
-
-        while self.itime < self.iterations and self.runtime < self.maxwallclock:
-
-            if self.irecord > 0 and (self.itime - self.itime_start) % self.irecord== 0 :
-                self.bplus = cp.sum(cp.conj(self.pcurleig)*self.b1,axis=0)
-                self.vplus = cp.sum(cp.conj(self.pcurleig)*self.v1,axis=0)
-                self.bminus = cp.sum(self.pcurleig*self.b1,axis=0)
-                self.vminus = cp.sum(self.pcurleig*self.v1,axis=0)
-
-                self.writefile()
-                self.written += 1
-
-            self.brhs1,self.vrhs1,mhc1 = self.hallrhs(self.b1,self.v1)
-            mhc1 = self.helicitycorrection(self.b1,self.v1)
-
-            dumb = self.b1 + self.dt * 2/9 * self.brhs1
-            dumv = self.v1 + self.dt * 2/9 * self.vrhs1
-            
-            self.brhs2,self.vrhs2,mhc2 = self.hallrhs(dumb,dumv)
-
-            dumb = self.b1 + self.dt * (1/12 * self.brhs1 + 1/4 * self.brhs2)
-            dumv = self.v1 + self.dt * (1/12 * self.vrhs1 + 1/4 * self.vrhs2)
-
-            self.brhs3,self.vrhs3,mhc3 = self.hallrhs(dumb,dumv)
-
-            dumb = self.b1 + self.dt * (55/324 * self.brhs1 - 25/108 * self.brhs2 + 50/81 * self.brhs3)
-            dumv = self.v1 + self.dt * (55/324 * self.vrhs1 - 25/108 * self.vrhs2 + 50/81 * self.vrhs3)
-
-            self.brhs4,self.vrhs4,mhc4 = self.hallrhs(dumb,dumv)
-
-            dumb = self.b1 + self.dt * (83/330 * self.brhs1 - 13/22 * self.brhs2 + 61/66 * self.brhs3 + 9/110 * self.brhs4)
-            dumv = self.v1 + self.dt * (83/330 * self.vrhs1 - 13/22 * self.vrhs2 + 61/66 * self.vrhs3 + 9/110 * self.vrhs4)
-
-            self.brhs5,self.vrhs5,mhc5 = self.hallrhs(dumb,dumv)
-
-            dumb = self.b1 + self.dt * (-19/28 * self.brhs1 + 9/4 * self.brhs2 + 1/7 * self.brhs3 + -27/7 * self.brhs4 + 22/7 * self.brhs5)
-            dumv = self.v1 + self.dt * (-19/28 * self.vrhs1 + 9/4 * self.vrhs2 + 1/7 * self.vrhs3 + -27/7 * self.vrhs4 + 22/7 * self.vrhs5)
-
-            self.brhs6,self.vrhs6,mhc6 = self.hallrhs(dumb,dumv)
-
-            self.b1 += (19/200 * self.brhs1 + 3/5 * self.brhs3 - 243/400 * self.brhs4 + 33/40 * self.brhs5 + 7/80  * self.brhs6) * self.dt
-            self.v1 += (19/200 * self.vrhs1 + 3/5 * self.vrhs3 - 243/400 * self.vrhs4 + 33/40 * self.vrhs5 + 7/80  * self.vrhs6) * self.dt 
-            self.mhelcorr += (19/200 * mhc1 + 3/5 * mhc3 -243/400 * mhc4 + 33/40 * mhc5 + 7/80 * mhc6) * self.dt
-
-            self.itime += 1
-            self.time += self.dt
-            self.runtime = time.time()-self.startruntime
-
-        self.writefile()
-        print(self.runtime)
+        self.b1 += self.dt * self.brhs2
+        self.v1 += self.dt * self.vrhs2
+        self.mhelcorr += self.helicitycorrection(self.b2,self.v2) * self.dt
 
         return(None)
             
-    def gauss2(self): # What we started with - splitting method for dissipation, implicit midpoint nonlinear
+    def gauss2split(self): 
+        # Splitting method for dissipation, implicit midpoint nonlinear
 
         self.startruntime = time.time()
         self.runtime = 0
@@ -940,51 +771,422 @@ class DNA2MHD(RHS,DIAGS):
                 self.writefile()
                 self.written += 1
 
-            self.b1 *= cp.exp(-self.etab * self.kmags[None,:,:,:]**(2*self.hallparam) * self.dt/2)
-            self.v1 *= cp.exp(-self.vnu * self.kmags[None,:,:,:]**(2*self.hallparam) * self.dt/2)
+            self.b1 *= cp.exp(-self.etab * self.kmags[None,:,:,:]**(2*self.hyper) * self.dt/2)
+            self.v1 *= cp.exp(-self.vnu * self.kmags[None,:,:,:]**(2*self.hyper) * self.dt/2)
             
-            self.b2 = self.b1.copy()
-            self.v2 = self.v1.copy()
-            self.brhs2,self.vrhs2 = self.idealhallrhs(self.b2,self.v2)
+            self.fixedpointidealgauss2()
+
+            self.b1 *= cp.exp(-self.etab * self.kmags**(2*self.hyper) * self.dt/2)
+            self.v1 *= cp.exp(-self.vnu * self.kmags**(2*self.hyper) * self.dt/2)
+
+            self.itime += 1
+            self.time += self.dt
+            self.runtime = time.time()-self.startruntime
+
+        self.writefile()
+        print(self.runtime)
+
+        return(None)
+
+    def linearupdate(self,dt):
+        """Exact linear update for splitting or exponential method"""
+
+        if self.itime == 0:
+            # Compute exponential for positive helicity branches; negative branch is inverse of positive branch
+            self.expwhistler = cp.exp(1j * dt * self.kzgrid[None,None,:] * self.alphaleftwhist)
+            self.expcyclotron = cp.exp(-1j * dt * self.kzgrid[None,None,:] / self.alphaleftwhist)
+
+        self.bplus = cp.sum(cp.conj(self.pcurleig)*self.b1,axis=0)
+        self.vplus = cp.sum(cp.conj(self.pcurleig)*self.v1,axis=0)
+        self.bminus = cp.sum(self.pcurleig*self.b1,axis=0)
+        self.vminus = cp.sum(self.pcurleig*self.v1,axis=0)
+
+        # Positive helicity whistler
+        # Compute normal mode coefficients by a dot product with the orthogonal normal mode basis
+        lwk = (self.alphaleftwhist * self.bplus + self.vplus)/cp.sqrt(self.alphaleftwhist**2 + 1)
+        # Advance linear modes through multiplication with exponential of frequency
+        lwk *= self.expwhistler
+        # Reconstruct b and v from the evolved normal modes
+        self.b1 = self.pcurleig * lwk * self.alphaleftwhist /cp.sqrt(self.alphaleftwhist**2 + 1)
+        self.v1 = self.pcurleig * lwk /cp.sqrt(self.alphaleftwhist**2 + 1)
+
+        # Positive helicity cyclotron
+        lwk = (-1/self.alphaleftwhist * self.bplus + self.vplus)/cp.sqrt((1/self.alphaleftwhist)**2 + 1)
+        lwk *= self.expcyclotron
+        self.b1 -= self.pcurleig * lwk / cp.sqrt(self.alphaleftwhist**2 + 1)
+        self.v1 += self.pcurleig * lwk * self.alphaleftwhist / cp.sqrt(self.alphaleftwhist**2 + 1)
+
+        # Negative helicity whistler
+        lwk = (-self.alphaleftwhist * self.bminus + self.vminus)/cp.sqrt(self.alphaleftwhist**2 + 1)
+        lwk *= 1/self.expwhistler
+        self.b1 -= self.alphaleftwhist * cp.conj(self.pcurleig) * lwk / cp.sqrt(self.alphaleftwhist**2 + 1)
+        self.v1 += cp.conj(self.pcurleig) * lwk / cp.sqrt(self.alphaleftwhist**2 + 1)
+
+        # Negative helicity cyclotron
+        lwk = (1/self.alphaleftwhist * self.bminus + self.vminus)/cp.sqrt((1/self.alphaleftwhist)**2 + 1)
+        lwk *= 1/self.expcyclotron
+        self.b1 += cp.conj(self.pcurleig) * lwk /cp.sqrt(self.alphaleftwhist**2 + 1)
+        self.v1 += cp.conj(self.pcurleig) * self.alphaleftwhist * lwk / cp.sqrt(self.alphaleftwhist**2 + 1)
+
+        return(None)
+
+    def idealRalston2(self):
+
+        self.b2 = self.b1.copy()
+        self.v2 = self.v1.copy()
+        self.brhs2,self.vrhs2 = self.idealhallrhs(self.b2,self.v2)
+        mhc1 = self.helicitycorrection(self.b2,self.v2)
             
-            self.brhs1 = self.brhs2.copy()
-            self.vrhs1 = self.vrhs2.copy()
+        self.brhs1 = self.brhs2.copy()
+        self.vrhs1 = self.vrhs2.copy()
 
-            self.b2 += a11 * self.dt * self.brhs1
-            self.v2 += a11 * self.dt * self.vrhs1
+        self.b2 += 2/3 * self.dt * self.brhs1
+        self.v2 += 2/3 * self.dt * self.vrhs1
 
-            self.brhs2,self.vrhs2 = self.idealhallrhs(self.b2,self.v2)
+        self.brhs2,self.vrhs2 = self.idealhallrhs(self.b2,self.v2)
+        mhc2 = self.helicitycorrection(self.b2,self.v2)
 
-            linferror = max(cp.amax(cp.abs(self.brhs2-self.brhs1)),cp.amax(cp.abs(self.vrhs2-self.vrhs1)))
+        self.b1 += self.dt / 4 * (self.brhs1 + 3 * self.brhs2) 
+        self.v1 += self.dt / 4 * (self.vrhs1 + 3 * self.vrhs2)
+        self.mhelcorr += self.dt / 4 * (mhc1 + 3 * mhc2)
+        
+        return(None)
+
+    def LinearSplitNLR2(self):
+
+        """Splitting dissipation and linear terms, nonlinear terms Ralston RK2"""
+
+        self.startruntime = time.time()
+        self.runtime = 0
+
+        while self.itime < self.iterations and self.runtime < self.maxwallclock: 
+
+            if self.irecord > 0 and (self.itime - self.itime_start) % self.irecord == 0 and (self.itime > self.itime_start or self.itime_start == 0):
+                self.bplus = cp.sum(cp.conj(self.pcurleig)*self.b1,axis=0)
+                self.vplus = cp.sum(cp.conj(self.pcurleig)*self.v1,axis=0)
+                self.bminus = cp.sum(self.pcurleig*self.b1,axis=0)
+                self.vminus = cp.sum(self.pcurleig*self.v1,axis=0)
+
+                self.writefile()
+                self.written += 1
+
+            # First step - half dissipation
+            self.b1 *= cp.exp(-self.etab * self.kmags[None,:,:,:]**(2*self.hyper) * self.dt/2)
+            self.v1 *= cp.exp(-self.vnu * self.kmags[None,:,:,:]**(2*self.hyper) * self.dt/2)
+
+            # Second stage - half step ideal linear
+            self.linearupdate(self.dt/2)
+
+            # Third stage - nonlinear terms Ralston RK2
+            self.fixedpointidealgauss2()
+
+            # Fourth stage - half step ideal linear
+            self.linearupdate(self.dt/2)
+
+            # Final stage - half dissipation
+            self.b1 *= cp.exp(-self.etab * self.kmags**(2*self.hyper) * self.dt/2)
+            self.v1 *= cp.exp(-self.vnu * self.kmags**(2*self.hyper) * self.dt/2)
+
+            self.itime += 1
+            self.time += self.dt
+            self.runtime = time.time()-self.startruntime
+
+        self.writefile()
+        print(self.runtime)
+
+        return(None)
+
+    def exptime_ideal(self,records=200,order=1,cutoff=0.01,kt=0):
+
+        """Use exponential first order integrator for ideal Hall MHD"""
+    
+        self.startruntime = time.time()
+        self.runtime = 0
+
+        # Write eigenvalues for the system - positive whistler, positive cyclo, negative whistler, negative cyclo
+        self.eig[:,:,:,0] = 1j * self.kzgrid[None,None,:] * self.alphaleftwhist
+        self.eig[:,:,:,1] = -1j * self.kzgrid[None,None,:] / self.alphaleftwhist
+        self.eig[:,:,:,2] = -1j * self.kzgrid[None,None,:] * self.alphaleftwhist
+        self.eig[:,:,:,3] = 1j * self.kzgrid[None,None,:] / self.alphaleftwhist
+
+        h = self.eig * self.dt
+
+        print("Range eig dt ",cp.amin(cp.abs(h[h>0])),cp.amax(cp.abs(h)))
+
+        # Exponential coefficient (exp(L dt) - I)/L
+        coef1 = cp.zeros([self.nx0_big,self.ny0_big,self.nz0_big//2+1,4],dtype=self.ctype)
+        ii = cp.abs(h) < cutoff
+        coef1[~ii] = self.dt * (cp.exp(h[~ii]) - 1)/h[~ii]
+        # Find coefficients with cutoff for small eig dt with (4,4) Pade approximant h[ii]
+        coef1[ii] = self.dt*(1 + 1/26 * h[ii] +5/156 * h[ii]**2 +1/858 *h[ii]**3 + 1/5720 *h[ii]**4 + 1/205920 *h[ii]**5 +1/8648640 *h[ii]**6)
+        coef1[ii] /= (1 - 6/13*h[ii] +5/52 *h[ii]**2 -5/429 * h[ii]**3 +1/1144 *h[ii]**4 - 1/25740 *h[ii]**5+1/1235520 *h[ii]**6)
+
+        coef1[ii] = self.dt * (1 +1/10 * h[ii] +1/60 * h[ii]**2 )
+        coef1[ii] /= (1 - 2/5 * h[ii] +1/20 * h[ii]**2 )
+
+        #coef1 = self.dt * cp.ones_like(self.eig)
+        print(cp.amax(cp.abs(coef1-self.dt)))
+        print(cp.any(cp.isnan(coef1)))
+
+        if order == 2 : # Second order coefficient (exp(L dt) - I - L dt)/(dt L**2)
+            coef2 = cp.zeros_like(coef1)
+            coef2[~ii] = self.dt * (cp.exp(h[~ii]) - 1 - h[~ii])/(h[~ii]**2)
+
+            coef2[ii] = self.dt * (1/2 - 1/21 * h[ii] + 25/2184 *h[ii]**2 - 1/2730 *h[ii]**3 +3/80080 *h[ii]**4 +1/121080960 *h[ii]**6)
+            coef2[ii] /= (1 - 3/7 * h[ii] +15/182 *h[ii]**2 - 5/546 *h[ii]**3 + 5/8008 *h[ii]**4 - 1/40040 *h[ii]**5+1/2162160 *h[ii]**6)
+
+            coef2[ii] = (1/2 + 1/360 * h[ii]**2 )*self.dt
+            coef2[ii] /= (1 - 1/3 * h[ii] +1/30 * h[ii]**2 )
+
+        if kt > 0: # Get the coefficients using Kassam Trefethen contour integration - kt is number of quad points
             
-            solveiteration = 0
-            # Typical convergent mins are 1e-9, so set a bit above that
-            while solveiteration < 40 and linferror > 10.0**(-8.0):
+            coef1 *= 0.0
+            r = cp.exp(1j * (cp.arange(kt)/kt + 1/cp.pi ) * 2 * cp.pi)
 
-                self.brhs1 = cp.copy(self.brhs2)
-                self.vrhs1 = cp.copy(self.vrhs2)
+            for ir in r:
+                coef1 += (cp.exp(ir + h)-1)/(ir + h)
 
-                self.b2 = self.b1 + a11 * self.dt * self.brhs1
-                self.v2 = self.v1 + a11 * self.dt * self.vrhs1
+            coef1 *= self.dt / kt
+            if order == 2:
+                coef2 *= 0.0
 
-                self.brhs2,self.vrhs2 = self.idealhallrhs(self.b2,self.v2)
+                for ir in r:
+                    coef2 += (cp.exp(ir + h)-1-(ir + h))/((ir + h)**2)
                 
-                linferror = max(cp.amax(cp.abs(self.brhs2-self.brhs1)),cp.amax(cp.abs(self.vrhs2-self.vrhs1)))
-                solveiteration += 1
+                coef2 *= self.dt/kt
+    
+        # Time loop
+        while self.itime < self.iterations and self.runtime < self.maxwallclock:
 
-            if self.itime % 10 == 0:
-                print("Iterations itime ",self.itime," = ",solveiteration)
+            # Obtain positive and negative curl eigenstate projections
+            self.bplus = cp.sum(cp.conj(self.pcurleig)*self.b1,axis=0)
+            self.vplus = cp.sum(cp.conj(self.pcurleig)*self.v1,axis=0)
+            self.bminus = cp.sum(self.pcurleig*self.b1,axis=0)
+            self.vminus = cp.sum(self.pcurleig*self.v1,axis=0)
 
-            if solveiteration == 40:
-                print("Fixed point solver fail error ",linferror," itime ",self.itime)
+            #dot1 -= time.time()
+            #print("dot time ", np.abs(dot1))
 
-            self.b1 += self.dt * self.brhs2
-            self.v1 += self.dt * self.vrhs2
-            self.mhelcorr += self.helicitycorrection(self.b2,self.v2) * self.dt
+            # File output
+            if self.irecord > 0 and (self.itime - self.itime_start) % self.irecord== 0:
 
-            self.b1 *= cp.exp(-self.etab * self.kmags**(2*self.hallparam) * self.dt/2)
-            self.v1 *= cp.exp(-self.vnu * self.kmags**(2*self.hallparam) * self.dt/2)
+                self.writefile()
 
+                self.written += 1
+                
+            # Get nonlinear terms and helicity correction
+            self.brhs1,self.vrhs1 = self.idealhallrhs(self.b1,self.v1)
+            mhc = self.helicitycorrection(self.b1,self.v1)
+            self.mhelcorr += self.dt * mhc
+
+            # Linear advance of fields with matrix exp - done in linear update
+            self.linearupdate(self.dt)
+
+            # Decompose the nonlinear terms into curl eigenstates
+            self.bplus = cp.sum(cp.conj(self.pcurleig)*self.brhs1,axis=0)
+            self.vplus = cp.sum(cp.conj(self.pcurleig)*self.vrhs1,axis=0)
+            self.bminus = cp.sum(self.pcurleig*self.brhs1,axis=0)
+            self.vminus = cp.sum(self.pcurleig*self.vrhs1,axis=0)
+
+            # Increment b and v according to eigenvalue coefficients
+            # Positive helicity whistler
+            lwk = (self.alphaleftwhist * self.bplus + self.vplus)/cp.sqrt(self.alphaleftwhist**2 + 1)
+            lwk *= coef1[:,:,:,0]
+            self.b1 += self.pcurleig * lwk * self.alphaleftwhist /cp.sqrt(self.alphaleftwhist**2 + 1)
+            self.v1 += self.pcurleig * lwk /cp.sqrt(self.alphaleftwhist**2 + 1)
+
+            # Positive helicity cyclotron
+            lwk = (-1/self.alphaleftwhist * self.bplus + self.vplus)/cp.sqrt((1/self.alphaleftwhist)**2 + 1)
+            lwk *= coef1[:,:,:,1]
+            self.b1 -= self.pcurleig * lwk / cp.sqrt(self.alphaleftwhist**2 + 1)
+            self.v1 += self.pcurleig * lwk * self.alphaleftwhist / cp.sqrt(self.alphaleftwhist**2 + 1)
+
+            # Negative helicity whistler
+            lwk = (-self.alphaleftwhist * self.bminus + self.vminus)/cp.sqrt(self.alphaleftwhist**2 + 1)
+            lwk *= coef1[:,:,:,2]
+            self.b1 -= self.alphaleftwhist * cp.conj(self.pcurleig) * lwk / cp.sqrt(self.alphaleftwhist**2 + 1)
+            self.v1 += cp.conj(self.pcurleig) * lwk / cp.sqrt(self.alphaleftwhist**2 + 1)
+
+            # Negative helicity cyclotron
+            lwk = (1/self.alphaleftwhist * self.bminus + self.vminus)/cp.sqrt((1/self.alphaleftwhist)**2 + 1)
+            lwk *= coef1[:,:,:,3]
+            self.b1 += cp.conj(self.pcurleig) * lwk /cp.sqrt(self.alphaleftwhist**2 + 1)
+            self.v1 += cp.conj(self.pcurleig) * self.alphaleftwhist * lwk / cp.sqrt(self.alphaleftwhist**2 + 1)
+            
+            if order == 2:
+                # ETD2RK time stepping
+                self.brhs2,self.vrhs2 = self.idealhallrhs(self.b1,self.v1)
+                mhc2 = self.helicitycorrection(self.b1,self.v1)
+
+                self.mhelcorr += (mhc2 - mhc) * self.dt/2
+
+                self.brhs1 = self.brhs2 - self.brhs1
+                self.vrhs1 = self.vrhs2 - self.vrhs1
+
+                # Decompose again
+                self.bplus = cp.sum(cp.conj(self.pcurleig)*self.brhs1,axis=0)
+                self.vplus = cp.sum(cp.conj(self.pcurleig)*self.vrhs1,axis=0)
+                self.bminus = cp.sum(self.pcurleig*self.brhs1,axis=0)
+                self.vminus = cp.sum(self.pcurleig*self.vrhs1,axis=0)
+
+                lwk = (self.alphaleftwhist * self.bplus + self.vplus)/cp.sqrt(self.alphaleftwhist**2 + 1)
+                lwk *= coef2[:,:,:,0]
+                self.b1 += self.pcurleig * lwk * self.alphaleftwhist /cp.sqrt(self.alphaleftwhist**2 + 1)
+                self.v1 += self.pcurleig * lwk /cp.sqrt(self.alphaleftwhist**2 + 1)
+
+                lwk = (-1/self.alphaleftwhist * self.bplus + self.vplus)/cp.sqrt((1/self.alphaleftwhist)**2 + 1)
+                lwk *= coef2[:,:,:,1]
+                self.b1 -= self.pcurleig * lwk / cp.sqrt(self.alphaleftwhist**2 + 1)
+                self.v1 += self.pcurleig * lwk * self.alphaleftwhist / cp.sqrt(self.alphaleftwhist**2 + 1)
+
+                lwk = (-self.alphaleftwhist * self.bminus + self.vminus)/cp.sqrt(self.alphaleftwhist**2 + 1)
+                lwk *= coef2[:,:,:,2]
+                self.b1 -= self.alphaleftwhist * cp.conj(self.pcurleig) * lwk / cp.sqrt(self.alphaleftwhist**2 + 1)
+                self.v1 += cp.conj(self.pcurleig) * lwk / cp.sqrt(self.alphaleftwhist**2 + 1)
+
+                lwk = (1/self.alphaleftwhist * self.bminus + self.vminus)/cp.sqrt((1/self.alphaleftwhist)**2 + 1)
+                lwk *= coef2[:,:,:,3]
+                self.b1 += cp.conj(self.pcurleig) * lwk /cp.sqrt(self.alphaleftwhist**2 + 1)
+                self.v1 += cp.conj(self.pcurleig) * self.alphaleftwhist * lwk / cp.sqrt(self.alphaleftwhist**2 + 1)
+
+            self.itime += 1
+            self.time += self.dt
+            self.runtime = time.time()-self.startruntime
+
+            #if self.itime % max(self.iterations//50,10) == 0 and self.itime > 0:
+            #    self.steadystate()
+
+        self.writefile()
+        print(self.runtime)
+
+        return(None)
+
+    def explicit(self,records=200,order=1):
+
+        """Library of explicit schemes I've used for benchmarking"""
+
+        self.startruntime = time.time()
+        self.runtime = 0
+
+        # Add guide field to do linear and nonlinear calculation at once
+
+        while self.itime < self.iterations and self.runtime < self.maxwallclock:
+            
+            if self.irecord > 0 and (self.itime - self.itime_start) % self.irecord== 0 :
+
+                self.bplus = cp.sum(cp.conj(self.pcurleig)*self.b1,axis=0)
+                self.vplus = cp.sum(cp.conj(self.pcurleig)*self.v1,axis=0)
+                self.bminus = cp.sum(self.pcurleig*self.b1,axis=0)
+                self.vminus = cp.sum(self.pcurleig*self.v1,axis=0)
+
+                self.writefile()
+                self.written += 1
+
+            if order == 2: # Ralston RK2 
+
+                # First RHS evaluation
+                k1b,k1v,mhc1 = self.hallrhs(self.b1,self.v1)
+
+                # Store original state
+                b1_old = self.b1.copy()
+                v1_old = self.v1.copy()
+                
+                # Intermediate state
+                perturbation = 2/3 * self.dt * k1b
+                b2_temp = b1_old + perturbation
+                v2_temp = v1_old + 2/3 * self.dt * k1v
+
+                # Debug: check the perturbation size
+                if self.itime == self.itime_start:
+                    pert_norm = float(cp.linalg.norm(perturbation))
+                    diff_norm = float(cp.linalg.norm(b2_temp - b1_old))
+                    print(f"DEBUG Ralston: perturbation norm={pert_norm:.6e}, diff norm={diff_norm:.6e}")
+                    print(f"DEBUG Ralston: dt={self.dt:.6e}, k1_norm={float(cp.linalg.norm(k1b)):.6e}")
+                    print(f"DEBUG Ralston: 2/3*dt*k1_expected = {2/3 * self.dt * float(cp.linalg.norm(k1b)):.6e}")
+
+                # Second RHS evaluation at intermediate state
+                k2b,k2v,mhc2 = self.hallrhs(b2_temp,v2_temp)
+                
+                # Debug: check if k1 and k2 are different
+                if self.itime == self.itime_start:
+                    k1_norm = float(cp.linalg.norm(k1b))
+                    k2_norm = float(cp.linalg.norm(k2b))
+                    diff_k = float(cp.linalg.norm(k2b - k1b))
+                    print(f"DEBUG Ralston: k1_norm={k1_norm:.6e}, k2_norm={k2_norm:.6e}, ||k2-k1||={diff_k:.6e}")
+                
+                # Final update: y_{n+1} = y_n + dt*(1/4*k1 + 3/4*k2)
+                self.b1 = b1_old + 1/4 * self.dt * k1b + 3/4 * self.dt * k2b
+                self.v1 = v1_old + 1/4 * self.dt * k1v + 3/4 * self.dt * k2v
+                self.mhelcorr += (1/4 * self.dt * mhc1 + 3/4 * self.dt * mhc2)
+
+            if order == 1: # Euler's method
+
+                self.brhs1,self.vrhs1,mhc = self.hallrhs(self.b1,self.v1)
+
+                self.b1 += self.dt * self.brhs1
+                self.v1 += self.dt * self.vrhs1
+                self.mhelcorr += self.dt * mhc
+
+            if order == 4: #Classic RK4
+
+                self.b2 = self.b1.copy()
+                self.v2 = self.v1.copy()
+
+                self.brhs1,self.vrhs1,mhc1 = self.hallrhs(self.b2,self.v2)
+                self.b2 = self.b1 + self.dt/2 * self.brhs1
+                self.v2 = self.v1 + self.dt/2 * self.vrhs1
+
+                self.brhs2,self.vrhs2,mhc2 = self.hallrhs(self.b2,self.v2)
+                self.b2 = self.b1 + self.dt/2 * self.brhs2
+                self.v2 = self.v1 + self.dt/2 * self.vrhs2
+
+                self.brhs3,self.vrhs3,mhc3 = self.hallrhs(self.b2,self.v2)
+                self.b2 = self.b1 + self.dt * self.brhs3
+                self.v2 = self.v1 + self.dt * self.vrhs3
+
+                self.brhs4,self.vrhs4,mhc4 = self.hallrhs(self.b2,self.v2)
+
+                self.b1 += self.dt/6 * (self.brhs1 + self.brhs4 + 2*(self.brhs2 + self.brhs3))
+                self.v1 += self.dt/6 * (self.vrhs1 + self.vrhs4 + 2*(self.vrhs2 + self.vrhs3))
+                self.mhelcorr += self.dt/6 * (mhc1 + mhc4 + 2 * (mhc2 + mhc3)) 
+
+            if order == 5:
+                """5th order stability region Dormand Prince scheme https://doi.org/10.1016/0771-050X(80)90013-3"""
+
+                self.b2 = self.b1.copy()
+                self.v2 = self.v1.copy()
+
+                self.brhs1,self.vrhs1,mhc1 = self.hallrhs(self.b1,self.v1)
+
+                self.b2 = self.b1 + self.dt * 2/9 * self.brhs1
+                self.v2 = self.v1 + self.dt * 2/9 * self.vrhs1
+                
+                self.brhs2,self.vrhs2,mhc2 = self.hallrhs(self.b2,self.v2)
+
+                self.b2 = self.b1 + self.dt * (1/12 * self.brhs1 + 1/4 * self.brhs2)
+                self.v2 = self.v1 + self.dt * (1/12 * self.vrhs1 + 1/4 * self.vrhs2)
+
+                self.brhs3,self.vrhs3,mhc3 = self.hallrhs(self.b2,self.v2)
+
+                self.b2 = self.b1 + self.dt * (55/324 * self.brhs1 - 25/108 * self.brhs2 + 50/81 * self.brhs3)
+                self.v2 = self.v1 + self.dt * (55/324 * self.vrhs1 - 25/108 * self.vrhs2 + 50/81 * self.vrhs3)
+
+                self.brhs4,self.vrhs4,mhc4 = self.hallrhs(self.b2,self.v2)
+
+                self.b2 = self.b1 + self.dt * (83/330 * self.brhs1 - 13/22 * self.brhs2 + 61/66 * self.brhs3 + 9/110 * self.brhs4)
+                self.v2 = self.v1 + self.dt * (83/330 * self.vrhs1 - 13/22 * self.vrhs2 + 61/66 * self.vrhs3 + 9/110 * self.vrhs4)
+
+                self.brhs5,self.vrhs5,mhc5 = self.hallrhs(self.b2,self.v2)
+
+                self.b2 = self.b1 + self.dt * (-19/28 * self.brhs1 + 9/4 * self.brhs2 + 1/7 * self.brhs3 + -27/7 * self.brhs4 + 22/7 * self.brhs5)
+                self.v2 = self.v1 + self.dt * (-19/28 * self.vrhs1 + 9/4 * self.vrhs2 + 1/7 * self.vrhs3 + -27/7 * self.vrhs4 + 22/7 * self.vrhs5)
+
+                self.brhs6,self.vrhs6,mhc6 = self.hallrhs(self.b2,self.v2)
+
+                self.b1 += (19/200 * self.brhs1 + 3/5 * self.brhs3 - 243/400 * self.brhs4 + 33/40 * self.brhs5 + 7/80  * self.brhs6) * self.dt
+                self.v1 += (19/200 * self.vrhs1 + 3/5 * self.vrhs3 - 243/400 * self.vrhs4 + 33/40 * self.vrhs5 + 7/80  * self.vrhs6) * self.dt 
+                self.mhelcorr += (19/200 * mhc1 + 3/5 * mhc3 -243/400 * mhc4 + 33/40 * mhc5 + 7/80 * mhc6) * self.dt
+                
             self.itime += 1
             self.time += self.dt
             self.runtime = time.time()-self.startruntime

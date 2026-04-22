@@ -296,8 +296,12 @@ def plot_energy(lpath,xb=1,tmax=2000000,checkenergyonly=False):
     
     # Magnetic vs Kinetic Energy Plot
     fig,ax = plt.subplots(1)
-    ax.plot(timeen,enval[:,3]/enval[:,0],"rs",markersize=1,label="Kinetic Energy")
-    ax.plot(timeen,enval[:,4]/enval[:,0],"bs",markersize=1,label="Magnetic Energy")
+    ke = enval[:,3]/(4*np.pi**3)
+    me = enval[:,4]/(4*np.pi**3)
+    kefrac = enval[:,3]/enval[:,0]
+    mefrac = enval[:,4]/enval[:,0]
+    ax.plot(timeen,kefrac,"rs",markersize=1,label="Kinetic Energy")
+    ax.plot(timeen,mefrac,"bs",markersize=1,label="Magnetic Energy")
     ax.set_ylabel('Energy Component / Total Energy',size="large")
     ax.set_xlabel('Time ($\omega_c^{-1}$)',size="large")
     ax.set_ylim(bottom=0,top=1)
@@ -321,6 +325,7 @@ def plot_energy(lpath,xb=1,tmax=2000000,checkenergyonly=False):
     plt.savefig(lpath+"/eplots/modeen",bbox_inches='tight')
     plt.close()
 
+    # Enstrophy and Current Plot
     fig,ax = plt.subplots(1)
     ev = enval[:,9:11]/(4* np.pi**3)
     ax.plot(timeen,ev[:,0],"rs",markersize=1,label="$(curl v)^2)$")
@@ -332,6 +337,38 @@ def plot_energy(lpath,xb=1,tmax=2000000,checkenergyonly=False):
     plt.savefig(lpath+"/eplots/enstrophy",bbox_inches='tight')
     #plt.show()
     plt.close()
+
+    # Rate of Energy Dissipation!
+
+    # Calculate time derivatives using 4th order stencils
+    # This assumes equally spaced time series!
+    timestep = timeen[1]
+    def dt4(energyarr):
+        dke = np.zeros_like(energyarr)
+
+        dke[0] = (-50*energyarr[0]+96*energyarr[1]-72*energyarr[2]+32*energyarr[3]-6*energyarr[4])/(24*timestep)
+        dke[-1] = (3*energyarr[-5]-16*energyarr[-4]+36*energyarr[-3]-48*energyarr[-2]+25*energyarr[-1])/(12*timestep)
+        
+        dke[1] = (-3*energyarr[0]-10*energyarr[1]+18*energyarr[2]-6*energyarr[3]+energyarr[4])/(12*timestep)
+        dke[-2] = (-2*energyarr[-5]+12*energyarr[-4]-36*energyarr[-3]+20*energyarr[-2]+6*energyarr[-1])/(24*timestep)
+
+        dke[2:-2] = (energyarr[0:-4]-8*energyarr[1:-3]+8*energyarr[3:-1]-energyarr[4:])/(12*timestep)
+        
+        return(dke)
+
+    fig,ax = plt.subplots(1)
+    dtke = -dt4(ke)
+    dtme = -dt4(me)
+
+    ax.plot(timeen,dtke,"rs",markersize=1,label="Kinetic Energy")
+    ax.plot(timeen,dtme,"bs",markersize=1,label="Magnetic Energy")
+    ax.set_ylabel('Rate of Energy Loss (Guide Field Energy $\omega_c$)',size="large")
+    ax.set_xlabel('Time ($\omega_c^{-1}$)',size="large")
+    ax.set_ylim(bottom=0,top=1)
+    ax.legend()
+    fig.suptitle("Kinetic and Magnetic Energies")
+    plt.savefig(lpath+'/eplots/lossen',bbox_inches='tight')
+    plt.close()        
 
     return timeen,enval
 

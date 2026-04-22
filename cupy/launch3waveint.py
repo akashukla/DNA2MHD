@@ -3,15 +3,16 @@ Script to order one or more three wave interaction simulations from submitruns.p
 """
 
 
-from dna2mhd_exp import DNA2MHD
+from dna2mhd import DNA2MHD
 import numpy as np
 import os
 import sys
+import h5py
 
 start = np.int32(sys.argv[1])
 
 factor = 1
-N = 256
+N = 64
 nkx0 = N*factor
 nky0 = N*factor
 nkz0 = N*factor
@@ -40,25 +41,35 @@ for i in range(start,start+1):
 
         kzmin = f["kzmins"][seti]
         kxmin = f["kpmins"][seti]
+        kymin = kxmin
         iterations = f["iterations"][seti]
         dt = f["timesteps"][seti]
         nu = f["viscs"][seti]
         eta = f["etas"][seti]
-        fname = f["fnames"][seti]
+        fname = f["fnames"][seti].astype("T") # Convert from numpy bytes object to string
 
     hyper = 1
     lpath = "/pscratch/sd/e/echansen/threewaves032426/"+fname+str(intnum)+"/"
     print(lpath,nu,eta,kzmin,kxmin)
     if not os.path.exists(lpath):
-        os.mkdir(lpath)
+        os.makedirs(lpath)
     test_iterations = iterations//1000
     triplet = triplets.tolist()
+
+    # Adjust viscosities from N = 256 value if needed - place microscale at N/sqrt(2)
+    nu *= 1/((N/256)**(4/3))
+    eta *= 1/((N/256)**(4/3))
+
+    # Adjust time step - the file time steps are small by 2.5 because of 3/2 padding
+    # But adjust if using stiff integrator
+    # dt *= 1/3
+    dt *= 16 * 3/4
     
     solver = DNA2MHD(nkx0,nky0,nkz0,kxmin,kymin,kzmin,nu,eta,
-                     dt,iterations,lpath,
+                     dt,test_iterations,lpath,
                      linear=False,
                      initcond="threewave",energystart=0.01,init_kolm=0,hmhdwave=[1,0,0,0],
                      forcetype="hallwave",forceamp=0.0,nforce=4,forcewave=[1,0,0,0],hyper=hyper,hallparam=1.0,
-                     solveprec=16,maxwallclock=86200,triplet=triplet,records=50,bittype=64,exactnueta=True)
+                     solveprec=16,maxwallclock=86200,triplet=triplet,records=20,bittype=64,exactnueta=True)
 
-    solver.gauss2()
+    solver.LinearSplitNLR2()
