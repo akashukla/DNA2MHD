@@ -51,8 +51,8 @@ hyp = 1
 /
 
 &diagnostics
-diagdir = "/pscratch/sd/e/echansen/DNA2MHDruns/austinsherwoodpar"
-loaddir = "/pscratch/sd/e/echansen/DNA2MHDruns/austinsherwoodpar"
+diagdir = "/pscratch/sd/e/echansen/DNA2MHDruns/test1"
+loaddir = "/pscratch/sd/e/echansen/DNA2MHDruns/test1"
 istep_ffm =   20
 istep_energy3d =  500
 istep_energy =  10
@@ -82,7 +82,7 @@ etg_factor  =    0.000
 em_conserve = T
 nuno_closure = T
 rhs_nl_version = 12
-intorder = 20
+intorder = 4
 precondition = F
 dealias_type = 3
 shifted = F
@@ -116,9 +116,9 @@ wave2z = -999
 /
 
 &initial_value
-max_itime = 25000
+max_itime = 250
 max_walltime =   86200.0
-dt_max = 0.1
+dt_max = 0.01
 fix_dt = F
 max_time =   10000000.
 /

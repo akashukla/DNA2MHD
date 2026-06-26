@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --qos=preempt
-#SBATCH --time=20:00:00
+#SBATCH --time=06:00:00
 #SBATCH --constraint=gpu
 #SBATCH --gpus=1
 #SBATCH -A m2116
@@ -14,4 +14,4 @@ module load python
 module list
 python3 -m pip list
 
-srun -n 1 python3 launch3waveint.py "$1"
+srun -n 1 python3 startnlinvtest.py "$1"

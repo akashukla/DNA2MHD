@@ -11,13 +11,13 @@ import h5py
 
 start = np.int32(sys.argv[1])
 
+factor = 1
 N = 256
-nkx0 = N
-nky0 = N
-nkz0 = N
+nkx0 = N*factor
+nky0 = N*factor
+nkz0 = N*factor
 
 for i in range(start,start+1):
-
     
     # Use h5py file for initial conditions
     # This file must contain - wavenumber perp and parallel grid scales
@@ -27,46 +27,44 @@ for i in range(start,start+1):
     # Time step for plasma domain - determined from fastest Alfvén whistler scale
     # Resonant wave interaction wavenumbers in ascending wavenumber order
     # If using other waves than positive whistlers, add three mode types
+
+     # Setting number - specific to file with 5 interactions, 5 settings                                                                                                                                                                       
+        # 0 - LAPD, 1 - HSX, 2 - DIII-D, 3 - Coronal Loop, 4 - Solar Wind
+    
+
+    seti = i // 5
+
+    # Interaction number - specific to file with 5 interactions, 5 settings 
+    intnum = i % 5
     
     with h5py.File("initconds060426.hdf5","r") as f:
 
-        # Setting number - specific to file with 5 interactions, 5 settings
-        # 0 - LAPD, 1 - HSX, 2 - DIII-D, 3 - Coronal Loop, 4 - Solar Wind
-        seti = i // 5
-        # Interaction number - specific to file with 5 interactions, 5 settings
-        intnum = i % 5
-        
         triplets = f["waves"][seti,intnum,:]
 
         kzmin = f["kzmins"][seti]
         kxmin = f["kpmins"][seti]
         kymin = kxmin
         iterations = f["iterations"][seti]
-        dt = f["timesteps"][seti]
-        nu = f["viscs"][seti]
-        eta = f["etas"][seti]
         fname = f["fnames"][seti].astype("T") # Convert from numpy bytes object to string
 
     lpath = "/pscratch/sd/e/echansen/threewaves060426/"+fname+str(N)+"set"+str(intnum)+"/"
+
+    with h5py.File(lpath+"output.hdf5","r") as f:
+
+        dt = f["dt"][0]
+        nu = f["nu"][0]
+        eta = f["eta"][0]
+        hyper = f["hyper"][0]
+        
+        
     print(lpath,nu,eta,kzmin,kxmin)
-    if not os.path.exists(lpath):
-        os.makedirs(lpath)
-    test_iterations = iterations//10000
     triplet = triplets.tolist()
-
-#    # Adjust viscosities from N = 256 value if needed - place microscale at N/3
-#    nu *= 1/((N/256 * np.sqrt(2)/3)**(4/3))
-#    eta *= 1/((N/256 * np.sqrt(2)/3)**(4/3))
-
-    # Adjust time step - the file time steps are small by 2.5 because of 3/2 padding
-    # But adjust if using stiff integrator
-    dt *=  (256/N)**2
     
     solver = DNA2MHD(nkx0,nky0,nkz0,kxmin,kymin,kzmin,nu,eta,
                      dt,iterations,lpath,
                      linear=False,
-                     initcond="threewave",energystart=0.01,init_kolm=0,hmhdwave=[1,0,0,0],
-                     forcetype="threewave",hallparam=1.0,
-                     solveprec=16,maxwallclock=86200,triplet=triplet,records=20,bittype=64,exactnueta=False)
+                     initcond="checkpoint",energystart=0.01,init_kolm=0,hmhdwave=[1,0,0,0],
+                     forcetype="threewave",hyper=hyper,hallparam=1.0,
+                     solveprec=16,maxwallclock=86200,triplet=triplet,records=50,bittype=64,exactnueta=True)
 
     solver.gauss2split()

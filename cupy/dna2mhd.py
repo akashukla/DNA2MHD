@@ -12,31 +12,49 @@ from numpy import float32 as float32c
 from numpy import complex64 as complex64c
 from numpy import int32 as int32c
 
+def hermitiancheck(a,nkz0):
+
+    highcheck = np.amax(np.abs(a[:,:,:,nkz0//2:]))
+    print("Nz/2 ", highcheck)
+
+    ncheckx = np.shape(a)[2]
+    nchecky = np.shape(a)[3]
+    maxdiff = 0
+    for i in range(ncheckx):
+        for j in range(nchecky):
+            maxdiff = max(maxdiff, np.amax(np.abs(a[:,i,j,0]-np.conj(a[:,-i,-j,0]))))
+    print("0 ",maxdiff)
+
 class RHS:
-
-    def idealhallrhs(self,binput,vinput):
-
-        # Evolution of incompressible ideal Hall MHD system, allowing for a splitting to handle dissipation for current implicit schemes
-
-        bout,vout = self.convolutions(binput,vinput)
-        bout,vout = self.removediv(bout,vout)
-
-        return(bout,vout)
     
-    def hallrhs(self,binput,vinput):
+    def hallrhs(self,binput,vinput,diss=True,returnmhc=True):
 
         # Evolution of incompressible Hall MHD system including dissipation
-        bout,vout = self.rhslinear(binput,vinput)
-        bout,vout = self.convolutions(binput,vinput,bout,vout)
+        if self.linear:
+            bout,vout = self.rhslinear(binput,vinput)
+            #bout,vout = self.convolution_lintest(binput,vinput)
+        else:
+            bout,vout = self.convolutions(binput,vinput)
+            vout = self.removediv(vout)
 
-        bout -= self.etab * self.kmags**(2*self.hyper) * binput
-        vout -= self.vnu * self.kmags**(2*self.hyper) * vinput
+        if diss:
+
+            bout -= self.etab * self.kmags**(2*self.hyper) * binput
+            vout -= self.vnu * self.kmags**(2*self.hyper) * vinput
 
         mhc = self.helicitycorrection(binput,vinput)
 
-        self.removediv(bout,vout)
-        
-        return(bout,vout,mhc)
+        # if self.itime % (2*self.irecord) == 0:
+
+        #     div_v = self.kxgrid[:,None,None]*vout[0,:,:,:]+self.kygrid[None,:,None]*vout[1,:,:,:]+ \
+        #         self.kzgrid[None,None,:]*vout[2,:,:,:]
+
+        #     print("Div V", cp.amax(cp.abs(div_v)))
+
+        if returnmhc:
+            return(bout,vout,mhc)
+        else:
+            return(bout,vout)
 
     def rhslinear(self,binput,vinput):
 
@@ -50,69 +68,172 @@ class RHS:
         bout[2,:,:,:] = (1j * vinput[2,:,:,:] + self.kxgrid[:,None,None]*binput[1,:,:,:] - self.kygrid[None,:,None]*binput[0,:,:,:])
         bout *= self.kzgrid[None,None,None,:]
 
-        vout[0,:,:,:] = 1j * self.kzgrid[None,None,:] * binput[0,:,:,:] - 1j * binput[2,:,:,:] * self.kxgrid[:,None,None]
-        vout[1,:,:,:] = 1j * self.kzgrid[None,None,:] * binput[1,:,:,:] - 1j * binput[2,:,:,:] * self.kygrid[None,:,None]
-        vout[2,:,:,:] = 1j * self.kzgrid[None,None,:] * binput[2,:,:,:] - 1j * binput[2,:,:,:] * self.kzgrid[None,None,:]
+        vout[0,:,:,:] = 1j * self.kzgrid[None,None,:] * binput[0,:,:,:] #- 1j * binput[2,:,:,:] * self.kxgrid[:,None,None]
+        vout[1,:,:,:] = 1j * self.kzgrid[None,None,:] * binput[1,:,:,:] #- 1j * binput[2,:,:,:] * self.kygrid[None,:,None]
+        vout[2,:,:,:] = 1j * self.kzgrid[None,None,:] * binput[2,:,:,:] #- 1j * binput[2,:,:,:] * self.kzgrid[None,None,:]
 
         return(bout,vout)
 
-    def convolutions(self,binput,vinput,bout,vout):
+    def unpack(self,array,newarray):
+
+        newarray = cp.zeros_like(array)
+
+        newarray[:,:self.nkx0//2,:self.nky0//2,:self.nky0,:self.nkz0//2] = array[:,:self.nkx0//2,:self.nky0//2,:self.nky0,:self.nkz0//2]
+        newarray[:,:self.nkx0//2,self.nky0+1:,:self.nkz0//2] = array[:,:self.nkx0//2,self.nky0+1:,:self.nkz0//2]
+        newarray[:,self.nkx0+1:,:self.nky0//2,:self.nkz0//2] = array[:,self.nkx0+1:,:self.nky0//2,:self.nkz0//2]
+        newarray[:,self.nkx0+1:,self.nky0+1:,:self.nkz0//2] = array[:,self.nkx0+1:,self.nky0+1:,:self.nkz0//2]
+
+
+        return(dearray)
+
+    def convolutions(self,binput,vinput,bout=0,vout=0):
 
         # Carry out convolution sums for nonlinear evolution using FFTs
 
-        bx = irfftn(binput[0,:,:,:])
-        by = irfftn(binput[1,:,:,:])
-        bz = irfftn(binput[2,:,:,:])
+        bout = cp.zeros_like(self.b1)+bout
+        vout = cp.zeros_like(self.v1)+bout
 
-        vx = irfftn(vinput[0,:,:,:])
-        vy = irfftn(vinput[1,:,:,:])
-        vz = irfftn(vinput[2,:,:,:])
+        if cp.sum(binput * (1-self.padding[None,:,:,:])) > 2e-16:
+            print("Unpadded array", cp.sum(binput * (1-self.padding[None,:,:,:])))
+            quit()
+
+        bx = irfftn(binput[0,:,:,:])*self.fftfactor
+        by = irfftn(binput[1,:,:,:])*self.fftfactor
+        bz = irfftn(binput[2,:,:,:])*self.fftfactor
+
+        vx = irfftn(vinput[0,:,:,:])*self.fftfactor
+        vy = irfftn(vinput[1,:,:,:])*self.fftfactor
+        vz = irfftn(vinput[2,:,:,:])*self.fftfactor
 
         # Compute curl operators spectrally before FFTs
 
         dum = 1j*self.kygrid[None,:,None]*binput[2,:,:,:]-1j*self.kzgrid[None,None,:]*binput[1,:,:,:]
-        curlbx = irfftn(dum)
+        curlbx = irfftn(dum)*self.fftfactor
 
         dum = 1j*self.kygrid[None,:,None]*vinput[2,:,:,:]-1j*self.kzgrid[None,None,:]*vinput[1,:,:,:]
-        curlvx = irfftn(dum)
+        curlvx = irfftn(dum)*self.fftfactor
 
         dum = 1j*self.kzgrid[None,None,:]*binput[0,:,:,:]-1j*self.kxgrid[:,None,None]*binput[2,:,:,:]
-        curlby = irfftn(dum)
+        curlby = irfftn(dum)*self.fftfactor
 
         dum = 1j*self.kzgrid[None,None,:]*vinput[0,:,:,:]-1j*self.kxgrid[:,None,None]*vinput[2,:,:,:]
-        curlvy = irfftn(dum)
+        curlvy = irfftn(dum)*self.fftfactor
 
         dum = 1j*self.kxgrid[:,None,None]*binput[1,:,:,:]-1j*self.kygrid[None,:,None]*binput[0,:,:,:]
-        curlbz = irfftn(dum)
+        curlbz = irfftn(dum)*self.fftfactor
 
         dum = 1j*self.kxgrid[:,None,None]*vinput[1,:,:,:]-1j*self.kygrid[None,:,None]*vinput[0,:,:,:]
-        curlvz = irfftn(dum)
+        curlvz = irfftn(dum)*self.fftfactor
 
         # Compute the nonlinear RHS and transform into real space
 
-        dum = vy * bz - vz * by - self.hallparam * ( curlby * bz - curlbz * by )
-        dum2 = rfftn(dum) * self.nx0_big * self.ny0_big * self.nz0_big
+        dum = vy * bz - vz * by - self.hallparam * (curlby * bz - curlbz * by)
+        dum2 = rfftn(dum)/self.fftfactor
         bout[1,:,:,:] += 1j * self.kzgrid[None,None,:] * dum2
         bout[2,:,:,:] += -1j * self.kygrid[None,:,None] * dum2
 
-        dum = vy * curlvz - vz * curlvy + (curlby * bz - curlbz * by)
-        vout[0,:,:,:] = rfftn(dum) * self.nx0_big * self.ny0_big * self.nz0_big
+        dum = self.vdv * (vy * curlvz - vz * curlvy) + (curlby * bz - curlbz * by)
+        vout[0,:,:,:] = rfftn(dum)/self.fftfactor
 
-        dum = vz * bx - vx * bz - self.hallparam * ( curlbz * bx - curlbx * bz )
-        dum2 = rfftn(dum) * self.nx0_big * self.ny0_big * self.nz0_big
+        dum = vz * bx - vx * bz - self.hallparam * (curlbz * bx - curlbx * bz)
+        dum2 = rfftn(dum)/self.fftfactor
         bout[0,:,:,:] += -1j * self.kzgrid[None,None,:] * dum2
         bout[2,:,:,:] += 1j * self.kxgrid[:,None,None] * dum2
 
-        dum = vz * curlvx - vx * curlvz + (curlbz * bx - curlbx * bz)
-        vout[1,:,:,:] = rfftn(dum) * self.nx0_big * self.ny0_big * self.nz0_big
+        dum = self.vdv * (vz * curlvx - vx * curlvz) + (curlbz * bx - curlbx * bz)
+        vout[1,:,:,:] = rfftn(dum)/self.fftfactor
 
-        dum = vx * by	- vy * bx - self.hallparam * ( curlbx * by - curlby * bx )
-        dum2 = rfftn(dum) * self.nx0_big * self.ny0_big * self.nz0_big
+        dum = vx * by	- vy * bx - self.hallparam * (curlbx * by - curlby * bx)
+        dum2 = rfftn(dum)/self.fftfactor
         bout[0,:,:,:] += 1j * self.kygrid[None,:,None] * dum2
         bout[1,:,:,:] += -1j * self.kxgrid[:,None,None] * dum2
         
-        dum = vx * curlvy - vy * curlvx + (curlbx * by - curlby * bx)
-        vout[2,:,:,:] = rfftn(dum) * self.nx0_big * self.ny0_big * self.nz0_big
+        dum = self.vdv * (vx * curlvy - vy * curlvx) + (curlbx * by - curlby * bx)
+        vout[2,:,:,:] = rfftn(dum)/self.fftfactor
+        
+        bout *= self.padding[None,:,:,:]
+        vout *= self.padding[None,:,:,:]
+        
+        # if self.itime % (2* self.irecord) == 0 :
+        #     hermitiancheck(bout,self.nkz0)
+
+
+
+        # bout = self.dealias(bout)
+        # vout = self.dealias(vout)
+
+        # print("Through NL")
+
+        return(bout,vout)
+
+    def convolution_lintest(self,binput,vinput,bout=0,vout=0):
+
+        # Carry out convolution sums for nonlinear evolution using FFTs
+
+        # Should be able to set up a guide field term with 0,0,0 component of b
+
+        bout1,vout1 = self.rhslinear(binput,vinput)
+
+        bout = cp.zeros_like(self.b1)+bout
+        vout = cp.zeros_like(self.v1)+bout
+
+        binput_fluct = binput.copy()
+        binput_fluct[:,0,0,0] *= 0.0
+
+        binput_const = binput.copy()
+        binput_const[:,1:,1:,1:] *= 0.0
+
+        bx_fluct = irfftn(binput_fluct[0,:,:,:])*self.fftfactor
+        by_fluct = irfftn(binput_fluct[1,:,:,:])*self.fftfactor
+        bz_fluct = irfftn(binput_fluct[2,:,:,:])*self.fftfactor
+
+        vx = irfftn(vinput[0,:,:,:])*self.fftfactor
+        vy = irfftn(vinput[1,:,:,:])*self.fftfactor
+        vz = irfftn(vinput[2,:,:,:])*self.fftfactor
+
+        bx_const = irfftn(binput_const[0,:,:,:])*self.fftfactor
+        by_const = irfftn(binput_const[1,:,:,:])*self.fftfactor
+        bz_const = irfftn(binput_const[2,:,:,:])*self.fftfactor
+
+        # Compute curl operators spectrally before FFTs
+
+        dum = 1j*self.kygrid[None,:,None]*binput[2,:,:,:]-1j*self.kzgrid[None,None,:]*binput[1,:,:,:]
+        curlbx = irfftn(dum)*self.fftfactor
+
+        dum = 1j*self.kygrid[None,:,None]*vinput[2,:,:,:]-1j*self.kzgrid[None,None,:]*vinput[1,:,:,:]
+        curlvx = irfftn(dum)*self.fftfactor
+
+        dum = 1j*self.kzgrid[None,None,:]*binput[0,:,:,:]-1j*self.kxgrid[:,None,None]*binput[2,:,:,:]
+        curlby = irfftn(dum)*self.fftfactor
+
+        dum = 1j*self.kzgrid[None,None,:]*vinput[0,:,:,:]-1j*self.kxgrid[:,None,None]*vinput[2,:,:,:]
+        curlvy = irfftn(dum)*self.fftfactor
+
+        dum = 1j*self.kxgrid[:,None,None]*binput[1,:,:,:]-1j*self.kygrid[None,:,None]*binput[0,:,:,:]
+        curlbz = irfftn(dum)*self.fftfactor
+
+        dum = 1j*self.kxgrid[:,None,None]*vinput[1,:,:,:]-1j*self.kygrid[None,:,None]*vinput[0,:,:,:]
+        curlvz = irfftn(dum)*self.fftfactor
+
+        # Compute the linear RHS, only using guide terms and transform into spectral space
+
+        dum = vy * bz_const - self.hallparam * ( curlby * bz_const )
+        dum2 = rfftn(dum)/self.fftfactor
+        bout[1,:,:,:] += 1j * self.kzgrid[None,None,:] * dum2
+        bout[2,:,:,:] += -1j * self.kygrid[None,:,None] * dum2
+
+        dum =  (curlby * bz_const )
+        vout[0,:,:,:] = rfftn(dum)/self.fftfactor
+
+        dum =  -vx * bz_const - self.hallparam * ( 0- curlbx * bz_const )
+        dum2 = rfftn(dum)/self.fftfactor
+        bout[0,:,:,:] += -1j * self.kzgrid[None,None,:] * dum2
+        bout[2,:,:,:] += 1j * self.kxgrid[:,None,None] * dum2
+
+        dum =  (0 - curlbx * bz_const)
+        vout[1,:,:,:] = rfftn(dum)/self.fftfactor
+        
+        vout[2,:,:,:] = 0.0
 
         # Convolution sums are dealiased using the 3/2 rule
         
@@ -121,7 +242,14 @@ class RHS:
 
         #print("Through NL")
 
+        # if cp.amax(cp.abs(bout-bout1))+cp.amax(cp.abs(vout-vout1)) > 1e-14:
+        #     print("Different Linear RHS")
+        #     print("Differences ",cp.amax(cp.abs(bout-bout1)),cp.amax(cp.abs(vout-vout1)))
+        #     print("Ratio ",cp.sum(bout)/cp.sum(bout1),cp.sum(vout)/cp.sum(vout1))
+        #     quit()
+
         return(bout,vout)
+
 
     def reset_phase(self):
 
@@ -129,7 +257,7 @@ class RHS:
 
         return(cp.exp(1j*cp.pi*2*cp.random.rand(self.nx0_big,self.ny0_big,self.nz0_big//2 + 1)).astype(self.ctype))
     
-    def force(self):
+    def force(self,dt):
 
         if self.forcetype == "hallwave":
 
@@ -159,27 +287,34 @@ class RHS:
             self.v1 += self.dt/2 * self.forcemask[None,:,:,:] * self.forcewave[3] \
                 * self.pcurleig * self.alphaleftwhist[None,:,:,:]/ cp.sqrt(self.alphaleftwhist[None,:,:,:]**2.0 + 1) * phase[None,:,:,:]
 
+        elif self.forcetype == "threewave" or self.forcetype == "null":
+
+            self.b1 += dt * self.bforcing
+            self.v1 += dt * self.vforcing
+
         return(None)
         
-    def removediv(self,binput,vinput):
+    def removediv(self,vinput):
 
         # Maintain incompressibility by solving the Poisson equation for pressure at each time step
         
+        vout = vinput.copy()
+
         divergence_v = self.kxgrid[:,None,None]*vinput[0,:,:,:]+self.kygrid[None,:,None]*vinput[1,:,:,:]+ \
             self.kzgrid[None,None,:]*vinput[2,:,:,:]
         
-        avgvelocity = cp.copy(vinput[:,0,0,0])
-        vinput[0,:,:,:] -= divergence_v/(self.kmags**2.0) * self.kxgrid[:,None,None]
-        vinput[1,:,:,:] -= divergence_v/(self.kmags**2.0) * self.kygrid[None,:,None]
-        vinput[2,:,:,:] -= divergence_v/(self.kmags**2.0) * self.kzgrid[None,None,:]
-        vinput[:,0,0,0] = avgvelocity
+        self.kmags[0,0,0] = 1.0
+        vout[0,:,:,:] -= divergence_v/(self.kmags**2.0) * self.kxgrid[:,None,None]
+        vout[1,:,:,:] -= divergence_v/(self.kmags**2.0) * self.kygrid[None,:,None]
+        vout[2,:,:,:] -= divergence_v/(self.kmags**2.0) * self.kzgrid[None,None,:]
+        self.kmags[0,0,0] = 0.0
 
         if cp.any(cp.isnan(vinput)):
             print("Remove Div shows nans ")
             print(cp.nonzero(cp.isnan(vinput)))
             quit()
 
-        return(binput,vinput)
+        return(vout)
 
 class DIAGS:
 
@@ -227,8 +362,12 @@ class DIAGS:
         mhel = cp.real(2*cp.sum((AVP[:,:,:,1:])*cp.conj(self.b1[:,:,:,1:])))
         mhel += cp.real(cp.sum(AVP[:,:,:,0]*cp.conj(self.b1[:,:,:,0])))
 
-        canhel = cp.real(2*cp.sum((AVP[:,:,:,1:]+self.hallparam*self.v1[:,:,:,1:])*cp.conj(self.b1[:,:,:,1:]+self.hallparam*WVORT[:,:,:,1:])))
-        canhel += cp.real(cp.sum((AVP[:,:,:,0]+self.hallparam*self.v1[:,:,:,0])*cp.conj(self.b1[:,:,:,0]+self.hallparam*WVORT[:,:,:,0]))) + cp.real(self.hallparam*self.v1[2,0,0,0])
+        if self.hallparam > 0.0:
+            canhel = cp.real(2*cp.sum((AVP[:,:,:,1:]+self.hallparam*self.v1[:,:,:,1:])*cp.conj(self.b1[:,:,:,1:]+self.hallparam*WVORT[:,:,:,1:])))
+            canhel += cp.real(cp.sum((AVP[:,:,:,0]+self.hallparam*self.v1[:,:,:,0])*cp.conj(self.b1[:,:,:,0]+self.hallparam*WVORT[:,:,:,0]))) + cp.real(self.hallparam*self.v1[2,0,0,0])
+        else: # Calculate cross helicity without Hall term
+            canhel = cp.real(2*cp.sum((self.b1[:,:,:,1:])*cp.conj(self.v1[:,:,:,1:])))
+            canhel += cp.real(cp.sum(self.b1[:,:,:,0]*cp.conj(self.v1[:,:,:,0])))
 
         mhel *= 8 * cp.pi**3
         canhel *= 8 * cp.pi**3
@@ -315,7 +454,13 @@ class DIAGS:
         kygridcpu = cp.asnumpy(self.kygrid)
         kzgridcpu = cp.asnumpy(self.kzgrid)
         hcpu = cp.asnumpy(self.hallparam)
+        vdvcpu = cp.asnumpy(self.vdv)
         dtcpu = cp.asnumpy(self.dt)
+        etacpu = cp.asnumpy(self.etab)
+        nucpu = cp.asnumpy(self.vnu)
+        hypercpu = cp.asnumpy(self.hyper)
+
+        extra = cp.int32(41)
         
         if not os.path.exists(self.lpath+"/output.hdf5"):
 
@@ -328,19 +473,41 @@ class DIAGS:
                 written = f.create_dataset("written",(1,),dtype="int32",data=int32c(0))
                 dt = f.create_dataset("dt",(1,),dtype="float64",data=dtcpu)
                 hall = f.create_dataset("hall",(1,),data=hcpu)
+                vdv = f.create_dataset("vdv",(1,),data=vdvcpu)
+                
+                nu = f.create_dataset("nu",(1,),data=nucpu)
+                eta = f.create_dataset("eta",(1,),data=etacpu)
+                hyper = f.create_dataset("hyper",(1,),data=hypercpu)
 
-                itime = f.create_dataset("itime",(1,),dtype="int32",data=0)
-                times = f.create_dataset("time",(self.record+1,),dtype=self.rtype,maxshape=(None))
-                enval = f.create_dataset("enval",(self.record+1,12),dtype=self.rtype,maxshape=(None,12))
+                itime = f.create_dataset("itime",(self.record+extra,),dtype="int32",maxshape=(None,))
+                times = f.create_dataset("time",(self.record+extra,),dtype=self.rtype,maxshape=(None,))
+                enval = f.create_dataset("enval",(self.record+extra,12),dtype=self.rtype,maxshape=(None,12))
 
                 if self.initcond == "threewave":
 
                     tripletcpu = cp.asnumpy(self.triplet)
                     threewaves = f.create_dataset("threewaves",(12,),dtype=self.rtype,data=tripletcpu)
-                    threewaveenergies = f.create_dataset("threewaveenergies",(self.record+1,12),dtype=self.rtype,maxshape=(None,12))
+                    threewaveenergies = f.create_dataset("threewaveenergies",(self.record+extra,12),dtype=self.rtype,maxshape=(None,12))
 
-                magneticfields = f.create_dataset("magneticfields",(self.record+1,3,self.nx0_big,self.ny0_big,self.nz0_big//2+1),dtype=self.ctype,maxshape=(None,3,self.nx0_big,self.ny0_big,self.nz0_big//2+1))
-                velocityfields = f.create_dataset("velocityfields",(self.record+1,3,self.nx0_big,self.ny0_big,self.nz0_big//2+1),dtype=self.ctype,maxshape=(None,3,self.nx0_big,self.ny0_big,self.nz0_big//2+1))
+                magneticfields = f.create_dataset("magneticfields",(self.record+extra,3,self.nx0_big,self.ny0_big,self.nz0_big//2+1),dtype=self.ctype,maxshape=(None,3,self.nx0_big,self.ny0_big,self.nz0_big//2+1))
+                velocityfields = f.create_dataset("velocityfields",(self.record+extra,3,self.nx0_big,self.ny0_big,self.nz0_big//2+1),dtype=self.ctype,maxshape=(None,3,self.nx0_big,self.ny0_big,self.nz0_big//2+1))
+
+        else:
+
+            # Resize datasets if file already exists, to allow for more data to be written
+            self.writtencpu = cp.asnumpy(self.written)
+            
+            with h5py.File(self.lpath+"/output.hdf5","a") as f:
+                
+                f["itime"].resize((self.writtencpu+self.record+1,))
+                f["time"].resize((self.writtencpu+self.record+1,))
+                f["enval"].resize((self.writtencpu+self.record+1,12))
+
+                if self.initcond == "threewave":
+                    f["threewaveenergies"].resize((self.writtencpu+self.record+1,12))
+
+                f["magneticfields"].resize((self.writtencpu+self.record+1,3,self.nx0_big,self.ny0_big,self.nz0_big//2+1))
+                f["velocityfields"].resize((self.writtencpu+self.record+1,3,self.nx0_big,self.ny0_big,self.nz0_big//2+1))
 
         return(None)
     
@@ -352,7 +519,6 @@ class DIAGS:
         magham = self.hamiltonian(2)
         mh,ch,vort,cb2 = self.helicity()
         lw,lc,rw,rc = self.hallmodeenergies()
-
 
         # Send data to CPU
         self.writtencpu = cp.asnumpy(self.written)
@@ -383,7 +549,7 @@ class DIAGS:
             dset = f["written"]
             print("Written shape ",self.timecpu)
 
-            f["itime"][0] = itimecpu
+            f["itime"][self.writtencpu] = itimecpu
             f["written"][0] = self.writtencpu
             f["time"][self.writtencpu] = self.timecpu
             f["enval"][self.writtencpu,0] = hamcpu
@@ -404,387 +570,54 @@ class DIAGS:
 
             if self.initcond == "threewave":
                 f["threewaveenergies"][self.writtencpu,:] = waveenergiescpu
+
+        self.written += 1
                 
         return(None)
 
-class DNA2MHD(RHS,DIAGS):
-    def __init__(self,nkx0,nky0,nkz0,kxmin,kymin,kzmin,nu,eta,
-                 dt,iterations,lpath,linear=False,
-                 initcond="hallwave",energystart=0.01,init_kolm=0,hmhdwave=[1,0,0,0],
-                 forcetype="hallwave",forceamp=0.0,nforce=4,forcewave=[1,0,0,0],hyper=1,hallparam=1.0,
-                 solveprec=16,maxwallclock=86200,triplet=None,records=20,bittype=32,exactnueta=False):
+class TimeSteps(RHS,DIAGS):
 
-        # Define working real/complex data type
-        if bittype == 32:
-            floattype = cp.float32
-            complextype = cp.complex64
-        else:
-            floattype = cp.float64
-            complextype = cp.complex128
-
-        if lpath[-1] == "/":
-            lpath = lpath[:-1]
-        self.lpath = lpath
-
-        self.ctype = "complex"+str(2*bittype)
-        self.rtype = "float"+str(bittype)
-
-        # Intended runtime parameters
-        self.maxwallclock = maxwallclock
-        self.dt = floattype(dt)
-        self.iterations = iterations
-        self.itime = int32(0)
-        self.itime_start = int32(0)
-        self.time = floattype(0)
-        self.solveprec = solveprec
-        
-        # Define grid parameters
-
-        # Grid sizes in each direction
-        self.nkx0 = int32(nkx0)
-        self.nky0 = int32(nky0)
-        self.nkz0 = int32(nkz0)
-
-        self.nx0_big = 3 * nkx0//2
-        self.ny0_big = 3 * nky0//2
-        self.nz0_big = 3 * nkz0//2
-
-        # Smallest k scales resolved        
-        self.kxmin = floattype(kxmin)
-        self.kymin = floattype(kymin)
-        self.kzmin = floattype(kzmin)
-
-        self.kxgrid = cp.concatenate((cp.arange(0,self.nx0_big//2,dtype=self.rtype),cp.arange(-self.nx0_big//2,0,dtype=self.rtype)))*kxmin
-        self.kygrid = cp.concatenate((cp.arange(0,self.ny0_big//2,dtype=self.rtype),cp.arange(-self.ny0_big//2,0,dtype=self.rtype)))*kymin
-        self.kzgrid = cp.arange(0,self.nz0_big//2+1,dtype=self.rtype)*kzmin
-
-        KX,KY,KZ = cp.meshgrid(self.kxgrid,self.kygrid,self.kzgrid,indexing="ij")
-
-        self.kmags = cp.sqrt(self.kxgrid[:,None,None]**2.0 + self.kygrid[None,:,None]**2.0+self.kzgrid[None,None,:]**2.0).astype(self.rtype)
-        self.kmax = cp.amax(self.kmags)
-
-        # Positive curl eigenstates defined
-        zvec = cp.array([0,0,1],dtype=self.ctype)
-        ks = cp.stack((KX,KY,KZ)).astype(self.ctype)
-
-        self.pcurleig = cp.cross(ks,zvec[:,None,None,None],axis=0)
-        self.pcurleig += 1j* cp.cross(ks,self.pcurleig,axis=0)/self.kmags[None,:,:,:]
-        self.pcurleig *= cp.sqrt(2)/(2*self.kmags[:,:,0][None,:,:,None])
-        self.pcurleig[:,0,0,:] = cp.array([1,1j,0],dtype=self.ctype)[:,None]/cp.sqrt(2.0)
-        self.pcurleig[:,0,0,0] = 0.0
-
-        # Initial condition parameters 
-
-        self.initcond = initcond
-        self.energystart = energystart
-        
-        self.init_kolm = floattype(init_kolm) # Power law decay of initial modes for full mode initialization
-        
-        # Initial and forced normal modes: 0 whistler, 1 left cyclotron, 2 right whistler, 3 right cyclotron  
-        self.hmhdwave = hmhdwave 
-        self.forcetype = forcetype
-        
-        self.forceamp = floattype(forceamp)
-        self.nforce = nforce
-        self.forcewave = forcewave
-        
-        self.nu = floattype(nu) # Dissipation at largest scale
-        self.eta = floattype(eta) # Magnetic Prandtl number
-        self.hyper = hyper
-
-        # Three wavenumbers for resonant interaction in threewave simulation
-        # Either positive whistlers with 9 wavenumbers (wave x3, wave2 x3, wave3 x3); or 12 with above mode types specified after wavenumbers
-        self.triplet = triplet
-        
-        self.exactnueta = exactnueta        
-        if exactnueta == False:
-            # Normalized viscosity and resistivity from largest scale dissipation and Prandtl number
-            self.vnu = nu/(self.kmax**(2*hyper))
-            self.etab = eta*self.vnu
-        else:
-            # Specify viscosity, resistivity in di^2 wci, mu0 di^2 wci; e.g.
-            self.vnu = nu
-            self.etab = eta
-        
-        print("Dissipation Factors",self.vnu,self.etab)
-
-        # Ratio of frequency to kz for ideal positive helicity cyclotron modes; the other frequency ratios can be determined from this
-        self.alphaleftwhist = - (hallparam*self.kmags/2 + cp.sqrt(1+ (hallparam*self.kmags/2)**2.0))
-
-        # Calculation of non-ideal Hall MHD eigenvalues
-        
-        eigb2 = - ((self.vnu+self.etab)*self.kmags**(2*hyper) + 1j * self.kmags * self.kzgrid[None,None,:]*hallparam)/2
-        eigsqrt = eigb2**2 - self.kzgrid[None,None,:]**2.0 - self.vnu * self.etab * self.kmags**(4*hyper) \
-            - 1j * self.vnu * self.kmags**(2*hyper) * self.kzgrid[None,None,:] * self.kmags
-        
-        self.eig = cp.zeros([self.nx0_big,self.ny0_big,self.nz0_big//2+1,4],dtype=self.ctype)
-        self.eig[:,:,:,0] = eigb2 - cp.sqrt(eigsqrt)
-        self.eig[:,:,:,1] = eigb2 + cp.sqrt(eigsqrt)
-        self.eig[:,:,:,2] = cp.conj(eigb2) + cp.sqrt(cp.conj(eigsqrt))
-        self.eig[:,:,:,3] = cp.conj(eigb2) - cp.sqrt(cp.conj(eigsqrt))
-        
-
-        # Padding array for dealiasing
-        self.padding = cp.ones_like(self.kmags,dtype="int32")
-        self.padding[self.nkx0//2:1-self.nkx0//2,:,:] = 0
-        self.padding[:,self.nky0//2:1-self.nky0//2,:] = 0
-        self.padding[:,:,self.nkz0:] = 0
-
-        # Mask of forcing waves beyond certain mode amplitudes
-        self.forcemask = cp.zeros_like(self.padding,dtype=self.rtype)
-        self.forcemask[1:nforce+1,1:nforce+1,1:nforce+1] = 1
-        self.forcemask[-nforce:,-nforce:,1:nforce+1] = 1
-        self.forcemask[1:nforce+1,-nforce:,1:nforce+1] = 1
-        self.forcemask[-nforce:,1:nforce+1,1:nforce+1] = 1
-        self.forcemask *= forceamp
-        
-        # Initialize fields
-        self.b1 = cp.zeros_like(self.pcurleig)
-        self.v1 = cp.zeros_like(self.pcurleig)
-        self.mhelcorr = cp.float32(0.0)
-        self.fieldsetup()
-
-        # Testing linear simulation
-        self.linear = linear
-        # Ratio of ion skin depth to length scale; this should be 1 with normalization used, and length scale enters through k
-        self.hallparam = hallparam
-
-        # Output parameters - filename, how many times to store fields, and set up HDF5 output file
-        self.record = records
-        self.irecord = self.iterations // records
-        self.iterations += self.itime_start
-        print("Recording Time ",self.irecord,"dt ",self.dt)
-        self.written = 0
-        self.createhdf5file()
-        
-        return(None)
-
-    def fieldsetup(self):
-
-        # Specify fields as a combination of all ideal HMHD normal modes
-        if self.initcond == "hallwave":
-            
-            phase = self.reset_phase()[1:,1:,1:]
-            self.b1[:,1:,1:,1:] = self.pcurleig[:,1:,1:,1:] * self.alphaleftwhist[None,1:,1:,1:] \
-                / cp.sqrt(self.alphaleftwhist[None,1:,1:,1:]**2.0 + 1) * phase * self.hmhdwave[0]
-            self.v1[:,1:,1:,1:] = self.pcurleig[:,1:,1:,1:] / cp.sqrt(self.alphaleftwhist[None,1:,1:,1:]**2.0 + 1) * phase * self.hmhdwave[0]
-            
-            phase = self.reset_phase()[1:,1:,1:]
-            self.b1[:,1:,1:,1:] += self.pcurleig[:,1:,1:,1:] * -self.alphaleftwhist[None,1:,1:,1:] \
-                / cp.sqrt(self.alphaleftwhist[None,1:,1:,1:]**2.0 + 1) * phase * self.hmhdwave[2]
-            self.v1[:,1:,1:,1:] += self.pcurleig[:,1:,1:,1:] / cp.sqrt(self.alphaleftwhist[None,1:,1:,1:]**2.0 + 1) * phase * self.hmhdwave[2]
-            
-            phase = self.reset_phase()[1:,1:,1:]
-            self.b1[:,1:,1:,1:] += self.pcurleig[:,1:,1:,1:] / cp.sqrt(self.alphaleftwhist[None,1:,1:,1:]**2.0 + 1) * phase * self.hmhdwave[1]
-            self.v1[:,1:,1:,1:] += self.pcurleig[:,1:,1:,1:] * -self.alphaleftwhist[None,1:,1:,1:] \
-                / cp.sqrt(self.alphaleftwhist[None,1:,1:,1:]**2.0 + 1) * phase * self.hmhdwave[1]
-            
-            phase = self.reset_phase()[1:,1:,1:]
-            self.b1[:,1:,1:,1:] += self.pcurleig[:,1:,1:,1:] / cp.sqrt(self.alphaleftwhist[None,1:,1:,1:]**2.0 + 1) * phase * self.hmhdwave[3]
-            self.v1[:,1:,1:,1:] += self.pcurleig[:,1:,1:,1:] * self.alphaleftwhist[None,1:,1:,1:] \
-                / cp.sqrt(self.alphaleftwhist[None,1:,1:,1:]**2.0 + 1) * phase * self.hmhdwave[3]
-            
-        self.b1[:,1:,1:,1:] *= self.padding[None,1:,1:,1:] * self.kmags[None,1:,1:,1:]**(-self.init_kolm)
-        self.v1[:,1:,1:,1:] *= self.padding[None,1:,1:,1:] * self.kmags[None,1:,1:,1:]**(-self.init_kolm)
-
-        # Specify fields as a three wave interaction
-        
-        if self.initcond == "threewave" or self.initcond == "onewave":
-
-            self.itriplet = []
-
-            if self.triplet == None or  (len(self.triplet) != 9 and len(self.triplet) != 12):
-                
-                raise ValueError("LW Triplet or triplet and normal mode types must be specified for three wave initial condition")
-
-            # Relative amplitudes
-            if self.initcond == "threewave":
-                amp0 = 2.0
-                amp1 = 1.0
-                amp2 = 0.5
-            else:
-                amp0 = 1.0
-                amp1 = 0.0
-                amp2 = 0.0
-
-            # Specify triplet as either list of three wavevectors or list of three wave vectors and normal mode types
-            # Wave triplet - 1 + whistler, 0 + cyclotron, 2 - whistler, 3 - cyclotron
-
-            if len(self.triplet) == 9:
-                # Either initialize wave triplets as positive helicity whistlers from wavenumbers
-                
-                for i in range(3):
-                    self.triplet.append(0)
-                self.initializewave(self.triplet[0:3],amp0,0)
-                if amp1 > 0:
-                    self.initializewave(self.triplet[3:6],amp1,0)
-                    self.initializewave(self.triplet[6:9],amp2,0)
-
-            else:
-
-                # Or initialize triplets from wavenumbers and the last three digits of self.triplet specify the different waves
-                self.initializewave(self.triplet[0:3],amp0,self.triplet[9])
-                if amp1 > 0:
-                    self.initializewave(self.triplet[3:6],amp1,self.triplet[10])
-                    self.initializewave(self.triplet[6:9],amp2,self.triplet[11])
-
-            self.triplet = cp.array(self.triplet)
-
-        if self.energystart != None:
-
-            # Normalize data to a given initial energy
-            
-            energy = cp.sum(cp.abs(self.b1[:,:,:,0])**2.0+cp.abs(self.v1[:,:,:,0])**2.0)
-            energy += 2* cp.sum(cp.abs(self.b1[:,:,:,1:])**2.0+cp.abs(self.v1[:,:,:,1:])**2.0)
-
-            self.b1 *= cp.sqrt(self.energystart/energy)
-            self.v1 *= cp.sqrt(self.energystart/energy)
-                
-        if self.initcond == "checkpoint":
-
-            # Use the last step of a previously written simulation to start data using HDF5
-
-            # CPU read data
-            with h5py.File(self.lpath+"/output.hdf5","r") as f:
-
-                written = f["written"][0]
-                b1cpu = f["magneticfields"][written,:,:,:,:]
-                v1cpu = f["velocityfields"][written,:,:,:,:]
-                timecpu = f["time"][written]
-                dtcpu = f["dt"][0]
-                itimecpu = f["itime"][0]
-                mhc = f["enval"][written,-1]
-
-            # Send to GPU storage
-            self.b1 = cp.asarray(b1cpu)
-            self.v1 = cp.asarray(v1cpu)
-            self.time = cp.asarray(timecpu)
-            self.itime = cp.asarray(itimecpu)
-            self.itime_start = cp.copy(self.itime)
-            self.dt = cp.asarray(dtcpu)
-            self.mhelcorr = cp.asarray(mhc)
+    def __init__(self):
 
         return(None)
 
-    def initializewave(self,wave,amp,modeno=0):
+    def orthogonaladvance(self,decompfieldb,decompfieldv,coefficients):
 
-        # Set up normal mode type modeno for indices given by rescaling the wavenumber wave
+        """
+        Decompose b1, v1 into positive and negative helicity parts
+        Then decompose into to the Hall MHD whistler and cyclotron waves 
+        and use coefficients to advance
+        """
 
-        # Make kz index of wave positive for positive kz wavenumber storage
-        if wave[2] < 0:
-            wave[0] *= -1
-            wave[1] *= -1
-            wave[2] *= -1
+        # Decompose the nonlinear terms into curl eigenstates
+        bplus = cp.sum(cp.conj(self.pcurleig)*decompfieldb,axis=0)
+        vplus = cp.sum(cp.conj(self.pcurleig)*decompfieldv,axis=0)
+        bminus = cp.sum(self.pcurleig*decompfieldb,axis=0)
+        vminus = cp.sum(self.pcurleig*decompfieldv,axis=0)
 
-        ix = np.round(wave[0],decimals=3)//self.kxmin
-        iy = np.round(wave[1],decimals=3)//self.kymin
-        iz = np.round(wave[2],decimals=3)//self.kzmin
+        # Positive helicity whistler
+        lwk = (self.alphaleftwhist * bplus + vplus)/cp.sqrt(self.alphaleftwhist**2 + 1)
+        lwk *= coefficients[:,:,:,0]
+        self.b1 += self.pcurleig * lwk * self.alphaleftwhist /cp.sqrt(self.alphaleftwhist**2 + 1)
+        self.v1 += self.pcurleig * lwk /cp.sqrt(self.alphaleftwhist**2 + 1)
 
-        self.itriplet.append(ix)
-        self.itriplet.append(iy)
-        self.itriplet.append(iz)
-        
-        if modeno < 2:
+        # Positive helicity cyclotron
+        lwk = (-1/self.alphaleftwhist * bplus + vplus)/cp.sqrt((1/self.alphaleftwhist)**2 + 1)
+        lwk *= coefficients[:,:,:,1]
+        self.b1 -= self.pcurleig * lwk / cp.sqrt(self.alphaleftwhist**2 + 1)
+        self.v1 += self.pcurleig * lwk * self.alphaleftwhist / cp.sqrt(self.alphaleftwhist**2 + 1)
 
-            self.b1[:,ix,iy,iz] = self.pcurleig[:,ix,iy,iz]
-            self.v1[:,ix,iy,iz] = self.pcurleig[:,ix,iy,iz]
+        # Negative helicity whistler
+        lwk = (-self.alphaleftwhist * bminus + vminus)/cp.sqrt(self.alphaleftwhist**2 + 1)
+        lwk *= coefficients[:,:,:,2]
+        self.b1 -= self.alphaleftwhist * cp.conj(self.pcurleig) * lwk / cp.sqrt(self.alphaleftwhist**2 + 1)
+        self.v1 += cp.conj(self.pcurleig) * lwk / cp.sqrt(self.alphaleftwhist**2 + 1)
 
-        else:
-
-            self.b1[:,ix,iy,iz] = cp.conj(self.pcurleig[:,ix,iy,iz])
-            self.v1[:,ix,iy,iz] = cp.conj(self.pcurleig[:,ix,iy,iz])
-
-        self.b1[:,ix,iy,iz] *= (self.alphaleftwhist[ix,iy,iz] ** (1 - 2 * (modeno % 2))) * ((-1)**(modeno//2))
-        self.v1[:,ix,iy,iz] *= 1
-
-        # Set wave amplitude to amp
-        
-        self.b1[:,ix,iy,iz] *= amp/cp.sqrt((self.alphaleftwhist[ix,iy,iz] ** (1 - 2 * (modeno % 2)))**2 + 1)
-        self.v1[:,ix,iy,iz] *= amp/cp.sqrt((self.alphaleftwhist[ix,iy,iz] ** (1 - 2 * (modeno % 2)))**2 + 1)
-
-        return(None)
-
-    def fixedpointidealgauss2(self):
-
-        a11 = 0.5
-
-        self.b2 = self.b1.copy()
-        self.v2 = self.v1.copy()
-        self.brhs2,self.vrhs2 = self.idealhallrhs(self.b2,self.v2)
-            
-        self.brhs1 = self.brhs2.copy()
-        self.vrhs1 = self.vrhs2.copy()
-
-        self.b2 += a11 * self.dt * self.brhs1
-        self.v2 += a11 * self.dt * self.vrhs1
-
-        self.brhs2,self.vrhs2 = self.idealhallrhs(self.b2,self.v2)
-
-        linferror = max(cp.amax(cp.abs(self.brhs2-self.brhs1)),cp.amax(cp.abs(self.vrhs2-self.vrhs1)))
-            
-        solveiteration = 0
-        # Typical convergent mins are 1e-9, so set a bit above that
-        while solveiteration < 40 and linferror > 10.0**(-8.0):
-
-            self.brhs1 = cp.copy(self.brhs2)
-            self.vrhs1 = cp.copy(self.vrhs2)
-
-            self.b2 = self.b1 + a11 * self.dt * self.brhs1
-            self.v2 = self.v1 + a11 * self.dt * self.vrhs1
-
-            self.brhs2,self.vrhs2 = self.idealhallrhs(self.b2,self.v2)
-                
-            linferror = max(cp.amax(cp.abs(self.brhs2-self.brhs1)),cp.amax(cp.abs(self.vrhs2-self.vrhs1)))
-            solveiteration += 1
-
-        if self.itime % 10 == 0:
-            print("Iterations itime ",self.itime," = ",solveiteration)
-
-        if solveiteration == 40:
-            print("Fixed point solver fail error ",linferror," itime ",self.itime)
-
-        self.b1 += self.dt * self.brhs2
-        self.v1 += self.dt * self.vrhs2
-        self.mhelcorr += self.helicitycorrection(self.b2,self.v2) * self.dt
-
-        return(None)
-            
-    def gauss2split(self): 
-        # Splitting method for dissipation, implicit midpoint nonlinear
-
-        self.startruntime = time.time()
-        self.runtime = 0
-
-        # Add guide field to do linear and nonlinear calculation at once                                                                                                                   
-        self.b1[2,0,0,0] = 1.0
-
-        a11 = 0.5
-
-        while self.itime < self.iterations and self.runtime < self.maxwallclock: 
-
-            if self.irecord > 0 and (self.itime - self.itime_start) % self.irecord == 0 and (self.itime > self.itime_start or self.itime_start == 0):
-                self.bplus = cp.sum(cp.conj(self.pcurleig)*self.b1,axis=0)
-                self.vplus = cp.sum(cp.conj(self.pcurleig)*self.v1,axis=0)
-                self.bminus = cp.sum(self.pcurleig*self.b1,axis=0)
-                self.vminus = cp.sum(self.pcurleig*self.v1,axis=0)
-
-                self.writefile()
-                self.written += 1
-
-            self.b1 *= cp.exp(-self.etab * self.kmags[None,:,:,:]**(2*self.hyper) * self.dt/2)
-            self.v1 *= cp.exp(-self.vnu * self.kmags[None,:,:,:]**(2*self.hyper) * self.dt/2)
-            
-            self.fixedpointidealgauss2()
-
-            self.b1 *= cp.exp(-self.etab * self.kmags**(2*self.hyper) * self.dt/2)
-            self.v1 *= cp.exp(-self.vnu * self.kmags**(2*self.hyper) * self.dt/2)
-
-            self.itime += 1
-            self.time += self.dt
-            self.runtime = time.time()-self.startruntime
-
-        self.writefile()
-        print(self.runtime)
+        # Negative helicity cyclotron
+        lwk = (1/self.alphaleftwhist * bminus + vminus)/cp.sqrt((1/self.alphaleftwhist)**2 + 1)
+        lwk *= coefficients[:,:,:,3]
+        self.b1 += cp.conj(self.pcurleig) * lwk /cp.sqrt(self.alphaleftwhist**2 + 1)
+        self.v1 += cp.conj(self.pcurleig) * self.alphaleftwhist * lwk / cp.sqrt(self.alphaleftwhist**2 + 1)
 
         return(None)
 
@@ -796,103 +629,7 @@ class DNA2MHD(RHS,DIAGS):
             self.expwhistler = cp.exp(1j * dt * self.kzgrid[None,None,:] * self.alphaleftwhist)
             self.expcyclotron = cp.exp(-1j * dt * self.kzgrid[None,None,:] / self.alphaleftwhist)
 
-        self.bplus = cp.sum(cp.conj(self.pcurleig)*self.b1,axis=0)
-        self.vplus = cp.sum(cp.conj(self.pcurleig)*self.v1,axis=0)
-        self.bminus = cp.sum(self.pcurleig*self.b1,axis=0)
-        self.vminus = cp.sum(self.pcurleig*self.v1,axis=0)
-
-        # Positive helicity whistler
-        # Compute normal mode coefficients by a dot product with the orthogonal normal mode basis
-        lwk = (self.alphaleftwhist * self.bplus + self.vplus)/cp.sqrt(self.alphaleftwhist**2 + 1)
-        # Advance linear modes through multiplication with exponential of frequency
-        lwk *= self.expwhistler
-        # Reconstruct b and v from the evolved normal modes
-        self.b1 = self.pcurleig * lwk * self.alphaleftwhist /cp.sqrt(self.alphaleftwhist**2 + 1)
-        self.v1 = self.pcurleig * lwk /cp.sqrt(self.alphaleftwhist**2 + 1)
-
-        # Positive helicity cyclotron
-        lwk = (-1/self.alphaleftwhist * self.bplus + self.vplus)/cp.sqrt((1/self.alphaleftwhist)**2 + 1)
-        lwk *= self.expcyclotron
-        self.b1 -= self.pcurleig * lwk / cp.sqrt(self.alphaleftwhist**2 + 1)
-        self.v1 += self.pcurleig * lwk * self.alphaleftwhist / cp.sqrt(self.alphaleftwhist**2 + 1)
-
-        # Negative helicity whistler
-        lwk = (-self.alphaleftwhist * self.bminus + self.vminus)/cp.sqrt(self.alphaleftwhist**2 + 1)
-        lwk *= 1/self.expwhistler
-        self.b1 -= self.alphaleftwhist * cp.conj(self.pcurleig) * lwk / cp.sqrt(self.alphaleftwhist**2 + 1)
-        self.v1 += cp.conj(self.pcurleig) * lwk / cp.sqrt(self.alphaleftwhist**2 + 1)
-
-        # Negative helicity cyclotron
-        lwk = (1/self.alphaleftwhist * self.bminus + self.vminus)/cp.sqrt((1/self.alphaleftwhist)**2 + 1)
-        lwk *= 1/self.expcyclotron
-        self.b1 += cp.conj(self.pcurleig) * lwk /cp.sqrt(self.alphaleftwhist**2 + 1)
-        self.v1 += cp.conj(self.pcurleig) * self.alphaleftwhist * lwk / cp.sqrt(self.alphaleftwhist**2 + 1)
-
-        return(None)
-
-    def idealRalston2(self):
-
-        self.b2 = self.b1.copy()
-        self.v2 = self.v1.copy()
-        self.brhs2,self.vrhs2 = self.idealhallrhs(self.b2,self.v2)
-        mhc1 = self.helicitycorrection(self.b2,self.v2)
-            
-        self.brhs1 = self.brhs2.copy()
-        self.vrhs1 = self.vrhs2.copy()
-
-        self.b2 += 2/3 * self.dt * self.brhs1
-        self.v2 += 2/3 * self.dt * self.vrhs1
-
-        self.brhs2,self.vrhs2 = self.idealhallrhs(self.b2,self.v2)
-        mhc2 = self.helicitycorrection(self.b2,self.v2)
-
-        self.b1 += self.dt / 4 * (self.brhs1 + 3 * self.brhs2) 
-        self.v1 += self.dt / 4 * (self.vrhs1 + 3 * self.vrhs2)
-        self.mhelcorr += self.dt / 4 * (mhc1 + 3 * mhc2)
-        
-        return(None)
-
-    def LinearSplitNLR2(self):
-
-        """Splitting dissipation and linear terms, nonlinear terms Ralston RK2"""
-
-        self.startruntime = time.time()
-        self.runtime = 0
-
-        while self.itime < self.iterations and self.runtime < self.maxwallclock: 
-
-            if self.irecord > 0 and (self.itime - self.itime_start) % self.irecord == 0 and (self.itime > self.itime_start or self.itime_start == 0):
-                self.bplus = cp.sum(cp.conj(self.pcurleig)*self.b1,axis=0)
-                self.vplus = cp.sum(cp.conj(self.pcurleig)*self.v1,axis=0)
-                self.bminus = cp.sum(self.pcurleig*self.b1,axis=0)
-                self.vminus = cp.sum(self.pcurleig*self.v1,axis=0)
-
-                self.writefile()
-                self.written += 1
-
-            # First step - half dissipation
-            self.b1 *= cp.exp(-self.etab * self.kmags[None,:,:,:]**(2*self.hyper) * self.dt/2)
-            self.v1 *= cp.exp(-self.vnu * self.kmags[None,:,:,:]**(2*self.hyper) * self.dt/2)
-
-            # Second stage - half step ideal linear
-            self.linearupdate(self.dt/2)
-
-            # Third stage - nonlinear terms Ralston RK2
-            self.fixedpointidealgauss2()
-
-            # Fourth stage - half step ideal linear
-            self.linearupdate(self.dt/2)
-
-            # Final stage - half dissipation
-            self.b1 *= cp.exp(-self.etab * self.kmags**(2*self.hyper) * self.dt/2)
-            self.v1 *= cp.exp(-self.vnu * self.kmags**(2*self.hyper) * self.dt/2)
-
-            self.itime += 1
-            self.time += self.dt
-            self.runtime = time.time()-self.startruntime
-
-        self.writefile()
-        print(self.runtime)
+        self.orthogonaladvance(self.b1,self.v1,cp.stack((self.expwhistler,self.expcyclotron,1/self.expwhistler,1/self.expcyclotron),axis=3))
 
         return(None)
 
@@ -958,64 +695,37 @@ class DNA2MHD(RHS,DIAGS):
         # Time loop
         while self.itime < self.iterations and self.runtime < self.maxwallclock:
 
-            # Obtain positive and negative curl eigenstate projections
-            self.bplus = cp.sum(cp.conj(self.pcurleig)*self.b1,axis=0)
-            self.vplus = cp.sum(cp.conj(self.pcurleig)*self.v1,axis=0)
-            self.bminus = cp.sum(self.pcurleig*self.b1,axis=0)
-            self.vminus = cp.sum(self.pcurleig*self.v1,axis=0)
-
-            #dot1 -= time.time()
-            #print("dot time ", np.abs(dot1))
-
             # File output
             if self.irecord > 0 and (self.itime - self.itime_start) % self.irecord== 0:
 
+                self.bplus = cp.sum(cp.conj(self.pcurleig)*self.b1,axis=0)
+                self.vplus = cp.sum(cp.conj(self.pcurleig)*self.v1,axis=0)
+                self.bminus = cp.sum(self.pcurleig*self.b1,axis=0)
+                self.vminus = cp.sum(self.pcurleig*self.v1,axis=0)
+
                 self.writefile()
 
-                self.written += 1
-                
             # Get nonlinear terms and helicity correction
-            self.brhs1,self.vrhs1 = self.idealhallrhs(self.b1,self.v1)
+            self.brhs1,self.vrhs1 = self.hallrhs(self.b1,self.v1,diss=False)
             mhc = self.helicitycorrection(self.b1,self.v1)
             self.mhelcorr += self.dt * mhc
+
+            zero1b = self.brhs1[:,0,0,0]
+            zero1v = self.vrhs1[:,0,0,0]
 
             # Linear advance of fields with matrix exp - done in linear update
             self.linearupdate(self.dt)
 
             # Decompose the nonlinear terms into curl eigenstates
-            self.bplus = cp.sum(cp.conj(self.pcurleig)*self.brhs1,axis=0)
-            self.vplus = cp.sum(cp.conj(self.pcurleig)*self.vrhs1,axis=0)
-            self.bminus = cp.sum(self.pcurleig*self.brhs1,axis=0)
-            self.vminus = cp.sum(self.pcurleig*self.vrhs1,axis=0)
 
-            # Increment b and v according to eigenvalue coefficients
-            # Positive helicity whistler
-            lwk = (self.alphaleftwhist * self.bplus + self.vplus)/cp.sqrt(self.alphaleftwhist**2 + 1)
-            lwk *= coef1[:,:,:,0]
-            self.b1 += self.pcurleig * lwk * self.alphaleftwhist /cp.sqrt(self.alphaleftwhist**2 + 1)
-            self.v1 += self.pcurleig * lwk /cp.sqrt(self.alphaleftwhist**2 + 1)
+            self.orthogonaladvance(self.brhs1,self.vrhs1,coef1)
 
-            # Positive helicity cyclotron
-            lwk = (-1/self.alphaleftwhist * self.bplus + self.vplus)/cp.sqrt((1/self.alphaleftwhist)**2 + 1)
-            lwk *= coef1[:,:,:,1]
-            self.b1 -= self.pcurleig * lwk / cp.sqrt(self.alphaleftwhist**2 + 1)
-            self.v1 += self.pcurleig * lwk * self.alphaleftwhist / cp.sqrt(self.alphaleftwhist**2 + 1)
-
-            # Negative helicity whistler
-            lwk = (-self.alphaleftwhist * self.bminus + self.vminus)/cp.sqrt(self.alphaleftwhist**2 + 1)
-            lwk *= coef1[:,:,:,2]
-            self.b1 -= self.alphaleftwhist * cp.conj(self.pcurleig) * lwk / cp.sqrt(self.alphaleftwhist**2 + 1)
-            self.v1 += cp.conj(self.pcurleig) * lwk / cp.sqrt(self.alphaleftwhist**2 + 1)
-
-            # Negative helicity cyclotron
-            lwk = (1/self.alphaleftwhist * self.bminus + self.vminus)/cp.sqrt((1/self.alphaleftwhist)**2 + 1)
-            lwk *= coef1[:,:,:,3]
-            self.b1 += cp.conj(self.pcurleig) * lwk /cp.sqrt(self.alphaleftwhist**2 + 1)
-            self.v1 += cp.conj(self.pcurleig) * self.alphaleftwhist * lwk / cp.sqrt(self.alphaleftwhist**2 + 1)
+            self.b1[:,0,0,0] += self.dt * zero1b
+            self.v1[:,0,0,0] += self.dt * zero1v
             
             if order == 2:
                 # ETD2RK time stepping
-                self.brhs2,self.vrhs2 = self.idealhallrhs(self.b1,self.v1)
+                self.brhs2,self.vrhs2 = self.hallrhs(self.b1,self.v1,diss=False)
                 mhc2 = self.helicitycorrection(self.b1,self.v1)
 
                 self.mhelcorr += (mhc2 - mhc) * self.dt/2
@@ -1023,31 +733,13 @@ class DNA2MHD(RHS,DIAGS):
                 self.brhs1 = self.brhs2 - self.brhs1
                 self.vrhs1 = self.vrhs2 - self.vrhs1
 
-                # Decompose again
-                self.bplus = cp.sum(cp.conj(self.pcurleig)*self.brhs1,axis=0)
-                self.vplus = cp.sum(cp.conj(self.pcurleig)*self.vrhs1,axis=0)
-                self.bminus = cp.sum(self.pcurleig*self.brhs1,axis=0)
-                self.vminus = cp.sum(self.pcurleig*self.vrhs1,axis=0)
+                zero2b = self.brhs1[:,0,0,0]
+                zero2v = self.vrhs1[:,0,0,0]
 
-                lwk = (self.alphaleftwhist * self.bplus + self.vplus)/cp.sqrt(self.alphaleftwhist**2 + 1)
-                lwk *= coef2[:,:,:,0]
-                self.b1 += self.pcurleig * lwk * self.alphaleftwhist /cp.sqrt(self.alphaleftwhist**2 + 1)
-                self.v1 += self.pcurleig * lwk /cp.sqrt(self.alphaleftwhist**2 + 1)
+                self.orthogonaladvance(self.brhs1,self.vrhs1,coef2)
 
-                lwk = (-1/self.alphaleftwhist * self.bplus + self.vplus)/cp.sqrt((1/self.alphaleftwhist)**2 + 1)
-                lwk *= coef2[:,:,:,1]
-                self.b1 -= self.pcurleig * lwk / cp.sqrt(self.alphaleftwhist**2 + 1)
-                self.v1 += self.pcurleig * lwk * self.alphaleftwhist / cp.sqrt(self.alphaleftwhist**2 + 1)
-
-                lwk = (-self.alphaleftwhist * self.bminus + self.vminus)/cp.sqrt(self.alphaleftwhist**2 + 1)
-                lwk *= coef2[:,:,:,2]
-                self.b1 -= self.alphaleftwhist * cp.conj(self.pcurleig) * lwk / cp.sqrt(self.alphaleftwhist**2 + 1)
-                self.v1 += cp.conj(self.pcurleig) * lwk / cp.sqrt(self.alphaleftwhist**2 + 1)
-
-                lwk = (1/self.alphaleftwhist * self.bminus + self.vminus)/cp.sqrt((1/self.alphaleftwhist)**2 + 1)
-                lwk *= coef2[:,:,:,3]
-                self.b1 += cp.conj(self.pcurleig) * lwk /cp.sqrt(self.alphaleftwhist**2 + 1)
-                self.v1 += cp.conj(self.pcurleig) * self.alphaleftwhist * lwk / cp.sqrt(self.alphaleftwhist**2 + 1)
+                self.b1[:,0,0,0] += self.dt/2 * zero2b
+                self.v1[:,0,0,0] += self.dt/2 * zero2v
 
             self.itime += 1
             self.time += self.dt
@@ -1069,8 +761,13 @@ class DNA2MHD(RHS,DIAGS):
         self.runtime = 0
 
         # Add guide field to do linear and nonlinear calculation at once
+        self.b1[2,0,0,0] = 1.0
 
         while self.itime < self.iterations and self.runtime < self.maxwallclock:
+
+            if cp.any(cp.isnan(self.b1)):
+                print("NaN in b1 at itime ",self.itime)
+                quit()
             
             if self.irecord > 0 and (self.itime - self.itime_start) % self.irecord== 0 :
 
@@ -1080,43 +777,26 @@ class DNA2MHD(RHS,DIAGS):
                 self.vminus = cp.sum(self.pcurleig*self.v1,axis=0)
 
                 self.writefile()
-                self.written += 1
 
             if order == 2: # Ralston RK2 
 
+                self.b2 = self.b1.copy()
+                self.v2 = self.v1.copy()
                 # First RHS evaluation
-                k1b,k1v,mhc1 = self.hallrhs(self.b1,self.v1)
-
-                # Store original state
-                b1_old = self.b1.copy()
-                v1_old = self.v1.copy()
+                self.brhs1,self.vrhs1,mhc1 = self.hallrhs(self.b2,self.v2)
                 
-                # Intermediate state
-                perturbation = 2/3 * self.dt * k1b
-                b2_temp = b1_old + perturbation
-                v2_temp = v1_old + 2/3 * self.dt * k1v
+                self.b2 = self.b1 + 2/3 * self.dt * self.brhs1
+                self.v2 = self.v1 + 2/3 * self.dt * self.vrhs1 
 
-                # Debug: check the perturbation size
-                if self.itime == self.itime_start:
-                    pert_norm = float(cp.linalg.norm(perturbation))
-                    diff_norm = float(cp.linalg.norm(b2_temp - b1_old))
-                    print(f"DEBUG Ralston: perturbation norm={pert_norm:.6e}, diff norm={diff_norm:.6e}")
-                    print(f"DEBUG Ralston: dt={self.dt:.6e}, k1_norm={float(cp.linalg.norm(k1b)):.6e}")
-                    print(f"DEBUG Ralston: 2/3*dt*k1_expected = {2/3 * self.dt * float(cp.linalg.norm(k1b)):.6e}")
-
+                self.b1 += 1/4 * self.dt * self.brhs1
+                self.v1 += 1/4 * self.dt * self.vrhs1
+                
                 # Second RHS evaluation at intermediate state
-                k2b,k2v,mhc2 = self.hallrhs(b2_temp,v2_temp)
-                
-                # Debug: check if k1 and k2 are different
-                if self.itime == self.itime_start:
-                    k1_norm = float(cp.linalg.norm(k1b))
-                    k2_norm = float(cp.linalg.norm(k2b))
-                    diff_k = float(cp.linalg.norm(k2b - k1b))
-                    print(f"DEBUG Ralston: k1_norm={k1_norm:.6e}, k2_norm={k2_norm:.6e}, ||k2-k1||={diff_k:.6e}")
+                self.brhs2,self.vrhs2,mhc2 = self.hallrhs(self.b2,self.v2)
                 
                 # Final update: y_{n+1} = y_n + dt*(1/4*k1 + 3/4*k2)
-                self.b1 = b1_old + 1/4 * self.dt * k1b + 3/4 * self.dt * k2b
-                self.v1 = v1_old + 1/4 * self.dt * k1v + 3/4 * self.dt * k2v
+                self.b1 += 3/4 * self.dt * self.brhs2 
+                self.v1 += 3/4 * self.dt * self.vrhs2 
                 self.mhelcorr += (1/4 * self.dt * mhc1 + 3/4 * self.dt * mhc2)
 
             if order == 1: # Euler's method
@@ -1186,6 +866,8 @@ class DNA2MHD(RHS,DIAGS):
                 self.b1 += (19/200 * self.brhs1 + 3/5 * self.brhs3 - 243/400 * self.brhs4 + 33/40 * self.brhs5 + 7/80  * self.brhs6) * self.dt
                 self.v1 += (19/200 * self.vrhs1 + 3/5 * self.vrhs3 - 243/400 * self.vrhs4 + 33/40 * self.vrhs5 + 7/80  * self.vrhs6) * self.dt 
                 self.mhelcorr += (19/200 * mhc1 + 3/5 * mhc3 -243/400 * mhc4 + 33/40 * mhc5 + 7/80 * mhc6) * self.dt
+
+            
                 
             self.itime += 1
             self.time += self.dt
@@ -1193,5 +875,512 @@ class DNA2MHD(RHS,DIAGS):
 
         self.writefile()
         print(self.runtime)
+
+        return(None)
+        a11 = 0.5
+
+        self.b1 *= cp.exp(-self.etab * self.kmags**(2*self.hyper) * self.dt/2)
+        self.v1 *= cp.exp(-self.vnu * self.kmags**(2*self.hyper) * self.dt/2)
+
+        self.b2 = self.b1.copy()
+        self.v2 = self.v1.copy()
+        self.brhs2,self.vrhs2 = self.hallrhs(self.b2,self.v2,diss=False,returnmhc=False)
+            
+        self.brhs1 = self.brhs2.copy()
+        self.vrhs1 = self.vrhs2.copy()
+
+        self.b2 += a11 * self.dt * self.brhs1
+        self.v2 += a11 * self.dt * self.vrhs1
+
+        self.brhs2,self.vrhs2 = self.hallrhs(self.b2,self.v2,diss=False,returnmhc=False)
+
+        linferror = max(cp.amax(cp.abs(self.brhs2-self.brhs1)),cp.amax(cp.abs(self.vrhs2-self.vrhs1)))
+            
+        solveiteration = 0
+
+        while solveiteration < 40 and linferror > 10.0**(-13.0):
+
+            self.brhs1 = cp.copy(self.brhs2)
+            self.vrhs1 = cp.copy(self.vrhs2)
+
+            self.b2 = self.b1 + a11 * self.dt * self.brhs1
+            self.v2 = self.v1 + a11 * self.dt * self.vrhs1
+
+            self.brhs2,self.vrhs2 = self.hallrhs(self.b2,self.v2,diss=False,returnmhc=False)
+                
+            linferror = max(cp.amax(cp.abs(self.brhs2-self.brhs1)),cp.amax(cp.abs(self.vrhs2-self.vrhs1)))
+            solveiteration += 1
+
+        if self.itime % 10 == 0:
+            print("Iterations itime ",self.itime," = ",solveiteration)
+
+        if solveiteration == 40:
+            print("Fixed point solver fail error ",linferror," itime ",self.itime)
+
+        self.b1 += self.dt * self.brhs2
+        self.v1 += self.dt * self.vrhs2
+        self.mhelcorr += self.helicitycorrection(self.b2,self.v2) * self.dt
+
+        self.b1 *= cp.exp(-self.etab * self.kmags**(2*self.hyper) * self.dt/2)
+        self.v1 *= cp.exp(-self.vnu * self.kmags**(2*self.hyper) * self.dt/2)
+
+        return(None)
+
+    def dissgauss2(self):
+
+        # Iterative solver for the implicit midpoint method including dissipation in RHS
+        # Mixes fixed point iteration with preconditioner based on large dissipation
+        # This form goes to fixed point iteration with no dissipation terms
+
+        a11 = 0.5
+
+        self.b2 = self.b1.copy()
+        self.v2 = self.v1.copy()
+
+        self.brhs1 = cp.zeros_like(self.b1)
+        self.vrhs1 = cp.zeros_like(self.v1)
+
+        self.b2 += a11 * self.dt * self.brhs1
+        self.v2 += a11 * self.dt * self.vrhs1
+
+        self.brhs2,self.vrhs2 = self.hallrhs(self.b2,self.v2,returnmhc=False)
+                
+        linferror = max(cp.amax(cp.abs(self.brhs2-self.brhs1)),cp.amax(cp.abs(self.vrhs2-self.vrhs1)))
+                
+        solveiteration = 0
+
+        if 10 * cp.amax(cp.abs(self.alphaleftwhist)) < (self.etab+self.vnu)*self.kmax**(2*self.hyper):
+            precb = self.etab * self.kmags**(2*self.hyper)
+            precv = self.vnu * self.kmags**(2*self.hyper)
+        else:
+            precb = 0.0
+            precv = 0.0
+
+        while solveiteration < 40 and linferror > 10.0**(-13.0):
+
+            self.brhs1 = cp.copy(self.brhs2)
+            self.vrhs1 = cp.copy(self.vrhs2)
+
+            self.b2 = self.b1 + a11 * self.dt * self.brhs1
+            self.v2 = self.v1 + a11 * self.dt * self.vrhs1
+
+            self.brhs2,self.vrhs2 = self.hallrhs(self.b2,self.v2,returnmhc=False)
+
+            self.brhs2 += precb * self.brhs1 * self.dt/2
+            self.brhs2 /= 1 + precb * self.dt/2
+
+            self.vrhs2 += precv * self.vrhs1 * self.dt/2
+            self.vrhs2 /= 1 + precv * self.dt/2
+                    
+            linferror = max(cp.amax(cp.abs(self.brhs2-self.brhs1)),cp.amax(cp.abs(self.vrhs2-self.vrhs1)))
+            solveiteration += 1
+
+        if self.itime % 10 == 0:
+            print("Iterations itime ",self.itime," = ",solveiteration)
+
+        if solveiteration == 40:
+            print("Fixed point solver fail error ",linferror," itime ",self.itime)
+
+        self.b1 += self.dt * self.brhs2
+        self.v1 += self.dt * self.vrhs2
+        self.mhelcorr += self.helicitycorrection(self.b2,self.v2) * self.dt
+
+        return(None)
+            
+    def gauss2split(self,opt=0):
+        # Splitting method for dissipation, implicit midpoint nonlinear
+
+        self.startruntime = time.time()
+        self.runtime = 0
+
+        # Add guide field to do linear and nonlinear calculation at once                                                                                                                   
+        self.b1[2,0,0,0] = 1.0
+
+        a11 = 0.5
+
+        while self.itime < self.iterations and self.runtime < self.maxwallclock: 
+
+            if self.irecord > 0 and ((self.itime - self.itime_start) % self.irecord == 0 or (self.itime < 10000 and self.itime % 250 == 0)) and (self.itime > self.itime_start or self.itime_start == 0):
+                self.bplus = cp.sum(cp.conj(self.pcurleig)*self.b1,axis=0)
+                self.vplus = cp.sum(cp.conj(self.pcurleig)*self.v1,axis=0)
+                self.bminus = cp.sum(self.pcurleig*self.b1,axis=0)
+                self.vminus = cp.sum(self.pcurleig*self.v1,axis=0)
+
+                self.writefile()
+            
+            self.force(self.dt/2)
+            self.dissgauss2()
+            self.force(self.dt/2)
+
+            self.itime += 1
+            self.time += self.dt
+            self.runtime = time.time()-self.startruntime
+
+        self.writefile()
+        print(self.runtime)
+
+        return(None)
+
+class DNA2MHD(TimeSteps):
+    def __init__(self,nkx0,nky0,nkz0,kxmin,kymin,kzmin,nu,eta,
+                 dt,iterations,lpath,linear=False,
+                 initcond="hallwave",energystart=0.01,init_kolm=0,hmhdwave=[1,0,0,0],
+                 forcetype="hallwave",forceamp=0.0,nforce=4,forcewave=[1,0,0,0],hyper=1,hallparam=1.0,vdv=1.0,
+                 solveprec=16,maxwallclock=86200,triplet=None,records=20,bittype=32,exactnueta=False):
+
+        # Define working real/complex data type
+        if bittype == 32:
+            floattype = cp.float32
+            complextype = cp.complex64
+        else:
+            floattype = cp.float64
+            complextype = cp.complex128
+
+        if lpath[-1] == "/":
+            lpath = lpath[:-1]
+        self.lpath = lpath
+
+        self.ctype = "complex"+str(2*bittype)
+        self.rtype = "float"+str(bittype)
+
+        # Intended runtime parameters
+        self.maxwallclock = maxwallclock
+        self.dt = floattype(dt)
+        self.iterations = iterations
+        self.itime = int32(0)
+        self.itime_start = int32(0)
+        self.time = floattype(0)
+        self.solveprec = solveprec
+        
+        # Define grid parameters
+
+        # Grid sizes in each direction
+        self.nkx0 = int32(nkx0)
+        self.nky0 = int32(nky0)
+        self.nkz0 = int32(nkz0)
+
+        self.nx0_big = 3 * nkx0//2
+        self.ny0_big = 3 * nky0//2
+        self.nz0_big = 3 * nkz0//2
+
+        self.fftfactor = self.nx0_big *self.ny0_big *self.nz0_big
+
+        # Smallest k scales resolved        
+        self.kxmin = floattype(kxmin)
+        self.kymin = floattype(kymin)
+        self.kzmin = floattype(kzmin)
+
+        self.kxgrid = cp.concatenate((cp.arange(0,self.nx0_big//2,dtype=self.rtype),cp.arange(-self.nx0_big//2,0,dtype=self.rtype)))*kxmin
+        self.kygrid = cp.concatenate((cp.arange(0,self.ny0_big//2,dtype=self.rtype),cp.arange(-self.ny0_big//2,0,dtype=self.rtype)))*kymin
+        self.kzgrid = cp.arange(0,self.nz0_big//2+1,dtype=self.rtype)*kzmin
+
+        KX,KY,KZ = cp.meshgrid(self.kxgrid,self.kygrid,self.kzgrid,indexing="ij")
+
+        self.kmags = cp.sqrt(self.kxgrid[:,None,None]**2.0 + self.kygrid[None,:,None]**2.0+self.kzgrid[None,None,:]**2.0).astype(self.rtype)
+        self.kmax = cp.amax(self.kmags)
+
+        # Positive curl eigenstates defined
+        zvec = cp.array([0,0,1],dtype=self.ctype)
+        ks = cp.stack((KX,KY,KZ)).astype(self.ctype)
+
+        self.pcurleig = cp.cross(ks,zvec[:,None,None,None],axis=0)
+        self.pcurleig += 1j* cp.cross(ks,self.pcurleig,axis=0)/self.kmags[None,:,:,:]
+        self.pcurleig *= cp.sqrt(2)/(2*self.kmags[:,:,0][None,:,:,None])
+        self.pcurleig[:,0,0,:] = cp.array([1,1j,0],dtype=self.ctype)[:,None]/cp.sqrt(2.0)
+        self.pcurleig[:,0,0,0] = 0.0
+
+        #print("Max pcurleig",cp.amax(cp.abs(self.pcurleig[:,:,:,4:])))
+
+        # Initial condition parameters 
+
+        self.initcond = initcond
+        self.energystart = energystart
+        
+        self.init_kolm = floattype(init_kolm) # Power law decay of initial modes for full mode initialization
+        
+        # Initial and forced normal modes: 0 whistler, 1 left cyclotron, 2 right whistler, 3 right cyclotron  
+        self.hmhdwave = hmhdwave 
+        self.forcetype = forcetype
+        
+        self.forceamp = floattype(forceamp)
+        self.nforce = nforce
+        self.forcewave = forcewave
+        
+        self.nu = floattype(nu) # Dissipation at largest scale
+        self.eta = floattype(eta) # Magnetic Prandtl number
+        
+        # Three wavenumbers for resonant interaction in threewave simulation
+        # Either positive whistlers with 9 wavenumbers (wave x3, wave2 x3, wave3 x3); or 12 with above mode types specified after wavenumbers
+        self.triplet = triplet
+        
+        self.exactnueta = exactnueta 
+
+        if energystart != None:
+            vL = cp.sqrt(energystart) 
+        else:
+            vL = 1.0
+
+        if exactnueta == 0:
+            # Specify viscosity, resistivity in di^2 wci, mu0 di^2 wci; e.g.
+            self.hyper = hyper
+            self.vnu = nu
+            self.etab = eta
+        if exactnueta == 3:
+            # Normalized viscosity and resistivity from largest scale dissipation and Prandtl number
+            #self.vnu = nu/(self.kmax**(2*hyper))
+            #self.etab = eta*self.vnu
+
+            # nu equal to Reynolds number, eta Prandtl number
+            # Set hyperviscosity index so that Kolmogorov microscale is at N/3 
+            # Then determine vnu and etab given by Prandtl number
+            self.hyper = 1/2 * cp.log(nu)/cp.log(self.nkx0/6) + 1/3
+
+            # Estimate L by large scale fluctuation length and velocity by sqrt(energystart) as fraction of guide field
+            L = 2*cp.pi/self.kxmin
+
+            self.vnu = vL * (L)**(2*self.hyper-1) * (self.nkx0/6)**(2/3 - 2*self.hyper)
+            self.etab = self.vnu / eta
+        if exactnueta == 1 or exactnueta == 2: 
+            # Set nu at the N/3 Kolmogorov microscale with second order hyperviscosity
+            # If option 2, use eta Prandtl number, otherwise also microscale
+
+            self.hyper = 2
+
+            self.vnu = vL * (2*cp.pi/self.nkx0)**(2*self.hyper-1) * (self.nkx0//6)**(2/3 - 2*self.hyper)
+
+            if exactnueta == 1: # Hypervisc = vL * L**(3) / Re = vL * L**3 * (eta/L)**(2h-2/3)
+                self.etab = cp.copy(self.vnu)
+            else:
+                self.etab = self.vnu / eta
+
+        print("Dissipation Factors",self.vnu,self.etab)
+
+        # Ratio of frequency to kz for ideal positive helicity cyclotron modes; the other frequency ratios can be determined from this
+        self.alphaleftwhist = - (self.kmags/2 + cp.sqrt(1+ (self.kmags/2)**2.0))
+
+        # Calculation of non-ideal Hall MHD eigenvalues
+        wb = (1j*(self.vnu+self.etab)*self.kmags**(2*self.hyper) - self.kmags * self.kzgrid[None,None,:])
+        wc = - (self.vnu * self.etab * self.kmags**(4*self.hyper) + self.kzgrid[None,None,:]**2.0 \
+                + 1j * self.vnu * self.kmags**(2*self.hyper) * self.kzgrid[None,None,:] * self.kmags)
+
+        # Try to avoid catastrophic cancellation with eigenvalue computation
+        self.eig = cp.zeros([self.nx0_big,self.ny0_big,self.nz0_big//2+1,4],dtype=complextype)
+        self.eig[:,:,:,0] = -wb/2 + cp.sqrt((wb/2)**2 - wc)
+        self.eig[:,:,:,1] = wc / self.eig[:,:,:,0]
+
+        # Adjust wb and wc for negative curl eigenstates
+        wb = 1j * cp.conj(wb/1j)
+        wc = cp.conj(wc)
+        self.eig[:,:,:,2] = -wb/2 - cp.sqrt((wb/2)**2 - wc)
+        self.eig[:,:,:,3] = wc/ self.eig[:,:,:,2]
+
+        self.eig *= -1j
+        
+        # Padding array for dealiasing
+         
+        self.padding = cp.ones_like(self.kmags,dtype="int32")
+        self.padding[:,:,self.nkz0//2:] = 0        
+        self.padding[self.nkx0//2:1-self.nkx0//2,:,:] = 0
+        self.padding[:,self.nky0//2:1-self.nky0//2,:] = 0
+        
+
+        # Mask of forcing waves beyond certain mode amplitudes
+        self.forcemask = cp.zeros_like(self.padding,dtype=self.rtype)
+        self.forcemask[1:nforce+1,1:nforce+1,1:nforce+1] = 1
+        self.forcemask[-nforce:,-nforce:,1:nforce+1] = 1
+        self.forcemask[1:nforce+1,-nforce:,1:nforce+1] = 1
+        self.forcemask[-nforce:,1:nforce+1,1:nforce+1] = 1
+        self.forcemask *= forceamp
+        
+        # Initialize fields
+        
+        self.b1 = cp.zeros_like(self.pcurleig)
+        self.v1 = cp.zeros_like(self.pcurleig)
+        self.mhelcorr = cp.float32(0.0)
+
+        self.record = records
+        self.irecord = self.iterations // records
+        self.written = 0
+        self.fieldsetup()
+
+        # Testing linear simulation
+        self.linear = linear
+        # Ratio of ion skin depth to length scale; this should be 1 with normalization used, and length scale enters through k
+        self.hallparam = hallparam
+        self.vdv = vdv
+
+        # Output parameters - filename, how many times to store fields, and set up HDF5 output file
+        self.iterations += self.itime_start
+        print("Recording Time ",self.irecord,"dt ",self.dt)
+        self.createhdf5file()
+        
+        return(None)
+
+    def fieldsetup(self):
+
+        # Specify fields as a combination of all ideal HMHD normal modes
+        if self.initcond == "hallwave":
+            
+            phase = self.reset_phase()[1:,1:,1:]
+            self.b1[:,1:,1:,1:] = self.pcurleig[:,1:,1:,1:] * self.alphaleftwhist[None,1:,1:,1:] \
+                / cp.sqrt(self.alphaleftwhist[None,1:,1:,1:]**2.0 + 1) * phase * self.hmhdwave[0]
+            self.v1[:,1:,1:,1:] = self.pcurleig[:,1:,1:,1:] / cp.sqrt(self.alphaleftwhist[None,1:,1:,1:]**2.0 + 1) * phase * self.hmhdwave[0]
+            
+            phase = self.reset_phase()[1:,1:,1:]
+            self.b1[:,1:,1:,1:] += self.pcurleig[:,1:,1:,1:] * -self.alphaleftwhist[None,1:,1:,1:] \
+                / cp.sqrt(self.alphaleftwhist[None,1:,1:,1:]**2.0 + 1) * phase * self.hmhdwave[2]
+            self.v1[:,1:,1:,1:] += self.pcurleig[:,1:,1:,1:] / cp.sqrt(self.alphaleftwhist[None,1:,1:,1:]**2.0 + 1) * phase * self.hmhdwave[2]
+            
+            phase = self.reset_phase()[1:,1:,1:]
+            self.b1[:,1:,1:,1:] += self.pcurleig[:,1:,1:,1:] / cp.sqrt(self.alphaleftwhist[None,1:,1:,1:]**2.0 + 1) * phase * self.hmhdwave[1]
+            self.v1[:,1:,1:,1:] += self.pcurleig[:,1:,1:,1:] * -self.alphaleftwhist[None,1:,1:,1:] \
+                / cp.sqrt(self.alphaleftwhist[None,1:,1:,1:]**2.0 + 1) * phase * self.hmhdwave[1]
+            
+            phase = self.reset_phase()[1:,1:,1:]
+            self.b1[:,1:,1:,1:] += self.pcurleig[:,1:,1:,1:] / cp.sqrt(self.alphaleftwhist[None,1:,1:,1:]**2.0 + 1) * phase * self.hmhdwave[3]
+            self.v1[:,1:,1:,1:] += self.pcurleig[:,1:,1:,1:] * self.alphaleftwhist[None,1:,1:,1:] \
+                / cp.sqrt(self.alphaleftwhist[None,1:,1:,1:]**2.0 + 1) * phase * self.hmhdwave[3]
+            
+        self.b1[:,1:,1:,1:] *= self.padding[None,1:,1:,1:] * self.kmags[None,1:,1:,1:]**(-self.init_kolm)
+        self.v1[:,1:,1:,1:] *= self.padding[None,1:,1:,1:] * self.kmags[None,1:,1:,1:]**(-self.init_kolm)
+
+        # Specify fields as a three wave interaction
+        
+        # Enter this step if we initialize a three wave interaction or need the resonant interaction for the forcing fields
+        if self.initcond == "threewave" or self.initcond == "onewave" or self.forcetype == "threewave":            
+
+            self.itriplet = []
+
+            if self.triplet == None or  (len(self.triplet) != 9 and len(self.triplet) != 12):
+                
+                raise ValueError("LW Triplet or triplet and normal mode types must be specified for three wave initial condition")
+
+            # Relative amplitudes
+            if self.initcond == "threewave":
+                amp0 = 2.0
+                amp1 = 1.0
+                amp2 = 0.5
+            else:
+                amp0 = 1.0
+                amp1 = 0.0
+                amp2 = 0.0
+
+            # Specify triplet as either list of three wavevectors or list of three wave vectors and normal mode types
+            # Wave triplet - 1 + whistler, 0 + cyclotron, 2 - whistler, 3 - cyclotron
+
+            if len(self.triplet) == 9:
+                # Either initialize wave triplets as positive helicity whistlers from wavenumbers
+                
+                for i in range(3):
+                    self.triplet.append(0)
+                self.initializewave(self.triplet[0:3],amp0,0)
+                if amp1 > 0:
+                    self.initializewave(self.triplet[3:6],amp1,0)
+                    self.initializewave(self.triplet[6:9],amp2,0)
+
+            else:
+
+                # Or initialize triplets from wavenumbers and the last three digits of self.triplet specify the different waves
+                self.initializewave(self.triplet[0:3],amp0,self.triplet[9])
+                if amp1 > 0:
+                    self.initializewave(self.triplet[3:6],amp1,self.triplet[10])
+                    self.initializewave(self.triplet[6:9],amp2,self.triplet[11])
+
+            self.triplet = cp.array(self.triplet)
+
+        if self.energystart != None:
+
+            # Normalize data to a given initial energy
+
+            energy = cp.sum(cp.abs(self.b1[:,:,:,0])**2.0+cp.abs(self.v1[:,:,:,0])**2.0)
+            energy += 2* cp.sum(cp.abs(self.b1[:,:,:,1:])**2.0+cp.abs(self.v1[:,:,:,1:])**2.0)
+
+            self.b1 *= cp.sqrt(self.energystart/energy)
+            self.v1 *= cp.sqrt(self.energystart/energy)
+
+        if self.forcetype == "threewave":
+
+            # Forcing power estimate from steady state derivatives of magnetic and velocity fields at forcing wavenumber 
+            kforcing = max(cp.linalg.norm(self.triplet[0:3]),cp.linalg.norm(self.triplet[3:6]),cp.linalg.norm(self.triplet[6:9]))
+            f = cp.sqrt((self.vnu + self.etab)*self.energystart * kforcing**(2*self.hyper) + 1/4 * kforcing**2 +(1+3/2 *kforcing**2)*self.energystart**2)
+            print("Forcing Strength ", f)
+            self.bforcing = self.b1.copy() * f / cp.sqrt(self.energystart)
+            self.vforcing = self.v1.copy() * f / cp.sqrt(self.energystart)
+
+        elif self.forcetype == "null":
+            self.bforcing = cp.zeros_like(self.b1)
+            self.vforcing = self.bforcing.copy()
+                
+        if self.initcond == "checkpoint":
+
+            # Use the last step of a previously written simulation to start data using HDF5
+
+            # CPU read data
+            with h5py.File(self.lpath+"/output.hdf5","r") as f:
+
+                written = f["written"][0]
+                b1cpu = f["magneticfields"][written,:,:,:,:]
+                v1cpu = f["velocityfields"][written,:,:,:,:]
+                timecpu = f["time"][written]
+                dtcpu = f["dt"][0]
+                itimecpu = f["itime"][written]
+                mhc = f["enval"][written,-1]
+
+            # Send to GPU storage
+
+            self.written = cp.asarray(written)
+            self.b1 = cp.asarray(b1cpu)
+            self.v1 = cp.asarray(v1cpu)
+            self.time = cp.asarray(timecpu)
+            self.itime = cp.asarray(itimecpu)
+            self.itime_start = cp.copy(self.itime)
+            self.dt = cp.asarray(dtcpu)
+            self.mhelcorr = cp.asarray(mhc)
+
+        return(None)
+
+    def initializewave(self,wave,amp,modeno=0):
+
+        # Set up normal mode type modeno for indices given by rescaling the wavenumber wave
+
+        # Make kz index of wave positive for positive kz wavenumber storage
+        if wave[2] < 0:
+            wave[0] *= -1
+            wave[1] *= -1
+            wave[2] *= -1
+
+        if wave[2] == 0:
+            print("No kz = 0 modes allowed!")
+            quit()
+
+        ix = int(cp.round(wave[0]/self.kxmin))
+        iy = int(cp.round(wave[1]/self.kymin))
+        iz = int(cp.round(wave[2]/self.kzmin))
+
+        self.itriplet.append(ix)
+        self.itriplet.append(iy)
+        self.itriplet.append(iz)
+
+        print("Initalize wave ",ix,iy,iz)
+        
+        if modeno < 2:
+
+            self.b1[:,ix,iy,iz] = self.pcurleig[:,ix,iy,iz]
+            self.v1[:,ix,iy,iz] = self.pcurleig[:,ix,iy,iz]
+
+        else:
+
+            self.b1[:,ix,iy,iz] = cp.conj(self.pcurleig[:,ix,iy,iz])
+            self.v1[:,ix,iy,iz] = cp.conj(self.pcurleig[:,ix,iy,iz])
+
+        self.b1[:,ix,iy,iz] *= (self.alphaleftwhist[ix,iy,iz] ** (1 - 2 * (modeno % 2))) * ((-1)**(modeno//2))
+        self.v1[:,ix,iy,iz] *= 1
+
+        print("Max b init", cp.amax(cp.abs(self.b1[:,ix,iy,iz])))
+
+        # Set wave amplitude to amp
+        
+        self.b1[:,ix,iy,iz] *= amp/cp.sqrt((self.alphaleftwhist[ix,iy,iz] ** (1 - 2 * (modeno % 2)))**2 + 1)
+        self.v1[:,ix,iy,iz] *= amp/cp.sqrt((self.alphaleftwhist[ix,iy,iz] ** (1 - 2 * (modeno % 2)))**2 + 1)
 
         return(None)

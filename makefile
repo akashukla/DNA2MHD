@@ -13,7 +13,7 @@ default	: all
 #####  CHOSSE THE DESIRED COMPUTER HOST 
 ###############################################################################
 
-HOST = nvidia
+HOST = perlintel
 
 #####  CHOSSE THE DESIRED COMPILATION TYPE 
 ###############################################################################

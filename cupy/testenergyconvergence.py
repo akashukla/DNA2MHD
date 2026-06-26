@@ -8,6 +8,7 @@ import numpy as np
 import os
 import sys
 import h5py
+from scipy.fft import irfftn,ifftn
 
 start = np.int32(sys.argv[1])
 
@@ -50,7 +51,7 @@ for i in range(start,start+1):
 
     hyper = 1
     
-    test_iterations = iterations//10000 * 8
+    test_iterations = iterations//10000 * 4
     triplet = triplets.tolist()
 
     # Adjust viscosities from N = 256 value if needed - place microscale at N/sqrt(2)
@@ -60,7 +61,7 @@ for i in range(start,start+1):
     # Adjust time step - the file time steps are small by 2.5 because of 3/2 padding
     # But adjust if using stiff integrator
     # dt *= 1/3
-    dt0 = dt * (256/N)**2 * 3/4 * 1/5
+    dt0 = dt * (256/N)**2 * 3/4 * 1/2
 
     #Set nu and eta to zero for energy convergence test
     nu = 0.0
@@ -69,6 +70,7 @@ for i in range(start,start+1):
     #Loop to test time step convergence
     dtlist = []
     energylist = []
+    energy2list = []
     blist = []
     vlist = []
     enfieldlist = []
@@ -78,7 +80,35 @@ for i in range(start,start+1):
 
         zeros = np.sum(np.abs(a[:,:,:,:,0])**2,axis=(1,2,3))
         nonzeros = 2*np.sum(np.abs(a[:,:,:,:,1:])**2,axis=(1,2,3,4))
+        # print("Zero energies ",zeros)
+        # print("Nonzero energies ",nonzeros)
+
         return(4*np.pi**3 *(zeros+nonzeros))
+
+    def enfromarray2(a):
+
+        # Check Hermitian symmetry of a
+        print("Nz/2 start", np.amax(np.abs(a[0,:,:,:,nkz0//2:])))
+        print("Nz/2 late", np.amax(np.abs(a[1:,:,:,:,nkz0//2:])))
+
+        ncheckx = np.shape(a)[2]
+        nchecky = np.shape(a)[3]
+        maxdiff = 0
+        for i in range(ncheckx):
+            for j in range(nchecky):
+                maxdiff = max(maxdiff, np.amax(np.abs(a[:,:,i,j,0]-np.conj(a[:,:,-i,-j,0]))))
+        print("0 ",maxdiff)
+            
+        areal = irfftn(a,axes=(2,3,4))
+        print(np.amax(np.abs(np.imag(areal))))
+        # if np.any(np.imag(areal)> 0):
+        #     print("Irfft returns imaginary")
+        #     quit()
+
+        en = np.sum(np.abs(areal)**2,axis=(1,2,3,4))*nkx0*nky0*nkz0 *(3/2)**3
+        en *= 4*np.pi**3 
+
+        return(en)
 
     for dti in range(0,4):
 
@@ -90,16 +120,14 @@ for i in range(start,start+1):
         if not os.path.exists(lpath):
             os.makedirs(lpath)
 
-
         solver = DNA2MHD(nkx0,nky0,nkz0,kxmin,kymin,kzmin,nu,eta,
                      dt,test_iterations_dti,lpath,
-                     linear=False,
+                     linear=True,
                      initcond="threewave",energystart=0.01,init_kolm=0,hmhdwave=[1,0,0,0],
                      forcetype="hallwave",forceamp=0.0,nforce=4,forcewave=[1,0,0,0],hyper=hyper,hallparam=1.0,
                      solveprec=16,maxwallclock=86200,triplet=triplet,records=20,bittype=64,exactnueta=True)
         
-        #solver.ralstonrk2()
-        solver.explicit(order=4)
+        solver.explicit(order=2)
         #solver.exptime_ideal(order=2,kt=0)
         #solver.gauss2split()
         with h5py.File(lpath+"/output.hdf5","a") as f:
@@ -109,20 +137,24 @@ for i in range(start,start+1):
             helicity = f["enval"][:,1]
             mhelcorr = f["enval"][:,-1]
 
+        energy2 = enfromarray(b)+enfromarray(v)
+
         energylist.append(np.amax(np.abs(energy-energy[0])))
+        energy2list.append(np.amax(np.abs(energy2-energy2[0])))
         hlist.append(np.amax(np.abs(helicity+mhelcorr-helicity[0])))
         blist.append(b)
         vlist.append(v)
         finenlist.append(energy[-1])
 
-        energyfield = enfromarray(b)+enfromarray(v)
-        print(energyfield[1:]-energyfield[:-1])
-        enfieldlist.append(np.amax(energyfield-energyfield[0]))
-        if np.amax(energyfield-energy) > 1e-16:
-            print("Energy diag broken")
-            print("diag ",energy)
-            print("field ",energyfield)
-            print("diff ",np.abs(energyfield-energy))
+        energyfield = enfromarray2(b)+enfromarray2(v)
+        print(energyfield[1:]-energyfield[:-1],energy[1:]-energy[:-1])
+        print(np.abs(energyfield/energy2-1))
+        enfieldlist.append(np.amax(np.abs(energyfield-energyfield[0])))
+        # if np.amax(energyfield-energy) > 1e-16:
+        #     print("Energy diag broken")
+        #     print("diag ",energy)
+        #     print("field ",energyfield)
+        #     print("diff ",np.abs(energyfield-energy))
 
     diffblist = []
     diffvlist = []
@@ -135,8 +167,11 @@ for i in range(start,start+1):
 
     print(dtlist)
     print(energylist)
+    print(energy2list)
+    print(enfieldlist)
+    print(hlist)
     print(diffblist)
     print(diffvlist)
-    print(enfieldlist)
+    
     print(diffenlist)
-    print(hlist)
+    
